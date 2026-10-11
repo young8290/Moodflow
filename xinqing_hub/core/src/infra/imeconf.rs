@@ -642,7 +642,8 @@ mod tests {
 
         #[test]
         fn defaults_asks_for_factory_config() {
-            let (ep, h, _dir) = fake_core(json!({ "result": { "ui": { "candidate": { "per_page": 5 } } } }));
+            let (ep, h, _dir) =
+                fake_core(json!({ "result": { "ui": { "candidate": { "per_page": 5 } } } }));
             let v = ImeRpc::new(ep).defaults().unwrap();
             let req = h.join().unwrap();
             assert_eq!(req["method"], json!("config.getDefaults"));
