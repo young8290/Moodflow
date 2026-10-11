@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "chat",
+  "description": "只给对话窗口：切换“置顶”（05 FR-CHT-01）。",
+  "windows": ["chat"],
+  "permissions": ["core:window:allow-set-always-on-top"]
+}
