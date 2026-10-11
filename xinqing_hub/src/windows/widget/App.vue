@@ -288,6 +288,7 @@ function onPointerUp(): void {
       @contextmenu.prevent="openMenu()"
       @keydown="onKeydown"
     >
+      <h1 class="visually-hidden">{{ t('window.widget') }}</h1>
       <WeatherStage v-if="line" ref="stage" :weather="line.weather" :eyes-closed="line.eyesClosed" />
       <div class="content">
         <!-- 状态行：悬停或键盘聚焦时显示解释（FR-WGT-06、FR-STA-09）；右侧依次是离线角标和 ✎“我现在…” -->

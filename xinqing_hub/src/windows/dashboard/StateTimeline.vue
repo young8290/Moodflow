@@ -161,7 +161,7 @@ const HOURS = [0, 6, 12, 18, 24]
 .hours {
   position: relative;
   height: 18px;
-  color: var(--xq-text-3);
+  color: var(--xq-text-2);
   font-size: var(--xq-fs-xs);
   line-height: var(--xq-lh-xs);
 }

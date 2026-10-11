@@ -155,7 +155,7 @@ function onSaved(): void {
 }
 
 .tile-detail {
-  color: var(--xq-text-3);
+  color: var(--xq-text-2);
   font-size: var(--xq-fs-xs);
 }
 

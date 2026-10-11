@@ -47,15 +47,15 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div
+  <main
     ref="stack"
     class="stack"
     :class="{ below: place.below.value }"
-    role="region"
-    :aria-label="t('cards.region')"
+    aria-labelledby="cards-title"
     @pointerenter="cards.hovering.value = true"
     @pointerleave="cards.hovering.value = false"
   >
+    <h1 id="cards-title" class="visually-hidden">{{ t('cards.region') }}</h1>
     <template v-for="c in cards.view.value.shown" :key="c.key">
       <ScheduleCard
         v-if="c.kind === 'schedule' || c.kind === 'todo'"
@@ -105,7 +105,7 @@ onMounted(async () => {
     <p v-if="cards.view.value.waiting > 0" class="more">
       {{ t('cards.more', { n: cards.view.value.waiting }) }}
     </p>
-  </div>
+  </main>
 </template>
 
 <style>
