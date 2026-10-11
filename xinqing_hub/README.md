@@ -1,8 +1,9 @@
 # xinqing_hub（Tauri 外壳 + Vue 前端）
 
 - 职责：Hub 的界面与接口层（17 第 2、3 节）。`src-tauri/` 是 Tauri 外壳：单实例、启动参数、窗口管理、命令与事件；领域逻辑全部在 [`core/`](core/README.md)（ADR 0007）。`src/` 是 Vue 3 前端，每个窗口一个入口。
-- 窗口：`widget`（小组件）、`chat`（对话）、`dashboard`（看板）、`settings`（设置）、`onboarding`（首次引导），尺寸与样式见 `src-tauri/tauri.conf.json`，与 07 第 2 节窗口清单一致；全部按需创建。
-- 命令与事件：已实现 `get_status`、`state_explain`、`submit_feedback`、`self_report_set`、`self_report_list`、`pause_set`、`settings_get`、`settings_set`、`consent_get`、`consent_set`、`open_window`、`ai_config_get`、`secrets_set`、`ai_test_connection`、`ai_usage_today`、`comfort_feedback`，事件 `status:changed`、`settings:changed`、`self_report:changed`、`gateway:health`、`comfort:new`、`care:reduced`（10 第 5 节）。其余命令随各功能任务补上；以 `src-tauri/src/lib.rs` 的 `specta_builder` 为准。
+- 窗口：`widget`（小组件）、`cards`（卡片层，贴着小组件，随它一起建、有卡片才显示）、`chat`（对话）、`dashboard`（看板）、`settings`（设置）、`onboarding`（首次引导），尺寸与样式见 `src-tauri/tauri.conf.json`，与 07 第 2 节窗口清单一致；除小组件与卡片层外按需创建。
+- 命令与事件：已实现 `get_status`、`state_explain`、`submit_feedback`、`self_report_set`、`self_report_list`、`pause_set`、`settings_get`、`settings_set`、`consent_get`、`consent_set`、`open_window`、`ai_config_get`、`secrets_set`、`ai_test_connection`、`ai_usage_today`、`comfort_feedback`，事件 `status:changed`、`settings:changed`、`self_report:changed`、`gateway:health`、`comfort:new`、`care:reduced`（10 第 5 节）；看板与小组件的读取命令 `comfort_list`、`day_stats`、`month_moods`、`week_stats`，`hotkey_status`、`db_rebuilt_take`、`reminder_missed_take`、`ime_config_defaults`，事件 `mood:typo`、`typing:pulse`（ADR 0036）。其余命令随各功能任务补上；以 `src-tauri/src/lib.rs` 的 `specta_builder` 为准。窗口之间的界面事件（`xq:` 前缀）只在前端之间传，见 `src/windows/shared/bus.ts`。
+- 全局快捷键：设置键 `hotkey.chat` / `hotkey.widget` / `hotkey.dashboard`（默认 `Ctrl+Alt+Q` / `W` / `D`），外壳用 `tauri-plugin-global-shortcut` 注册（`src-tauri/src/hotkeys.rs`），注册不上的在设置“常规”里提示；无痕模式与温柔改写的快捷键在输入法核心。
 - 生成的文件（不要手改，CI 会核对）：
   - `src/api/bindings.ts`：命令与事件的 TypeScript 封装，`pnpm gen:bindings`（即 `cargo run -p xinqing-hub --bin export-bindings`）；
   - `src/i18n/zh-CN.ts`：界面文案表，`pnpm gen:i18n`，来源是 `hub_templates/ui_copy.toml` 和 `explain.toml`。窗口标题也要和 `ui_copy.toml` 的 `window.*` 一致。
@@ -38,7 +39,7 @@ XQ_XQP_TCP=127.0.0.1:18765 pnpm tauri dev
 
 - C-04 的用户暖心话可放在 Hub 数据目录的 `templates/comfort.toml`，提示词可放在 `templates/prompts/comfort.md`（正式版 `%LOCALAPPDATA%\XinQing\hub\templates\`，调试版 `XinQingDev`）。从出厂文件复制后修改，重启 Hub 生效；同名文件整体替换。暖心话需保留两种风格各六组、唯一 id、6～30 个汉字的句子和简洁兜底；提示词需保留正整数版本号与三个占位符。读取或校验失败时独立回退出厂版本。用户禁用词表不生效，始终使用出厂约束。晚间小结的覆盖见 ADR 0035，其余模块尚未接入用户模板覆盖。
 
-- C-03 / FR-AIG-08 的网关指标通过 `commands.aiGatewayMetrics()` 读取：`apis` 是各接口的调用次数、成功率、P50/P95 与熔断状态，`models` 是按配置优先级排列的模型状态。读取不发网络请求，不消耗预算，不含密钥或正文。指标仅在内存中，Hub 重启或更换网关配置后清空；未调用的接口不出现在 `apis`，未知的成功率与延迟为 `null`。接口已提供，演示面板与设置页展示待接入（ADR 0033）。
+- C-03 / FR-AIG-08 的网关指标通过 `commands.aiGatewayMetrics()` 读取：`apis` 是各接口的调用次数、成功率、P50/P95 与熔断状态，`models` 是按配置优先级排列的模型状态。读取不发网络请求，不消耗预算，不含密钥或正文。指标仅在内存中，Hub 重启或更换网关配置后清空；未调用的接口不出现在 `apis`，未知的成功率与延迟为 `null`。设置页“AI 服务”的接口状态表已接入，演示面板待接入（ADR 0033）。
 
 - 前端只显示后端给的状态，不自行推断（17 第 3.2 节）；窗口打开时取快照，之后只跟随事件。
 - 固定文案只能来自 `ui_copy.toml`，组件里写裸字符串会被 ESLint（`vue/no-bare-strings-in-template`）拦下。
