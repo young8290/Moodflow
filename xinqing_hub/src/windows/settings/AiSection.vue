@@ -2,12 +2,15 @@
 // 设置中心 · AI 服务（07 FR-SET-08，ADR 0012 / 0019）：Jev 与大模型的地址和密钥（只显示末 4 位）、大模型优先级（拖动或按钮排序）、
 // “测试连接”（每个模型是否可用和延迟）、每日调用上限（ai.cap.*，范围取自 settings_schema）与今日用量。
 // 地址、密钥、模型三样一起点“保存”才写（输入一半时不该生效）；调用上限改了就存，网关立即换用。
+// 页尾是网关的内存指标（FR-AIG-08：各接口调用次数、成功率、耗时、是否暂停使用），不发请求、不扣额度。
+// “恢复默认”只改每日调用上限；地址和密钥是用户填的服务，不算偏好，不动。
 import { computed, onMounted, reactive, ref } from 'vue'
 import {
   commands,
   unwrap,
   type AiConfigView,
   type BudgetKind,
+  type GatewayMetricsView,
   type ModelProbeView,
   type SettingField,
   type UsageRow,
@@ -15,6 +18,9 @@ import {
 import { useSettingsStore } from '@/stores/settings'
 import { errorText, t } from '@/i18n'
 import { aiFormDirty, devHint, keyPlaceholder, toAiInput } from '../shared/aiConfig'
+import { apiName } from './apiName'
+import SectionHead from './SectionHead.vue'
+import { sameValue, useNotice } from './useHubSettings'
 
 /** 用量的种类 → 调用上限的设置键（ADR 0019 第 4 条） */
 const CAP_KEY: Record<BudgetKind, string> = {
@@ -39,6 +45,10 @@ const usage = ref<UsageRow[]>([])
 const ranges = ref<Record<string, { min: number | null; max: number | null }>>({})
 const error = ref<string | null>(null)
 const capError = ref<string | null>(null)
+const capDefaults = ref<Record<string, SettingField['default']>>({})
+const metrics = ref<GatewayMetricsView | null>(null)
+const metricsError = ref<string | null>(null)
+const { notice, flash } = useNotice()
 let savedTimer: ReturnType<typeof setTimeout> | undefined
 
 const dirty = computed(() => aiFormDirty(form, view.value))
@@ -62,15 +72,15 @@ onMounted(async () => {
   try {
     const [v, schema] = await Promise.all([unwrap(commands.aiConfigGet()), commands.settingsSchema()])
     fill(v)
+    const caps = schema.filter((f: SettingField) => f.kind.type === 'int' && f.key.startsWith('ai.cap.'))
+    capDefaults.value = Object.fromEntries(caps.map((f) => [f.key, f.default]))
     ranges.value = Object.fromEntries(
-      schema
-        .filter((f: SettingField) => f.kind.type === 'int' && f.key.startsWith('ai.cap.'))
-        .map((f) => [
-          f.key,
-          f.kind.type === 'int' ? { min: f.kind.min, max: f.kind.max } : { min: null, max: null },
-        ]),
+      caps.map((f) => [
+        f.key,
+        f.kind.type === 'int' ? { min: f.kind.min, max: f.kind.max } : { min: null, max: null },
+      ]),
     )
-    await Promise.all([loadUsage(), ...KINDS.map((k) => settings.load(CAP_KEY[k]))])
+    await Promise.all([loadUsage(), loadMetrics(), ...KINDS.map((k) => settings.load(CAP_KEY[k]))])
   } catch (e) {
     error.value = errorText(e)
   }
@@ -149,16 +159,45 @@ async function setCap(kind: BudgetKind, raw: string): Promise<void> {
   capError.value = null
   try {
     await settings.set(CAP_KEY[kind], n)
+    flash(t('settings.saved'))
     await loadUsage()
   } catch (e) {
     capError.value = errorText(e)
   }
 }
+
+async function restoreCaps(): Promise<void> {
+  capError.value = null
+  try {
+    for (const k of KINDS) {
+      const d = capDefaults.value[CAP_KEY[k]]
+      if (d !== undefined && !sameValue(settings.values[CAP_KEY[k]], d)) await settings.set(CAP_KEY[k], d)
+    }
+    flash(t('settings.restored'))
+    await loadUsage()
+  } catch (e) {
+    capError.value = errorText(e)
+  }
+}
+
+// ── 接口状态（网关内存指标） ──
+async function loadMetrics(): Promise<void> {
+  metricsError.value = null
+  try {
+    metrics.value = await unwrap(commands.aiGatewayMetrics())
+  } catch (e) {
+    metricsError.value = errorText(e)
+  }
+}
+
+const rate = (r: number | null) =>
+  r === null ? t('dashboard.none') : t('settings.percent', { n: Math.round(r * 100) })
+const ms = (v: number | null) => (v === null ? t('dashboard.none') : t('settings.ai.metrics.ms', { ms: v }))
 </script>
 
 <template>
   <section>
-    <h1>{{ t('settings.ai_service') }}</h1>
+    <SectionHead :title="t('settings.ai_service')" @restore="restoreCaps" />
     <p v-if="hint" class="note">{{ hint }}</p>
     <p v-else-if="offline" class="note">{{ t('settings.ai.offline') }}</p>
 
@@ -301,10 +340,85 @@ async function setCap(kind: BudgetKind, raw: string): Promise<void> {
       </span>
     </div>
     <p v-if="capError" class="error" role="alert">{{ capError }}</p>
+
+    <h2>{{ t('settings.ai.metrics.title') }}</h2>
+    <p class="muted small">{{ t('settings.ai.metrics.hint') }}</p>
+    <template v-if="metrics">
+      <p v-if="metrics.apis.length === 0 && metrics.models.length === 0" class="muted">
+        {{ t('settings.ai.metrics.empty') }}
+      </p>
+      <table v-if="metrics.apis.length" class="s-table metrics" data-table="apis">
+        <thead>
+          <tr>
+            <th scope="col">{{ t('settings.ai.metrics.col_api') }}</th>
+            <th scope="col" class="num">{{ t('settings.ai.metrics.col_calls') }}</th>
+            <th scope="col" class="num">{{ t('settings.ai.metrics.col_ok') }}</th>
+            <th scope="col" class="num">{{ t('settings.ai.metrics.col_p50') }}</th>
+            <th scope="col" class="num">{{ t('settings.ai.metrics.col_p95') }}</th>
+            <th scope="col">{{ t('settings.ai.metrics.col_state') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="a in metrics.apis" :key="a.api">
+            <th scope="row">{{ apiName(a.api) }}</th>
+            <td class="num">{{ a.calls }}</td>
+            <td class="num">{{ rate(a.success_rate) }}</td>
+            <td class="num">{{ ms(a.p50_ms) }}</td>
+            <td class="num">{{ ms(a.p95_ms) }}</td>
+            <td :class="{ fail: a.breaker_open }">
+              {{
+                a.breaker_open
+                  ? t('settings.ai.metrics.breaker_open')
+                  : t('settings.ai.metrics.breaker_closed')
+              }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <table v-if="metrics.models.length" class="s-table metrics" data-table="models">
+        <thead>
+          <tr>
+            <th scope="col">{{ t('settings.ai.metrics.models') }}</th>
+            <th scope="col">{{ t('settings.ai.metrics.col_state') }}</th>
+            <th scope="col" class="num">{{ t('settings.ai.metrics.col_ok') }}</th>
+            <th scope="col" class="num">{{ t('settings.ai.metrics.col_p50') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="m in metrics.models" :key="m.model">
+            <th scope="row">{{ m.model }}</th>
+            <td :class="{ fail: !m.available }">
+              {{
+                m.breaker_open
+                  ? t('settings.ai.metrics.breaker_open')
+                  : m.available
+                    ? t('settings.ai.metrics.model_available')
+                    : t('settings.ai.metrics.model_unavailable')
+              }}
+            </td>
+            <td class="num">{{ rate(m.success_rate) }}</td>
+            <td class="num">{{ ms(m.p50_ms) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </template>
+    <p v-if="metricsError" class="error" role="alert">{{ metricsError }}</p>
+    <button class="compact" @click="loadMetrics">{{ t('settings.ai.metrics.refresh') }}</button>
+
+    <p v-if="notice" class="s-saved" role="status">{{ notice }}</p>
   </section>
 </template>
 
 <style scoped>
+.metrics {
+  max-width: 560px;
+  margin-bottom: var(--xq-sp-3);
+}
+
+.metrics .fail {
+  color: var(--xq-danger);
+}
+
 h2 {
   margin-top: var(--xq-sp-5);
 }

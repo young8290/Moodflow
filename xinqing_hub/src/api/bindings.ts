@@ -235,6 +235,11 @@ export const commands = {
 	imeSchema: () => typedError<ImeField[], UiError>(__TAURI_INVOKE("ime_schema")),
 	/**  整份合并后的输入法配置。 */
 	imeConfigGet: () => typedError<ImeConfig, UiError>(__TAURI_INVOKE("ime_config_get")),
+	/**
+	 *  输入法配置的出厂默认（整份，wind-rpc `config.getDefaults`）：设置页“恢复默认”按键名取值，和当前值不同的
+	 *  用 `ime_config_set` 写回（07 FR-SET-01）。
+	 */
+	imeConfigDefaults: () => typedError<ImeConfig, UiError>(__TAURI_INVOKE("ime_config_defaults")),
 	/**  写入若干项：失败项不让整批失败，`skipped` 里带原因，界面显示在对应控件旁（17 第 3.4 节）。 */
 	imeConfigSet: (items: ImeItemInput[]) => typedError<ImeSetResult, UiError>(__TAURI_INVOKE("ime_config_set", { items })),
 };

@@ -1,21 +1,30 @@
 <script setup lang="ts">
-// 设置中心（07 FR-SET-01～10，16 D-08）：左侧分类、右侧内容。目前有“输入法”（FR-SET-02，ADR 0016）、“外观”、
-// “关怀”（FR-SET-05）、“AI 服务”（FR-SET-08）和“隐私与关于”（FR-SET-09）；
-// 其余分类随 schema 表单生成器（D-08）补上，顺序按 FR-SET-01。地址栏的 #about 直接打开“隐私与关于”。
+// 设置中心（07 FR-SET-01～10，16 D-08）：左侧分类、右侧内容，分类顺序按 FR-SET-01：
+// 输入法（FR-SET-02，ADR 0016）、常规、感知、关怀、提醒、日程与待办、温柔改写、AI 服务、隐私与关于。
+// 每个分类修改即保存、底部短暂提示“已保存”，标题旁有“恢复默认”。地址栏的 #about 直接打开“隐私与关于”。
 import { ref, type Component } from 'vue'
 import { t, type CopyKey } from '@/i18n'
 import AboutSection from './AboutSection.vue'
+import AgendaSection from './AgendaSection.vue'
 import AiSection from './AiSection.vue'
-import AppearanceSection from './AppearanceSection.vue'
 import CareSection from './CareSection.vue'
+import GeneralSection from './GeneralSection.vue'
 import ImeSection from './ImeSection.vue'
+import RestSection from './RestSection.vue'
+import RewriteSection from './RewriteSection.vue'
+import SenseSection from './SenseSection.vue'
+import './settings.css'
 
-type SectionId = 'ime' | 'appearance' | 'care' | 'ai' | 'privacy_about'
+type SectionId = 'ime' | 'general' | 'sense' | 'care' | 'rest' | 'agenda' | 'rewrite' | 'ai' | 'privacy_about'
 
 const SECTIONS: { id: SectionId; title: CopyKey; component: Component }[] = [
   { id: 'ime', title: 'settings.ime', component: ImeSection },
-  { id: 'appearance', title: 'settings.appearance', component: AppearanceSection },
+  { id: 'general', title: 'settings.general_nav', component: GeneralSection },
+  { id: 'sense', title: 'settings.sense_nav', component: SenseSection },
   { id: 'care', title: 'settings.care_nav', component: CareSection },
+  { id: 'rest', title: 'settings.rest_nav', component: RestSection },
+  { id: 'agenda', title: 'settings.agenda_nav', component: AgendaSection },
+  { id: 'rewrite', title: 'settings.rewrite_nav', component: RewriteSection },
   { id: 'ai', title: 'settings.ai_service', component: AiSection },
   { id: 'privacy_about', title: 'settings.privacy_about', component: AboutSection },
 ]

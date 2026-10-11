@@ -4,12 +4,15 @@
 // 修改即保存，核心跳过的项把原因显示在控件下方；需要重启才生效时显示横幅（FR-SET-01）。
 // 跟着别处的改动刷新（ADR 0017）：收到 `ime_config:changed`、窗口重新获得焦点（核心自己的语言栏、菜单改配置不广播）、
 // 保存之后都重新取一次整份配置；取的过程中再来信号，只在结束后补取一次。
+// “恢复默认”按核心的出厂值（ime_config_defaults）写回和当前不同的项；`xinqing.*` 在“常规”“感知”“温柔改写”里管，这里不动。
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { CommandError, commands, events, unwrap, type ImeConfigChange, type ImeField } from '@/api'
 import { errorText, t } from '@/i18n'
 import ImeFieldControl from './ImeFieldControl.vue'
+import SectionHead from './SectionHead.vue'
 import { HOTKEY_KEYS, normalizeHotkey } from './hotkey'
 import { advancedGroups, commonFields, effectiveField, fieldLabel, getPath } from './imeForm'
+import { useNotice } from './useHubSettings'
 
 type Phase = 'loading' | 'ready' | 'unavailable' | 'error'
 
@@ -21,6 +24,8 @@ const values = ref<unknown>({})
 const errors = reactive<Record<string, string>>({})
 const needsRestart = ref(false)
 const saved = ref(false)
+const restoreError = ref<string | null>(null)
+const { notice, flash } = useNotice()
 /** 已经展开过的高级分组（展开时才渲染里面的控件） */
 const opened = reactive(new Set<string>())
 let savedTimer: ReturnType<typeof setTimeout> | undefined
@@ -121,6 +126,30 @@ function takenBy(self: string, combo: string): string | null {
   return null
 }
 
+async function restoreDefaults(): Promise<void> {
+  restoreError.value = null
+  try {
+    const defaults = (await unwrap(commands.imeConfigDefaults())).values
+    const items = fields.value
+      .filter((f) => !f.key.startsWith('xinqing.'))
+      .map((f) => ({ key: f.key, value: getPath(defaults, f.key) }))
+      .filter(
+        (i) =>
+          i.value !== undefined && JSON.stringify(i.value) !== JSON.stringify(getPath(values.value, i.key)),
+      )
+    if (items.length > 0) {
+      const r = await unwrap(commands.imeConfigSet(items))
+      for (const k of Object.keys(errors)) delete errors[k]
+      for (const sk of r.skipped) errors[sk.key] = sk.reason
+      if (r.needs_restart) needsRestart.value = true
+    }
+    flash(t('settings.restored'))
+  } catch (e) {
+    restoreError.value = errorText(e)
+  }
+  await refresh()
+}
+
 function onToggle(prefix: string, e: Event): void {
   if ((e.target as HTMLDetailsElement).open) opened.add(prefix)
 }
@@ -148,7 +177,8 @@ onUnmounted(() => {
 
 <template>
   <section>
-    <h1>{{ t('settings.ime') }}</h1>
+    <SectionHead :title="t('settings.ime')" :restorable="phase === 'ready'" @restore="restoreDefaults" />
+    <p v-if="restoreError" class="error" role="alert">{{ restoreError }}</p>
 
     <p v-if="phase === 'unavailable'" class="notice" role="status">
       {{ t('error.ime_unavailable') }}
@@ -194,7 +224,8 @@ onUnmounted(() => {
       </details>
     </template>
 
-    <p v-if="saved" class="saved" role="status">{{ t('settings.saved') }}</p>
+    <p v-if="notice" class="saved" role="status">{{ notice }}</p>
+    <p v-else-if="saved" class="saved" role="status">{{ t('settings.saved') }}</p>
   </section>
 </template>
 

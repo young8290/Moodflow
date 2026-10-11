@@ -1,6 +1,7 @@
 //! wind-rpc 客户端：读写输入法配置（10 第 4 节 IF-03、07 FR-SET-02、ADR 0016）。
 //!
-//! 只用 wind-rpc **已有的公开方法**（`config.schema` / `config.get` / `config.setItems`），不为心晴新增方法。
+//! 只用 wind-rpc **已有的公开方法**（`config.schema` / `config.get` / `config.getDefaults` / `config.setItems`），
+//! 不为心晴新增方法。
 //! 协议是 4 字节大端长度前缀 + JSON 的请求-响应，每次连接一条请求（与清风 `wind-rpc/src/client.rs` 相同）。
 //! 不依赖清风的 `wind-ipc` crate（两个 workspace 分开，ADR 0007）：帧格式在这里重写一份，
 //! 协议版本号由测试 `protocol_version_matches_wind_ipc` 与清风那边核对。
@@ -201,6 +202,11 @@ impl ImeRpc {
     /// `config.get`：整份合并后的配置。
     pub fn config(&self) -> Result<Value, ImeRpcError> {
         self.call("config.get", json!({}))
+    }
+
+    /// `config.getDefaults`：出厂默认的整份配置（定制版上是定制者设的默认值），设置页“恢复默认”用（07 FR-SET-01）。
+    pub fn defaults(&self) -> Result<Value, ImeRpcError> {
+        self.call("config.getDefaults", json!({}))
     }
 
     /// `config.setItems`：逐项校验，失败项跳过并说明原因。
@@ -632,6 +638,15 @@ mod tests {
             );
             assert_eq!(r.applied, 1);
             assert_eq!(r.skipped[0].key, "ui.nope");
+        }
+
+        #[test]
+        fn defaults_asks_for_factory_config() {
+            let (ep, h, _dir) = fake_core(json!({ "result": { "ui": { "candidate": { "per_page": 5 } } } }));
+            let v = ImeRpc::new(ep).defaults().unwrap();
+            let req = h.join().unwrap();
+            assert_eq!(req["method"], json!("config.getDefaults"));
+            assert_eq!(v["ui"]["candidate"]["per_page"], json!(5));
         }
 
         #[test]
