@@ -19,6 +19,7 @@ use crate::infra::templates::AppCat;
 mod chat;
 mod comfort;
 mod dashboard;
+pub mod erase;
 pub mod demo;
 mod diary;
 pub mod export;

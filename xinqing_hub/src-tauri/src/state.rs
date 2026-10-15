@@ -140,6 +140,14 @@ fn backup_path(path: &Path) -> PathBuf {
 mod tests {
     use super::*;
 
+    #[test]
+    fn wipe_covers_real_and_demo_databases() {
+        use xinqing_hub_core::domain::demo;
+        use xinqing_hub_core::infra::wipe;
+        assert!(wipe::DB_FILES.contains(&DB_FILE));
+        assert!(wipe::DB_FILES.contains(&demo::DB_FILE));
+    }
+
     fn tmp_dir(tag: &str) -> PathBuf {
         let d = std::env::temp_dir().join(format!("xq-hub-{tag}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);

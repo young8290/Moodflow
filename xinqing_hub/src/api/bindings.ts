@@ -85,6 +85,17 @@ export const commands = {
 	 */
 	dbRebuiltTake: () => __TAURI_INVOKE<boolean>("db_rebuilt_take"),
 	/**
+	 *  删除全部数据（FR-DAT-04，ADR 0037）：记下“待删除”，然后重启 Hub；下次启动、打开数据库之前删掉数据库文件
+	 *  （连同损坏和导入前的备份），`include_secrets` 时连 AI 密钥一起删，再按新装的样子重建，重新进入首次引导。
+	 *  界面要先让用户输入“删除”二字确认。调用成功后进程会退出，前端拿不到返回值。
+	 */
+	dataDeleteAll: (includeSecrets: boolean) => typedError<null, UiError>(__TAURI_INVOKE("data_delete_all", { includeSecrets })),
+	/**
+	 *  撤回同意 ① 时一并删除情绪数据（FR-DAT-05 第 3 条，ADR 0037）：特征窗口、状态判断、基线、反馈、自评，
+	 *  以及每日汇总里的情绪列；对话、日记等自己写的内容不动。基线清空后重新进入冷启动。返回改动的行数。
+	 */
+	dataDeleteMood: () => typedError<number, UiError>(__TAURI_INVOKE("data_delete_mood")),
+	/**
 	 *  用户点了休息提醒卡片上的按钮（FR-RST-06 第 2 条）：完成或关闭后该类计时清零，“5 分钟后”顺延；
 	 *  每次操作记一条 `reminder_log`（FR-RST-08）。服务没在运行时忽略。
 	 */
