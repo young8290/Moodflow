@@ -142,6 +142,28 @@ pub fn app_restart(app: AppHandle) {
     app.restart()
 }
 
+/// 是否已设为登录 Windows 时在后台启动（FR-OPS-03）。以系统里的启动项为准，不另存设置。
+#[tauri::command]
+#[specta::specta]
+pub fn autostart_get(app: AppHandle) -> Result<bool, UiError> {
+    use tauri_plugin_autostart::ManagerExt;
+    app.autolaunch()
+        .is_enabled()
+        .map_err(|e| UiError::internal("autostart.failed", e))
+}
+
+/// 开关登录时后台启动，返回改完后的实际状态。
+#[tauri::command]
+#[specta::specta]
+pub fn autostart_set(app: AppHandle, on: bool) -> Result<bool, UiError> {
+    use tauri_plugin_autostart::ManagerExt;
+    let m = app.autolaunch();
+    let r = if on { m.enable() } else { m.disable() };
+    r.map_err(|e| UiError::internal("autostart.failed", e))?;
+    m.is_enabled()
+        .map_err(|e| UiError::internal("autostart.failed", e))
+}
+
 /// 撤回同意 ① 时一并删除情绪数据（FR-DAT-05 第 3 条，ADR 0037）：特征窗口、状态判断、基线、反馈、自评，
 /// 以及每日汇总里的情绪列；对话、日记等自己写的内容不动。基线清空后重新进入冷启动。返回改动的行数。
 #[tauri::command]

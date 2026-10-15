@@ -104,6 +104,10 @@ export const commands = {
 	dataImport: (path: string, mode: ImportMode, includeSettings: boolean) => typedError<ImportReport, UiError>(__TAURI_INVOKE("data_import", { path, mode, includeSettings })),
 	/**  重启 Hub（导入完成后让各服务按新数据重新加载）。 */
 	appRestart: () => __TAURI_INVOKE<void>("app_restart"),
+	/**  是否已设为登录 Windows 时在后台启动（FR-OPS-03）。以系统里的启动项为准，不另存设置。 */
+	autostartGet: () => typedError<boolean, UiError>(__TAURI_INVOKE("autostart_get")),
+	/**  开关登录时后台启动，返回改完后的实际状态。 */
+	autostartSet: (on: boolean) => typedError<boolean, UiError>(__TAURI_INVOKE("autostart_set", { on })),
 	/**
 	 *  用户点了休息提醒卡片上的按钮（FR-RST-06 第 2 条）：完成或关闭后该类计时清零，“5 分钟后”顺延；
 	 *  每次操作记一条 `reminder_log`（FR-RST-08）。服务没在运行时忽略。

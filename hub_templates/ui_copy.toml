@@ -500,6 +500,8 @@ saved = "已保存"                        # FR-SET-01：修改即保存后底�
 [settings.general]           # 07 FR-SET-03“常规”
 enabled = "心晴功能"
 enabled_hint = "关掉后输入法照常可用，心晴不再感知、提醒和陪伴。"
+login_start = "登录 Windows 时在后台启动心晴"
+login_start_hint = "开机后即使还没打字，日程提醒也能准时出现。只在后台运行，不弹出窗口。"
 widget = "桌面小组件"
 widget_visible = "显示小组件"
 widget_topmost = "总在最前面"

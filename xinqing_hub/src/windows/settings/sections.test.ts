@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   researchClear: vi.fn(),
   openWindow: vi.fn(),
   emit: vi.fn(),
+  autostart: false as boolean | null,
+  autostartSet: vi.fn(),
 }))
 const ok = (data: unknown = null) => Promise.resolve({ status: 'ok', data })
 const ITEMS: ConsentItem[] = ['sense', 'jev_features', 'schedule', 'llm_summary', 'enhanced', 'rewrite']
@@ -85,6 +87,11 @@ vi.mock('@/api', async (orig) => ({
     researchClear: mocks.researchClear,
     demoStatus: async () => ok({ enabled: false, speed: 1 }),
     openWindow: mocks.openWindow,
+    autostartGet: async () =>
+      mocks.autostart === null
+        ? { status: 'error', error: { code: 'autostart.failed', message_key: 'error.generic' } }
+        : ok(mocks.autostart),
+    autostartSet: mocks.autostartSet,
   },
   events: {
     settingsChanged: { listen: async () => () => {} },
@@ -122,6 +129,8 @@ beforeEach(() => {
   setActivePinia(createPinia())
   mocks.values = defaults()
   mocks.settingsSet.mockReset().mockImplementation(() => ok())
+  mocks.autostart = false
+  mocks.autostartSet.mockReset().mockImplementation((on: boolean) => ok(on))
   mocks.consent = { sense: true, jev_features: true, schedule: false, rewrite: true }
   mocks.consentSet.mockReset().mockImplementation((item: ConsentItem, g: boolean) => {
     mocks.consent[item] = g
@@ -182,6 +191,30 @@ describe('设置中心 · 常规（FR-SET-03）', () => {
     await range.setValue('85')
     await flushPromises()
     expect(mocks.settingsSet).toHaveBeenCalledWith('widget.opacity', 0.85)
+  })
+
+  it('登录时后台启动：读系统启动项，开关后显示实际状态；恢复默认会关掉；读不到时不显示（FR-OPS-03）', async () => {
+    let w = await open(GeneralSection)
+    const sw = group(w, 'login-start').find('input')
+    expect((sw.element as HTMLInputElement).checked).toBe(false)
+    await sw.setValue(true)
+    await flushPromises()
+    expect(mocks.autostartSet).toHaveBeenCalledWith(true)
+    expect(group(w, 'login-start').text()).toContain(t('settings.on'))
+    w.unmount()
+
+    mocks.autostart = true
+    mocks.autostartSet.mockClear()
+    w = await open(GeneralSection)
+    await w.find('.s-head button').trigger('click')
+    await w.find('.s-confirm .s-danger').trigger('click')
+    await flushPromises()
+    expect(mocks.autostartSet).toHaveBeenCalledWith(false)
+    w.unmount()
+
+    mocks.autostart = null
+    w = await open(GeneralSection)
+    expect(group(w, 'login-start').exists()).toBe(false)
   })
 
   it('心晴功能总开关写输入法配置；输入法没在运行时不可点并说明', async () => {

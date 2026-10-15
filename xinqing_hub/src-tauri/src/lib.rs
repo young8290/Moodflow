@@ -73,6 +73,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::data_delete_mood,
             commands::data_import,
             commands::app_restart,
+            commands::autostart_get,
+            commands::autostart_set,
             commands::rest_action,
             commands::ai::ai_config_get,
             commands::ai::secrets_set,
@@ -191,6 +193,18 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         // 全局快捷键 Ctrl+Alt+Q / W / D（FR-ENT-04）：组合键从设置读，setup 里注册（ADR 0036）
         .plugin(hotkeys::plugin())
+        // 登录 Windows 时在后台启动（FR-OPS-03，默认关闭）：写 HKCU Run 键，以 `--background` 启动。值名与安装器
+        // 卸载时清理的一致；调试构建另用一个名字，免得开发机上的开发版顶掉正式版的启动项
+        .plugin(
+            tauri_plugin_autostart::Builder::new()
+                .app_name(if cfg!(debug_assertions) {
+                    "XinQingHubDev"
+                } else {
+                    "XinQingHub"
+                })
+                .arg("--background")
+                .build(),
+        )
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);

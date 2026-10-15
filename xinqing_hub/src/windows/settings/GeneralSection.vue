@@ -3,8 +3,8 @@
 // （FR-WGT-01）、颜色模式（DS-COLOR-03）、全局快捷键（FR-ENT-04，ADR 0036）。
 // “晴天收集”是 P2（FR-REV-04），还没有设置键，暂不显示。
 import { computed, onMounted, reactive, ref } from 'vue'
-import { commands, type HotkeyAction, type HotkeyStatus } from '@/api'
-import { t, type CopyKey } from '@/i18n'
+import { commands, unwrap, type HotkeyAction, type HotkeyStatus } from '@/api'
+import { errorText, t, type CopyKey } from '@/i18n'
 import HotkeyRecorder from './HotkeyRecorder.vue'
 import SectionHead from './SectionHead.vue'
 import { HUB_HOTKEYS, UNSET, hotkeyOwner, hubHotkeyOk } from './hotkey'
@@ -55,6 +55,26 @@ async function loadStatus(): Promise<void> {
 }
 onMounted(loadStatus)
 
+/** 登录时后台启动（FR-OPS-03）：以系统启动项为准，读不到时不显示开关 */
+const loginStart = ref<boolean | null>(null)
+onMounted(async () => {
+  try {
+    loginStart.value = await unwrap(commands.autostartGet())
+  } catch {
+    loginStart.value = null
+  }
+})
+
+async function setLoginStart(on: boolean): Promise<void> {
+  error.value = null
+  try {
+    loginStart.value = await unwrap(commands.autostartSet(on))
+    flash(t('settings.saved'))
+  } catch (e) {
+    error.value = errorText(e)
+  }
+}
+
 const conflict = (action: HotkeyAction) => status.value.some((s) => s.action === action && s.conflict)
 
 const takenBy = (self: string, combo: string) => hotkeyOwner(self, combo, imeGet, text)
@@ -78,6 +98,8 @@ async function restoreAll(): Promise<void> {
   for (const k of Object.keys(hotkeyError)) hotkeyError[k] = null
   await restore()
   await loadStatus()
+  // 出厂是关着的
+  if (loginStart.value) await setLoginStart(false)
 }
 </script>
 
@@ -101,6 +123,20 @@ async function restoreAll(): Promise<void> {
       <p class="s-hint">{{ t('settings.general.enabled_hint') }}</p>
       <p v-if="imeReady === false" class="s-note">{{ t('settings.sense.ime_needed') }}</p>
       <p v-if="imeError" class="s-error" role="alert">{{ imeError }}</p>
+    </fieldset>
+
+    <fieldset v-if="loginStart !== null" class="s-group" data-group="login-start">
+      <legend>{{ t('settings.general.login_start') }}</legend>
+      <label class="s-choice">
+        <input
+          type="checkbox"
+          role="switch"
+          :checked="loginStart"
+          @change="setLoginStart(($event.target as HTMLInputElement).checked)"
+        />
+        {{ loginStart ? t('settings.on') : t('settings.off') }}
+      </label>
+      <p class="s-hint">{{ t('settings.general.login_start_hint') }}</p>
     </fieldset>
 
     <fieldset class="s-group" data-group="widget">

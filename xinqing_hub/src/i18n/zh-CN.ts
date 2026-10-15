@@ -406,6 +406,8 @@ export const zhCN = {
   "settings.saved": "已保存",
   "settings.general.enabled": "心晴功能",
   "settings.general.enabled_hint": "关掉后输入法照常可用，心晴不再感知、提醒和陪伴。",
+  "settings.general.login_start": "登录 Windows 时在后台启动心晴",
+  "settings.general.login_start_hint": "开机后即使还没打字，日程提醒也能准时出现。只在后台运行，不弹出窗口。",
   "settings.general.widget": "桌面小组件",
   "settings.general.widget_visible": "显示小组件",
   "settings.general.widget_topmost": "总在最前面",
