@@ -104,6 +104,10 @@ export const commands = {
 	dataImport: (path: string, mode: ImportMode, includeSettings: boolean) => typedError<ImportReport, UiError>(__TAURI_INVOKE("data_import", { path, mode, includeSettings })),
 	/**  重启 Hub（导入完成后让各服务按新数据重新加载）。 */
 	appRestart: () => __TAURI_INVOKE<void>("app_restart"),
+	/**  晴天值与装扮（FR-REV-04）。新达到的解锁在这时记下；关闭时只返回 `enabled = false`。 */
+	collectionGet: () => typedError<CollectionView, UiError>(__TAURI_INVOKE("collection_get")),
+	/**  换装（FR-WGT-08）：穿上一件已解锁的，或 `item` 为空时脱下。同一时间只穿一件。推送 `collection:changed`。 */
+	collectionEquip: (item: string | null) => typedError<CollectionView, UiError>(__TAURI_INVOKE("collection_equip", { item })),
 	/**  开始专注（FR-RST-10），时长 10–120 分钟；已经在专注时报错。 */
 	focusStart: (minutes: number) => typedError<FocusStatus, UiError>(__TAURI_INVOKE("focus_start", { minutes })),
 	/**  结束专注（随时可以，不做任何评价），返回这次的小结；没在专注时为空。小结也会以 `focus:done` 推送。 */
@@ -293,6 +297,7 @@ export const events = {
 	chatDelta: makeEvent<ChatDelta>("chat:delta"),
 	chatDone: makeEvent<ChatDone>("chat:done"),
 	chatError: makeEvent<ChatErrorEvent>("chat:error"),
+	collectionChanged: makeEvent<CollectionChanged>("collection:changed"),
 	comfortNew: makeEvent<ComfortNew>("comfort:new"),
 	focusDone: makeEvent<FocusDone>("focus:done"),
 	focusTick: makeEvent<FocusTick>("focus:tick"),
@@ -462,6 +467,23 @@ export type ChatSessionItem = {
 	safe_mode: SafeMode,
 	/**  快捷指令切换的对话方式（FR-CHT-06，ADR 0022），窗口据此显示“只倾听中”等提示 */
 	mode: ChatMode,
+};
+
+/**  `collection:changed`：晴天值或装扮变了（换装、关闭晴天收集，FR-REV-04、FR-WGT-08）。小组件据此换装扮图层。 */
+export type CollectionChanged = {
+	view: CollectionView,
+};
+
+/**  `collection_get` 的结果，也是 `collection:changed` 的载荷。 */
+export type CollectionView = {
+	enabled: boolean,
+	points: number,
+	/**  下一件的 id 与还差的点数 */
+	next_item: string | null,
+	next_need: number,
+	items: ItemView[],
+	/**  正在穿的那件 */
+	equipped: string | null,
 };
 
 /**  一句暖心话（看板“今日一句”、小组件重开时的“今日一句”）。时间戳是 Unix 毫秒。 */
@@ -792,6 +814,13 @@ export type ImportReport = {
 	skipped: number,
 	/**  导入了几张表 */
 	tables: number,
+};
+
+/**  一件装扮在界面上的状态。 */
+export type ItemView = {
+	id: string,
+	unlocked: boolean,
+	equipped: boolean,
 };
 
 export type JevInput = {
@@ -1317,6 +1346,8 @@ export type WeekReport = {
 	schedules_added: number,
 	todos_done: number,
 	focus_min: number,
+	/**  这周得的晴天值（FR-REV-04）；关闭晴天收集时为空，界面不显示 */
+	sunny_points: number | null,
 	/**  一句话总结（`weekly_line.toml`，本地模板） */
 	line: string,
 };

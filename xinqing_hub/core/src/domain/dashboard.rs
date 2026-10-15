@@ -208,6 +208,8 @@ pub struct WeekReport {
     pub schedules_added: u32,
     pub todos_done: u32,
     pub focus_min: u32,
+    /// 这周得的晴天值（FR-REV-04）；关闭晴天收集时为空，界面不显示
+    pub sunny_points: Option<u32>,
     /// 一句话总结（`weekly_line.toml`，本地模板）
     pub line: String,
 }

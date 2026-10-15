@@ -183,6 +183,12 @@ pub const KEYS: &[KeySpec] = &[
         kind: Kind::Bool,
         default: || false.into(),
     },
+    // 晴天收集（FR-REV-04，P2）：关闭后不显示晴天值与装扮，解锁记录清空（D-30）
+    KeySpec {
+        key: "collection.enabled",
+        kind: Kind::Bool,
+        default: || true.into(),
+    },
     // 主动关怀频率（FR-CMF-06）：多一些 / 适中 / 少一些 / 关闭
     KeySpec {
         key: "care.level",

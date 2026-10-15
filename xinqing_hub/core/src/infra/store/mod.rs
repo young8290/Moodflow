@@ -17,6 +17,7 @@ use crate::infra::gateway::NetLogEntry;
 use crate::infra::templates::AppCat;
 
 mod chat;
+mod collection;
 mod comfort;
 mod dashboard;
 pub mod demo;

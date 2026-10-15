@@ -14,6 +14,7 @@ use xinqing_hub_core::domain::dashboard::{
 };
 use xinqing_hub_core::domain::evening;
 use xinqing_hub_core::domain::letter;
+use xinqing_hub_core::domain::settings;
 use xinqing_hub_core::infra::store::Db;
 use xqp::MoodState;
 
@@ -151,6 +152,10 @@ pub fn week_stats(state: State<'_, AppState>, week_start: String) -> Result<Week
             focus_min: focus,
         });
     }
+    let sunny_points = match settings::get(&db, "collection.enabled").ok().and_then(|v| v.as_bool()) {
+        Some(false) => None,
+        _ => Some(db.sunny_points(week, week + Duration::days(7), now.date_naive())?),
+    };
     let states: Vec<MoodState> = facts.states.iter().map(|(_, s)| *s).collect();
     let heat = dashboard::heat(&facts.states);
     let line_facts = LineFacts {
@@ -181,6 +186,7 @@ pub fn week_stats(state: State<'_, AppState>, week_start: String) -> Result<Week
         schedules_added: db.schedules_added_between(from, to)?,
         todos_done: stats.todos_done,
         focus_min,
+        sunny_points,
         line,
     })
 }

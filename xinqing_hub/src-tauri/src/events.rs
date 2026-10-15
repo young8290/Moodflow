@@ -5,6 +5,7 @@ use specta::Type;
 use tauri_specta::Event;
 use xinqing_hub_core::care::{ComfortSource, ComfortTrigger};
 use xinqing_hub_core::chat::ChatFailure;
+use xinqing_hub_core::domain::collection::CollectionView;
 use xinqing_hub_core::domain::focus::FocusSummary;
 use xinqing_hub_core::domain::rest::RestKind;
 use xinqing_hub_core::domain::self_report::SelfWeather;
@@ -86,6 +87,13 @@ pub struct CareReduced {
 pub struct RestDue {
     pub kind: RestKind,
     pub tired: bool,
+}
+
+/// `collection:changed`：晴天值或装扮变了（换装、关闭晴天收集，FR-REV-04、FR-WGT-08）。小组件据此换装扮图层。
+#[derive(Debug, Clone, Serialize, Type, Event)]
+#[tauri_specta(event_name = "collection:changed")]
+pub struct CollectionChanged {
+    pub view: CollectionView,
 }
 
 /// `focus:tick`：专注倒计时，每秒一次（FR-RST-10）。小组件底栏左侧换成倒计时与“专注中”。

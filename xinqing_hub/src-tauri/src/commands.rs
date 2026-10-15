@@ -16,6 +16,7 @@ use tauri::{AppHandle, Manager, State};
 use tauri_specta::Event;
 use xinqing_hub_core::HUB_VERSION;
 use xinqing_hub_core::bus::HubEvent;
+use xinqing_hub_core::domain::collection::{self, CollectionView};
 use xinqing_hub_core::domain::consent::{self, ConsentItem, ConsentState};
 use xinqing_hub_core::domain::explain::Explanation;
 use xinqing_hub_core::domain::features::persist;
@@ -30,7 +31,7 @@ use xinqing_hub_core::infra::wipe;
 use xinqing_hub_core::sense::SenseCmd;
 
 use crate::error::UiError;
-use crate::events::{SelfReportChanged, SettingsChanged, StatusChanged};
+use crate::events::{CollectionChanged, SelfReportChanged, SettingsChanged, StatusChanged};
 use crate::gateway::Ai;
 use crate::research::Research;
 use crate::rest::Rest;
@@ -195,6 +196,58 @@ pub fn diagnostics_export(
     };
     diagnostics::write_zip(std::path::Path::new(&path), &diagnostics::build(&inputs))
         .map_err(|e| UiError::internal("diagnostics.write_failed", e))
+}
+
+fn collection_now(state: &AppState) -> Result<CollectionView, UiError> {
+    let enabled = settings::get(&state.db(), "collection.enabled")
+        .ok()
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+    let now = sim::clock().now();
+    Ok(state
+        .writer()
+        .write_sync(|db| db.collection_view(enabled, now.date_naive(), now.timestamp_millis()))?)
+}
+
+fn emit_collection(app: &AppHandle, state: &AppState) {
+    match collection_now(state) {
+        Ok(view) => {
+            if let Err(e) = (CollectionChanged { view }).emit(app) {
+                crate::hlog!("推送 collection:changed 失败：{e}");
+            }
+        }
+        Err(e) => crate::hlog!("读取晴天收集失败：{}", e.code),
+    }
+}
+
+/// 晴天值与装扮（FR-REV-04）。新达到的解锁在这时记下；关闭时只返回 `enabled = false`。
+#[tauri::command]
+#[specta::specta]
+pub fn collection_get(state: State<'_, AppState>) -> Result<CollectionView, UiError> {
+    collection_now(&state)
+}
+
+/// 换装（FR-WGT-08）：穿上一件已解锁的，或 `item` 为空时脱下。同一时间只穿一件。推送 `collection:changed`。
+#[tauri::command]
+#[specta::specta]
+pub fn collection_equip(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    item: Option<String>,
+) -> Result<CollectionView, UiError> {
+    if let Some(id) = item.as_deref()
+        && !collection::is_item(id)
+    {
+        return Err(UiError::new("collection.unknown_item", "error.generic"));
+    }
+    let ok = state
+        .writer()
+        .write_sync(|db| db.collection_equip(item.as_deref()))?;
+    if !ok {
+        return Err(UiError::new("collection.locked", "error.collection_locked"));
+    }
+    emit_collection(&app, &state);
+    collection_now(&state)
 }
 
 /// 开始专注（FR-RST-10），时长 10–120 分钟；已经在专注时报错。
@@ -487,6 +540,11 @@ pub fn settings_set(
         && let Some(ai) = app.try_state::<Arc<Ai>>()
     {
         ai.apply_caps(&state.db());
+    }
+    // 关闭晴天收集：解锁记录与穿戴一并删除（D-30），小组件随即摘下装扮
+    if changed && key == "collection.enabled" && value.as_bool() == Some(false) {
+        state.writer().write_sync(|db| db.collection_clear())?;
+        emit_collection(&app, &state);
     }
     // 全局快捷键改了：整组重新注册，设置页随后用 `hotkey_status` 看有没有冲突（FR-ENT-04）
     if changed && key.starts_with("hotkey.") {
