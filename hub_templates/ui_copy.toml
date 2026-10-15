@@ -558,6 +558,14 @@ night_hint = "从这个时刻起还在连续打字时提醒，每晚最多两次
 night_start = "从几点开始"
 count_when_paused = "无痕时继续计时提醒"
 count_when_paused_hint = "无痕期间只看键盘鼠标最近有没有动，不看你打了什么。"
+focus = "🎯 专注时段"
+focus_hint = "比如考试复习的那几个小时：期间只保留“不早了”的提醒，其余三类先不打扰，过了时段照常提醒。可以跨过午夜。"
+focus_from = "从"
+focus_to = "到"
+focus_set = "设定"
+focus_clear = "取消专注时段"
+focus_current = "每天 {range}"
+focus_invalid = "开始和结束要选两个不同的时间。"
 focus_pending = "专注计时还在准备中。"
 
 [settings.agenda]            # 07 FR-SET-07“日程与待办”

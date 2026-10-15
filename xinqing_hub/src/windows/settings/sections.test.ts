@@ -51,6 +51,7 @@ const SCHEMA: SettingField[] = [
     default: '23:30',
   },
   { key: 'rest.count_when_paused', kind: { type: 'bool' }, default: true },
+  { key: 'rest.focus_period', kind: { type: 'list', item: 'time_range', max_items: 1 }, default: [] },
   {
     key: 'sch.default_offsets',
     kind: { type: 'choice', options: ['0', '5', '10', '30', '60', '1440'] },
@@ -342,6 +343,35 @@ describe('设置中心 · 提醒（FR-SET-06）', () => {
       .findAll('option')
       .map((o) => o.text())
     expect(opts).toEqual(['22:30', '23:00', '23:30', '00:00'])
+  })
+})
+
+describe('设置中心 · 提醒 · 专注时段（FR-RST-09）', () => {
+  it('没设时选起止时间设定；起止相同提示不保存', async () => {
+    const w = await open(RestSection)
+    const g = group(w, 'focus')
+    const [from, to] = g.findAll('input[type=time]')
+    await from!.setValue('14:00')
+    await to!.setValue('14:00')
+    await g.find('form').trigger('submit')
+    expect(g.find('[role=alert]').text()).toBe(t('settings.rest.focus_invalid'))
+    expect(mocks.settingsSet).not.toHaveBeenCalled()
+    await to!.setValue('17:30')
+    await g.find('form').trigger('submit')
+    await flushPromises()
+    expect(mocks.settingsSet).toHaveBeenCalledWith('rest.focus_period', ['14:00-17:30'])
+  })
+
+  it('已设时显示时段（跨午夜注明次日），可以取消', async () => {
+    mocks.values['rest.focus_period'] = ['22:00-01:00']
+    const w = await open(RestSection)
+    const g = group(w, 'focus')
+    expect(g.find('.current').text()).toBe(
+      t('settings.rest.focus_current', { range: '22:00–01:00' }) + t('settings.care.quiet_next_day'),
+    )
+    await g.find('button').trigger('click')
+    await flushPromises()
+    expect(mocks.settingsSet).toHaveBeenCalledWith('rest.focus_period', [])
   })
 })
 

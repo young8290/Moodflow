@@ -1,8 +1,10 @@
 <script setup lang="ts">
 // 设置中心 · 提醒（07 FR-SET-06）：四类休息提醒的开关和间隔（FR-RST-09，范围取自 settings_schema）、深夜提醒从几点开始、
-// 无痕时是否继续计时（FR-SEN-06 第 4 条）。专注时段与专注计时是 P2（FR-RST-10），还没有设置键。
-import { reactive } from 'vue'
+// 无痕时是否继续计时（FR-SEN-06 第 4 条）、专注时段（FR-RST-09，`rest.focus_period` 至多一段）。
+// 专注计时是 P2（FR-RST-10），还没有。
+import { computed, reactive, ref } from 'vue'
 import { t, type CopyKey } from '@/i18n'
+import { crossesMidnight, quietRange, showRange } from './care'
 import SectionHead from './SectionHead.vue'
 import { useHubSettings } from './useHubSettings'
 
@@ -12,13 +14,28 @@ const KINDS = [
   { id: 'move', label: 'settings.rest.move', hint: 'settings.rest.move_hint' },
 ] as const satisfies readonly { id: string; label: CopyKey; hint: CopyKey }[]
 
-const { error, notice, ready, bool, num, text, range, options, save, restore } = useHubSettings([
+const { error, notice, ready, value, bool, num, text, range, options, save, restore } = useHubSettings([
   ...KINDS.flatMap((k) => [`rest.${k.id}.enabled`, `rest.${k.id}.interval`]),
   'rest.night.enabled',
   'rest.night.start',
   'rest.count_when_paused',
+  'rest.focus_period',
 ])
 const intervalError = reactive<Record<string, string | null>>({})
+
+const focus = computed(() => {
+  const v = value('rest.focus_period')
+  return Array.isArray(v) ? (v[0] ?? null) : null
+})
+const fFrom = ref('09:00')
+const fTo = ref('11:30')
+const focusError = ref<string | null>(null)
+
+async function setFocus(): Promise<void> {
+  const r = quietRange(fFrom.value, fTo.value)
+  focusError.value = r ? null : t('settings.rest.focus_invalid')
+  if (r) await save('rest.focus_period', [r])
+}
 
 async function saveInterval(key: string, input: HTMLInputElement): Promise<void> {
   const r = range(key)
@@ -110,6 +127,34 @@ async function saveInterval(key: string, input: HTMLInputElement): Promise<void>
         {{ bool('rest.count_when_paused') ? t('settings.on') : t('settings.off') }}
       </label>
       <p class="s-hint">{{ t('settings.rest.count_when_paused_hint') }}</p>
+    </fieldset>
+
+    <fieldset class="s-group" data-group="focus">
+      <legend>{{ t('settings.rest.focus') }}</legend>
+      <p class="s-hint">{{ t('settings.rest.focus_hint') }}</p>
+      <div v-if="focus" class="s-row">
+        <span class="current"
+          >{{ t('settings.rest.focus_current', { range: showRange(focus) })
+          }}<span v-if="crossesMidnight(focus)" class="s-hint">{{
+            t('settings.care.quiet_next_day')
+          }}</span></span
+        >
+        <button class="compact" :disabled="!ready" @click="save('rest.focus_period', [])">
+          {{ t('settings.rest.focus_clear') }}
+        </button>
+      </div>
+      <form v-else class="s-row" @submit.prevent="setFocus">
+        <label>
+          {{ t('settings.rest.focus_from') }}
+          <input v-model="fFrom" type="time" required :disabled="!ready" />
+        </label>
+        <label>
+          {{ t('settings.rest.focus_to') }}
+          <input v-model="fTo" type="time" required :disabled="!ready" />
+        </label>
+        <button type="submit" class="compact" :disabled="!ready">{{ t('settings.rest.focus_set') }}</button>
+      </form>
+      <p v-if="focusError" class="s-error" role="alert">{{ focusError }}</p>
     </fieldset>
 
     <p class="s-hint">{{ t('settings.rest.focus_pending') }}</p>
