@@ -353,7 +353,11 @@ impl Db {
                     continue;
                 }
                 report.added += 1;
-                let new_id = if skip_id { tx.last_insert_rowid() } else { old_id.unwrap_or_default() };
+                let new_id = if skip_id {
+                    tx.last_insert_rowid()
+                } else {
+                    old_id.unwrap_or_default()
+                };
                 if let Some(sig) = sig {
                     // 包里自己重复的行也只留一份
                     seen.insert(sig, new_id);
@@ -385,7 +389,10 @@ fn existing_signatures(
     names: &[String],
 ) -> Result<HashMap<String, i64>, rusqlite::Error> {
     let cols: Vec<&String> = names.iter().filter(|c| c.as_str() != "id").collect();
-    let list: Vec<String> = cols.iter().map(|c| format!("\"{}\"", c.replace('"', "\"\""))).collect();
+    let list: Vec<String> = cols
+        .iter()
+        .map(|c| format!("\"{}\"", c.replace('"', "\"\"")))
+        .collect();
     let sql = if list.is_empty() {
         format!("SELECT id FROM {quoted}")
     } else {
@@ -727,10 +734,14 @@ mod tests {
         let pkg = package(&src, &dir.0);
         let target = Db::open(&dir.0.join("dst.db")).unwrap();
         let t0 = std::time::Instant::now();
-        target.import_package(&pkg, ImportMode::Overwrite, false).unwrap();
+        target
+            .import_package(&pkg, ImportMode::Overwrite, false)
+            .unwrap();
         let overwrite = t0.elapsed();
         let t1 = std::time::Instant::now();
-        let r = target.import_package(&pkg, ImportMode::Merge, false).unwrap();
+        let r = target
+            .import_package(&pkg, ImportMode::Merge, false)
+            .unwrap();
         let merge = t1.elapsed();
         eprintln!("覆盖 {overwrite:?}，合并（全部重复）{merge:?}，{r:?}");
         assert_eq!(r.added, 0);
