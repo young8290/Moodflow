@@ -104,7 +104,8 @@ pub async fn data_import(
         let state = app.state::<AppState>();
         state.writer().flush();
         let current = state.db().schema_version()?;
-        let pkg = import::read_package(std::path::Path::new(&path), current).map_err(import_error)?;
+        let pkg =
+            import::read_package(std::path::Path::new(&path), current).map_err(import_error)?;
         if mode == import::ImportMode::Overwrite {
             let bak = state.backup_path();
             state.writer().write_sync(|db| db.backup_to(&bak))?;
@@ -121,9 +122,15 @@ pub async fn data_import(
 fn import_error(e: import::ImportError) -> UiError {
     use import::ImportError as E;
     match e {
-        E::NotExport | E::Json(_) | E::Zip(_) => UiError::new("data.import.format", "error.import_not_export"),
-        E::FormatTooNew(_) | E::SchemaTooNew { .. } => UiError::new("data.import.too_new", "error.import_too_new"),
-        E::Checksum(_) | E::TooLarge(_) => UiError::new("data.import.checksum", "error.import_checksum"),
+        E::NotExport | E::Json(_) | E::Zip(_) => {
+            UiError::new("data.import.format", "error.import_not_export")
+        }
+        E::FormatTooNew(_) | E::SchemaTooNew { .. } => {
+            UiError::new("data.import.too_new", "error.import_too_new")
+        }
+        E::Checksum(_) | E::TooLarge(_) => {
+            UiError::new("data.import.checksum", "error.import_checksum")
+        }
         e => UiError::internal("data.import", e),
     }
 }

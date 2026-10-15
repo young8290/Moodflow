@@ -32,7 +32,12 @@ pub const MAX_FILE_BYTES: u64 = 512 * 1024 * 1024;
 pub const NOT_IMPORTED: &[&str] = &["consent", "net_log"];
 
 /// 先导入的表（被别的表引用），其余按名字顺序
-const FIRST: &[&str] = &["window_features", "mood_state", "chat_session", "chat_message"];
+const FIRST: &[&str] = &[
+    "window_features",
+    "mood_state",
+    "chat_session",
+    "chat_message",
+];
 
 #[derive(Debug, thiserror::Error)]
 pub enum ImportError {
@@ -88,7 +93,10 @@ pub struct Package {
     pub tables: Vec<(String, Vec<Map<String, Value>>)>,
 }
 
-fn read_entry<R: Read + std::io::Seek>(zip: &mut ZipArchive<R>, name: &str) -> Result<Vec<u8>, ImportError> {
+fn read_entry<R: Read + std::io::Seek>(
+    zip: &mut ZipArchive<R>,
+    name: &str,
+) -> Result<Vec<u8>, ImportError> {
     let entry = zip.by_name(name).map_err(|_| ImportError::NotExport)?;
     if entry.size() > MAX_FILE_BYTES {
         return Err(ImportError::TooLarge(name.into()));
@@ -106,8 +114,8 @@ fn read_entry<R: Read + std::io::Seek>(zip: &mut ZipArchive<R>, name: &str) -> R
 pub fn read_package(path: &Path, current_schema: i64) -> Result<Package, ImportError> {
     let file = File::open(path)?;
     let mut zip = ZipArchive::new(BufReader::new(file)).map_err(|_| ImportError::NotExport)?;
-    let manifest: Manifest =
-        serde_json::from_slice(&read_entry(&mut zip, MANIFEST)?).map_err(|_| ImportError::NotExport)?;
+    let manifest: Manifest = serde_json::from_slice(&read_entry(&mut zip, MANIFEST)?)
+        .map_err(|_| ImportError::NotExport)?;
     if manifest.format != FORMAT {
         return Err(ImportError::NotExport);
     }
@@ -129,7 +137,11 @@ pub fn read_package(path: &Path, current_schema: i64) -> Result<Package, ImportE
         if sha256_hex(&bytes) != f.sha256 {
             return Err(ImportError::Checksum(f.path.clone()));
         }
-        if let Some(name) = f.path.strip_prefix("tables/").and_then(|n| n.strip_suffix(".json")) {
+        if let Some(name) = f
+            .path
+            .strip_prefix("tables/")
+            .and_then(|n| n.strip_suffix(".json"))
+        {
             let rows: Vec<Map<String, Value>> = serde_json::from_slice(&bytes)?;
             tables.push((name.to_string(), rows));
         }
@@ -152,7 +164,11 @@ fn columns(conn: &rusqlite::Connection, table: &str) -> Result<Columns, rusqlite
     let cols: Vec<(String, i64)> = stmt
         .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
         .collect::<Result<_, _>>()?;
-    let pks: Vec<&str> = cols.iter().filter(|(_, pk)| *pk > 0).map(|(n, _)| n.as_str()).collect();
+    let pks: Vec<&str> = cols
+        .iter()
+        .filter(|(_, pk)| *pk > 0)
+        .map(|(n, _)| n.as_str())
+        .collect();
     Ok(Columns {
         id_pk: pks == ["id"],
         names: cols.into_iter().map(|(n, _)| n).collect(),
@@ -243,7 +259,9 @@ impl Db {
                 "SELECT name FROM sqlite_master WHERE type = 'table'
                    AND name NOT LIKE 'sqlite_%' AND name NOT IN ('schema_version', 'settings')",
             )?;
-            let names: Vec<String> = stmt.query_map([], |r| r.get(0))?.collect::<Result<_, _>>()?;
+            let names: Vec<String> = stmt
+                .query_map([], |r| r.get(0))?
+                .collect::<Result<_, _>>()?;
             drop(stmt);
             for t in names.iter().filter(|t| !NOT_IMPORTED.contains(&t.as_str())) {
                 tx.execute(&format!("DELETE FROM \"{}\"", t.replace('"', "\"\"")), [])?;
@@ -283,7 +301,10 @@ impl Db {
                     .filter(|c| row.contains_key(c.as_str()))
                     .filter(|c| !(skip_id && c.as_str() == "id"))
                     .collect();
-                let values: Vec<SqlValue> = present.iter().map(|c| sql_value(&row[c.as_str()])).collect();
+                let values: Vec<SqlValue> = present
+                    .iter()
+                    .map(|c| sql_value(&row[c.as_str()]))
+                    .collect();
                 let old_id = row.get("id").and_then(Value::as_i64);
 
                 if mode == ImportMode::Merge && cols.id_pk {
@@ -293,7 +314,11 @@ impl Db {
                         .enumerate()
                         .map(|(i, c)| format!("\"{}\" IS ?{}", c.replace('"', "\"\""), i + 1))
                         .collect();
-                    let where_ = if cond.is_empty() { "1".into() } else { cond.join(" AND ") };
+                    let where_ = if cond.is_empty() {
+                        "1".into()
+                    } else {
+                        cond.join(" AND ")
+                    };
                     let existing: Option<i64> = tx
                         .query_row(
                             &format!("SELECT id FROM {quoted} WHERE {where_} LIMIT 1"),
@@ -314,7 +339,10 @@ impl Db {
                     }
                 }
 
-                let names: Vec<String> = present.iter().map(|c| format!("\"{}\"", c.replace('"', "\"\""))).collect();
+                let names: Vec<String> = present
+                    .iter()
+                    .map(|c| format!("\"{}\"", c.replace('"', "\"\"")))
+                    .collect();
                 let marks: Vec<String> = (1..=present.len()).map(|i| format!("?{i}")).collect();
                 let verb = match (table.as_str(), mode, cols.id_pk) {
                     // 选了导入设置：导入的值替换当前值
@@ -324,7 +352,11 @@ impl Db {
                     _ => "INSERT",
                 };
                 let n = tx.execute(
-                    &format!("{verb} INTO {quoted} ({}) VALUES ({})", names.join(", "), marks.join(", ")),
+                    &format!(
+                        "{verb} INTO {quoted} ({}) VALUES ({})",
+                        names.join(", "),
+                        marks.join(", ")
+                    ),
                     rusqlite::params_from_iter(values.iter()),
                 )?;
                 if n == 0 {
@@ -398,7 +430,9 @@ mod tests {
     }
 
     fn count(db: &Db, t: &str) -> i64 {
-        db.conn().query_row(&format!("SELECT count(*) FROM {t}"), [], |r| r.get(0)).unwrap()
+        db.conn()
+            .query_row(&format!("SELECT count(*) FROM {t}"), [], |r| r.get(0))
+            .unwrap()
     }
 
     /// 一个有几类数据的库：状态窗口、对话（含 AI 回复）、日记、反馈、同意、设置、出网记录
@@ -424,7 +458,9 @@ mod tests {
 
     fn package(db: &Db, dir: &Path) -> Package {
         let path = dir.join("x.zip");
-        let now = chrono::Local.timestamp_millis_opt(1_700_000_000_000).unwrap();
+        let now = chrono::Local
+            .timestamp_millis_opt(1_700_000_000_000)
+            .unwrap();
         export::export(db, &path, "test", now).unwrap();
         read_package(&path, db.schema_version().unwrap()).unwrap()
     }
@@ -438,7 +474,9 @@ mod tests {
             .conn()
             .execute_batch("INSERT INTO memory (content, created_ts) VALUES ('旧的', 0);")
             .unwrap();
-        let r = target.import_package(&pkg, ImportMode::Overwrite, false).unwrap();
+        let r = target
+            .import_package(&pkg, ImportMode::Overwrite, false)
+            .unwrap();
         assert!(r.added >= 8, "{r:?}");
         assert_eq!(count(&target, "memory"), 0, "覆盖会清掉原来的");
         assert_eq!(count(&target, "consent"), 0, "同意不导入");
@@ -446,12 +484,17 @@ mod tests {
         assert_eq!(count(&target, "chat_message"), 2);
         let (content, ai): (String, i64) = target
             .conn()
-            .query_row("SELECT content, ai_generated FROM chat_message WHERE role = 'assistant'", [], |r| {
-                Ok((r.get(0)?, r.get(1)?))
-            })
+            .query_row(
+                "SELECT content, ai_generated FROM chat_message WHERE role = 'assistant'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
             .unwrap();
         assert_eq!((content.as_str(), ai), ("辛苦了", 1), "去掉导出时加的后缀");
-        let diary: String = target.conn().query_row("SELECT content FROM diary", [], |r| r.get(0)).unwrap();
+        let diary: String = target
+            .conn()
+            .query_row("SELECT content FROM diary", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(diary, "今天还行");
         assert_eq!(count(&target, "settings"), 0, "没选导入设置");
     }
@@ -461,7 +504,9 @@ mod tests {
         let dir = tmp();
         let pkg = package(&source_db(), &dir.0);
         let target = Db::open_in_memory().unwrap();
-        target.import_package(&pkg, ImportMode::Merge, true).unwrap();
+        target
+            .import_package(&pkg, ImportMode::Merge, true)
+            .unwrap();
         let keys: Vec<String> = target
             .conn()
             .prepare("SELECT key FROM settings ORDER BY key")
@@ -489,38 +534,62 @@ mod tests {
                  INSERT INTO daily_summary (date, typing_min) VALUES ('2026-10-01', 30);",
             )
             .unwrap();
-        target.import_package(&pkg, ImportMode::Merge, false).unwrap();
+        target
+            .import_package(&pkg, ImportMode::Merge, false)
+            .unwrap();
         assert_eq!(count(&target, "chat_session"), 2);
         assert_eq!(count(&target, "chat_message"), 3);
         // 导入的消息挂在导入的会话下，不挂到原来的 5 号
         let session: i64 = target
             .conn()
-            .query_row("SELECT id FROM chat_session WHERE title = '作业好多'", [], |r| r.get(0))
+            .query_row(
+                "SELECT id FROM chat_session WHERE title = '作业好多'",
+                [],
+                |r| r.get(0),
+            )
             .unwrap();
         assert_ne!(session, 5);
         let n: i64 = target
             .conn()
-            .query_row("SELECT count(*) FROM chat_message WHERE session_id = ?1", [session], |r| r.get(0))
+            .query_row(
+                "SELECT count(*) FROM chat_message WHERE session_id = ?1",
+                [session],
+                |r| r.get(0),
+            )
             .unwrap();
         assert_eq!(n, 2);
         // 状态记录指向导入的窗口，反馈指向导入的状态记录
         let (ms_id, win): (i64, i64) = target
             .conn()
-            .query_row("SELECT id, window_id FROM mood_state", [], |r| Ok((r.get(0)?, r.get(1)?)))
+            .query_row("SELECT id, window_id FROM mood_state", [], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
             .unwrap();
         let win_start: i64 = target
             .conn()
-            .query_row("SELECT start_ts FROM window_features WHERE id = ?1", [win], |r| r.get(0))
+            .query_row(
+                "SELECT start_ts FROM window_features WHERE id = ?1",
+                [win],
+                |r| r.get(0),
+            )
             .unwrap();
         assert_eq!(win_start, 0);
-        let fb: i64 = target.conn().query_row("SELECT target_id FROM feedback", [], |r| r.get(0)).unwrap();
+        let fb: i64 = target
+            .conn()
+            .query_row("SELECT target_id FROM feedback", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(fb, ms_id);
         // 以日期为主键的汇总：已有的保留
-        let typing: i64 = target.conn().query_row("SELECT typing_min FROM daily_summary", [], |r| r.get(0)).unwrap();
+        let typing: i64 = target
+            .conn()
+            .query_row("SELECT typing_min FROM daily_summary", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(typing, 30);
 
         // 再导一次：内容都相同，全部跳过
-        let again = target.import_package(&pkg, ImportMode::Merge, false).unwrap();
+        let again = target
+            .import_package(&pkg, ImportMode::Merge, false)
+            .unwrap();
         assert_eq!(again.added, 0, "{again:?}");
         assert_eq!(count(&target, "chat_message"), 3);
     }
@@ -530,7 +599,9 @@ mod tests {
         let dir = tmp();
         let src = source_db();
         let path = dir.0.join("x.zip");
-        let now = chrono::Local.timestamp_millis_opt(1_700_000_000_000).unwrap();
+        let now = chrono::Local
+            .timestamp_millis_opt(1_700_000_000_000)
+            .unwrap();
         export::export(&src, &path, "test", now).unwrap();
         let current = src.schema_version().unwrap();
 
@@ -551,19 +622,28 @@ mod tests {
                 let mut buf = Vec::new();
                 e.read_to_end(&mut buf).unwrap();
                 if name == "tables/diary.json" {
-                    buf = String::from_utf8(buf).unwrap().replace("今天还行", "今天很糟").into_bytes();
+                    buf = String::from_utf8(buf)
+                        .unwrap()
+                        .replace("今天还行", "今天很糟")
+                        .into_bytes();
                 }
-                zout.start_file(name, zip::write::SimpleFileOptions::default()).unwrap();
+                zout.start_file(name, zip::write::SimpleFileOptions::default())
+                    .unwrap();
                 std::io::Write::write_all(&mut zout, &buf).unwrap();
             }
             zout.finish().unwrap();
         }
-        assert!(matches!(read_package(&tampered, current), Err(ImportError::Checksum(p)) if p == "tables/diary.json"));
+        assert!(
+            matches!(read_package(&tampered, current), Err(ImportError::Checksum(p)) if p == "tables/diary.json")
+        );
 
         // 不是 zip
         let junk = dir.0.join("j.zip");
         std::fs::write(&junk, b"hello").unwrap();
-        assert!(matches!(read_package(&junk, current), Err(ImportError::NotExport)));
+        assert!(matches!(
+            read_package(&junk, current),
+            Err(ImportError::NotExport)
+        ));
     }
 
     #[test]
@@ -581,7 +661,11 @@ mod tests {
             .conn()
             .execute_batch("INSERT INTO memory (content, created_ts) VALUES ('旧的', 0);")
             .unwrap();
-        assert!(target.import_package(&pkg, ImportMode::Overwrite, false).is_err());
+        assert!(
+            target
+                .import_package(&pkg, ImportMode::Overwrite, false)
+                .is_err()
+        );
         assert_eq!(count(&target, "memory"), 1, "覆盖失败时原来的数据还在");
         assert_eq!(count(&target, "chat_message"), 0);
     }
