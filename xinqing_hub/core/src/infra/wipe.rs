@@ -47,7 +47,11 @@ pub fn pending(data_dir: &Path) -> Option<WipeRequest> {
 }
 
 /// 要删的文件（只列出确实存在的）。`secrets_file` 是 AI 密钥文件名（外壳的 `secrets::SECRETS_FILE`）。
-pub fn targets(data_dir: &Path, include_secrets: bool, secrets_file: &str) -> io::Result<Vec<PathBuf>> {
+pub fn targets(
+    data_dir: &Path,
+    include_secrets: bool,
+    secrets_file: &str,
+) -> io::Result<Vec<PathBuf>> {
     let mut out = Vec::new();
     let Ok(entries) = std::fs::read_dir(data_dir) else {
         return Ok(out);
@@ -175,7 +179,14 @@ mod tests {
     #[test]
     fn pending_wipe_removes_files_then_the_marker() {
         let dir = dir_with(ALL);
-        request(dir.path(), &WipeRequest { include_secrets: false, requested_at: 1 }).unwrap();
+        request(
+            dir.path(),
+            &WipeRequest {
+                include_secrets: false,
+                requested_at: 1,
+            },
+        )
+        .unwrap();
         assert!(pending(dir.path()).is_some());
         let report = apply_pending(dir.path(), SECRETS).unwrap().unwrap();
         assert_eq!(report.removed.len(), 6);
@@ -192,7 +203,14 @@ mod tests {
     #[test]
     fn secrets_are_removed_when_asked() {
         let dir = dir_with(ALL);
-        request(dir.path(), &WipeRequest { include_secrets: true, requested_at: 1 }).unwrap();
+        request(
+            dir.path(),
+            &WipeRequest {
+                include_secrets: true,
+                requested_at: 1,
+            },
+        )
+        .unwrap();
         apply_pending(dir.path(), SECRETS).unwrap();
         assert!(!dir.path().join(SECRETS).exists());
     }

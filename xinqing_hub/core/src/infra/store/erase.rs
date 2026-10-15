@@ -62,7 +62,11 @@ mod tests {
         assert_eq!(count(&db, "memory"), 1);
         let (typing, dominant): (i64, Option<String>) = db
             .conn()
-            .query_row("SELECT typing_min, dominant_state FROM daily_summary", [], |r| Ok((r.get(0)?, r.get(1)?)))
+            .query_row(
+                "SELECT typing_min, dominant_state FROM daily_summary",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
             .unwrap();
         assert_eq!((typing, dominant), (90, None), "输入时长留着，主导状态抹掉");
     }

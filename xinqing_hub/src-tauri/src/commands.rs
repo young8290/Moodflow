@@ -92,13 +92,20 @@ pub fn data_delete_all(app: AppHandle, include_secrets: bool) -> Result<(), UiEr
 /// 以及每日汇总里的情绪列；对话、日记等自己写的内容不动。基线清空后重新进入冷启动。返回改动的行数。
 #[tauri::command]
 #[specta::specta]
-pub fn data_delete_mood(state: State<'_, AppState>, sensing: State<'_, Sensing>) -> Result<u32, UiError> {
+pub fn data_delete_mood(
+    state: State<'_, AppState>,
+    sensing: State<'_, Sensing>,
+) -> Result<u32, UiError> {
     let now = sim::clock().now_ms();
     let fixed = sensing.fixed_baseline;
     let (n, stats) = state.writer().write_sync(|db| -> Result<_, UiError> {
         let n = db.delete_mood_data()?;
         // `XQ_SIM_BASELINE` 回放期间不碰真实基线（ADR 0021）
-        let stats = if fixed { None } else { Some(persist::reset(db, now)?) };
+        let stats = if fixed {
+            None
+        } else {
+            Some(persist::reset(db, now)?)
+        };
         Ok((n, stats))
     })?;
     if let Some(stats) = stats {
