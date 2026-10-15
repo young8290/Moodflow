@@ -12,6 +12,7 @@ mod diary;
 mod error;
 mod evening;
 mod events;
+mod focus;
 mod fullscreen;
 mod gateway;
 mod hotkeys;
@@ -75,6 +76,9 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::data_delete_mood,
             commands::data_import,
             commands::app_restart,
+            commands::focus_start,
+            commands::focus_stop,
+            commands::focus_status,
             commands::autostart_get,
             commands::diagnostics_preview,
             commands::diagnostics_export,
@@ -143,6 +147,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             events::ComfortNew,
             events::CareReduced,
             events::RestDue,
+            events::FocusTick,
+            events::FocusDone,
             events::ResearchInvite,
             events::ImeConfigChanged,
             events::ChatDelta,
@@ -232,6 +238,7 @@ pub fn run() {
             // 休息提醒：使用时长计时与四类提醒（B-08）
             notify::start(app.handle());
             rest::start(app.handle());
+            focus::start(app.handle());
             // 打错字“晃一下”、打字心电图（DS-MOTION-02、FR-DSH-02，ADR 0036）
             pulse::start(app.handle());
             // 研究模式：定时自评邀请（FR-DMO-04）

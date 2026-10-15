@@ -5,6 +5,7 @@ use specta::Type;
 use tauri_specta::Event;
 use xinqing_hub_core::care::{ComfortSource, ComfortTrigger};
 use xinqing_hub_core::chat::ChatFailure;
+use xinqing_hub_core::domain::focus::FocusSummary;
 use xinqing_hub_core::domain::rest::RestKind;
 use xinqing_hub_core::domain::self_report::SelfWeather;
 use xinqing_hub_core::domain::status::StatusSnapshot;
@@ -85,6 +86,22 @@ pub struct CareReduced {
 pub struct RestDue {
     pub kind: RestKind,
     pub tired: bool,
+}
+
+/// `focus:tick`：专注倒计时，每秒一次（FR-RST-10）。小组件底栏左侧换成倒计时与“专注中”。
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+#[tauri_specta(event_name = "focus:tick")]
+pub struct FocusTick {
+    pub remaining_s: u32,
+    pub planned_min: u32,
+}
+
+/// `focus:done`：专注结束（到点或提前）。卡片层显示“专注 25 分钟 · 按键 1,832 次 · 上屏约 960 字”，
+/// 建议休息 5 分钟（FR-RST-10）。
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+#[tauri_specta(event_name = "focus:done")]
+pub struct FocusDone {
+    pub summary: FocusSummary,
 }
 
 /// `research:invite`：研究模式的定时自评邀请（FR-DMO-04）。小组件弹出“主动报告心情”面板，可跳过（`research_dismiss`）；

@@ -126,6 +126,8 @@ pub struct ComfortService {
     banned: Arc<BannedWords>,
     trigger: Trigger,
     paused: bool,
+    /// 专注计时中（FR-RST-10）：主动关怀暂停，按勿扰处理
+    focusing: bool,
     /// 当前前台应用（只用于勿扰判断，不落库、不出网）
     app: Option<String>,
     session_min: f64,
@@ -150,6 +152,7 @@ impl ComfortService {
             banned,
             trigger: Trigger::default(),
             paused: false,
+            focusing: false,
             app: None,
             session_min: 0.0,
             valences: VecDeque::new(),
@@ -182,6 +185,10 @@ impl ComfortService {
             }
             HubEvent::Window(w) => {
                 self.session_min = w.0.session_min;
+                None
+            }
+            HubEvent::Focus(on) => {
+                self.focusing = on;
                 None
             }
             HubEvent::Pause(on) => {
@@ -241,7 +248,7 @@ impl ComfortService {
 
     /// 勿扰情形（FR-CMF-01 第 5 条）：外壳探测的全屏等、前台是勿扰应用、处于安静时段。
     fn dnd(&self, ts: i64) -> bool {
-        if self.port.dnd() {
+        if self.focusing || self.port.dnd() {
             return true;
         }
         if let Some(app) = self.app.as_deref()

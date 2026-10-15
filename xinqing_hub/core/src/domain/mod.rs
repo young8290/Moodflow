@@ -13,6 +13,7 @@ pub mod evening;
 pub mod explain;
 pub mod features;
 pub mod feedback;
+pub mod focus;
 pub mod fusion;
 pub mod hotkey;
 pub mod letter;

@@ -21,6 +21,7 @@ mod comfort;
 mod dashboard;
 pub mod demo;
 mod diary;
+mod focus;
 pub mod erase;
 pub mod export;
 pub mod grep;

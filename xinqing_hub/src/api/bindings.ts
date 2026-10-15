@@ -104,6 +104,21 @@ export const commands = {
 	dataImport: (path: string, mode: ImportMode, includeSettings: boolean) => typedError<ImportReport, UiError>(__TAURI_INVOKE("data_import", { path, mode, includeSettings })),
 	/**  重启 Hub（导入完成后让各服务按新数据重新加载）。 */
 	appRestart: () => __TAURI_INVOKE<void>("app_restart"),
+	/**  开始专注（FR-RST-10），时长 10–120 分钟；已经在专注时报错。 */
+	focusStart: (minutes: number) => typedError<FocusStatus, UiError>(__TAURI_INVOKE("focus_start", { minutes })),
+	/**  结束专注（随时可以，不做任何评价），返回这次的小结；没在专注时为空。小结也会以 `focus:done` 推送。 */
+	focusStop: () => __TAURI_INVOKE<{
+	start_ms: number,
+	planned_min: number,
+	/**  实际专注的整分钟数（提前结束时少于计划） */
+	actual_min: number,
+	keys: number,
+	chars: number,
+	/**  是否到点结束（否则是用户提前结束，界面不做任何评价） */
+	completed: boolean,
+} | null>("focus_stop"),
+	/**  现在是否在专注、还剩多久（窗口重开时恢复倒计时）。 */
+	focusStatus: () => __TAURI_INVOKE<FocusStatus>("focus_status"),
 	/**  是否已设为登录 Windows 时在后台启动（FR-OPS-03）。以系统里的启动项为准，不另存设置。 */
 	autostartGet: () => typedError<boolean, UiError>(__TAURI_INVOKE("autostart_get")),
 	/**  “导出运行信息”包里有哪些文件（FR-OPS-04：导出前先给用户看）。 */
@@ -279,6 +294,8 @@ export const events = {
 	chatDone: makeEvent<ChatDone>("chat:done"),
 	chatError: makeEvent<ChatErrorEvent>("chat:error"),
 	comfortNew: makeEvent<ComfortNew>("comfort:new"),
+	focusDone: makeEvent<FocusDone>("focus:done"),
+	focusTick: makeEvent<FocusTick>("focus:tick"),
 	gatewayHealth: makeEvent<GatewayHealthChanged>("gateway:health"),
 	imeConfigChanged: makeEvent<ImeConfigChanged>("ime_config:changed"),
 	letterNew: makeEvent<LetterNew>("letter:new"),
@@ -637,6 +654,39 @@ export type Explanation = {
 export type FeedbackTarget = 
 /**  一条状态记录（`mood_state`） */
 "mood_state";
+
+/**
+ *  `focus:done`：专注结束（到点或提前）。卡片层显示“专注 25 分钟 · 按键 1,832 次 · 上屏约 960 字”，
+ *  建议休息 5 分钟（FR-RST-10）。
+ */
+export type FocusDone = {
+	summary: FocusSummary,
+};
+
+/**  `focus_status` 的结果。 */
+export type FocusStatus = {
+	active: boolean,
+	planned_min: number,
+	remaining_s: number,
+};
+
+/**  一次专注的结果（结束卡片与 `focus_session` 一行）。 */
+export type FocusSummary = {
+	start_ms: number,
+	planned_min: number,
+	/**  实际专注的整分钟数（提前结束时少于计划） */
+	actual_min: number,
+	keys: number,
+	chars: number,
+	/**  是否到点结束（否则是用户提前结束，界面不做任何评价） */
+	completed: boolean,
+};
+
+/**  `focus:tick`：专注倒计时，每秒一次（FR-RST-10）。小组件底栏左侧换成倒计时与“专注中”。 */
+export type FocusTick = {
+	remaining_s: number,
+	planned_min: number,
+};
 
 /**  两侧是否可用；也是 `gateway:health` 事件的载荷（10 第 5.2 节）。 */
 export type GatewayHealth = {

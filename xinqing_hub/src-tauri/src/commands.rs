@@ -197,6 +197,38 @@ pub fn diagnostics_export(
         .map_err(|e| UiError::internal("diagnostics.write_failed", e))
 }
 
+/// 开始专注（FR-RST-10），时长 10–120 分钟；已经在专注时报错。
+#[tauri::command]
+#[specta::specta]
+pub fn focus_start(
+    focus: State<'_, xinqing_hub_core::focus::FocusHandle>,
+    minutes: u32,
+) -> Result<xinqing_hub_core::focus::FocusStatus, UiError> {
+    use xinqing_hub_core::focus::FocusError;
+    focus.start(minutes).map_err(|e| match e {
+        FocusError::InvalidMinutes => UiError::new("focus.invalid_minutes", "error.focus_invalid_minutes"),
+        FocusError::AlreadyRunning => UiError::new("focus.running", "error.focus_running"),
+    })
+}
+
+/// 结束专注（随时可以，不做任何评价），返回这次的小结；没在专注时为空。小结也会以 `focus:done` 推送。
+#[tauri::command]
+#[specta::specta]
+pub fn focus_stop(
+    focus: State<'_, xinqing_hub_core::focus::FocusHandle>,
+) -> Option<xinqing_hub_core::domain::focus::FocusSummary> {
+    focus.stop()
+}
+
+/// 现在是否在专注、还剩多久（窗口重开时恢复倒计时）。
+#[tauri::command]
+#[specta::specta]
+pub fn focus_status(
+    focus: State<'_, xinqing_hub_core::focus::FocusHandle>,
+) -> xinqing_hub_core::focus::FocusStatus {
+    focus.status()
+}
+
 /// 是否已设为登录 Windows 时在后台启动（FR-OPS-03）。以系统里的启动项为准，不另存设置。
 #[tauri::command]
 #[specta::specta]

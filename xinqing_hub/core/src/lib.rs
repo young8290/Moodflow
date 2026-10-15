@@ -9,6 +9,7 @@ pub mod chat;
 pub mod diary;
 pub mod domain;
 pub mod evening;
+pub mod focus;
 pub mod infra;
 pub mod letter;
 pub mod pipeline;
