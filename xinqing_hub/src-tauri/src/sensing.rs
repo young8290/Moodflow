@@ -108,8 +108,8 @@ pub fn start(app: &AppHandle, cfg: Down) -> Sensing {
                 fixed_baseline,
             });
             let gateway = app.state::<Arc<Ai>>().inner().clone();
-            let sense = Sense::new(p, port, xqp.clone(), bus.clone(), sim::clock())
-                .with_gateway(gateway);
+            let sense =
+                Sense::new(p, port, xqp.clone(), bus.clone(), sim::clock()).with_gateway(gateway);
             tauri::async_runtime::spawn(sense.run(link_rx, cmd_rx));
         }
         Err(e) => eprintln!("状态识别不可用：{e}"),

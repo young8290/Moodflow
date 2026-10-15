@@ -29,7 +29,9 @@ use crate::domain::rules::Hints;
 use crate::domain::self_report::{self, SelfWeather};
 use crate::domain::status::StatusSnapshot;
 use crate::infra::clock::Clock;
-use crate::infra::gateway::{AiGateway, Answer, JudgeRequest, JudgeResponse, Question, STATE_FIELDS};
+use crate::infra::gateway::{
+    AiGateway, Answer, JudgeRequest, JudgeResponse, Question, STATE_FIELDS,
+};
 use crate::infra::xqp::{LinkEvent, XqpHandle};
 use crate::pipeline::{PipelineOut, StatePipeline, WindowOut};
 
@@ -502,8 +504,7 @@ impl Sense {
                     let req = state_request(w);
                     let tx = self.jev_tx.clone();
                     tokio::spawn(async move {
-                        let judged = match tokio::time::timeout(JEV_DEADLINE, gw.judge(req)).await
-                        {
+                        let judged = match tokio::time::timeout(JEV_DEADLINE, gw.judge(req)).await {
                             Ok(Ok(resp)) => read_judged(&resp),
                             _ => None,
                         };
@@ -1110,7 +1111,10 @@ mod tests {
                 Err(AiError::ModelUnavailable)
             }
             fn health(&self) -> GatewayHealth {
-                GatewayHealth { jev: true, llm: true }
+                GatewayHealth {
+                    jev: true,
+                    llm: true,
+                }
             }
         }
 
