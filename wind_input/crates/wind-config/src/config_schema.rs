@@ -708,7 +708,10 @@ static REGISTRY: &[ConfigField] = &[
     f("xinqing.pause_hotkey", Str),
     f("xinqing.rewrite_hotkey", Str),
     // 心晴：改写的起始风格与剪贴板来源（ADR 0041）
-    f("xinqing.rewrite_style", Enum(crate::config::XINQING_REWRITE_STYLES)),
+    f(
+        "xinqing.rewrite_style",
+        Enum(crate::config::XINQING_REWRITE_STYLES),
+    ),
     f("xinqing.rewrite_clipboard", Bool),
     f("xinqing.remember_pause", Bool),
     f("xinqing.hub_autostart", Bool),

@@ -585,7 +585,11 @@ mod tests {
         assert_eq!(start_style("structured"), RewriteStyle::Structured);
         assert_eq!(start_style("whatever"), RewriteStyle::Gentle);
         for s in wind_config::XINQING_REWRITE_STYLES {
-            assert_eq!(serde_json::to_value(start_style(s)).unwrap(), *s, "与 XQP 写法一致");
+            assert_eq!(
+                serde_json::to_value(start_style(s)).unwrap(),
+                *s,
+                "与 XQP 写法一致"
+            );
         }
     }
 
