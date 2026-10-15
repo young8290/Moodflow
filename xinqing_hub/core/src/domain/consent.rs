@@ -126,6 +126,17 @@ pub fn set(db: &Db, item: ConsentItem, granted: bool, ts: i64) -> Result<(), Sto
 mod tests {
     use super::*;
 
+    /// 隐私说明全文（hub_templates/privacy_notice.md，设置页“隐私”显示）写明的版本必须是当前的 POLICY_VER：
+    /// 正文有实质变化要 +1，并在下次启动重新征得同意（09 第 2.2 节、产品书 21 维护规则）
+    #[test]
+    fn privacy_notice_states_the_current_policy_version() {
+        let notice = include_str!("../../../../hub_templates/privacy_notice.md");
+        assert!(
+            notice.contains(&format!("`policy_ver = {POLICY_VER}`")),
+            "隐私说明的版本与 POLICY_VER 不一致"
+        );
+    }
+
     #[test]
     fn nothing_is_granted_by_default() {
         let db = Db::open_in_memory().unwrap();

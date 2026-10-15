@@ -586,7 +586,7 @@ export const zhCN = {
   "privacy.exporting": "正在导出…",
   "privacy.export_file": "心晴数据",
   "privacy.export_filter": "zip 压缩包",
-  "privacy.pending": "隐私说明全文还在准备中，很快就来。",
+  "privacy.notice_full": "隐私说明全文",
   "privacy.import": "从备份导入",
   "privacy.import_hint": "选一个“导出我的数据”生成的 zip 文件。同意记录不会导入（换了电脑要重新同意），AI 服务的密钥也不在备份里。",
   "privacy.import_pick": "选择备份文件",

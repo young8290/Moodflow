@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // 设置中心 · 隐私（07 FR-SET-09 上半部分，放在“隐私与关于”分类里）：
 // 采集内容说明（与引导页同一张表）、逐项同意与撤回（FR-DAT-05）、最近 20 次出网记录（只有字段名和时间）、导出我的数据（FR-DAT-03）。
-// 删除全部数据（FR-DAT-04，ADR 0037）：输入“删除”二字确认，可选连 AI 密钥一起删，删完 Hub 重启、重新引导；
+// 隐私说明全文（PrivacyNotice.vue，产品书 21 第 1 节）；删除全部数据（FR-DAT-04，ADR 0037）：输入“删除”二字确认，可选连 AI 密钥一起删，删完 Hub 重启、重新引导；
 // 撤回 ① 时可选同时删除已有的情绪数据（FR-DAT-05 第 3 条）；从备份导入（FR-DAT-07）：合并或覆盖，设置可选，导入后请用户重启。
 import { onMounted, ref } from 'vue'
 import { open, save } from '@tauri-apps/plugin-dialog'
@@ -17,6 +17,7 @@ import {
 import { errorText, isCopyKey, t } from '@/i18n'
 import { CONSENT_NUMBER, sendsToThirdParty } from '../shared/consent'
 import NoticeTable from '../shared/NoticeTable.vue'
+import PrivacyNotice from './PrivacyNotice.vue'
 import { apiName } from './apiName'
 
 const consent = ref<ConsentState | null>(null)
@@ -217,6 +218,7 @@ async function exportData(): Promise<void> {
   <h3>{{ t('privacy.what') }}</h3>
   <NoticeTable />
   <p class="small">{{ t('onboarding.third_party') }}</p>
+  <PrivacyNotice />
 
   <h3>{{ t('privacy.consent') }}</h3>
   <p class="muted small">{{ t('privacy.consent_hint') }}</p>
@@ -344,8 +346,6 @@ async function exportData(): Promise<void> {
     </div>
     <p v-if="wipeError" class="error" role="alert">{{ wipeError }}</p>
   </div>
-
-  <p class="muted small pending">{{ t('privacy.pending') }}</p>
 </template>
 
 <style scoped>
@@ -472,10 +472,6 @@ h3 {
 
 .error {
   color: var(--xq-danger);
-}
-
-.pending {
-  margin-top: var(--xq-sp-5);
 }
 
 .wipe {
