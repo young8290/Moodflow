@@ -9,6 +9,7 @@ use std::sync::{Arc, RwLock};
 use tauri::{AppHandle, Manager};
 use tokio::sync::{broadcast, mpsc};
 use xinqing_hub_core::bus::{self, HubEvent};
+use xinqing_hub_core::domain::consent::{ConsentItem, ConsentState};
 use xinqing_hub_core::domain::explain::Explanation;
 use xinqing_hub_core::domain::features::persist;
 use xinqing_hub_core::domain::features::{Baseline, BaselineStats};
@@ -21,6 +22,7 @@ use xinqing_hub_core::sense::{Sense, SenseCmd, SensePort, WindowRecord};
 use xqp::{Down, OpenTarget};
 
 use crate::commands::emit_status;
+use crate::gateway::Ai;
 use crate::paths;
 use crate::sim;
 use crate::state::AppState;
@@ -74,7 +76,7 @@ impl Sensing {
     }
 }
 
-/// `cfg` 是按当前同意状态生成的首个下行配置。须在 `AppState` 托管之后调用。
+/// `cfg` 是按当前同意状态生成的首个下行配置。须在 `AppState`、`Arc<Ai>` 托管之后调用。
 pub fn start(app: &AppHandle, cfg: Down) -> Sensing {
     let (bus, _) = bus::channel();
     let (cmds, cmd_rx) = mpsc::channel(16);
@@ -105,7 +107,9 @@ pub fn start(app: &AppHandle, cfg: Down) -> Sensing {
                 app: app.clone(),
                 fixed_baseline,
             });
-            let sense = Sense::new(p, port, xqp.clone(), bus.clone(), sim::clock());
+            let gateway = app.state::<Arc<Ai>>().inner().clone();
+            let sense = Sense::new(p, port, xqp.clone(), bus.clone(), sim::clock())
+                .with_gateway(gateway);
             tauri::async_runtime::spawn(sense.run(link_rx, cmd_rx));
         }
         Err(e) => eprintln!("状态识别不可用：{e}"),
@@ -196,6 +200,11 @@ struct ShellPort {
 }
 
 impl SensePort for ShellPort {
+    fn jev_allowed(&self) -> bool {
+        ConsentState::load(&self.app.state::<AppState>().db())
+            .is_ok_and(|c| c.granted(ConsentItem::JevFeatures))
+    }
+
     fn update_status(&self, f: &mut dyn FnMut(&mut StatusSnapshot) -> bool) {
         let (snap, changed) = self.app.state::<AppState>().update_status(|s| f(s));
         if changed {
@@ -227,10 +236,14 @@ impl SensePort for ShellPort {
             rec.window.hints.clone(),
         );
         let (cand, shown, source) = (rec.fusion.cand, rec.fusion.shown, rec.fusion.source);
+        let judged = rec.judged.cloned();
         state.writer().enqueue("window", move |db| {
             let id = db.insert_window(start, end, app_cat, &features, &hints)?;
-            db.insert_mood_state(end, Some(id), cand, shown, source)
-                .map(drop)
+            let mood = db.insert_mood_state(end, Some(id), cand, shown, source)?;
+            match &judged {
+                Some(j) => db.set_mood_jev(mood, j),
+                None => Ok(()),
+            }
         });
     }
 

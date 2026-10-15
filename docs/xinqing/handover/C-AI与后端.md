@@ -12,7 +12,7 @@
 | C-01 | Hub 骨架：分层、事件总线、SQLite 迁移 v1、单写线程、settings | **基本完成** | `core/src/bus.rs`、`core/migrations/`（0001、0002）、`core/src/infra/store/`（单写入口 `writer.rs`，ADR 0020，[xinqing-ime#54](https://github.com/young8290/xinqing-ime/pull/54)（已合并））、`core/src/domain/settings.rs`（设置键 `KEYS`、内部键 `INTERNAL_KEYS`）；设置值的列表与格式类型：#44（已合并），ADR 0019；设置页用的 `settings_schema` 命令：[xinqing-ime#62](https://github.com/young8290/xinqing-ime/pull/62)（ADR 0019 第 9 条） | 设置键已登记 29 个，10 第 6.2 节其余的（`review.*`、`sch.*`、`hotkey.*` 等）随各功能补 |
 | C-02 | mock-ai（Jev 三类、OpenAI 兼容含 SSE、各故障场景） | 完成 | `tools/mock-ai/` | 16 第 3 节建议移给 E，W1 评审会还没定 |
 | C-03 | AI 网关：trait、Jev/LLM 客户端、熔断、重试、健康检查、隐私过滤、密钥 DPAPI、预算 | 主体完成 | HTTP 实现：`xinqing_hub/gateway/`；trait、熔断、预算、脱敏：`core/src/infra/gateway/`；接入外壳：[xinqing-ime#21](https://github.com/young8290/xinqing-ime/pull/21)（已合并，含 Hu-yiye 的 [#7](https://github.com/young8290/xinqing-ime/pull/7)），ADR 0012；最近出网记录命令：[xinqing-ime#48](https://github.com/young8290/xinqing-ime/pull/48) | 见第 3.2 节 |
-| C-04 | 暖心话：触发、生成、校验、模板兜底、频率控制、反馈 | **后端完成** | 第一部分（主动关怀与自评回应）：[xinqing-ime#27](https://github.com/young8290/xinqing-ime/pull/27)（已合并）；第二部分（反馈与自动降档）：[xinqing-ime#29](https://github.com/young8290/xinqing-ime/pull/29)（已合并）；第三部分（安静时段、自定义勿扰应用）：[xinqing-ime#44](https://github.com/young8290/xinqing-ime/pull/44)（已合并）；ADR 0015、0019 | 见第 3.1 节：主动关怀要等 B 把 Jev 接进 `Sense`；系统专注助手不判断（ADR 0019 第 7 条）；E-COMFORT 评测 |
+| C-04 | 暖心话：触发、生成、校验、模板兜底、频率控制、反馈 | **后端完成** | 第一部分（主动关怀与自评回应）：[xinqing-ime#27](https://github.com/young8290/xinqing-ime/pull/27)（已合并）；第二部分（反馈与自动降档）：[xinqing-ime#29](https://github.com/young8290/xinqing-ime/pull/29)（已合并）；第三部分（安静时段、自定义勿扰应用）：[xinqing-ime#44](https://github.com/young8290/xinqing-ime/pull/44)（已合并）；ADR 0015、0019 | 见第 3.1 节：主动关怀要 Jev 已接进 `Sense`（ADR 0038，D 先行实现、待 B / C 评审）；系统专注助手不判断（ADR 0019 第 7 条）；E-COMFORT 评测 |
 | C-05 | 日程识别：L1/L2/L3、代码校验、去重、提醒调度、冲突 | **后端完成** | 初筛与存储：[xinqing-ime#42](https://github.com/young8290/xinqing-ime/pull/42)（已合并）；抽取校验：Hu-yiye 的 [xinqing-ime#52](https://github.com/young8290/xinqing-ime/pull/52)；代码算日期 `domain/when.rs`：[xinqing-ime#57](https://github.com/young8290/xinqing-ime/pull/57)，ADR 0024；**本 PR**：识别服务 `core/src/schedule.rs`（拼句子 → L1 → Q-PLAN → tip → P-SCHEDULE 校验重来一次 / 本地规则 → 去重、相似、冲突 → 待确认）、提醒调度 `core/src/reminder.rs`、`domain/agenda.rs`（冲突、相似、`.ics`）、`domain/reminder.rs`、外壳 `src-tauri/src/schedule.rs` 与 `commands/schedule.rs`、`gateway/tests/schedule_mock_ai.rs`，ADR 0032 | 见第 3.8 节：卡片层与日程页（D）；E-PLAN / E-EXTRACT 评测要真实接口；ADR 0024、0032 待 E 评审 |
 | C-06 | 待办识别与清单、提醒 | **后端完成** | #42（已合并）：初筛与存储；**本 PR**：Q-TODO → P-TODO → 待确认，`todo_*` 命令，截止前一天 20:00 与当天 09:00 提醒、可选每日汇总（ADR 0032） | 清单界面、小组件底栏“✅ N 件待办”（D）；E-TODO 评测要真实接口 |
 | C-07 | AI 对话：会话、上下文、流式、记忆、历史、快捷指令 | **P1 部分完成** | [xinqing-ime#40](https://github.com/young8290/xinqing-ime/pull/40)（已合并）：纯函数 `core/src/domain/chat.rs`、服务 `core/src/chat.rs`、读写 `infra/store/chat.rs`、外壳 `src-tauri/src/chat.rs` 与 `commands/chat.rs`；`gateway/tests/chat_mock_ai.rs`；ADR 0018。记忆增删改、历史搜索、`chat.retention_days`：[xinqing-ime#49](https://github.com/young8290/xinqing-ime/pull/49)。快捷指令的对话方式：[xinqing-ime#51](https://github.com/young8290/xinqing-ime/pull/51)，ADR 0022 | 见第 3.3 节：两段快捷指令提示词待 E 评审；“写成情绪日记”的后端已有（`diary_generate(session_id)`，ADR 0031），按钮等 D；设置页“晴晴记住的事”与历史搜索界面等 D |
@@ -76,7 +76,7 @@ dev 构建默认连这个 mock-ai，启动后 `net_log` 表里会出现一条 `l
 
 | 部分 | 需求 | 状态 |
 |---|---|---|
-| 主动关怀触发：`need_comfort ≥ 0.75`、非流畅状态连续 ≥ 2 个窗口、冷却、每日上限、无痕 | FR-CMF-01 第 1–4、6 条 | 完成（#27）：`domain::comfort::Trigger`。**要 Jev 接进 `Sense` 后才会真正触发**：`MoodEvent::Sample` 新增 `need_comfort`、`valence`，现在 `sense.rs` 填 `None`，降级时不主动关怀（FR-STA-08 第 2 条）。接 Jev 的 B 把这两个值填上即可 |
+| 主动关怀触发：`need_comfort ≥ 0.75`、非流畅状态连续 ≥ 2 个窗口、冷却、每日上限、无痕 | FR-CMF-01 第 1–4、6 条 | 完成（#27）：`domain::comfort::Trigger`。Jev 已接进 `Sense`（ADR 0038）：同意 ② 且 Jev 可用时 `MoodEvent::Sample` 带上 `need_comfort`、`valence`；降级时为 `None`，不主动关怀（FR-STA-08 第 2 条） |
 | 勿扰：前台全屏（含放映）、勿扰应用、安静时段 | FR-CMF-01 第 5 条 | 完成（#27、#44）：全屏复用 D 的 `fullscreen::foreground_fullscreen`；勿扰应用读 `care.dnd_apps`（默认三个会议应用，用户可删），按 XQP `focus` 的进程名忽略大小写比较；安静时段读 `care.quiet_hours`（`"22:30-07:00"`，可跨午夜）。判断在 `domain::dnd`。系统专注助手没有公开接口，不判断（ADR 0019 第 7 条） |
 | 状态摘要（不含原文）、P-COMFORT、校验 V1/V2/V3/V4/V5/V7、不通过重试 1 次、模板兜底 | FR-CMF-02/03 | 完成（#27）。未同意 ④ 时不调大模型；网关报错不重试；第一次已用 5 秒以上不重试（ADR 0015 第 5 条） |
 | 模板：按风格与组随机、排除最近 10 条与用户屏蔽、深夜用 `late_night` 组、简洁风格取 ≤ 15 字 | FR-CMF-03、FR-CHT-10 | 完成（#27）；出厂 180 句都过长度与禁用词（单测） |
@@ -93,7 +93,7 @@ dev 构建默认连这个 mock-ai，启动后 `net_log` 表里会出现一条 `l
 | 每日预算上限设置 → `set_cap` | FR-AIG-07、10 第 6.2 节 | 完成（#44）：`ai.daily_caps` 拆成 `ai.cap.jev` / `llm` / `chat` / `schedule` / `rewrite` 五个整数键（ADR 0019 第 4 条）；外壳启动时和 `settings_set` 改了这些键时调 `Ai::apply_caps`，立即生效、今日用量不清零。设置页控件等 D（FR-SET-08）。`ai.llm_models` 仍随 `secrets_set` 存（ADR 0012） |
 | 设置页“最近 20 次出网请求”（`Db::net_log_recent` 已有） | FR-SET-09 | 命令完成（[xinqing-ime#48](https://github.com/young8290/xinqing-ime/pull/48)）：`ai_net_log_recent`；设置页隐私分类里的展示等 D 接入（FR-SET-09 只显示字段名和时间） |
 | 演示者视图的网关指标（`HttpGateway::metrics` / `models` 已有） | FR-AIG-08 | 后端读取接口完成：`ai_gateway_metrics` 返回接口调用次数 / 成功率 / P50 / P95 / 熔断与模型状态，前端绑定 `commands.aiGatewayMetrics()`；不发请求、不扣预算、不落盘，ADR 0033。演示者视图与设置页展示仍待 D |
-| Jev 判断接进实时感知（`Sense`） | FR-STA-05 | **B 的任务**（B 交接文档 B-06）。外壳托管的 `Arc<Ai>` 实现 `AiGateway`，`sensing::start` 里 `app.state::<Arc<Ai>>()` 拿到后转成 `Arc<dyn AiGateway>` 传给 `Sense` 即可；顺带把 `need_comfort`、`valence` 填进 `MoodEvent::Sample` |
+| Jev 判断接进实时感知（`Sense`） | FR-STA-05 | D 先行实现（ADR 0038，待 B / C 评审）：`sensing::start` 把 `Arc<Ai>` 交给 `Sense::with_gateway`，同意 ② 时每个窗口问 Q-STATE / Q-VALENCE / Q-COMFORT，`mood_state` 补写概率、效价、模型与耗时 |
 
 ### 3.3 C-07 对话与 C-08 危机安全（对话部分）
 
@@ -231,7 +231,7 @@ dev 构建默认连这个 mock-ai，启动后 `net_log` 表里会出现一条 `l
 - 排队的普通数据在进程被强制结束时最多丢最近 5 秒；正常退出时 `RunEvent::Exit` 会提交。
 - 对话服务读写交错，整段用写连接（`DbWriter::lock()`），持有期间别的写入要等；每段都很短（几条查询），没有跨 `.await`。
 - `ai_usage_today` 列 Jev、大模型、对话、日程识别、改写五类；日程识别按 Q-PLAN / Q-TODO 的次数计（ADR 0032 第 3 条）；周信（C-10）计在“大模型”里。
-- 暖心话目前只有负面自评会真正说出来：主动关怀等 Jev 接进 `Sense`（B）。
+- 主动关怀要用户同意 ② 且 Jev 可用（ADR 0038）；没配 Jev 或没同意时只有负面自评会真正说出来。
 - 休息提醒（B-08）的勿扰现在只看前台全屏，没有读 `care.dnd_apps`；ADR 0019 第 6 条建议共用这个列表，`domain::dnd::is_dnd_app` 可直接用，等 B 决定。
 - 设置值列表的重复按 ASCII 大小写判断：`Zoom.exe` 与 `ZOOM.EXE` 算重复，非 ASCII 的进程名（如 `企业微信.exe`）大小写不折叠，Windows 上也基本不会出现。
 - 暖心话服务按总线顺序处理事件，生成一句话（最长约 8 秒）期间到来的窗口排队，总线容量 1024，不会丢；只影响触发时刻的计数，不影响结果。
@@ -254,7 +254,7 @@ C 的后端任务（C-01～C-10）都已完成，剩下的是评审、评测和�
 2. 跟进 ADR 0028、0029、0030 的评审（D、E），`letter_tips.toml` 要 E 看；与 A、D 定改写的首次使用说明放哪；
 3. 跟进 ADR 0019、0020 的评审；
 4. C-11：真实接口到位后跑 E-COMFORT、E-PLAN、E-EXTRACT、E-TODO、E-REWRITE、E-LETTER，出 `eval/reports/`；
-5. C-04：B 把 Jev 接进 `Sense` 后，主动关怀才会真正触发（第 3.2 节）；
+5. C-04：Jev 已接进 `Sense`（ADR 0038，待评审），用 mock-ai 端到端走一遍主动关怀（第 3.2 节）；
 6. 配合 D 接界面：卡片层（`schedule:*`、`todo:*`、`reminder:*`、`review:evening`、`letter:new`、`safety:invite`）、日程与待办页、信箱、对话与日记页。
 
 ## 7. 修订记录
