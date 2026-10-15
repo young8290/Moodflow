@@ -160,7 +160,10 @@ mod tests {
                 )
                 .unwrap();
         }
-        let done = Local.with_ymd_and_hms(2026, 10, 14, 10, 0, 0).unwrap().timestamp_millis();
+        let done = Local
+            .with_ymd_and_hms(2026, 10, 14, 10, 0, 0)
+            .unwrap()
+            .timestamp_millis();
         for i in 0..3 {
             db.conn()
                 .execute(
@@ -177,10 +180,22 @@ mod tests {
         seed(&db);
         let today = d("2026-10-15");
         // 专注 120 分钟、打字 90 分钟都不加分
-        assert_eq!(db.sunny_points(NaiveDate::MIN, NaiveDate::MAX, today).unwrap(), 14 * 2 + 3);
-        assert_eq!(db.sunny_points(d("2026-10-14"), d("2026-10-15"), today).unwrap(), 14 + 3);
+        assert_eq!(
+            db.sunny_points(NaiveDate::MIN, NaiveDate::MAX, today)
+                .unwrap(),
+            14 * 2 + 3
+        );
+        assert_eq!(
+            db.sunny_points(d("2026-10-14"), d("2026-10-15"), today)
+                .unwrap(),
+            14 + 3
+        );
         // 当天的早停还没结算
-        assert_eq!(db.sunny_points(d("2026-10-14"), d("2026-10-15"), d("2026-10-14")).unwrap(), 12 + 3);
+        assert_eq!(
+            db.sunny_points(d("2026-10-14"), d("2026-10-15"), d("2026-10-14"))
+                .unwrap(),
+            12 + 3
+        );
     }
 
     #[test]
@@ -190,7 +205,11 @@ mod tests {
         let v = db.collection_view(true, d("2026-10-15"), 1).unwrap();
         assert_eq!(v.points, 31);
         assert_eq!(
-            v.items.iter().filter(|i| i.unlocked).map(|i| i.id.as_str()).collect::<Vec<_>>(),
+            v.items
+                .iter()
+                .filter(|i| i.unlocked)
+                .map(|i| i.id.as_str())
+                .collect::<Vec<_>>(),
             ["straw_hat"]
         );
         assert_eq!((v.next_item.as_deref(), v.next_need), (Some("scarf"), 9));
@@ -207,12 +226,24 @@ mod tests {
         assert!(v.items[0].unlocked && v.items[0].equipped);
 
         assert!(db.collection_equip(None).unwrap());
-        assert_eq!(db.collection_view(true, d("2026-10-15"), 4).unwrap().equipped, None);
+        assert_eq!(
+            db.collection_view(true, d("2026-10-15"), 4)
+                .unwrap()
+                .equipped,
+            None
+        );
 
         // 关闭：不显示，记录清空
-        assert!(!db.collection_view(false, d("2026-10-15"), 5).unwrap().enabled);
+        assert!(
+            !db.collection_view(false, d("2026-10-15"), 5)
+                .unwrap()
+                .enabled
+        );
         db.collection_clear().unwrap();
-        let n: i64 = db.conn().query_row("SELECT count(*) FROM collection", [], |r| r.get(0)).unwrap();
+        let n: i64 = db
+            .conn()
+            .query_row("SELECT count(*) FROM collection", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(n, 0);
     }
 }

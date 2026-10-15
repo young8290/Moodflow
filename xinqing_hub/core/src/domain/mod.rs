@@ -2,8 +2,8 @@
 
 pub mod agenda;
 pub mod chat;
-pub mod comfort;
 pub mod collection;
+pub mod comfort;
 pub mod comfort_feedback;
 pub mod consent;
 pub mod dashboard;

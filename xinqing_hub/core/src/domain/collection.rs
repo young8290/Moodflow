@@ -107,14 +107,23 @@ pub struct CollectionView {
 mod tests {
     use super::*;
 
-    fn day(date: NaiveDate, rests_done: u32, water: u32, stop: Option<(u32, u32, bool)>) -> DayFacts {
+    fn day(
+        date: NaiveDate,
+        rests_done: u32,
+        water: u32,
+        stop: Option<(u32, u32, bool)>,
+    ) -> DayFacts {
         DayFacts {
             date,
             typing_min: 60,
             rests_done,
             water,
             last_active_ts: stop.map(|(h, m, next_day)| {
-                let d = if next_day { date.succ_opt().unwrap() } else { date };
+                let d = if next_day {
+                    date.succ_opt().unwrap()
+                } else {
+                    date
+                };
                 Local
                     .from_local_datetime(&d.and_hms_opt(h, m, 0).unwrap())
                     .unwrap()
@@ -128,7 +137,10 @@ mod tests {
         let d = NaiveDate::from_ymd_opt(2026, 10, 14).unwrap();
         let today = NaiveDate::from_ymd_opt(2026, 10, 15).unwrap();
         // 3 次护眼 / 活动 + 6 次喝水（只计 4）+ 23:00 停止打字（+2）
-        assert_eq!(day_points(&day(d, 9, 6, Some((23, 0, false))), today), 3 + 4 + 2);
+        assert_eq!(
+            day_points(&day(d, 9, 6, Some((23, 0, false))), today),
+            3 + 4 + 2
+        );
         // 23:30 及以后、过了午夜都不算早停
         assert_eq!(day_points(&day(d, 0, 0, Some((23, 30, false))), today), 0);
         assert_eq!(day_points(&day(d, 0, 0, Some((0, 40, true))), today), 0);
