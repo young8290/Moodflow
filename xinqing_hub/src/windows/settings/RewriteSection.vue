@@ -72,6 +72,10 @@ const takenBy = (combo: string) => hotkeyOwner(HOTKEY, combo, imeGet, (k) => set
         {{ t('consent.rewrite') }}
       </label>
       <p class="s-hint">{{ t('settings.rewrite.consent_hint') }}</p>
+      <!-- FR-RWR-06：开着时告知（ADR 0041） -->
+      <p v-if="granted('rewrite') === true" class="s-note rewrite-notice" role="note">
+        {{ t('rewrite.first_use_notice') }}
+      </p>
       <p v-if="withdrawn.has('rewrite')" class="s-note" role="status">{{ t('error.withdraw_notice') }}</p>
       <p v-if="usage" class="usage">
         {{ t('settings.rewrite.usage', { used: usage.used, cap: usage.cap }) }}
