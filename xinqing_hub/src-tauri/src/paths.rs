@@ -23,6 +23,16 @@ pub fn hub_data_dir() -> anyhow::Result<PathBuf> {
     Ok(base.join(app_dir_name()).join("hub"))
 }
 
+/// 日志目录（NFR-LOG-03）：`%LOCALAPPDATA%\XinQing\logs\`，与输入法核心的日志放在一起；
+/// 用 `XQ_HUB_DATA_DIR` 指到别处时放在那个目录的 `logs\` 下，不碰真实目录。
+pub fn log_dir() -> anyhow::Result<PathBuf> {
+    if let Some(dir) = std::env::var_os(DATA_DIR_ENV) {
+        return Ok(PathBuf::from(dir).join("logs"));
+    }
+    let base = dirs::data_local_dir().ok_or_else(|| anyhow::anyhow!("找不到本地应用数据目录"))?;
+    Ok(base.join(app_dir_name()).join("logs"))
+}
+
 /// 可用环境变量指定出厂模板目录（演示、测试时用）。
 pub const TEMPLATES_ENV: &str = "XQ_HUB_TEMPLATES";
 
