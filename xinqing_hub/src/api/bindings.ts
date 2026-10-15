@@ -732,7 +732,9 @@ export type HotkeyAction =
 /**  显示 / 隐藏小组件（FR-WGT-01） */
 "widget" | 
 /**  打开看板 */
-"dashboard";
+"dashboard" | 
+/**  开始 / 结束专注（FR-RST-10）：没在专注时按第一个预设（25 分钟）开始，专注中按下结束 */
+"focus";
 
 /**  一项快捷键现在的样子（设置页“常规”分类）。 */
 export type HotkeyStatus = {

@@ -212,6 +212,13 @@ pub(crate) fn read_week(
         self_reports: db.self_reports_between(from, to)?.len() as u32,
         avg_stop_min: r.avg_stop_min,
         late_nights: r.late_nights,
+        sunny_points: match xinqing_hub_core::domain::settings::get(db, "collection.enabled")
+            .ok()
+            .and_then(|v| v.as_bool())
+        {
+            Some(false) => None,
+            _ => Some(db.sunny_points(week, week + chrono::Duration::days(7), now.date_naive())?),
+        },
     })
 }
 
