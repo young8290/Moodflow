@@ -53,7 +53,7 @@ pub fn start(app: &AppHandle) {
             Arc::new(lex),
         ))),
         Err(e) => {
-            eprintln!("对话不可用：{e}");
+            crate::hlog!("对话不可用：{e}");
             None
         }
     };
@@ -75,10 +75,10 @@ pub fn show_safety(app: &AppHandle, session_id: i64) {
     })
     .emit(app)
     {
-        eprintln!("推送 safety:triggered 失败：{e}");
+        crate::hlog!("推送 safety:triggered 失败：{e}");
     }
     if let Err(e) = windows::open(app, WindowTarget::Chat) {
-        eprintln!("打开对话窗口失败：{e:?}");
+        crate::hlog!("打开对话窗口失败：{e:?}");
     }
 }
 
@@ -132,7 +132,7 @@ impl ChatPort for ShellPort {
             .emit(&self.app),
         };
         if let Err(e) = r {
-            eprintln!("推送对话事件失败：{e}");
+            crate::hlog!("推送对话事件失败：{e}");
         }
     }
 
@@ -141,6 +141,6 @@ impl ChatPort for ShellPort {
     }
 
     fn note(&self, msg: &str) {
-        eprintln!("{msg}");
+        crate::hlog!("{msg}");
     }
 }

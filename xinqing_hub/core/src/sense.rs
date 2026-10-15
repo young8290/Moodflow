@@ -156,6 +156,8 @@ pub enum SenseCmd {
     },
     /// 换上新的个人基线（用户“重置基线”后，外壳已写库，FR-STA-03 第 4 条）。
     Baseline(BaselineStats),
+    /// 专注计时开始 / 结束（FR-RST-10）：期间自动判断照常记录，但不切换小组件天气；结束后显示回到自动判断。
+    Focus(bool),
 }
 
 pub struct Sense {
@@ -182,6 +184,8 @@ pub struct Sense {
     self_shown: Option<(MoodState, i64)>,
     /// 下一次基线重算的时刻（每天 04:00）。
     next_recompute: chrono::DateTime<chrono::Local>,
+    /// 专注计时中：显示冻结在开始时的状态
+    focusing: bool,
     /// Jev（FR-STA-05）；外壳没给时只用本地规则。
     gateway: Option<Arc<dyn AiGateway>>,
     jev_tx: mpsc::UnboundedSender<JevDone>,
@@ -216,6 +220,7 @@ impl Sense {
             prev_window: None,
             explanation: None,
             self_shown: None,
+            focusing: false,
             next_recompute,
             gateway: None,
             jev_tx,
@@ -312,6 +317,17 @@ impl Sense {
             SenseCmd::Unfit { state, ts } => self.pipeline.fusion_mut().record_unfit(state, ts),
             SenseCmd::SelfReport { weather, ts, raise } => self.on_self_report(weather, ts, raise),
             SenseCmd::Baseline(stats) => self.apply_baseline(&stats),
+            SenseCmd::Focus(on) => {
+                let was = std::mem::replace(&mut self.focusing, on);
+                // 结束时显示回到自动判断（自评覆盖还在时仍以自评为准）
+                if was && !on && self.self_shown.is_none() {
+                    if let Some(e) = &self.explanation {
+                        self.port.explained(e);
+                    }
+                    let auto = self.pipeline.fusion_mut().shown();
+                    self.show(auto);
+                }
+            }
         }
     }
 
@@ -578,7 +594,8 @@ impl Sense {
             self.explanation = Some(e);
         }
         self.expire_self_report();
-        let self_active = self.self_shown.is_some();
+        // 自评覆盖或专注中：自动判断照常运行，但不改显示
+        let self_active = self.self_shown.is_some() || self.focusing;
         // 先交出解释再推送状态：界面收到 status:changed 后取到的一定是同一次切换的解释
         if fusion.changed
             && !self_active
@@ -1075,6 +1092,25 @@ mod tests {
         let saved = r.port.saved.lock().unwrap().clone();
         assert_eq!(saved.len(), 1);
         assert!(saved[0].1 - saved[0].0 < 1_000);
+    }
+
+    #[test]
+    fn focus_freezes_the_shown_weather_until_it_ends() {
+        let mut r = rig();
+        r.sense.on_link(connected("s1"), r.t0);
+        r.sense.on_cmd(SenseCmd::Focus(true));
+        let changes = r.play("hesitant");
+        assert!(
+            changes.contains(&MoodState::Hesitant),
+            "自动判断照常：{changes:?}"
+        );
+        assert_eq!(r.status().state, MoodState::Fluent, "专注中不切换显示");
+        r.sense.on_cmd(SenseCmd::Focus(false));
+        assert_eq!(
+            r.status().state,
+            r.sense.pipeline.fusion_mut().shown(),
+            "结束后回到自动判断"
+        );
     }
 
     mod jev {

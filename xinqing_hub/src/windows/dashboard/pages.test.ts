@@ -133,6 +133,7 @@ describe('周报（FR-DSH-04）', () => {
     schedules_added: 2,
     todos_done: 1,
     focus_min: 0,
+    sunny_points: null,
     line: '这周晚上 11 点后更容易累，早点休息吧。',
   }
 

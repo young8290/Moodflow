@@ -87,7 +87,7 @@ pub fn start(app: &AppHandle, cfg: Down) -> Sensing {
             (handle, rx)
         }
         None => {
-            eprintln!(
+            crate::hlog!(
                 "未连接输入法：非 Windows 平台请设置 {XQP_TCP_ENV}=127.0.0.1:18765 并运行 xq-sim --tcp"
             );
             (XqpHandle::pair().0, mpsc::channel(1).1)
@@ -112,7 +112,7 @@ pub fn start(app: &AppHandle, cfg: Down) -> Sensing {
                 Sense::new(p, port, xqp.clone(), bus.clone(), sim::clock()).with_gateway(gateway);
             tauri::async_runtime::spawn(sense.run(link_rx, cmd_rx));
         }
-        Err(e) => eprintln!("状态识别不可用：{e}"),
+        Err(e) => crate::hlog!("状态识别不可用：{e}"),
     }
     Sensing {
         xqp,
@@ -132,7 +132,7 @@ fn connector() -> Option<Box<dyn Connector>> {
         return match c {
             Ok(c) => Some(Box::new(c)),
             Err(e) => {
-                eprintln!("{XQP_TCP_ENV}={addr} 无效：{e}");
+                crate::hlog!("{XQP_TCP_ENV}={addr} 无效：{e}");
                 None
             }
         };
@@ -177,7 +177,7 @@ fn recompute_baseline(app: &AppHandle, p: &mut StatePipeline) {
         .write_sync(|db| persist::recompute(db, now))
     {
         Ok(stats) => p.baseline_mut().apply(&stats),
-        Err(e) => eprintln!("重算基线失败，先用出厂默认值：{e}"),
+        Err(e) => crate::hlog!("重算基线失败，先用出厂默认值：{e}"),
     }
 }
 
@@ -190,7 +190,7 @@ fn restore_unfit(app: &AppHandle, p: &mut StatePipeline) {
                 p.fusion_mut().record_unfit(state, ts);
             }
         }
-        Err(e) => eprintln!("读取状态反馈失败：{e}"),
+        Err(e) => crate::hlog!("读取状态反馈失败：{e}"),
     }
 }
 
@@ -221,7 +221,7 @@ impl SensePort for ShellPort {
             OpenTarget::Onboarding => WindowTarget::Onboarding,
         };
         if let Err(e) = windows::open(&self.app, target) {
-            eprintln!("打开窗口失败：{}", e.code);
+            crate::hlog!("打开窗口失败：{}", e.code);
         }
     }
 
@@ -248,7 +248,7 @@ impl SensePort for ShellPort {
     }
 
     fn note(&self, msg: &str) {
-        eprintln!("{msg}");
+        crate::hlog!("{msg}");
     }
 
     fn request_exit(&self) {
@@ -275,7 +275,7 @@ impl SensePort for ShellPort {
                 Some(stats)
             }
             Err(e) => {
-                eprintln!("重算基线失败，继续用现有基线：{e}");
+                crate::hlog!("重算基线失败，继续用现有基线：{e}");
                 None
             }
         }

@@ -45,6 +45,8 @@ pub enum HubEvent {
     },
     ConsentChanged,
     Pause(bool),
+    /// 专注计时开始 / 结束（FR-RST-10）：关怀暂停、休息提醒只留深夜提醒、小组件不切换天气。
+    Focus(bool),
     /// 用户自评（FR-STA-10）。`until` 为显示覆盖到期的 Unix 毫秒；负面自评由暖心话服务立即回应。
     /// 备注不进总线（NFR-PRI-09）。
     SelfReport {

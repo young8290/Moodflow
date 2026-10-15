@@ -93,7 +93,7 @@ pub fn start(app: &AppHandle) {
                 _ => Ok(()),
             };
             if let Err(e) = result {
-                eprintln!("全屏时隐藏 / 恢复小组件失败：{e}");
+                crate::hlog!("全屏时隐藏 / 恢复小组件失败：{e}");
             }
         }
     });

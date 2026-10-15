@@ -155,6 +155,11 @@ const typingLabel = computed(() =>
           <span class="tile-label">{{ t('dashboard.weekly.focus') }}</span>
           <span class="tile-value">{{ duration(report.focus_min) }}</span>
         </li>
+        <!-- 晴天值变化（FR-REV-04，开着晴天收集时） -->
+        <li v-if="report.sunny_points !== null" class="d-card tile" data-tile="sunny">
+          <span class="tile-label">{{ t('dashboard.weekly.sunny') }}</span>
+          <span class="tile-value">{{ t('dashboard.weekly.sunny_value', { n: report.sunny_points }) }}</span>
+        </li>
       </ul>
 
       <div class="d-grid">

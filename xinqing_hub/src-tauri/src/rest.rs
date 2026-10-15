@@ -11,6 +11,7 @@ use chrono::{DateTime, Local, TimeZone};
 use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 use tokio::sync::mpsc;
+use xinqing_hub_core::domain::dnd::QuietRange;
 use xinqing_hub_core::domain::rest::{Due, KindCfg, RestAction, RestConfig, RestKind, parse_hhmm};
 use xinqing_hub_core::domain::routine;
 use xinqing_hub_core::domain::settings::{self, SettingValue};
@@ -83,6 +84,10 @@ impl RestPort for ShellPort {
                 .setting("rest.night.start")
                 .and_then(|v| v.as_str().and_then(parse_hhmm))
                 .unwrap_or(d.night_start_min),
+            focus: self
+                .setting("rest.focus_period")
+                .and_then(|v| v.as_list().and_then(|l| l.first().cloned()))
+                .and_then(|r| QuietRange::parse(&r)),
         }
     }
 
@@ -138,7 +143,7 @@ impl RestPort for ShellPort {
             tired: due.tired,
         };
         if let Err(e) = ev.emit(&self.app) {
-            eprintln!("推送 rest:due 失败：{e}");
+            crate::hlog!("推送 rest:due 失败：{e}");
         }
     }
 
@@ -171,7 +176,7 @@ impl RestPort for ShellPort {
     }
 
     fn note(&self, msg: &str) {
-        eprintln!("{msg}");
+        crate::hlog!("{msg}");
     }
 }
 

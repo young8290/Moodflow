@@ -1,20 +1,46 @@
 // 小组件右键菜单（07 FR-WGT-06）。菜单项按规格顺序排列：
 // 我现在… · 开始/结束专注 · 换装 · 暂停/恢复感知 · 打开看板 · 待确认日程与待办 · 设置 · 隐藏小组件。
-// 后端还没有的功能（专注 FR-RST-10、换装 FR-WGT-08，都是 P2）暂不出现，随对应任务按上面的顺序插进来。
+// 专注中显示“结束专注”，否则“开始专注…”（FR-RST-10）；“换装”在开着晴天收集且解锁了装扮后出现（FR-WGT-08）。
 // “待确认日程与待办”带上数量（FR-ENT-01 同一写法：为 0 时不显示数字），点了打开看板“日程与待办”页。
 import type { StatusSnapshot } from '@/api'
 import { t } from '@/i18n'
 
-export type MenuAction = 'self_report' | 'pause' | 'resume' | 'dashboard' | 'pending' | 'settings' | 'hide'
+export type MenuAction =
+  | 'self_report'
+  | 'focus'
+  | 'focus_stop'
+  | 'outfit'
+  | 'pause'
+  | 'resume'
+  | 'dashboard'
+  | 'pending'
+  | 'settings'
+  | 'hide'
 
 export interface MenuEntry {
   id: MenuAction
   text: string
 }
 
-export function menuEntries(s: StatusSnapshot | null, pending = 0): MenuEntry[] {
+export function menuEntries(
+  s: StatusSnapshot | null,
+  pending = 0,
+  focusing = false,
+  canDress = false,
+): MenuEntry[] {
   const pause: MenuAction = s?.paused ? 'resume' : 'pause'
-  const ids: MenuAction[] = ['self_report', pause, 'dashboard', 'pending', 'settings', 'hide']
+  const focus: MenuAction = focusing ? 'focus_stop' : 'focus'
+  const dress: MenuAction[] = canDress ? ['outfit'] : []
+  const ids: MenuAction[] = [
+    'self_report',
+    focus,
+    ...dress,
+    pause,
+    'dashboard',
+    'pending',
+    'settings',
+    'hide',
+  ]
   // “我现在…”与状态行的 ✎ 共用一条文案
   const text = (id: MenuAction) => {
     if (id === 'self_report') return t('widget.self_report_prompt')

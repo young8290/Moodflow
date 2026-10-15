@@ -1,9 +1,10 @@
 // 卡片层的队列（07 FR-WGT-07）：最多同时显示 2 张，更多的排队；高优先级的先显示（FR-WGT-04 的顺序）：
-//   自评回应 > 日程与待办（含到点提醒、错过的提醒）> 休息提醒 > 晚间小结 / 周信提示。
+//   自评回应 > 日程与待办（含到点提醒、错过的提醒）> 休息提醒、专注结束 > 晚间小结 / 周信提示。
 // 同一优先级先来先显示。纯函数，事件与按钮在 useCards.ts。
 import type {
   ConflictItem,
   EveningSummary,
+  FocusSummary,
   LetterNew,
   ReminderDue,
   ReminderMissed,
@@ -28,6 +29,8 @@ export type Card =
   /** Hub 启动时 12 小时内错过的提醒，集中一张（FR-SCH-07） */
   | { key: string; kind: 'missed'; missed: ReminderMissed }
   | { key: string; kind: 'rest'; due: RestDue }
+  /** 专注结束（FR-RST-10），本身就是那次合并的休息建议 */
+  | { key: string; kind: 'focus'; summary: FocusSummary }
   /** 负面自评后的“和晴晴聊聊”（FR-STA-10 第 2 条）；晴晴的回应在小组件一句话区 */
   | { key: string; kind: 'self_reply'; comfortId: number }
   | { key: string; kind: 'evening'; summary: EveningSummary }
@@ -45,6 +48,7 @@ export const RANK: Record<CardKind, number> = {
   reminder: 1,
   missed: 1,
   rest: 2,
+  focus: 2,
   evening: 3,
   letter: 3,
 }

@@ -11,6 +11,8 @@
 use chrono::{DateTime, Duration, Local, NaiveTime, TimeZone, Timelike};
 use serde::{Deserialize, Serialize};
 
+use super::dnd::QuietRange;
+
 /// 不活跃满这么多分钟，连续计时清零。
 const GAP_RESET_MIN: i64 = 2;
 /// 深夜时段内连续使用超过这么多分钟才提醒。
@@ -114,6 +116,8 @@ pub struct RestConfig {
     pub night_enabled: bool,
     /// 深夜提醒起始时刻，当天的第几分钟
     pub night_start_min: u32,
+    /// 专注时段（FR-RST-09）：期间只保留深夜提醒，其余三类照常计时、不显示，过了时段再按规则提醒
+    pub focus: Option<QuietRange>,
 }
 
 impl Default for RestConfig {
@@ -133,6 +137,7 @@ impl Default for RestConfig {
             },
             night_enabled: true,
             night_start_min: 23 * 60 + 30,
+            focus: None,
         }
     }
 }
@@ -237,6 +242,8 @@ pub struct RestEngine {
     last_input_ms: Option<i64>,
     after_commit: bool,
     tired: bool,
+    /// 专注计时中（FR-RST-10）：同专注时段，只留深夜提醒
+    focusing: bool,
 }
 
 fn idx(kind: RestKind) -> usize {
@@ -321,6 +328,16 @@ impl RestEngine {
     /// 显示状态是否为 `tired`（FR-RST-07）。
     pub fn set_tired(&mut self, tired: bool) {
         self.tired = tired;
+    }
+
+    /// 专注计时开始 / 结束（FR-RST-10）。期间只留深夜提醒；结束时结束卡片本身就是那次合并的休息建议，
+    /// 护眼与活动的连续计时清零，免得卡片刚出又弹护眼提醒。
+    pub fn set_focusing(&mut self, on: bool) {
+        if self.focusing && !on {
+            self.reset(RestKind::Eye);
+            self.reset(RestKind::Move);
+        }
+        self.focusing = on;
     }
 
     /// 记一次输入活动；进入新的一分钟时返回 `true`。
@@ -415,8 +432,10 @@ impl RestEngine {
     /// 现在该显示哪一个提醒。返回 `Some` 时已记为“已显示”，同时到期的其余几类顺延 5 分钟。
     pub fn poll(&mut self, local: DateTime<Local>, ctx: Ctx) -> Option<Due> {
         let now_ms = local.timestamp_millis();
+        let focusing = self.focusing || self.cfg.focus.is_some_and(|f| f.contains(local.time()));
         let due: Vec<(RestKind, bool)> = RestKind::ALL
             .into_iter()
+            .filter(|k| !focusing || *k == RestKind::Night)
             .filter(|k| {
                 let i = idx(*k);
                 now_ms >= self.deferred_until[i]
@@ -737,6 +756,56 @@ mod tests {
             ..Ctx::default()
         };
         assert!(e.poll(t, quiet).is_some());
+    }
+
+    #[test]
+    fn focus_period_keeps_only_the_night_reminder() {
+        // FR-RST-09：专注时段里护眼等不提醒；过了时段照常；深夜提醒不受影响
+        let c = RestConfig {
+            focus: QuietRange::parse("09:00-11:00"),
+            ..only(RestKind::Eye)
+        };
+        let mut e = RestEngine::new(c);
+        let t = type_for(&mut e, at(10, 20), 25);
+        assert_eq!(e.poll(idle(t, 5), Ctx::default()), None, "专注时段里");
+        // 接着打到 11 点以后：一直在计时，出了时段就提醒
+        let t = type_for(&mut e, t + Duration::seconds(40), 16);
+        assert_eq!(
+            e.poll(idle(t, 5), Ctx::default()).map(|d| d.kind),
+            Some(RestKind::Eye),
+            "11:00 以后照常"
+        );
+
+        let night = RestConfig {
+            focus: QuietRange::parse("22:00-02:00"),
+            ..only(RestKind::Night)
+        };
+        let mut e = RestEngine::new(night);
+        let t = type_for(&mut e, at(23, 0), 90);
+        assert_eq!(
+            e.poll(idle(t, 5), Ctx::default()).map(|d| d.kind),
+            Some(RestKind::Night)
+        );
+    }
+
+    #[test]
+    fn focus_timer_holds_reminders_and_its_end_counts_as_the_rest() {
+        // FR-RST-10：专注中不提醒护眼；结束卡片就是那次休息建议，护眼重新计时
+        let mut e = RestEngine::new(only(RestKind::Eye));
+        e.set_focusing(true);
+        let t = type_for(&mut e, at(10, 0), 30);
+        assert_eq!(e.poll(idle(t, 5), Ctx::default()), None);
+        e.set_focusing(false);
+        assert_eq!(
+            e.poll(idle(t, 10), Ctx::default()),
+            None,
+            "结束后不立刻弹护眼"
+        );
+        let t = type_for(&mut e, t + Duration::seconds(40), 20);
+        assert!(
+            e.poll(idle(t, 5), Ctx::default()).is_some(),
+            "重新连续 20 分钟后照常"
+        );
     }
 
     #[test]

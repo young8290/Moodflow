@@ -281,6 +281,7 @@ function week(): Omit<WeekReport, 'week_start'> {
     schedules_added: 2,
     todos_done: 1,
     focus_min: 0,
+    sunny_points: 12,
     line: '这周休息完成了 50%。',
   }
 }
@@ -480,7 +481,7 @@ describe('周报（FR-DSH-04）', () => {
   it('一句话、和上周比、状态分布与每日输入时长的图、按天查看', async () => {
     const w = await mountAt('#weekly')
     expect(w.find('.line').text()).toBe('这周休息完成了 50%。')
-    expect(w.findAll('.tile-value').map((v) => v.text())).toEqual(['50%', '7 次', '2 个', '1 个'])
+    expect(w.findAll('.tile-value').map((v) => v.text())).toEqual(['50%', '7 次', '2 个', '1 个', '+12'])
     expect(w.findAll('.tile-detail').map((v) => v.text())).toEqual(['和上周一样', '和上周一样'])
     expect(Object.keys(mocks.charts)).toContain('状态分布：☀️ 晴 75%，🌙 夜 25%')
     expect(w.findAll('.d-table tbody tr')).toHaveLength(7)

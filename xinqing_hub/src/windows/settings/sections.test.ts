@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   researchClear: vi.fn(),
   openWindow: vi.fn(),
   emit: vi.fn(),
+  autostart: false as boolean | null,
+  autostartSet: vi.fn(),
 }))
 const ok = (data: unknown = null) => Promise.resolve({ status: 'ok', data })
 const ITEMS: ConsentItem[] = ['sense', 'jev_features', 'schedule', 'llm_summary', 'enhanced', 'rewrite']
@@ -38,6 +40,7 @@ const SCHEMA: SettingField[] = [
   { key: 'hotkey.chat', kind: { type: 'text', item: 'hotkey' }, default: 'ctrl+alt+q' },
   { key: 'hotkey.widget', kind: { type: 'text', item: 'hotkey' }, default: 'ctrl+alt+w' },
   { key: 'hotkey.dashboard', kind: { type: 'text', item: 'hotkey' }, default: 'ctrl+alt+d' },
+  { key: 'collection.enabled', kind: { type: 'bool' }, default: true },
   { key: 'rest.eye.enabled', kind: { type: 'bool' }, default: true },
   { key: 'rest.eye.interval', kind: { type: 'number', min: 15, max: 60 }, default: 20 },
   { key: 'rest.water.enabled', kind: { type: 'bool' }, default: true },
@@ -51,6 +54,7 @@ const SCHEMA: SettingField[] = [
     default: '23:30',
   },
   { key: 'rest.count_when_paused', kind: { type: 'bool' }, default: true },
+  { key: 'rest.focus_period', kind: { type: 'list', item: 'time_range', max_items: 1 }, default: [] },
   {
     key: 'sch.default_offsets',
     kind: { type: 'choice', options: ['0', '5', '10', '30', '60', '1440'] },
@@ -84,6 +88,11 @@ vi.mock('@/api', async (orig) => ({
     researchClear: mocks.researchClear,
     demoStatus: async () => ok({ enabled: false, speed: 1 }),
     openWindow: mocks.openWindow,
+    autostartGet: async () =>
+      mocks.autostart === null
+        ? { status: 'error', error: { code: 'autostart.failed', message_key: 'error.generic' } }
+        : ok(mocks.autostart),
+    autostartSet: mocks.autostartSet,
   },
   events: {
     settingsChanged: { listen: async () => () => {} },
@@ -121,6 +130,8 @@ beforeEach(() => {
   setActivePinia(createPinia())
   mocks.values = defaults()
   mocks.settingsSet.mockReset().mockImplementation(() => ok())
+  mocks.autostart = false
+  mocks.autostartSet.mockReset().mockImplementation((on: boolean) => ok(on))
   mocks.consent = { sense: true, jev_features: true, schedule: false, rewrite: true }
   mocks.consentSet.mockReset().mockImplementation((item: ConsentItem, g: boolean) => {
     mocks.consent[item] = g
@@ -181,6 +192,39 @@ describe('设置中心 · 常规（FR-SET-03）', () => {
     await range.setValue('85')
     await flushPromises()
     expect(mocks.settingsSet).toHaveBeenCalledWith('widget.opacity', 0.85)
+  })
+
+  it('登录时后台启动：读系统启动项，开关后显示实际状态；恢复默认会关掉；读不到时不显示（FR-OPS-03）', async () => {
+    let w = await open(GeneralSection)
+    const sw = group(w, 'login-start').find('input')
+    expect((sw.element as HTMLInputElement).checked).toBe(false)
+    await sw.setValue(true)
+    await flushPromises()
+    expect(mocks.autostartSet).toHaveBeenCalledWith(true)
+    expect(group(w, 'login-start').text()).toContain(t('settings.on'))
+    w.unmount()
+
+    mocks.autostart = true
+    mocks.autostartSet.mockClear()
+    w = await open(GeneralSection)
+    await w.find('.s-head button').trigger('click')
+    await w.find('.s-confirm .s-danger').trigger('click')
+    await flushPromises()
+    expect(mocks.autostartSet).toHaveBeenCalledWith(false)
+    w.unmount()
+
+    mocks.autostart = null
+    w = await open(GeneralSection)
+    expect(group(w, 'login-start').exists()).toBe(false)
+  })
+
+  it('晴天收集开关默认开，关掉就保存（FR-REV-04）', async () => {
+    const w = await open(GeneralSection)
+    const sw = group(w, 'collection').find('input')
+    expect((sw.element as HTMLInputElement).checked).toBe(true)
+    await sw.setValue(false)
+    await flushPromises()
+    expect(mocks.settingsSet).toHaveBeenCalledWith('collection.enabled', false)
   })
 
   it('心晴功能总开关写输入法配置；输入法没在运行时不可点并说明', async () => {
@@ -342,6 +386,35 @@ describe('设置中心 · 提醒（FR-SET-06）', () => {
       .findAll('option')
       .map((o) => o.text())
     expect(opts).toEqual(['22:30', '23:00', '23:30', '00:00'])
+  })
+})
+
+describe('设置中心 · 提醒 · 专注时段（FR-RST-09）', () => {
+  it('没设时选起止时间设定；起止相同提示不保存', async () => {
+    const w = await open(RestSection)
+    const g = group(w, 'focus')
+    const [from, to] = g.findAll('input[type=time]')
+    await from!.setValue('14:00')
+    await to!.setValue('14:00')
+    await g.find('form').trigger('submit')
+    expect(g.find('[role=alert]').text()).toBe(t('settings.rest.focus_invalid'))
+    expect(mocks.settingsSet).not.toHaveBeenCalled()
+    await to!.setValue('17:30')
+    await g.find('form').trigger('submit')
+    await flushPromises()
+    expect(mocks.settingsSet).toHaveBeenCalledWith('rest.focus_period', ['14:00-17:30'])
+  })
+
+  it('已设时显示时段（跨午夜注明次日），可以取消', async () => {
+    mocks.values['rest.focus_period'] = ['22:00-01:00']
+    const w = await open(RestSection)
+    const g = group(w, 'focus')
+    expect(g.find('.current').text()).toBe(
+      t('settings.rest.focus_current', { range: '22:00–01:00' }) + t('settings.care.quiet_next_day'),
+    )
+    await g.find('button').trigger('click')
+    await flushPromises()
+    expect(mocks.settingsSet).toHaveBeenCalledWith('rest.focus_period', [])
   })
 })
 

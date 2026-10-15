@@ -80,8 +80,8 @@ pub fn start(app: &AppHandle) {
             );
             tauri::async_runtime::spawn(service.run(cmd_rx));
         }
-        Some(Err(e)) => eprintln!("日程提醒不可用：{e}"),
-        None => eprintln!("日程提醒不可用：找不到 hub_templates"),
+        Some(Err(e)) => crate::hlog!("日程提醒不可用：{e}"),
+        None => crate::hlog!("日程提醒不可用：找不到 hub_templates"),
     }
 
     let loaded = dirs
@@ -106,7 +106,7 @@ pub fn start(app: &AppHandle) {
             let bus = app.state::<Sensing>().bus.subscribe();
             tauri::async_runtime::spawn(service.run(bus));
         }
-        Err(e) => eprintln!("日程识别不可用：{e}"),
+        Err(e) => crate::hlog!("日程识别不可用：{e}"),
     }
 }
 
@@ -156,7 +156,7 @@ impl SchedulePort for ShellPort {
             CandidateKind::Todo => TodoDetected { card_id }.emit(&self.app),
         };
         if let Err(e) = r {
-            eprintln!("推送识别卡片失败：{e}");
+            crate::hlog!("推送识别卡片失败：{e}");
         }
     }
 
@@ -179,12 +179,12 @@ impl SchedulePort for ShellPort {
             .emit(&self.app),
         };
         if let Err(e) = res {
-            eprintln!("推送识别结果失败：{e}");
+            crate::hlog!("推送识别结果失败：{e}");
         }
     }
 
     fn note(&self, msg: &str) {
-        eprintln!("{msg}");
+        crate::hlog!("{msg}");
     }
 }
 
@@ -231,7 +231,7 @@ impl ReminderPort for ShellPort {
 
     fn remind(&self, r: &Reminder, toast: bool) {
         if let Err(e) = due_of(r).emit(&self.app) {
-            eprintln!("推送 reminder:due 失败：{e}");
+            crate::hlog!("推送 reminder:due 失败：{e}");
         }
         if toast {
             self.app
@@ -253,7 +253,7 @@ impl ReminderPort for ShellPort {
             .lock()
             .unwrap_or_else(|e| e.into_inner()) = Some(ev.clone());
         if let Err(e) = ev.emit(&self.app) {
-            eprintln!("推送 reminder:missed 失败：{e}");
+            crate::hlog!("推送 reminder:missed 失败：{e}");
         }
         self.app
             .state::<Notifier>()
@@ -261,6 +261,6 @@ impl ReminderPort for ShellPort {
     }
 
     fn note(&self, msg: &str) {
-        eprintln!("{msg}");
+        crate::hlog!("{msg}");
     }
 }

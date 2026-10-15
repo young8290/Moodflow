@@ -15,11 +15,17 @@ import { useStatusStore } from '@/stores/status'
 import { menuEntries, type MenuAction } from './menu'
 import MessageLine from './MessageLine.vue'
 import { NOTICE_MS, type Message } from './messages'
+import FocusPanel from './FocusPanel.vue'
+import OutfitPanel from './OutfitPanel.vue'
+import SpriteOutfit from '@/components/SpriteOutfit.vue'
+import { clock as focusClock } from './focus'
 import SelfReportPanel from './SelfReportPanel.vue'
 import { statusLine } from './statusLine'
 import { onCards, openDashboard } from '../shared/bus'
 import { takeGreeting } from '../shared/firstRun'
 import { useExplain } from './useExplain'
+import { useCollection } from './useCollection'
+import { useFocus } from './useFocus'
 import { useFooter } from './useFooter'
 import { useMessages } from './useMessages'
 import { useSelfReport } from './useSelfReport'
@@ -28,6 +34,8 @@ import { useWidgetWindow } from './useWidgetWindow'
 const status = useStatusStore()
 const settings = useSettingsStore()
 const selfReport = useSelfReport()
+const focus = useFocus()
+const outfit = useCollection()
 const msgs = useMessages()
 const footer = useFooter()
 const line = computed(() => (status.snapshot ? statusLine(status.snapshot, selfReport.active.value) : null))
@@ -51,7 +59,34 @@ const menuOpen = ref(false)
 const cards = ref(0)
 
 // 菜单、自评面板开着，或卡片层有卡片时不贴边收起
-const holdOpen = computed(() => menuOpen.value || selfReport.panelOpen.value || cards.value > 0)
+const holdOpen = computed(
+  () =>
+    menuOpen.value ||
+    selfReport.panelOpen.value ||
+    focus.panelOpen.value ||
+    outfit.panelOpen.value ||
+    cards.value > 0,
+)
+/** 底栏左侧：专注中换成倒计时（FR-RST-10），否则今日输入时长 */
+const footerLeft = computed(() =>
+  focus.active.value ? t('focus.footer', { time: focusClock(focus.remaining.value) }) : footer.left.value,
+)
+
+async function equip(item: string | null): Promise<void> {
+  try {
+    await outfit.equip(item)
+  } catch (e) {
+    msgs.error(e)
+  }
+}
+
+async function startFocus(minutes: number): Promise<void> {
+  try {
+    await focus.start(minutes)
+  } catch (e) {
+    msgs.error(e)
+  }
+}
 const place = useWidgetWindow({ autohide, topmost, holdOpen })
 const explain = useExplain(
   toRef(status, 'snapshot'),
@@ -163,6 +198,8 @@ onMounted(async () => {
   // 新的暖心话：小精灵“靠近”（FR-CMF-04 第 5 条）；取不到“今日一句”时只是少一句话
   msgs.init(() => stage.value?.play('approach')).catch((e) => console.warn('订阅一句话区消息失败', e))
   footer.init().catch((e) => console.warn('读取底栏失败', e))
+  focus.init().catch((e) => console.warn('读取专注状态失败', e))
+  outfit.init().catch((e) => console.warn('读取晴天收集失败', e))
   onCards((c) => (cards.value = c.count)).catch((e) => console.warn('订阅卡片层失败', e))
   // 打错字：小精灵“晃一下”，天气不变（FR-WGT-03、DS-MOTION-02）；闭眼（暂停）时不晃
   events.moodTypo
@@ -190,6 +227,16 @@ const openSchedule = () => run(() => openDashboard({ page: 'schedule' }))
 
 const ACTIONS: Record<MenuAction, () => Promise<unknown>> = {
   self_report: async () => openSelfReport(),
+  focus: async () => {
+    explain.close()
+    focus.panelOpen.value = true
+  },
+  focus_stop: () => focus.stop(),
+  outfit: async () => {
+    explain.close()
+    await outfit.refresh()
+    outfit.panelOpen.value = true
+  },
   pause: () => status.setPaused(true),
   resume: () => status.setPaused(false),
   dashboard: () => unwrap(commands.openWindow('dashboard')),
@@ -217,7 +264,12 @@ async function openMenu(at?: LogicalPosition): Promise<void> {
   if (menuOpen.value) return
   menuOpen.value = true
   try {
-    const items = menuEntries(status.snapshot, await pendingCount()).map(({ id, text }) => ({
+    const items = menuEntries(
+      status.snapshot,
+      await pendingCount(),
+      focus.active.value,
+      outfit.canDress.value,
+    ).map(({ id, text }) => ({
       id,
       text,
       action: () => void run(ACTIONS[id]),
@@ -289,7 +341,9 @@ function onPointerUp(): void {
       @keydown="onKeydown"
     >
       <h1 class="visually-hidden">{{ t('window.widget') }}</h1>
-      <WeatherStage v-if="line" ref="stage" :weather="line.weather" :eyes-closed="line.eyesClosed" />
+      <WeatherStage v-if="line" ref="stage" :weather="line.weather" :eyes-closed="line.eyesClosed">
+        <SpriteOutfit v-if="outfit.equipped.value" :item="outfit.equipped.value" />
+      </WeatherStage>
       <div class="content">
         <!-- 状态行：悬停或键盘聚焦时显示解释（FR-WGT-06、FR-STA-09）；右侧依次是离线角标和 ✎“我现在…” -->
         <div class="status-row">
@@ -332,6 +386,19 @@ function onPointerUp(): void {
           @close="closeSelfReport()"
           @skip="closeSelfReport(true)"
         />
+        <OutfitPanel
+          v-if="outfit.panelOpen.value && outfit.view.value"
+          class="overlay"
+          :view="outfit.view.value"
+          @equip="equip"
+          @close="outfit.panelOpen.value = false"
+        />
+        <FocusPanel
+          v-if="focus.panelOpen.value"
+          class="overlay"
+          @start="startFocus"
+          @close="focus.panelOpen.value = false"
+        />
         <ExplainPanel
           v-if="explain.lines.value"
           id="xq-explain"
@@ -362,7 +429,9 @@ function onPointerUp(): void {
         <MessageLine :msg="msgs.shown.value" @act="onMessageAct" @vote="voteComfort" />
         <!-- FR-WGT-05：左边今日输入时长，右边下一个日程或待办数，点了打开看板“日程与待办” -->
         <footer class="footer">
-          <span v-if="footer.left.value" class="footer-left">{{ footer.left.value }}</span>
+          <span v-if="footerLeft" class="footer-left" :class="{ focusing: focus.active.value }">{{
+            footerLeft
+          }}</span>
           <button
             v-if="footer.right.value"
             class="footer-right"
@@ -514,6 +583,12 @@ body {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 专注倒计时：数字等宽，不跟着跳动 */
+.footer-left.focusing {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 /* 底栏很矮：点击目标靠负边距撑到 32 px 高（DS-A11Y-03），不把底栏撑高 */

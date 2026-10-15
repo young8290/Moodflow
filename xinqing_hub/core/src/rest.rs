@@ -116,6 +116,7 @@ impl RestService {
         match ev {
             HubEvent::Xqp(up) => self.on_up(up),
             HubEvent::Pause(on) => self.paused = *on,
+            HubEvent::Focus(on) => self.engine.set_focusing(*on),
             HubEvent::Mood(MoodEvent::StateChanged { state, .. }) => {
                 self.engine.set_tired(*state == MoodState::Tired);
             }

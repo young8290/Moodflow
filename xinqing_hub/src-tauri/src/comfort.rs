@@ -36,7 +36,7 @@ pub fn start(app: &AppHandle) {
     let (templates, prompt, banned) = match loaded {
         Ok(t) => t,
         Err(e) => {
-            eprintln!("暖心话不可用：{e}");
+            crate::hlog!("暖心话不可用：{e}");
             return;
         }
     };
@@ -117,7 +117,7 @@ impl ComfortPort for ShellPort {
             .db()
             .comfort_recent_texts(10)
             .unwrap_or_else(|e| {
-                eprintln!("读取最近的暖心话失败：{e}");
+                crate::hlog!("读取最近的暖心话失败：{e}");
                 Vec::new()
             })
     }
@@ -138,7 +138,7 @@ impl ComfortPort for ShellPort {
             .db()
             .comfort_auto_since(since_ms)
             .unwrap_or_else(|e| {
-                eprintln!("读取暖心话次数失败：{e}");
+                crate::hlog!("读取暖心话次数失败：{e}");
                 (u32::MAX, None)
             })
     }
@@ -148,7 +148,7 @@ impl ComfortPort for ShellPort {
             .state::<AppState>()
             .writer()
             .write_sync(|db| db.comfort_insert(rec))
-            .inspect_err(|e| eprintln!("写入暖心话记录失败：{e}"))
+            .inspect_err(|e| crate::hlog!("写入暖心话记录失败：{e}"))
             .ok()
     }
 
@@ -161,7 +161,7 @@ impl ComfortPort for ShellPort {
             trigger: c.trigger,
         };
         if let Err(e) = ev.emit(&self.app) {
-            eprintln!("推送 comfort:new 失败：{e}");
+            crate::hlog!("推送 comfort:new 失败：{e}");
         }
         let widget_visible = self
             .app
@@ -176,6 +176,6 @@ impl ComfortPort for ShellPort {
     }
 
     fn note(&self, msg: &str) {
-        eprintln!("{msg}");
+        crate::hlog!("{msg}");
     }
 }

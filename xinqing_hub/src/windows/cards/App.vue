@@ -8,6 +8,7 @@ import { useSettingsStore } from '@/stores/settings'
 import NoteCard from './NoteCard.vue'
 import type { Card } from './queue'
 import ReminderCard from './ReminderCard.vue'
+import FocusCard from './FocusCard.vue'
 import RestCard from './RestCard.vue'
 import ScheduleCard from './ScheduleCard.vue'
 import { useCards } from './useCards'
@@ -93,6 +94,7 @@ onMounted(async () => {
         :error="err(c)"
         @act="(x) => a.rest(c.due.kind, x)"
       />
+      <FocusCard v-else-if="c.kind === 'focus'" :summary="c.summary" @close="a.dismiss(c.key)" />
       <NoteCard
         v-else
         :card="c"

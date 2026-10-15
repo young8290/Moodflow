@@ -16,6 +16,7 @@ use tauri::{AppHandle, Manager, State};
 use tauri_specta::Event;
 use xinqing_hub_core::HUB_VERSION;
 use xinqing_hub_core::bus::HubEvent;
+use xinqing_hub_core::domain::collection::{self, CollectionView};
 use xinqing_hub_core::domain::consent::{self, ConsentItem, ConsentState};
 use xinqing_hub_core::domain::explain::Explanation;
 use xinqing_hub_core::domain::features::persist;
@@ -30,7 +31,7 @@ use xinqing_hub_core::infra::wipe;
 use xinqing_hub_core::sense::SenseCmd;
 
 use crate::error::UiError;
-use crate::events::{SelfReportChanged, SettingsChanged, StatusChanged};
+use crate::events::{CollectionChanged, SelfReportChanged, SettingsChanged, StatusChanged};
 use crate::gateway::Ai;
 use crate::research::Research;
 use crate::rest::Rest;
@@ -41,7 +42,7 @@ use crate::windows::{self, WindowTarget};
 
 pub(crate) fn emit_status(app: &AppHandle, snap: StatusSnapshot) {
     if let Err(e) = StatusChanged(snap).emit(app) {
-        eprintln!("推送 status:changed 失败：{e}");
+        crate::hlog!("推送 status:changed 失败：{e}");
     }
 }
 
@@ -142,6 +143,169 @@ pub fn app_restart(app: AppHandle) {
     app.restart()
 }
 
+/// “导出运行信息”包里有哪些文件（FR-OPS-04：导出前先给用户看）。
+#[tauri::command]
+#[specta::specta]
+pub fn diagnostics_preview() -> Vec<crate::diagnostics::DiagFile> {
+    crate::diagnostics::preview()
+}
+
+/// 把运行信息写成 zip 到 `path`（用户在“另存为”里选的），返回文件数。不含数据库、密钥与任何用户文字。
+#[tauri::command]
+#[specta::specta]
+pub fn diagnostics_export(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    ai: State<'_, Arc<crate::gateway::Ai>>,
+    path: String,
+) -> Result<u32, UiError> {
+    use crate::diagnostics::{self, Display, Inputs};
+    let gw = ai.gateway();
+    let info = os_info::get();
+    let displays = app
+        .available_monitors()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|m| Display {
+            name: m.name().cloned(),
+            width: m.size().width,
+            height: m.size().height,
+            x: m.position().x,
+            y: m.position().y,
+            scale: m.scale_factor(),
+        })
+        .collect();
+    let net_log = state.db().net_log_recent(diagnostics::NET_LOG_ROWS)?;
+    let inputs = Inputs {
+        generated: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+        hub_version: HUB_VERSION.to_string(),
+        debug_build: cfg!(debug_assertions),
+        demo: crate::sim::demo(),
+        os: info.to_string(),
+        arch: std::env::consts::ARCH.into(),
+        displays,
+        status: state.status(),
+        health: xinqing_hub_core::infra::gateway::AiGateway::health(ai.inner().as_ref()),
+        usage: crate::commands::ai::ai_usage_today(ai.clone())?,
+        metrics: crate::commands::ai::metrics_view(&gw),
+        net_log,
+        template_overrides: crate::paths::hub_data_dir()
+            .map(|d| diagnostics::template_overrides(&d.join("templates")))
+            .unwrap_or_default(),
+        log: crate::runlog::lines(),
+    };
+    diagnostics::write_zip(std::path::Path::new(&path), &diagnostics::build(&inputs))
+        .map_err(|e| UiError::internal("diagnostics.write_failed", e))
+}
+
+fn collection_now(state: &AppState) -> Result<CollectionView, UiError> {
+    let enabled = settings::get(&state.db(), "collection.enabled")
+        .ok()
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+    let now = sim::clock().now();
+    Ok(state
+        .writer()
+        .write_sync(|db| db.collection_view(enabled, now.date_naive(), now.timestamp_millis()))?)
+}
+
+fn emit_collection(app: &AppHandle, state: &AppState) {
+    match collection_now(state) {
+        Ok(view) => {
+            if let Err(e) = (CollectionChanged { view }).emit(app) {
+                crate::hlog!("推送 collection:changed 失败：{e}");
+            }
+        }
+        Err(e) => crate::hlog!("读取晴天收集失败：{}", e.code),
+    }
+}
+
+/// 晴天值与装扮（FR-REV-04）。新达到的解锁在这时记下；关闭时只返回 `enabled = false`。
+#[tauri::command]
+#[specta::specta]
+pub fn collection_get(state: State<'_, AppState>) -> Result<CollectionView, UiError> {
+    collection_now(&state)
+}
+
+/// 换装（FR-WGT-08）：穿上一件已解锁的，或 `item` 为空时脱下。同一时间只穿一件。推送 `collection:changed`。
+#[tauri::command]
+#[specta::specta]
+pub fn collection_equip(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    item: Option<String>,
+) -> Result<CollectionView, UiError> {
+    if let Some(id) = item.as_deref()
+        && !collection::is_item(id)
+    {
+        return Err(UiError::new("collection.unknown_item", "error.generic"));
+    }
+    let ok = state
+        .writer()
+        .write_sync(|db| db.collection_equip(item.as_deref()))?;
+    if !ok {
+        return Err(UiError::new("collection.locked", "error.collection_locked"));
+    }
+    emit_collection(&app, &state);
+    collection_now(&state)
+}
+
+/// 开始专注（FR-RST-10），时长 10–120 分钟；已经在专注时报错。
+#[tauri::command]
+#[specta::specta]
+pub fn focus_start(
+    focus: State<'_, xinqing_hub_core::focus::FocusHandle>,
+    minutes: u32,
+) -> Result<xinqing_hub_core::focus::FocusStatus, UiError> {
+    use xinqing_hub_core::focus::FocusError;
+    focus.start(minutes).map_err(|e| match e {
+        FocusError::InvalidMinutes => {
+            UiError::new("focus.invalid_minutes", "error.focus_invalid_minutes")
+        }
+        FocusError::AlreadyRunning => UiError::new("focus.running", "error.focus_running"),
+    })
+}
+
+/// 结束专注（随时可以，不做任何评价），返回这次的小结；没在专注时为空。小结也会以 `focus:done` 推送。
+#[tauri::command]
+#[specta::specta]
+pub fn focus_stop(
+    focus: State<'_, xinqing_hub_core::focus::FocusHandle>,
+) -> Option<xinqing_hub_core::domain::focus::FocusSummary> {
+    focus.stop()
+}
+
+/// 现在是否在专注、还剩多久（窗口重开时恢复倒计时）。
+#[tauri::command]
+#[specta::specta]
+pub fn focus_status(
+    focus: State<'_, xinqing_hub_core::focus::FocusHandle>,
+) -> xinqing_hub_core::focus::FocusStatus {
+    focus.status()
+}
+
+/// 是否已设为登录 Windows 时在后台启动（FR-OPS-03）。以系统里的启动项为准，不另存设置。
+#[tauri::command]
+#[specta::specta]
+pub fn autostart_get(app: AppHandle) -> Result<bool, UiError> {
+    use tauri_plugin_autostart::ManagerExt;
+    app.autolaunch()
+        .is_enabled()
+        .map_err(|e| UiError::internal("autostart.failed", e))
+}
+
+/// 开关登录时后台启动，返回改完后的实际状态。
+#[tauri::command]
+#[specta::specta]
+pub fn autostart_set(app: AppHandle, on: bool) -> Result<bool, UiError> {
+    use tauri_plugin_autostart::ManagerExt;
+    let m = app.autolaunch();
+    let r = if on { m.enable() } else { m.disable() };
+    r.map_err(|e| UiError::internal("autostart.failed", e))?;
+    m.is_enabled()
+        .map_err(|e| UiError::internal("autostart.failed", e))
+}
+
 /// 撤回同意 ① 时一并删除情绪数据（FR-DAT-05 第 3 条，ADR 0037）：特征窗口、状态判断、基线、反馈、自评，
 /// 以及每日汇总里的情绪列；对话、日记等自己写的内容不动。基线清空后重新进入冷启动。返回改动的行数。
 #[tauri::command]
@@ -165,7 +329,7 @@ pub fn data_delete_mood(
     if let Some(stats) = stats {
         sensing.apply_baseline(&stats);
         if sensing.cmds.try_send(SenseCmd::Baseline(stats)).is_err() {
-            eprintln!("清空基线未能交给感知任务，下次启动时生效");
+            crate::hlog!("清空基线未能交给感知任务，下次启动时生效");
         }
     }
     Ok(u32::try_from(n).unwrap_or(u32::MAX))
@@ -216,7 +380,7 @@ pub fn submit_feedback(
                     .try_send(SenseCmd::Unfit { state: f.state, ts })
                     .is_err()
             {
-                eprintln!("“不准”反馈未能交给感知任务，下次启动时重放");
+                crate::hlog!("“不准”反馈未能交给感知任务，下次启动时重放");
             }
         }
     }
@@ -262,14 +426,14 @@ pub fn self_report_set(
         })
         .is_err()
     {
-        eprintln!("自评未能交给感知任务，本次不覆盖显示");
+        crate::hlog!("自评未能交给感知任务，本次不覆盖显示");
     }
     let ev = SelfReportChanged {
         weather,
         until_ts: rec.until_ms as f64,
     };
     if let Err(e) = ev.emit(&app) {
-        eprintln!("推送 self_report:changed 失败：{e}");
+        crate::hlog!("推送 self_report:changed 失败：{e}");
     }
     Ok(())
 }
@@ -334,7 +498,7 @@ pub fn baseline_reset(
     let stats = state.writer().write_sync(|db| persist::reset(db, now))?;
     sensing.apply_baseline(&stats);
     if sensing.cmds.try_send(SenseCmd::Baseline(stats)).is_err() {
-        eprintln!("重置基线未能交给感知任务，下次启动时生效");
+        crate::hlog!("重置基线未能交给感知任务，下次启动时生效");
     }
     Ok(())
 }
@@ -377,12 +541,17 @@ pub fn settings_set(
     {
         ai.apply_caps(&state.db());
     }
+    // 关闭晴天收集：解锁记录与穿戴一并删除（D-30），小组件随即摘下装扮
+    if changed && key == "collection.enabled" && value.as_bool() == Some(false) {
+        state.writer().write_sync(|db| db.collection_clear())?;
+        emit_collection(&app, &state);
+    }
     // 全局快捷键改了：整组重新注册，设置页随后用 `hotkey_status` 看有没有冲突（FR-ENT-04）
     if changed && key.starts_with("hotkey.") {
         crate::hotkeys::apply(&app);
     }
     if changed && let Err(e) = (SettingsChanged { key }).emit(&app) {
-        eprintln!("推送 settings:changed 失败：{e}");
+        crate::hlog!("推送 settings:changed 失败：{e}");
     }
     Ok(())
 }
@@ -452,7 +621,7 @@ pub fn rest_action(
         .try_send(xinqing_hub_core::rest::RestCmd::Act { kind, action })
         .is_err()
     {
-        eprintln!("休息提醒服务没有在运行，操作未处理");
+        crate::hlog!("休息提醒服务没有在运行，操作未处理");
     }
     Ok(())
 }

@@ -43,6 +43,11 @@ dirs = "6"
 tauri-plugin-dialog = "2"
 # 全局快捷键 Ctrl+Alt+Q / W / D（FR-ENT-04，src/hotkeys.rs，ADR 0036）；只在 Rust 端注册，前端不需要它的权限
 tauri-plugin-global-shortcut = "2"
+# 登录 Windows 时在后台启动（FR-OPS-03）：Run 键值名 XinQingHub，安装器卸载时据此删除（A 交接文档第 4 节）
+tauri-plugin-autostart = "2"
+# 导出运行信息（FR-OPS-04，src/diagnostics.rs）：zip 与系统版本
+zip = { version = "8.6", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+os_info = { version = "3", default-features = false }
 
 [dev-dependencies]
 mock-ai = { path = "../../tools/mock-ai" }

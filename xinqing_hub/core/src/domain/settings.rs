@@ -183,6 +183,12 @@ pub const KEYS: &[KeySpec] = &[
         kind: Kind::Bool,
         default: || false.into(),
     },
+    // 晴天收集（FR-REV-04，P2）：关闭后不显示晴天值与装扮，解锁记录清空（D-30）
+    KeySpec {
+        key: "collection.enabled",
+        kind: Kind::Bool,
+        default: || true.into(),
+    },
     // 主动关怀频率（FR-CMF-06）：多一些 / 适中 / 少一些 / 关闭
     KeySpec {
         key: "care.level",
@@ -260,6 +266,15 @@ pub const KEYS: &[KeySpec] = &[
         key: "rest.night.start",
         kind: Kind::Choice(crate::domain::rest::NIGHT_STARTS),
         default: || "23:30".into(),
+    },
+    // 专注时段（FR-RST-09）：一段 `HH:MM-HH:MM`，可跨午夜；期间只保留深夜提醒。空列表表示没设（默认）
+    KeySpec {
+        key: "rest.focus_period",
+        kind: Kind::List {
+            item: SettingItem::TimeRange,
+            max: 1,
+        },
+        default: || SettingValue::List(Vec::new()),
     },
     // 无痕、英文状态下用系统空闲时间估算使用时长（04 FR-SEN-06 第 4 条、FR-RST-01）
     KeySpec {

@@ -28,13 +28,13 @@ pub fn comfort_feedback(
             key: "care.level".into(),
         };
         if let Err(e) = changed.emit(&app) {
-            eprintln!("推送 settings:changed 失败：{e}");
+            crate::hlog!("推送 settings:changed 失败：{e}");
         }
         let reduced = CareReduced {
             level: level.as_str().into(),
         };
         if let Err(e) = reduced.emit(&app) {
-            eprintln!("推送 care:reduced 失败：{e}");
+            crate::hlog!("推送 care:reduced 失败：{e}");
         }
     }
     Ok(())

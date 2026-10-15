@@ -104,6 +104,33 @@ export const commands = {
 	dataImport: (path: string, mode: ImportMode, includeSettings: boolean) => typedError<ImportReport, UiError>(__TAURI_INVOKE("data_import", { path, mode, includeSettings })),
 	/**  重启 Hub（导入完成后让各服务按新数据重新加载）。 */
 	appRestart: () => __TAURI_INVOKE<void>("app_restart"),
+	/**  晴天值与装扮（FR-REV-04）。新达到的解锁在这时记下；关闭时只返回 `enabled = false`。 */
+	collectionGet: () => typedError<CollectionView, UiError>(__TAURI_INVOKE("collection_get")),
+	/**  换装（FR-WGT-08）：穿上一件已解锁的，或 `item` 为空时脱下。同一时间只穿一件。推送 `collection:changed`。 */
+	collectionEquip: (item: string | null) => typedError<CollectionView, UiError>(__TAURI_INVOKE("collection_equip", { item })),
+	/**  开始专注（FR-RST-10），时长 10–120 分钟；已经在专注时报错。 */
+	focusStart: (minutes: number) => typedError<FocusStatus, UiError>(__TAURI_INVOKE("focus_start", { minutes })),
+	/**  结束专注（随时可以，不做任何评价），返回这次的小结；没在专注时为空。小结也会以 `focus:done` 推送。 */
+	focusStop: () => __TAURI_INVOKE<{
+	start_ms: number,
+	planned_min: number,
+	/**  实际专注的整分钟数（提前结束时少于计划） */
+	actual_min: number,
+	keys: number,
+	chars: number,
+	/**  是否到点结束（否则是用户提前结束，界面不做任何评价） */
+	completed: boolean,
+} | null>("focus_stop"),
+	/**  现在是否在专注、还剩多久（窗口重开时恢复倒计时）。 */
+	focusStatus: () => __TAURI_INVOKE<FocusStatus>("focus_status"),
+	/**  是否已设为登录 Windows 时在后台启动（FR-OPS-03）。以系统里的启动项为准，不另存设置。 */
+	autostartGet: () => typedError<boolean, UiError>(__TAURI_INVOKE("autostart_get")),
+	/**  “导出运行信息”包里有哪些文件（FR-OPS-04：导出前先给用户看）。 */
+	diagnosticsPreview: () => __TAURI_INVOKE<DiagFile[]>("diagnostics_preview"),
+	/**  把运行信息写成 zip 到 `path`（用户在“另存为”里选的），返回文件数。不含数据库、密钥与任何用户文字。 */
+	diagnosticsExport: (path: string) => typedError<number, UiError>(__TAURI_INVOKE("diagnostics_export", { path })),
+	/**  开关登录时后台启动，返回改完后的实际状态。 */
+	autostartSet: (on: boolean) => typedError<boolean, UiError>(__TAURI_INVOKE("autostart_set", { on })),
 	/**
 	 *  用户点了休息提醒卡片上的按钮（FR-RST-06 第 2 条）：完成或关闭后该类计时清零，“5 分钟后”顺延；
 	 *  每次操作记一条 `reminder_log`（FR-RST-08）。服务没在运行时忽略。
@@ -270,7 +297,10 @@ export const events = {
 	chatDelta: makeEvent<ChatDelta>("chat:delta"),
 	chatDone: makeEvent<ChatDone>("chat:done"),
 	chatError: makeEvent<ChatErrorEvent>("chat:error"),
+	collectionChanged: makeEvent<CollectionChanged>("collection:changed"),
 	comfortNew: makeEvent<ComfortNew>("comfort:new"),
+	focusDone: makeEvent<FocusDone>("focus:done"),
+	focusTick: makeEvent<FocusTick>("focus:tick"),
 	gatewayHealth: makeEvent<GatewayHealthChanged>("gateway:health"),
 	imeConfigChanged: makeEvent<ImeConfigChanged>("ime_config:changed"),
 	letterNew: makeEvent<LetterNew>("letter:new"),
@@ -439,6 +469,23 @@ export type ChatSessionItem = {
 	mode: ChatMode,
 };
 
+/**  `collection:changed`：晴天值或装扮变了（换装、关闭晴天收集，FR-REV-04、FR-WGT-08）。小组件据此换装扮图层。 */
+export type CollectionChanged = {
+	view: CollectionView,
+};
+
+/**  `collection_get` 的结果，也是 `collection:changed` 的载荷。 */
+export type CollectionView = {
+	enabled: boolean,
+	points: number,
+	/**  下一件的 id 与还差的点数 */
+	next_item: string | null,
+	next_need: number,
+	items: ItemView[],
+	/**  正在穿的那件 */
+	equipped: string | null,
+};
+
 /**  一句暖心话（看板“今日一句”、小组件重开时的“今日一句”）。时间戳是 Unix 毫秒。 */
 export type ComfortItem = {
 	id: number,
@@ -549,6 +596,12 @@ export type DemoStatus = {
 	speed: number,
 };
 
+/**  导出前给界面看的一项。 */
+export type DiagFile = {
+	name: string,
+	what: string,
+};
+
 /**  `diary_generate` 的结果：草稿或空白模板，放进编辑框让用户改。 */
 export type DiaryDraft = {
 	/**  保存时原样带回 `diary_save`；空白模板时为 `null` */
@@ -623,6 +676,39 @@ export type Explanation = {
 export type FeedbackTarget = 
 /**  一条状态记录（`mood_state`） */
 "mood_state";
+
+/**
+ *  `focus:done`：专注结束（到点或提前）。卡片层显示“专注 25 分钟 · 按键 1,832 次 · 上屏约 960 字”，
+ *  建议休息 5 分钟（FR-RST-10）。
+ */
+export type FocusDone = {
+	summary: FocusSummary,
+};
+
+/**  `focus_status` 的结果。 */
+export type FocusStatus = {
+	active: boolean,
+	planned_min: number,
+	remaining_s: number,
+};
+
+/**  一次专注的结果（结束卡片与 `focus_session` 一行）。 */
+export type FocusSummary = {
+	start_ms: number,
+	planned_min: number,
+	/**  实际专注的整分钟数（提前结束时少于计划） */
+	actual_min: number,
+	keys: number,
+	chars: number,
+	/**  是否到点结束（否则是用户提前结束，界面不做任何评价） */
+	completed: boolean,
+};
+
+/**  `focus:tick`：专注倒计时，每秒一次（FR-RST-10）。小组件底栏左侧换成倒计时与“专注中”。 */
+export type FocusTick = {
+	remaining_s: number,
+	planned_min: number,
+};
 
 /**  两侧是否可用；也是 `gateway:health` 事件的载荷（10 第 5.2 节）。 */
 export type GatewayHealth = {
@@ -728,6 +814,13 @@ export type ImportReport = {
 	skipped: number,
 	/**  导入了几张表 */
 	tables: number,
+};
+
+/**  一件装扮在界面上的状态。 */
+export type ItemView = {
+	id: string,
+	unlocked: boolean,
+	equipped: boolean,
 };
 
 export type JevInput = {
@@ -1253,6 +1346,8 @@ export type WeekReport = {
 	schedules_added: number,
 	todos_done: number,
 	focus_min: number,
+	/**  这周得的晴天值（FR-REV-04）；关闭晴天收集时为空，界面不显示 */
+	sunny_points: number | null,
 	/**  一句话总结（`weekly_line.toml`，本地模板） */
 	line: string,
 };

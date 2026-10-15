@@ -2,6 +2,7 @@
 
 pub mod agenda;
 pub mod chat;
+pub mod collection;
 pub mod comfort;
 pub mod comfort_feedback;
 pub mod consent;
@@ -13,6 +14,7 @@ pub mod evening;
 pub mod explain;
 pub mod features;
 pub mod feedback;
+pub mod focus;
 pub mod fusion;
 pub mod hotkey;
 pub mod letter;

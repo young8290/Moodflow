@@ -68,11 +68,11 @@ impl ResearchPort for ShellPort {
             answer_until_ts: (sim::clock().now_ms() + ANSWER_MS) as f64,
         };
         if let Err(e) = ev.emit(&self.app) {
-            eprintln!("推送 research:invite 失败：{e}");
+            crate::hlog!("推送 research:invite 失败：{e}");
         }
     }
 
     fn note(&self, msg: &str) {
-        eprintln!("{msg}");
+        crate::hlog!("{msg}");
     }
 }
