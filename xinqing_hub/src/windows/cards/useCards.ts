@@ -98,6 +98,7 @@ export function useCards() {
         () => void takeMissed().catch((e) => console.warn('取错过的提醒失败', e)),
       ),
       await events.restDue.listen((e) => push({ key: 'rest', kind: 'rest', due: e.payload })),
+      await events.focusDone.listen((e) => push({ key: 'focus', kind: 'focus', summary: e.payload.summary })),
       await events.comfortNew.listen((e) => {
         if (e.payload.trigger !== 'self_report') return
         push({ key: 'self_reply', kind: 'self_reply', comfortId: e.payload.id })

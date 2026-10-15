@@ -13,9 +13,10 @@ const snap: StatusSnapshot = {
 }
 
 describe('menuEntries', () => {
-  it('按规格顺序：我现在…、暂停感知、打开看板、待确认日程与待办、设置、隐藏小组件', () => {
+  it('按规格顺序：我现在…、开始专注…、暂停感知、打开看板、待确认日程与待办、设置、隐藏小组件', () => {
     expect(menuEntries(snap).map((e) => e.text)).toEqual([
       '我现在…',
+      '开始专注…',
       '暂停感知',
       '打开看板',
       '待确认日程与待办',
@@ -25,14 +26,18 @@ describe('menuEntries', () => {
   })
 
   it('有待确认的日程与待办时带上数量', () => {
-    expect(menuEntries(snap, 3)[3]).toEqual({ id: 'pending', text: '待确认日程与待办（3）' })
+    expect(menuEntries(snap, 3)[4]).toEqual({ id: 'pending', text: '待确认日程与待办（3）' })
   })
 
   it('已暂停时换成“恢复感知”', () => {
-    expect(menuEntries({ ...snap, paused: true })[1]).toEqual({ id: 'resume', text: '恢复感知' })
+    expect(menuEntries({ ...snap, paused: true })[2]).toEqual({ id: 'resume', text: '恢复感知' })
   })
 
   it('还没拿到状态时按未暂停处理', () => {
-    expect(menuEntries(null)[1]?.id).toBe('pause')
+    expect(menuEntries(null)[2]?.id).toBe('pause')
+  })
+
+  it('专注中换成“结束专注”（FR-RST-10）', () => {
+    expect(menuEntries(snap, 0, true)[1]).toEqual({ id: 'focus_stop', text: '结束专注' })
   })
 })

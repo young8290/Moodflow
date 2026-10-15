@@ -61,6 +61,7 @@ vi.mock('@/api', async (orig) => ({
     reminderDue: listener('reminderDue'),
     reminderMissed: listener('reminderMissed'),
     restDue: listener('restDue'),
+    focusDone: listener('focusDone'),
     comfortNew: listener('comfortNew'),
     reviewEvening: listener('reviewEvening'),
     letterNew: listener('letterNew'),

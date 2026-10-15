@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // 设置中心 · 提醒（07 FR-SET-06）：四类休息提醒的开关和间隔（FR-RST-09，范围取自 settings_schema）、深夜提醒从几点开始、
 // 无痕时是否继续计时（FR-SEN-06 第 4 条）、专注时段（FR-RST-09，`rest.focus_period` 至多一段）。
-// 专注计时是 P2（FR-RST-10），还没有。
+// 专注计时（FR-RST-10）在小组件右键菜单里开始，这里不设。
 import { computed, reactive, ref } from 'vue'
 import { t, type CopyKey } from '@/i18n'
 import { crossesMidnight, quietRange, showRange } from './care'
@@ -157,7 +157,6 @@ async function saveInterval(key: string, input: HTMLInputElement): Promise<void>
       <p v-if="focusError" class="s-error" role="alert">{{ focusError }}</p>
     </fieldset>
 
-    <p class="s-hint">{{ t('settings.rest.focus_pending') }}</p>
     <p v-if="notice" class="s-saved" role="status">{{ notice }}</p>
   </section>
 </template>

@@ -46,6 +46,10 @@ const mocks = vi.hoisted(() => ({
   openTodos: 0,
   busListeners: {} as Record<string, (e: { payload: unknown }) => void>,
   busEmit: vi.fn(),
+  focusStart: vi.fn(),
+  focusStop: vi.fn(),
+  emitFocusTick: null as null | ((e: { remaining_s: number; planned_min: number }) => void),
+  emitFocusDone: null as null | (() => void),
 }))
 const ok = (data: unknown = null) => Promise.resolve({ status: 'ok', data })
 
@@ -78,6 +82,9 @@ vi.mock('@/api', async (orig) => ({
         timeline: [],
       }),
     scheduleList: (status: string) => ok(status === 'pending' ? mocks.pendingSchedules : mocks.schedules),
+    focusStatus: () => Promise.resolve({ active: false, planned_min: 0, remaining_s: 0 }),
+    focusStart: mocks.focusStart,
+    focusStop: mocks.focusStop,
     todoList: (status: string) =>
       ok(Array.from({ length: status === 'open' ? mocks.openTodos : 0 }, (_, i) => ({ id: i }))),
   },
@@ -127,6 +134,18 @@ vi.mock('@/api', async (orig) => ({
     },
     reminderDue: { listen: async () => () => {} },
     todoReady: { listen: async () => () => {} },
+    focusTick: {
+      listen: async (cb: (e: { payload: { remaining_s: number; planned_min: number } }) => void) => {
+        mocks.emitFocusTick = (payload) => cb({ payload })
+        return () => {}
+      },
+    },
+    focusDone: {
+      listen: async (cb: () => void) => {
+        mocks.emitFocusDone = cb
+        return () => {}
+      },
+    },
   },
 }))
 vi.mock('@tauri-apps/api/event', () => ({
@@ -217,6 +236,7 @@ describe('小组件', () => {
     await flushPromises()
     expect(mocks.menuItems.map((i) => i.text)).toEqual([
       '我现在…',
+      '开始专注…',
       '暂停感知',
       '打开看板',
       '待确认日程与待办',
@@ -241,14 +261,48 @@ describe('小组件', () => {
     expect(mocks.hide).toHaveBeenCalled()
   })
 
+  it('专注计时：菜单打开面板，选 25 分钟开始；底栏换成倒计时；专注中菜单给“结束专注”（FR-RST-10）', async () => {
+    mocks.focusStart
+      .mockReset()
+      .mockImplementation(() => ok({ active: true, planned_min: 25, remaining_s: 1500 }))
+    mocks.focusStop.mockReset().mockResolvedValue(null)
+    const w = await mountWidget()
+    await w.find('main').trigger('contextmenu')
+    await flushPromises()
+    mocks.menuItems.find((i) => i.id === 'focus')!.action()
+    await flushPromises()
+    const panel = w.find('.focus-panel')
+    expect(panel.findAll('.preset').map((b) => b.text())).toEqual(['25 分钟', '45 分钟', '60 分钟'])
+    await panel.find('input').setValue('5')
+    await panel.find('form').trigger('submit')
+    expect(panel.find('[role=alert]').text()).toBe(t('focus.custom_invalid'))
+    await panel.findAll('.preset')[0]!.trigger('click')
+    await flushPromises()
+    expect(mocks.focusStart).toHaveBeenCalledWith(25)
+    expect(w.find('.focus-panel').exists()).toBe(false)
+    expect(w.find('.footer-left').text()).toBe(t('focus.footer', { time: '25:00' }))
+    mocks.emitFocusTick!({ remaining_s: 1439, planned_min: 25 })
+    await flushPromises()
+    expect(w.find('.footer-left').text()).toBe(t('focus.footer', { time: '23:59' }))
+
+    await w.find('main').trigger('contextmenu')
+    await flushPromises()
+    const stop = mocks.menuItems.find((i) => i.id === 'focus_stop')!
+    expect(stop.text).toBe('结束专注')
+    stop.action()
+    await flushPromises()
+    expect(mocks.focusStop).toHaveBeenCalled()
+    expect(w.find('.footer-left').text()).not.toContain('专注')
+  })
+
   it('已暂停时菜单给“恢复感知”', async () => {
     mocks.snapshot.paused = true
     const w = await mountWidget()
     await w.find('main').trigger('contextmenu')
     await flushPromises()
-    mocks.menuItems[1]!.action()
+    mocks.menuItems[2]!.action()
     await flushPromises()
-    expect(mocks.menuItems[1]!.text).toBe('恢复感知')
+    expect(mocks.menuItems[2]!.text).toBe('恢复感知')
     expect(mocks.pauseSet).toHaveBeenCalledWith(false)
   })
 
