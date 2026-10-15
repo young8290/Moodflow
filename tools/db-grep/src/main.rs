@@ -42,7 +42,11 @@ fn main() -> Result<ExitCode> {
         .collect();
     let conn = Connection::open_with_flags(&args.db, OpenFlags::SQLITE_OPEN_READ_ONLY)
         .with_context(|| format!("打不开数据库 {}", args.db.display()))?;
-    let allow = if args.strict { &[][..] } else { CONFIRMED_USER_TEXT };
+    let allow = if args.strict {
+        &[][..]
+    } else {
+        CONFIRMED_USER_TEXT
+    };
     let hits = grep(&conn, &phrases, args.fragment, allow)?;
     for h in &hits {
         println!(

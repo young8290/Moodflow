@@ -273,11 +273,9 @@ async fn typed_sentences_never_reach_the_database() {
 
     // NFR-PRI-04：全库零原文（整句和 6 字片段都查）
     drop(shell);
-    let conn = rusqlite::Connection::open_with_flags(
-        &path,
-        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
-    )
-    .unwrap();
+    let conn =
+        rusqlite::Connection::open_with_flags(&path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .unwrap();
     let hits = grep(&conn, &sentences, 6, CONFIRMED_USER_TEXT).unwrap();
     assert!(hits.is_empty(), "数据库里搜到了原文：{hits:?}");
     // 对照：不放过日程 / 待办标题时能搜到片段（且只在这几列），说明抽取路径走到了、扫描本身有效

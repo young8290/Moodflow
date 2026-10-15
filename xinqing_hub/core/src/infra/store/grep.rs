@@ -64,7 +64,10 @@ pub fn grep(
     let mut hits = BTreeSet::new();
     for table in &tables {
         let columns: Vec<String> = conn
-            .prepare(&format!("SELECT name FROM pragma_table_info({})", quote_str(table)))?
+            .prepare(&format!(
+                "SELECT name FROM pragma_table_info({})",
+                quote_str(table)
+            ))?
             .query_map([], |r| r.get(0))?
             .collect::<Result<_, _>>()?;
         for column in columns {
@@ -120,7 +123,10 @@ mod tests {
     fn needles_cover_whole_sentence_and_fragments() {
         assert_eq!(needles("  ", 4), Vec::<String>::new());
         assert_eq!(needles("周五开会", 4), ["周五开会"]);
-        assert_eq!(needles("周五开组会", 4), ["五开组会", "周五开组", "周五开组会"]);
+        assert_eq!(
+            needles("周五开组会", 4),
+            ["五开组会", "周五开组", "周五开组会"]
+        );
         assert_eq!(needles("abc", 0), ["abc"]);
     }
 
@@ -155,11 +161,17 @@ mod tests {
             .iter()
             .map(|h| (h.table.as_str(), h.column.as_str(), h.phrase))
             .collect();
-        assert_eq!(at, [("daily_summary", "typing_min", 1), ("settings", "value", 0)]);
+        assert_eq!(
+            at,
+            [("daily_summary", "typing_min", 1), ("settings", "value", 0)]
+        );
 
         // 片段能查到只存了一部分的原文（待办标题），用户确认的待办标题可以放过
         let frag = grep(c, &phrases, 5, &[]).unwrap();
-        assert!(frag.iter().any(|h| h.table == "todo" && h.column == "title"));
+        assert!(
+            frag.iter()
+                .any(|h| h.table == "todo" && h.column == "title")
+        );
         let allowed = grep(c, &phrases, 5, CONFIRMED_USER_TEXT).unwrap();
         assert!(!allowed.iter().any(|h| h.table == "todo"));
         assert!(allowed.iter().all(|h| h.phrase != 2));
