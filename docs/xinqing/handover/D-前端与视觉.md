@@ -3,7 +3,7 @@
 > 负责范围（产品书 13 第 1 节）：WGT 小组件、DSH 看板、SET 设置、ONB 引导、NTF 系统通知、REV-04 晴天收集的界面、设计规范；
 > 另是前后端绑定 `xinqing_hub/src/api/bindings.ts` 的契约负责人（13 第 3.1 节）。
 > 任务清单与估算见产品书 16 第 2.4 节。本文件随 D 的每个 PR 更新，任务中途换人时按产品书 13 第 3.1 节“交接”直接看这里。
-> 最后更新：2026-10-11（[xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86)：D-02～D-09 收尾——看板六页、卡片层、设置九个分类、对话补齐、全局快捷键、无障碍走查）
+> 最后更新：2026-10-15（[xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86)：D-02～D-09 收尾，含小精灵 lottie 动画与放大文字 / 高对比度 / 高 DPI 走查）
 
 ## 1. 任务状态
 
@@ -11,13 +11,13 @@
 |---|---|---|---|---|
 | D-01 | 前端骨架：Vite + Vue 3、设计令牌、类型生成封装、多窗口 | 完成 | `xinqing_hub/src/`：`styles/tokens.css`、`api/`、`i18n/`、`windows/shared/mount.ts`、`vite.config.ts` | DS-ICON 要求的 Lucide 图标库还没引入：目前十几处图标都是内联 SVG（1.5 px 圆头描边，与 Lucide 同风格），需要成套图标时再引入，记得在“关于”页列许可 |
 | D-02 | 小组件（布局、小精灵、一句话区、底栏、交互、贴边） | 完成（P2 项除外） | 第一～五部分见第 3 节（#14、#16 等已合并）；一句话区消息队列、底栏、菜单“待确认日程与待办（n）”、研究 / 演示模式角标、“晃一下 / 靠近”、`Ctrl+Alt+W`：[xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86) | 菜单里的开始 / 结束专注、换装，底栏的专注倒计时：FR-RST-10、FR-REV-04 都是 P2，后端还没有 |
-| D-03 | 小精灵插画与 lottie 动画（6 天气 + 3 一次性动作）、logo | 代码部分完成 | `components/WeatherSprite.vue`：SVG + CSS 动画——每种天气 2–4 秒循环（呼吸、眨眼，加上光芒转、云飘、雨落、闪电每 3 秒闪一下、月亮浮、风线摆），一次性动作 `play('shake' \| 'approach')`，“闭眼”即 `eyesClosed`；`WeatherStage.vue` 交叉淡化。“晃一下”接 `mood:typo`、“靠近”接新暖心话（[xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86)）。logo 矢量版 `components/AppLogo.vue`（与 `tools/gen_hub_icons.py` 同一套几何），用在“关于”和引导页标题旁（[xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86)） | 正式插画、lottie 素材与正式应用图标要设计稿（Claude 做不了插画定稿）；素材到位后只换 `WeatherSprite.vue` 的内部实现，对外接口（`weather` / `eyesClosed` / `play()`）不变 |
+| D-03 | 小精灵插画与 lottie 动画（6 天气 + 3 一次性动作）、logo | 完成 | `tools/gen_sprite_lottie.py` 从小精灵的矢量形状生成 6 种天气的 lottie 动画（`src/assets/sprite/*.json`，30 帧 / 秒），用标记分五段：loop 4 秒、shake 0.5 秒、approach 0.6 秒、close 闭眼（倒播为睁眼）、sleep 闭眼循环；`components/WeatherSprite.vue` 用 lottie-web 的 SVG 精简播放器按段播放，颜色由图层 class 按设计令牌上（深浅色、高对比度都跟着走），关闭动画时停在第一帧、不可见时暂停；CI 用 `--check` 核对动画与生成脚本一致。“晃一下”接 `mood:typo`、“靠近”接新暖心话。logo 矢量版 `components/AppLogo.vue`，用在“关于”和引导页；应用图标按 DS-BRAND-02 由 `tools/gen_hub_icons.py` 生成（[xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86)） | 形象与图标是 D 按 DS-BRAND 画的矢量版；以后若有设计师稿，换 `gen_sprite_lottie.py` 的形状或直接替换 JSON（保留五个标记与图层 class）即可，组件不用改 |
 | D-04 | 卡片层（日程 / 待办 / 提醒 / 自评 / 小结 / 周信等 8 类） | 完成 | `windows/cards/`（[xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86)）：新窗口 `cards`（ADR 0036 第 7 条），贴着小组件上方（小组件在上半屏时放下方），最多 2 张、其余排队，不抢焦点，Enter 主操作、Esc 收起；日程 / 待办卡片（识别中、AI 识别、标记、时间重叠，60 秒收起）、到点提醒与错过的提醒（`reminder_missed_take`，只显示一次）、休息提醒（从小组件挪来）、负面自评后的回应与“和晴晴聊聊”、晚间小结、周信提示。日程卡片的“修改”在看板日程页打开编辑框 | 卡片层跟随小组件的位置只在浏览器里看过，要在 Windows 真机上和吸附、贴边、多显示器一起走查 |
 | D-05 | 首次引导与同意 | 完成 | `windows/onboarding/`：FR-ONB-01～04；FR-ONB-05（xinqing-ime#64 已合并）——`AiStep.vue`（Jev 与大模型的地址和密钥，已保存的只显示末 4 位、留空不改，“测试连接”先保存再逐个模型测，可跳过进离线模式）、`PrefsStep.vue`（小组件放哪个角、`care.level`、四种休息提醒开关，改了就存）；完成后小组件由晴晴打招呼（`shared/firstRun.ts`） | 引导页不让改大模型的模型列表（沿用已有的或用默认），完整的放设置页“AI 服务”（FR-SET-08）；Jev 没有测试接口，只做说明 |
 | D-06 | 对话窗口（流式、标识、求助卡片 UI） | 完成 | `windows/chat/`：`useChat.ts`（会话、流式事件、先到事件暂存）、`App.vue`（AI 说明、历史抽屉、气泡与 `AI 生成` 标签、复制、停止 / 重试）、`SafetyCard.vue`（求助卡片，折叠成一行不可移除）；与 C-07/C-08 同一个 PR，ADR 0018；快捷指令（吐槽 / 理一理 / 呼吸，`BreathingGuide.vue`）与“记住”确认条由 C 补上（#57），D 已走查样式；[xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86)：快捷指令“📝 写成情绪日记”（共用看板的 `shared/DiaryEditor.vue`，带当前会话起草）、历史抽屉的本地搜索（`chat_search`）与保留期限（`chat.retention_days`）、标题栏置顶切换（`capabilities/chat.json`）、看板点开某段对话（`xq:chat-open`）；`Ctrl+Alt+Q` 由全局快捷键打开 | —（求助卡片上的学校心理中心电话已接设置 `safety.school_phone`） |
 | D-07 | 情绪看板 | 完成（P2 项除外） | `windows/dashboard/`：左侧六页导航（#70 已合并）；[xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86) 补齐——今日（四张概要卡片、打字心电图 `typing:pulse`、状态时间线（点一段看解释，自评实心圆点，逐段列表）、今天的暖心话、写日记）、情绪日历（主导天气 / “—”、日记 📓，点某天看详情）、周报（一句话总结、休息完成率与饮水环比、新增日程与完成待办、状态分布、7 × 24 热力图、每日输入时长、按天查看表格、作息洞察）、日程与待办（待确认 / 已添加 / 已过期 / 已忽略、编辑、加入我的日历）、信箱、对话与日记。读取命令见 ADR 0036。每张图有读屏概括与表格视图 | 周报的专注总时长（FR-RST-10）与晴天值（FR-REV-04）是 P2，后端有数据后加数字卡片；状态分布用横条图而非 07 写的环形图（ADR 0036 第 11 条），待改产品书 |
 | D-08 | 设置中心（schema 表单生成器 + 9 个分类） | 完成 | `windows/settings/`：九个分类按 FR-SET-01 排序。此前已合并：输入法（#36、#39、#41）、关怀（#67）、AI 服务（#66）、隐私（#69）、关于。[xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86) 补齐：常规（总开关、小组件、颜色模式、全局快捷键与冲突提示，替换原“外观”）、感知（同意 ② / ⑤、不感知 / 只感知的程序、记住无痕状态、无痕模式快捷键、基线进度与重新熟悉）、提醒、日程与待办（同意 ③）、温柔改写（同意 ⑥、快捷键、今日次数）；关怀补晚间小结与周信，AI 服务补接口状态表，隐私与关于补参加研究与开发者选项；每页“恢复默认”（先确认，只写与出厂值不同的项；输入法里的项用新命令 `ime_config_defaults`，ADR 0036 第 10 条）与底部“已保存” | “隐私”的删除全部数据（FR-DAT-04）、导入（FR-DAT-07）、隐私说明全文要 E 的命令和文本；黑 / 白名单的“从正在运行的程序中选择”要外壳新增列进程的命令；温柔改写的默认风格与文本来源开关还没有设置键（核心按 Tab 轮换风格、先取最近上屏再取剪贴板，页面照实说明）；常规的“晴天收集”、提醒的专注设置是 P2 |
-| D-09 | 系统通知、无障碍与高对比度、DPI 走查 | 代码部分完成，真机走查待做 | 系统通知：休息提醒（D，`src-tauri/src/notify.rs`）、日程 / 待办 / 错过的提醒（C-05 接入同一个 `Notifier`）；令牌里有 `forced-colors` 高对比度和 `prefers-reduced-motion`，不可见时暂停动画；[xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86) 用 axe-core（WCAG 2.1 A/AA + best-practice）在浅色、深色下走查了全部窗口、看板六页和设置九个分类，修掉小组件 / 卡片层缺读屏标题、看板小字深色对比度不足，现在没有违规项 | 150% 文本大小与 100%–200% DPI、讲述人、Windows 高对比度主题、通知弹出都要在 Windows 真机上走一遍；深色模式 `--xq-text-3` 在卡片底上只有 4.46:1，07 第 1.2 节的令牌值待调（看板小字已改用 `--xq-text-2`） |
+| D-09 | 系统通知、无障碍与高对比度、DPI 走查 | 完成（真机复核待做） | 系统通知：休息提醒（D，`src-tauri/src/notify.rs`）、日程 / 待办 / 错过的提醒（C-05 接入同一个 `Notifier`）；令牌里有 `forced-colors` 与 `prefers-reduced-motion`，不可见时暂停动画。[xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86)：axe-core（WCAG 2.1 A/AA + best-practice）在浅色、深色、高对比度下走查全部窗口、看板六页、设置九个分类，无违规项；用浏览器模拟文字放大 150%、设备缩放 125% / 150% / 200%、Windows 高对比度逐个窗口查截断与越界，修了日历格子、小组件底栏、高对比度下图表颜色 | 模拟代替不了 Windows 真机：讲述人朗读、系统通知弹出、WebView2 对系统“文本大小”的实际处理、混合 DPI 多显示器，发版前在真机上复核一遍；深色 `--xq-text-3` 的令牌值待 07 第 1.2 节调整 |
 
 ## 2. 代码地图（D 负责的部分）
 
@@ -30,7 +30,7 @@ xinqing_hub/
 ├─ src/components/EChart.vue    ECharts 薄封装：按需注册、SVG 渲染、主题 / 尺寸变化重画、减少动态效果时不放动画
 ├─ src/components/chartTheme.ts 图表用色：从设计令牌解析（--xq-chart-1、--xq-surface、--xq-border、--xq-text-*）
 ├─ src/stores/                  status（状态快照 + status:changed）、settings（设置缓存 + settings:changed）
-├─ src/components/              AppLogo（logo 矢量版）、WeatherSprite（静态小精灵）、WeatherStage（交叉淡化）、ExplainPanel（状态解释，`actions` 插槽放“准 / 不准”）
+├─ src/components/              AppLogo（logo 矢量版）、WeatherSprite（lottie 小精灵，数据在 sprite.ts / assets/sprite，由 tools/gen_sprite_lottie.py 生成）、WeatherStage（交叉淡化）、ExplainPanel（状态解释，`actions` 插槽放“准 / 不准”）
 ├─ src/weather.ts               天气图标、名称、不确定说法
 ├─ src/selfReport.ts            自评选项文案、覆盖期推算（看板时间线也会用）
 ├─ src/explain.ts               状态解释的拼句（state_explain 的结构 → 标题 / 说明 / 来源），看板时间线也用它
@@ -200,16 +200,17 @@ xinqing_hub/
 - 设置“常规”的总开关、“感知”的名单与无痕、“温柔改写”的快捷键存在输入法配置里：核心没运行时这几项不可改（页面有说明），恢复默认也只在核心运行时出现；
   `ime_config_defaults`（wind-rpc `config.getDefaults`）只在单测里对过请求形状，没连过真核心。
 - Hub 全局快捷键与输入法快捷键的重复检测只比设置里的值；被别的软件占用要靠注册结果（`hotkey_status`），只在 Linux 上跑过注册逻辑的单测。
+- 小组件窗口固定 320 × 168：文字放大到 150% 时一句话区只放得下一行（悬停看全文），底栏日程先缩成省略号。
 - 打字心电图在看板可见时每秒最多收 10 次 `typing:pulse`、≤ 5 Hz 重画；低配电脑上的 CPU 占用没量过（DS-PERF）。
 - 深色模式 `--xq-text-3` 在卡片底（`--xq-surface`）上是 4.46:1，12 px 小字差一点到 4.5:1；看板已改用 `--xq-text-2`，其余用 text-3 的地方（日期、计数）
   在页面底色上过了 axe 检查。令牌值待 07 第 1.2 节一起调。
 
 ## 6. 下一步（按优先级）
 
-1. Windows 真机走查（D-09）：小组件与卡片层的窗口行为、全局快捷键与录制框、系统通知、100%–200% DPI 与 150% 文本大小、讲述人、高对比度主题；
+1. Windows 真机复核（D-09）：小组件与卡片层的窗口行为、全局快捷键与录制框、系统通知、混合 DPI、系统“文本大小”、讲述人、高对比度主题（浏览器模拟已过）；
 2. ADR 0036 评审（B、C、E），接受后改产品书：07 FR-DSH-03/04（主导天气口径、状态分布横条图）、07 第 1.2 节（`--xq-chart-1`、深色 `--xq-text-3`）、
    10 第 5.1 / 5.2 / 6.2 节（命令、事件、`hotkey.*`）、15 第 2 节（`weekly_line.toml` 已加载）；
-3. 设计稿到位后替换小精灵插画、lottie 动画与应用图标（D-03）；
+3. 若有设计师稿，按 `tools/gen_sprite_lottie.py` 的约定（五个标记、图层 class）替换小精灵动画与应用图标（D-03）；
 4. E 的删除全部数据、导入、隐私说明全文到位后补“隐私”（FR-SET-09）；外壳加列进程的命令后补“从正在运行的程序中选择”（FR-SET-04）；
 5. P2：专注（小组件菜单与底栏、周报、设置“提醒”）、晴天收集与换装（FR-REV-04）。
 
@@ -241,3 +242,4 @@ xinqing_hub/
 | 2026-10-06 | D-07：情绪看板六页导航、今日（当前天气、自评）、周报作息洞察；引入 ECharts 与图表令牌 `--xq-chart-1` |
 | 2026-10-06 | D-09：系统通知——小组件看不见时休息提醒改弹 Windows toast（“知道了”/“5 分钟后”） |
 | 2026-10-11 | xinqing-ime#86：ADR 0036；D-02 收尾（一句话区队列、底栏、晃一下、全局快捷键）、D-04 卡片层、D-07 看板六页、D-08 设置九个分类与恢复默认、D-06 对话补齐（写日记、搜索、置顶、保留期限）、D-03 引导页 logo、D-09 axe 无障碍走查 |
+| 2026-10-15 | [xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86)：D-03 小精灵改用 lottie 动画（生成脚本、五段标记、令牌上色、CI 核对）；D-09 模拟放大文字 / 高 DPI / 高对比度走查并修复 |
