@@ -69,7 +69,11 @@ fn raw() -> Vec<String> {
         }
         let mut ok = Process32FirstW(snap, &mut e);
         while ok != 0 {
-            let len = e.szExeFile.iter().position(|&c| c == 0).unwrap_or(e.szExeFile.len());
+            let len = e
+                .szExeFile
+                .iter()
+                .position(|&c| c == 0)
+                .unwrap_or(e.szExeFile.len());
             out.push(String::from_utf16_lossy(&e.szExeFile[..len]));
             ok = Process32NextW(snap, &mut e);
         }
@@ -84,7 +88,12 @@ fn raw() -> Vec<String> {
         .into_iter()
         .flatten()
         .flatten()
-        .filter(|e| e.file_name().to_string_lossy().bytes().all(|b| b.is_ascii_digit()))
+        .filter(|e| {
+            e.file_name()
+                .to_string_lossy()
+                .bytes()
+                .all(|b| b.is_ascii_digit())
+        })
         .filter_map(|e| std::fs::read_to_string(e.path().join("comm")).ok())
         .collect()
 }
@@ -95,8 +104,16 @@ mod tests {
 
     #[test]
     fn drops_system_processes_and_duplicates() {
-        let names = ["svchost.exe", "WeChat.exe", "Code.exe", "wechat.exe", "", "  Zoom.exe ", "System"]
-            .map(String::from);
+        let names = [
+            "svchost.exe",
+            "WeChat.exe",
+            "Code.exe",
+            "wechat.exe",
+            "",
+            "  Zoom.exe ",
+            "System",
+        ]
+        .map(String::from);
         assert_eq!(tidy(names), ["Code.exe", "WeChat.exe", "Zoom.exe"]);
     }
 
