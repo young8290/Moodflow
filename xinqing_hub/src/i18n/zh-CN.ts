@@ -350,6 +350,8 @@ export const zhCN = {
   "onboarding.ai.skip": "跳过，先用离线模式",
   "onboarding.prefs.title": "再选几样就好",
   "onboarding.prefs.hint": "这些以后都能在设置里改。",
+  "onboarding.prefs.restore": "从备份恢复",
+  "onboarding.prefs.restore_hint": "以前用过心晴？选旧电脑上“导出我的数据”生成的 zip，把记录接着用下去。",
   "onboarding.prefs.corner": "小组件放在屏幕哪个角",
   "onboarding.prefs.corner_br": "右下角",
   "onboarding.prefs.corner_tr": "右上角",

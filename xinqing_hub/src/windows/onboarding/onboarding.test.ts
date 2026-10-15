@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
+import { t } from '@/i18n'
 import type { AiConfigView, ConsentItem, ConsentState } from '@/api'
 
 const ITEMS: ConsentItem[] = ['sense', 'jev_features', 'schedule', 'llm_summary', 'enhanced', 'rewrite']
@@ -100,6 +101,15 @@ describe('首次引导', () => {
     await flushPromises()
     expect(mocks.consentSet).toHaveBeenCalledWith('sense', true)
     expect(next().attributes('disabled')).toBeUndefined()
+  })
+
+  it('最后一页折叠着“从备份恢复”，里面是导入（FR-DAT-07）', async () => {
+    const w = await toAiPage()
+    await w.find('button.skip').trigger('click')
+    await flushPromises()
+    const restore = w.find('details.restore')
+    expect(restore.find('summary').text()).toBe(t('onboarding.prefs.restore'))
+    expect(restore.find('[data-group=import] button').text()).toBe(t('privacy.import_pick'))
   })
 
   it('跳过 AI 服务、选完偏好：打开小组件、请晴晴打招呼，关闭引导窗口（FR-ONB-05）', async () => {

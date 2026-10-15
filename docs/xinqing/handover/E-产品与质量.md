@@ -13,12 +13,12 @@
 | PM-02 | 每周例会、风险登记更新、周报 | 未开始（需要人） | 模板：16 第 6.1 节 | 纪要放 `docs/meetings/YYYY-MM-DD.md`（目录还没有）；风险状态见第 4.3 节 |
 | PM-03 | 需求、设计、测试评审各一次 | 未开始 | 模板：16 第 6.2 节 | 计划 W2 / W4 / W6；ADR 评审在做（第 4.1 节），不替代正式评审会 |
 | PM-04 | 一手调研：问卷与访谈 | 未开始（需要人） | 问卷与提纲：12 第 8 节 | 要真人做，Claude 只能帮整理结果 |
-| E-01 | 数据导出、删除、撤回同意、自动清理 | **进行中** | 第一部分（自动清理）：[xinqing-ime#20](https://github.com/young8290/xinqing-ime/pull/20)（已合并），ADR 0013；第二部分（导出，core）：[xinqing-ime#32](https://github.com/young8290/xinqing-ime/pull/32)；Tauri `data_export(path)` 命令：[xinqing-ime#47](https://github.com/young8290/xinqing-ime/pull/47) | 见第 3 节 |
-| E-02 | 数据导入与恢复（合并 / 覆盖、事务回滚） | 未开始 | — | 计划 W10，依赖 E-01 的导出格式 |
+| E-01 | 数据导出、删除、撤回同意、自动清理 | **进行中** | 第一部分（自动清理）：[xinqing-ime#20](https://github.com/young8290/xinqing-ime/pull/20)（已合并），ADR 0013；第二部分（导出，core）：[xinqing-ime#32](https://github.com/young8290/xinqing-ime/pull/32)；Tauri `data_export(path)` 命令：[xinqing-ime#47](https://github.com/young8290/xinqing-ime/pull/47)；删除全部数据与撤回 ① 时删除情绪数据：D 为补齐设置页“隐私”先行实现（[xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86)，ADR 0037：`core/src/infra/wipe.rs`、`store/erase.rs`，命令 `data_delete_all` / `data_delete_mood`）——**待 E 评审** | 见第 3 节；请按 09 FR-DAT-04/05 核对 ADR 0037 的删除范围（模板覆盖保留）与“情绪数据”的范围 |
+| E-02 | 数据导入与恢复（合并 / 覆盖、事务回滚） | **待 E 评审** | D 先行实现（[xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86)，ADR 0037）：`core/src/infra/store/import.rs`（校验清单与 SHA-256、结构版本、合并去重与行号重映射、覆盖前 `VACUUM INTO` 备份、单事务回滚），命令 `data_import` / `app_restart`；设置页与首次引导最后一页的入口 | 评审合并的去重规则（内容完全相同才算同一条）、不导入出网记录与 `dev.*` 设置是否合适；NFR-PERF-10：按一年约 12 万窗口 + 12 万状态记录造数据，release 构建覆盖导入 3.5 秒、合并（全部重复）2.0 秒（`year_of_data_imports_within_a_minute`，默认不跑），真机再复核一次 |
 | E-03 | db-grep、隐私自动化测试（NFR-PRI） | 未开始 | — | 计划 W8。已有的隐私约束测试：`window_features_reject_text`（store）、Q-STATE 字段白名单与脱敏（`core/src/infra/gateway`） |
 | E-04 | 测试用例维护与执行（18 全部用例）、缺陷管理 | 未开始 | — | 计划 W6–W12；目前各 PR 的单元测试按需求编号写，还没人按 TC 编号执行和记录 |
 | E-05 | 用户研究（招募、知情同意、7 天试用、分析） | 未开始（需要人） | 知情同意书：21 第 2 节 | 计划 W8 招募（R-11） |
-| E-06 | 隐私说明、用户手册、运维手册定稿 | 未开始 | 初稿：21、19、20 | 计划 W10，功能冻结后按实现核对 |
+| E-06 | 隐私说明、用户手册、运维手册定稿 | **进行中** | 初稿：21、19、20；隐私说明正文已随包放进 `hub_templates/privacy_notice.md`、设置页可看（D，[xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86)，core 测试核对版本 = `POLICY_VER`） | 填写【】处的团队、联系方式、生效日期；用户手册、运维手册按实现核对；正文改动同步 `privacy_notice.md` 并给 `POLICY_VER` +1 |
 | E-07 | 测试报告、验收演示材料与演练 | 未开始 | 模板：18 第 4 节 | 计划 W12，`docs/test/report.md` |
 | E-08 | 内容资产评审：危机词表、禁用词表、文案 | **E 已评审，v2 已合并，待第二评审人** | 评审记录 `docs/xinqing/reviews/2026-10-04-E-08-内容资产评审.md`；词表 v2、禁用词表 v2、扩充集 `eval/datasets/e_crisis_ext.jsonl`：[xinqing-ime#28](https://github.com/young8290/xinqing-ime/pull/28)，产品书 [xinqing#8](https://github.com/young8290/xinqing/pull/8) | 第二评审人确认前两份文件仍不得用于试用；真正的留出集要由没看过词表的人写；`ui_copy.toml` 只评了 `[safety]`（通过），其余待 D 与 E 共同评审 |
 | （C-02） | mock-ai | 已由 C 完成 | `tools/mock-ai/` | 16 第 3 节建议移给 E，已经做完，不再移；后续加故障场景由测试驱动，E 提需求 |
@@ -110,3 +110,4 @@ eval/datasets/e_crisis_ext.jsonl  危机词表扩充集（E-08 补充的开发�
 | 2026-10-04 | 初版：盘点 PM-01～04、E-01～08；E-01 第一部分（自动清理）与 ADR 0013；ADR 0008、0010 评审通过，产品书 V1.4 |
 | 2026-10-04 | E-08：危机词表与禁用词表评审、v2 补充、扩充集与 Rust 对拍；ADR 0009 第 11 条、0011、0012 的 E 评审意见；风险登记更新 |
 | 2026-10-04 | E-01 第二部分：导出数据包（core）；记下改词表要重新生成繁转简表 |
+| 2026-10-15 | D 在 [xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86) 先行实现 E-01 的删除部分与 E-02 导入（ADR 0037），并把隐私说明正文放进 Hub；E-01、E-02、E-06 状态相应更新，待 E 评审 |

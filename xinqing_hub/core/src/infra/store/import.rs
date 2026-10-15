@@ -281,6 +281,12 @@ impl Db {
             }
             report.tables += 1;
             let quoted = format!("\"{}\"", table.replace('"', "\"\""));
+            // 合并：先把已有各行的内容签名读进内存，逐行比对是 O(1)（逐行查库在一年的数据上是平方级）
+            let mut seen: HashMap<String, i64> = if mode == ImportMode::Merge && cols.id_pk {
+                existing_signatures(&tx, &quoted, &cols.names)?
+            } else {
+                HashMap::new()
+            };
             for raw in rows {
                 let mut row = raw.clone();
                 strip_ai_marks(table, &mut row);
@@ -307,37 +313,20 @@ impl Db {
                     .collect();
                 let old_id = row.get("id").and_then(Value::as_i64);
 
-                if mode == ImportMode::Merge && cols.id_pk {
-                    // 内容完全相同（不算行号）的已有行：视为同一条
-                    let cond: Vec<String> = present
-                        .iter()
-                        .enumerate()
-                        .map(|(i, c)| format!("\"{}\" IS ?{}", c.replace('"', "\"\""), i + 1))
-                        .collect();
-                    let where_ = if cond.is_empty() {
-                        "1".into()
-                    } else {
-                        cond.join(" AND ")
-                    };
-                    let existing: Option<i64> = tx
-                        .query_row(
-                            &format!("SELECT id FROM {quoted} WHERE {where_} LIMIT 1"),
-                            rusqlite::params_from_iter(values.iter()),
-                            |r| r.get(0),
-                        )
-                        .map(Some)
-                        .or_else(|e| match e {
-                            rusqlite::Error::QueryReturnedNoRows => Ok(None),
-                            e => Err(e),
-                        })?;
-                    if let Some(existing) = existing {
+                // 内容完全相同（不算行号）的已有行：视为同一条
+                let sig = if mode == ImportMode::Merge && cols.id_pk {
+                    let sig = signature(&cols.names, |c| row.get(c).map(sql_value));
+                    if let Some(&existing) = seen.get(&sig) {
                         if let (Some(old), Some(key)) = (old_id, referenced(table)) {
                             ids.entry(key).or_default().insert(old, existing);
                         }
                         report.skipped += 1;
                         continue;
                     }
-                }
+                    Some(sig)
+                } else {
+                    None
+                };
 
                 let names: Vec<String> = present
                     .iter()
@@ -364,15 +353,57 @@ impl Db {
                     continue;
                 }
                 report.added += 1;
+                let new_id = if skip_id { tx.last_insert_rowid() } else { old_id.unwrap_or_default() };
+                if let Some(sig) = sig {
+                    // 包里自己重复的行也只留一份
+                    seen.insert(sig, new_id);
+                }
                 if let (Some(old), Some(key)) = (old_id, referenced(table)) {
-                    let new = if skip_id { tx.last_insert_rowid() } else { old };
-                    ids.entry(key).or_default().insert(old, new);
+                    ids.entry(key).or_default().insert(old, new_id);
                 }
             }
         }
         tx.commit()?;
         Ok(report)
     }
+}
+
+/// 一行除行号以外各列的值连成的签名（缺的列按空值算）
+fn signature(names: &[String], mut get: impl FnMut(&str) -> Option<SqlValue>) -> String {
+    let mut out = String::new();
+    for c in names.iter().filter(|c| c.as_str() != "id") {
+        let v = get(c).unwrap_or(SqlValue::Null);
+        out.push_str(&format!("{v:?}\u{1f}"));
+    }
+    out
+}
+
+/// 已有各行的签名 → 行号
+fn existing_signatures(
+    conn: &rusqlite::Connection,
+    quoted: &str,
+    names: &[String],
+) -> Result<HashMap<String, i64>, rusqlite::Error> {
+    let cols: Vec<&String> = names.iter().filter(|c| c.as_str() != "id").collect();
+    let list: Vec<String> = cols.iter().map(|c| format!("\"{}\"", c.replace('"', "\"\""))).collect();
+    let sql = if list.is_empty() {
+        format!("SELECT id FROM {quoted}")
+    } else {
+        format!("SELECT id, {} FROM {quoted}", list.join(", "))
+    };
+    let mut stmt = conn.prepare(&sql)?;
+    let mut rows = stmt.query([])?;
+    let mut out = HashMap::new();
+    while let Some(r) = rows.next()? {
+        let id: i64 = r.get(0)?;
+        let mut i = 0usize;
+        let sig = signature(names, |_| {
+            i += 1;
+            r.get::<_, SqlValue>(i).ok()
+        });
+        out.entry(sig).or_insert(id);
+    }
+    Ok(out)
 }
 
 /// 会被别的表引用行号的表：要记下导入前后的行号对应
@@ -668,6 +699,42 @@ mod tests {
         );
         assert_eq!(count(&target, "memory"), 1, "覆盖失败时原来的数据还在");
         assert_eq!(count(&target, "chat_message"), 0);
+    }
+
+    /// NFR-PERF-10：1 年数据的导入在 60 秒内。按一年约 12 万个特征窗口与状态记录造数据，覆盖导入到空库、
+    /// 再合并导入同一份（全部重复）。耗时较长，默认不跑：`cargo test -p xinqing-hub-core --release -- --ignored year_of_data`
+    #[test]
+    #[ignore]
+    fn year_of_data_imports_within_a_minute() {
+        let dir = tmp();
+        let src = Db::open(&dir.0.join("src.db")).unwrap();
+        {
+            let tx = src.conn().unchecked_transaction().unwrap();
+            for i in 0..120_000i64 {
+                tx.execute(
+                    "INSERT INTO window_features (id, start_ts, end_ts, app_cat, features_json) VALUES (?1, ?2, ?3, 'doc', '{\"iki_med\":180.5}')",
+                    rusqlite::params![i + 1, i * 60_000, i * 60_000 + 30_000],
+                )
+                .unwrap();
+                tx.execute(
+                    "INSERT INTO mood_state (ts, window_id, state, shown_state, source) VALUES (?1, ?2, 'fluent', 'fluent', 'rule')",
+                    rusqlite::params![i * 60_000 + 30_000, i + 1],
+                )
+                .unwrap();
+            }
+            tx.commit().unwrap();
+        }
+        let pkg = package(&src, &dir.0);
+        let target = Db::open(&dir.0.join("dst.db")).unwrap();
+        let t0 = std::time::Instant::now();
+        target.import_package(&pkg, ImportMode::Overwrite, false).unwrap();
+        let overwrite = t0.elapsed();
+        let t1 = std::time::Instant::now();
+        let r = target.import_package(&pkg, ImportMode::Merge, false).unwrap();
+        let merge = t1.elapsed();
+        eprintln!("覆盖 {overwrite:?}，合并（全部重复）{merge:?}，{r:?}");
+        assert_eq!(r.added, 0);
+        assert!(overwrite.as_secs() < 60 && merge.as_secs() < 60);
     }
 
     #[test]

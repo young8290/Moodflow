@@ -433,6 +433,8 @@ skip = "跳过，先用离线模式"
 [onboarding.prefs]           # 07 FR-ONB-05 第 2 条：小组件位置、关怀频率、提醒开关
 title = "再选几样就好"
 hint = "这些以后都能在设置里改。"
+restore = "从备份恢复"
+restore_hint = "以前用过心晴？选旧电脑上“导出我的数据”生成的 zip，把记录接着用下去。"
 corner = "小组件放在屏幕哪个角"
 corner_br = "右下角"
 corner_tr = "右上角"
