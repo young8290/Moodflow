@@ -201,6 +201,11 @@ mod tests {
                 .unwrap_or_else(|| panic!("{} 没登记", a.setting_key()));
             let d = (spec.default)();
             let d = d.as_str().unwrap();
+            // 空串表示出厂不设（专注快捷键，07 第 2 节）；设了的必须能注册
+            if a == HotkeyAction::Focus {
+                assert_eq!(d, "", "专注快捷键出厂不设");
+                continue;
+            }
             assert!(shortcut(&Hotkey::parse(d).unwrap()).is_some(), "{d}");
         }
     }
