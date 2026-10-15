@@ -74,9 +74,9 @@ C-PLT-05：登录、锁屏、UAC 提权框处于安全桌面，输入法不采�
 | 不自动设为默认输入法 | FR-OPS-01 | 安装器本来就不设 |
 | 安装包名 | FR-OPS-01 | `XinQing-Setup-<版本>.exe`（打包器固定“名称-版本”的顺序），产品书写的是 `XinQing-<版本>-Setup.exe` |
 | 检测 WebView2、缺失时下载微软引导程序 | FR-OPS-01、C-PLT-06 | 已写，未实测：清单 `[[prerequisite]]`。打包时 `Add-WebView2Bootstrapper` 下载微软在线引导程序到 `redist\`、校验微软签名；装完检测，缺了静默运行它（需联网，最长等 20 分钟），仍缺则完成页给下载链接。便携版只提示 |
-| 快捷方式写应用标识（通知要用） | FR-OPS-01、FR-NTF-01 | 已写，未实测：“心晴”快捷方式带 `app_user_model_id = "com.xinqing.hub"`，须与 `tauri.conf.json` 的 identifier 一致。Hub 还没接通知插件 |
+| 快捷方式写应用标识（通知要用） | FR-OPS-01、FR-NTF-01 | 已写，未实测：“心晴”快捷方式带 `app_user_model_id = "com.xinqing.hub"`，须与 `tauri.conf.json` 的 identifier 一致。Hub 的系统通知已接（D-09，`tauri-winrt-notification`） |
 | 完成页提示、许可页放 MIT 全文与“基于清风输入法”声明 | FR-OPS-01、FR-OPS-06 | 已写，未实测：完成页两行说明；“我已阅读并同意《许可协议与开源声明》”点开是 `config/installer-license.txt` 加根目录 `LICENSE` 拼成的全文。`LICENSE`、`NOTICE.md` 随包装进安装目录 |
-| 卸载时删掉 Hub 的“登录时后台启动”启动项 | FR-OPS-02 | 已写，未实测：清单 `[runtime_autostart]` 认领值名 `XinQingHub` 和 `心晴`。**给 Hub 做这项设置的人**：Run 键值名用 `XinQingHub`（tauri-plugin-autostart 的 `Builder::app_name`） |
+| 卸载时删掉 Hub 的“登录时后台启动”启动项 | FR-OPS-02 | 已写，未实测：清单 `[runtime_autostart]` 认领值名 `XinQingHub` 和 `心晴`。Hub 一侧已做（ADR 0039 第 2 条）：设置“常规”的开关写 Run 键值名 `XinQingHub`，参数 `--background`；调试构建用 `XinQingHubDev`，卸载清单可一并认领 |
 
 这四项依赖 fork 的 PR #1：要先合并它，再合并本仓的对应 PR，否则打包时旧安装器会忽略这些清单字段（不报错，但功能不生效）。
 fork 刚建时 Actions 默认关着，要在 fork 的 Actions 页点一次启用，PR #1 的 Windows CI 才会跑。

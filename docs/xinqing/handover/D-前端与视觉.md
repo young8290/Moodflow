@@ -83,13 +83,13 @@ xinqing_hub/
 │     ├─ imeForm.ts             常用项清单（改时同步 ui_copy.toml 的 [ime.field]）、高级分组、按点分键名取值
 │     ├─ hotkey.ts              快捷键：录制规则、键名与别名（hotkey.test.ts 对照清风 hotkey.rs）、用录制框的配置键清单
 │     ├─ HotkeyRecorder.vue     快捷键录制框：点一下录制，Esc 取消、退格清除，重复时提示
-│     ├─ GeneralSection.vue     常规（FR-SET-03）：总开关、小组件、颜色模式、全局快捷键
+│     ├─ GeneralSection.vue     常规（FR-SET-03）：总开关、登录时后台启动（FR-OPS-03）、小组件、颜色模式、全局快捷键
 │     ├─ SenseSection.vue       感知（FR-SET-04）：同意 ② / ⑤、程序名单、无痕、基线
 │     ├─ CareSection.vue        关怀：频率、说话风格、晚间小结、周信、同意 ④、安静时段、勿扰应用、学校电话、晴晴记住的事（FR-SET-05）
-│     ├─ RestSection.vue        提醒（FR-SET-06）；AgendaSection.vue 日程与待办（FR-SET-07）；RewriteSection.vue 温柔改写（FR-SET-10）
+│     ├─ RestSection.vue        提醒（FR-SET-06，含专注时段 FR-RST-09）；AgendaSection.vue 日程与待办（FR-SET-07）；RewriteSection.vue 温柔改写（FR-SET-10）
 │     ├─ care.ts                设置页的输入校验（与后端 SettingItem::accepts、memory_entry 同一套规则，含研究编号）
 │     ├─ AiSection.vue          AI 服务：地址与密钥、大模型优先级、测试连接、每日上限与今日用量、接口状态（FR-SET-08）
-│     ├─ AboutSection.vue       隐私与关于：PrivacySection、ResearchDevSection（参加研究、演示模式），下面是“关于”
+│     ├─ AboutSection.vue       隐私与关于：PrivacySection、ResearchDevSection（参加研究、演示模式），下面是“关于”与 RunInfoExport（导出运行信息，FR-OPS-04）
 │     ├─ PrivacySection.vue     隐私：告知表、同意与撤回、最近出网记录、导出我的数据（FR-SET-09）
 │     ├─ SectionHead.vue        分类标题与“恢复默认”（先确认）；settings.css 各分类共用版式（前缀 s-）
 │     ├─ useHubSettings.ts      Hub 设置键：读、修改即保存、“已保存”提示、按 settings_schema 恢复默认

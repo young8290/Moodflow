@@ -15,7 +15,7 @@
 | B-05 | 本地规则 R1–R6 | 完成（R1b 除外） | `domain/rules.rs`、`domain/features/typo.rs` | R1b 需要核心在 `comp` 里加 `invalid` 字段（ADR 0008 第 5 条），待 A 决定 |
 | B-06 | 融合与滞回、降级运行 | 完成 | `domain/fusion.rs`、`pipeline.rs`、`sense.rs`；Jev 接入实时路径：D 先行实现（ADR 0038，待 B / C 评审） | 同意 ② 时每个窗口问 Q-STATE / Q-VALENCE / Q-COMFORT，失败或超时按规则；见第 5 节 |
 | B-07 | 状态解释、反馈校准、自评天气（后端） | 后端完成 | 第一部分（状态解释）：[xinqing-ime#11](https://github.com/young8290/xinqing-ime/pull/11)（已合并），ADR 0010；第二部分（`state_explain` 命令）：[xinqing-ime#12](https://github.com/young8290/xinqing-ime/pull/12)（已合并）；第三部分（反馈校准）：[xinqing-ime#15](https://github.com/young8290/xinqing-ime/pull/15)（已合并）；第四部分（自评天气）：[xinqing-ime#17](https://github.com/young8290/xinqing-ime/pull/17)（已合并），ADR 0011 | 见第 3 节 |
-| B-08 | 使用时长与四类休息提醒等（P0） | 第一部分完成（PR 合并后） | 判断 `domain/rest.rs`、服务 `rest.rs`、`infra/store/rest.rs`；外壳 `src-tauri/src/rest.rs`；小组件 `windows/widget/{useRest.ts,RestCard.vue}` | 见第 3.1 节：系统通知、专注时段、设置界面 |
+| B-08 | 使用时长与四类休息提醒等（P0） | 完成 | 判断 `domain/rest.rs`、服务 `rest.rs`、`infra/store/rest.rs`；外壳 `src-tauri/src/rest.rs`；小组件 `windows/widget/{useRest.ts,RestCard.vue}` | 系统通知 D-09 已接（`src-tauri/src/notify.rs`）；专注时段 D 先行实现（ADR 0039，待 B 评审）；设置界面在 D-08 |
 | B-09 | 作息洞察统计 | 后端完成 | 统计 `domain/routine.rs`、写库 `infra/store/summary.rs`；`get_routine(days)` 命令；见第 3.2 节 | 看板周报的折线和数字归 D-07；周信 / 晚间小结引用等 C-10 认领 |
 | B-10 | 演示模式（clock 替换、演示数据库） | 后端完成 | `ScaledClock`（`infra/clock.rs`）、预置数据 `domain/demo.rs`、外壳 `src-tauri/src/sim.rs`（`--demo`、`open_demo_state`）、`demo_status` 命令；ADR 0023；见第 3.3 节 | 标题栏“演示模式”和演示者视图归 D；设置键见 ADR 0025（#58 已合并）；外壳启动读 `dev.demo`、研究模式（FR-DMO-04）后端完成（PR 合并后，ADR 0026，见第 3.3 节）；邀请面板、研究模式标识、删除确认归 D |
 | B-11 | E-STATE 评测与报告 | 未开始 | — | 依赖 B-02 的录制数据；`xq-replay --json` 已能输出每个窗口的特征、状态和解释 |
@@ -66,8 +66,8 @@ hub_templates/        baseline_default.toml、app_categories.toml、explain.toml
 | 显示：光标旁气泡（XQP `tip`，2.5 秒）+ 小组件卡片（已完成 / 5 分钟后 / 今天不再提醒，Esc = 5 分钟后）；护眼“已完成”先倒数 20 秒再致谢 | FR-RST-02、06 | 完成；推送 `rest:due`，按钮走 `rest_action` 命令 |
 | 疲惫时护眼提前（已连续 ≥10 分钟）并换文案 | FR-RST-07 | 完成：订阅 `MoodEvent::StateChanged` |
 | `reminder_log` 记录用户操作 | FR-RST-08 | 完成：只记点了哪个按钮，不记“显示过” |
-| 小组件隐藏时改用系统通知 | FR-NTF-01 | **未做**，随 D-09 接入；在此之前只有光标旁气泡 |
-| 专注时段 `rest.focus_period` | FR-RST-06 | **未做**：设置键注册表还没有自由文本类型 |
+| 小组件隐藏时改用系统通知 | FR-NTF-01 | 完成（D-09，`src-tauri/src/notify.rs`，Windows toast“知道了”/“5 分钟后”；真机待复核） |
+| 专注时段 `rest.focus_period` | FR-RST-09 | D 先行实现（ADR 0039 第 1 条）：至多一段，期间只保留深夜提醒，其余照常计时、过后照常提醒；设置“提醒”里设定 |
 | `daily_summary` 的 `typing_min` / `rests_due` / `rests_done` / `water` | FR-RST-08 | 完成（随 B-09）：见第 3.2 节 |
 | 设置界面里的 `rest.*` | FR-RST-09 | **未做**：统一设置窗口（D-08）暂缓，目前只能改库里的默认值 |
 
@@ -140,7 +140,7 @@ hub_templates/        baseline_default.toml、app_categories.toml、explain.toml
 
 ## 6. 下一步（按优先级）
 
-1. B-08 剩余：系统通知（随 D-09）、专注时段（等 C 的自由文本设置类型）；
+1. B-08：评审 ADR 0039 第 1 条（专注时段的实现）；
 2. B-01 已完成：`--baseline`、`--start-at`（#46，ADR 0021，待 A、E 评审），暂停 / 单步；剩 Windows 管道客户端版 `--listen`；
 3. B-10：后端已全部完成；跟进 ADR 0023 / 0025 / 0026 评审，D 接上演示模式标题栏、演示者视图、研究模式面板后联调；
 4. B-11 评测报告：等 B-02 的真人录制。
