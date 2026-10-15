@@ -23,6 +23,7 @@ pub mod demo;
 mod diary;
 pub mod erase;
 pub mod export;
+pub mod import;
 mod letter;
 mod rest;
 mod schedule;

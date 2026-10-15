@@ -71,6 +71,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::db_rebuilt_take,
             commands::data_delete_all,
             commands::data_delete_mood,
+            commands::data_import,
+            commands::app_restart,
             commands::rest_action,
             commands::ai::ai_config_get,
             commands::ai::secrets_set,

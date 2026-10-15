@@ -96,6 +96,15 @@ export const commands = {
 	 */
 	dataDeleteMood: () => typedError<number, UiError>(__TAURI_INVOKE("data_delete_mood")),
 	/**
+	 *  导入与恢复（FR-DAT-07，ADR 0037）：只收“导出我的数据”生成的 zip，校验清单与每个文件的 SHA-256，
+	 *  结构版本更新的包拒绝。`overwrite` 先把当前数据库备份到旁边（`*.bak-<时间>`）再替换；`merge` 保留两边、相同的只留一份。
+	 *  同意记录、出网记录不导入；`include_settings` 为假时设置也不导入。全部在一个事务里，失败整体回滚。
+	 *  成功后界面请用户重启 Hub（`app_restart`），各服务按新数据重新加载。
+	 */
+	dataImport: (path: string, mode: ImportMode, includeSettings: boolean) => typedError<ImportReport, UiError>(__TAURI_INVOKE("data_import", { path, mode, includeSettings })),
+	/**  重启 Hub（导入完成后让各服务按新数据重新加载）。 */
+	appRestart: () => __TAURI_INVOKE<void>("app_restart"),
+	/**
 	 *  用户点了休息提醒卡片上的按钮（FR-RST-06 第 2 条）：完成或关闭后该类计时清零，“5 分钟后”顺延；
 	 *  每次操作记一条 `reminder_log`（FR-RST-08）。服务没在运行时忽略。
 	 */
@@ -702,6 +711,23 @@ export type ImeSetResult = {
 export type ImeSkipped = {
 	key: string,
 	reason: string,
+};
+
+/**  合并还是覆盖 */
+export type ImportMode = 
+/**  保留两边的数据，相同的只留一份 */
+"merge" | 
+/**  用导入的数据替换（先自动备份当前数据库） */
+"overwrite";
+
+/**  导入结果 */
+export type ImportReport = {
+	/**  新写入的行 */
+	added: number,
+	/**  跳过的行（合并时已有相同的、设置不导入或不认识的键等） */
+	skipped: number,
+	/**  导入了几张表 */
+	tables: number,
 };
 
 export type JevInput = {

@@ -2,10 +2,18 @@
 // 设置中心 · 隐私（07 FR-SET-09 上半部分，放在“隐私与关于”分类里）：
 // 采集内容说明（与引导页同一张表）、逐项同意与撤回（FR-DAT-05）、最近 20 次出网记录（只有字段名和时间）、导出我的数据（FR-DAT-03）。
 // 删除全部数据（FR-DAT-04，ADR 0037）：输入“删除”二字确认，可选连 AI 密钥一起删，删完 Hub 重启、重新引导；
-// 撤回 ① 时可选同时删除已有的情绪数据（FR-DAT-05 第 3 条）。
+// 撤回 ① 时可选同时删除已有的情绪数据（FR-DAT-05 第 3 条）；从备份导入（FR-DAT-07）：合并或覆盖，设置可选，导入后请用户重启。
 import { onMounted, ref } from 'vue'
-import { save } from '@tauri-apps/plugin-dialog'
-import { commands, unwrap, type ConsentItem, type ConsentState, type NetLogView } from '@/api'
+import { open, save } from '@tauri-apps/plugin-dialog'
+import {
+  commands,
+  unwrap,
+  type ConsentItem,
+  type ConsentState,
+  type ImportMode,
+  type ImportReport,
+  type NetLogView,
+} from '@/api'
 import { errorText, isCopyKey, t } from '@/i18n'
 import { CONSENT_NUMBER, sendsToThirdParty } from '../shared/consent'
 import NoticeTable from '../shared/NoticeTable.vue'
@@ -21,6 +29,13 @@ const consentError = ref<string | null>(null)
 /** 撤回 ① 时顺便删掉情绪数据 */
 const deleteMood = ref(false)
 const moodDeleted = ref<string | null>(null)
+
+const importPath = ref<string | null>(null)
+const importMode = ref<ImportMode>('merge')
+const importSettings = ref(false)
+const importing = ref(false)
+const importReport = ref<ImportReport | null>(null)
+const importError = ref<string | null>(null)
 
 const wipeSecrets = ref(false)
 const wipeTyped = ref('')
@@ -63,6 +78,44 @@ async function setConsent(item: ConsentItem, granted: boolean): Promise<void> {
     consentBusy.value = false
     confirmSense.value = false
     deleteMood.value = false
+  }
+}
+
+async function pickImport(): Promise<void> {
+  importError.value = null
+  importReport.value = null
+  try {
+    const p = await open({
+      multiple: false,
+      directory: false,
+      filters: [{ name: t('privacy.import_filter'), extensions: ['zip'] }],
+    })
+    if (typeof p === 'string') importPath.value = p
+  } catch (e) {
+    importError.value = errorText(e)
+  }
+}
+
+async function runImport(): Promise<void> {
+  if (!importPath.value) return
+  importError.value = null
+  importing.value = true
+  try {
+    importReport.value = await unwrap(
+      commands.dataImport(importPath.value, importMode.value, importSettings.value),
+    )
+  } catch (e) {
+    importError.value = errorText(e)
+  } finally {
+    importing.value = false
+  }
+}
+
+async function restart(): Promise<void> {
+  try {
+    await commands.appRestart()
+  } catch (e) {
+    importError.value = errorText(e)
   }
 }
 
@@ -231,6 +284,42 @@ async function exportData(): Promise<void> {
     <span v-if="exportDone" class="done" role="status">{{ exportDone }}</span>
   </div>
   <p v-if="exportError" class="error" role="alert">{{ exportError }}</p>
+
+  <h3>{{ t('privacy.import') }}</h3>
+  <p class="muted small">{{ t('privacy.import_hint') }}</p>
+  <div class="wipe" data-group="import">
+    <div class="row">
+      <button :disabled="importing" @click="pickImport">{{ t('privacy.import_pick') }}</button>
+      <span v-if="importPath" class="done">{{ importPath }}</span>
+    </div>
+    <template v-if="importPath && !importReport">
+      <label class="check">
+        <input v-model="importMode" type="radio" name="import-mode" value="merge" :disabled="importing" />
+        <span>{{ t('privacy.import_merge') }}</span>
+      </label>
+      <label class="check">
+        <input v-model="importMode" type="radio" name="import-mode" value="overwrite" :disabled="importing" />
+        <span>{{ t('privacy.import_overwrite') }}</span>
+      </label>
+      <label class="check">
+        <input v-model="importSettings" type="checkbox" :disabled="importing" />
+        <span>{{ t('privacy.import_settings') }}</span>
+      </label>
+      <div class="row">
+        <button class="primary" :disabled="importing" @click="runImport">
+          {{ t('privacy.import_btn') }}
+        </button>
+        <span v-if="importing" role="status">{{ t('privacy.importing') }}</span>
+      </div>
+    </template>
+    <div v-if="importReport" class="row">
+      <span role="status">{{
+        t('privacy.import_done', { added: importReport.added, skipped: importReport.skipped })
+      }}</span>
+      <button @click="restart">{{ t('privacy.import_restart') }}</button>
+    </div>
+    <p v-if="importError" class="error" role="alert">{{ importError }}</p>
+  </div>
 
   <h3>{{ t('privacy.delete') }}</h3>
   <p class="muted small">{{ t('privacy.delete_hint') }}</p>

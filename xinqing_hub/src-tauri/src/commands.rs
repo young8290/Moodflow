@@ -25,7 +25,7 @@ use xinqing_hub_core::domain::routine::{self, Routine};
 use xinqing_hub_core::domain::self_report::{self, ReportSource, SelfReportItem, SelfWeather};
 use xinqing_hub_core::domain::settings::{self, SettingValue};
 use xinqing_hub_core::domain::status::StatusSnapshot;
-use xinqing_hub_core::infra::store::export;
+use xinqing_hub_core::infra::store::{export, import};
 use xinqing_hub_core::infra::wipe;
 use xinqing_hub_core::sense::SenseCmd;
 
@@ -85,6 +85,53 @@ pub fn data_delete_all(app: AppHandle, include_secrets: bool) -> Result<(), UiEr
         requested_at: chrono::Utc::now().timestamp_millis(),
     };
     wipe::request(&dir, &req).map_err(|e| UiError::internal("data.delete", e))?;
+    app.restart()
+}
+
+/// 导入与恢复（FR-DAT-07，ADR 0037）：只收“导出我的数据”生成的 zip，校验清单与每个文件的 SHA-256，
+/// 结构版本更新的包拒绝。`overwrite` 先把当前数据库备份到旁边（`*.bak-<时间>`）再替换；`merge` 保留两边、相同的只留一份。
+/// 同意记录、出网记录不导入；`include_settings` 为假时设置也不导入。全部在一个事务里，失败整体回滚。
+/// 成功后界面请用户重启 Hub（`app_restart`），各服务按新数据重新加载。
+#[tauri::command]
+#[specta::specta]
+pub async fn data_import(
+    app: AppHandle,
+    path: String,
+    mode: import::ImportMode,
+    include_settings: bool,
+) -> Result<import::ImportReport, UiError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        state.writer().flush();
+        let current = state.db().schema_version()?;
+        let pkg = import::read_package(std::path::Path::new(&path), current).map_err(import_error)?;
+        if mode == import::ImportMode::Overwrite {
+            let bak = state.backup_path();
+            state.writer().write_sync(|db| db.backup_to(&bak))?;
+        }
+        state
+            .writer()
+            .write_sync(|db| db.import_package(&pkg, mode, include_settings))
+            .map_err(import_error)
+    })
+    .await
+    .map_err(|e| UiError::internal("data.import.join", e))?
+}
+
+fn import_error(e: import::ImportError) -> UiError {
+    use import::ImportError as E;
+    match e {
+        E::NotExport | E::Json(_) | E::Zip(_) => UiError::new("data.import.format", "error.import_not_export"),
+        E::FormatTooNew(_) | E::SchemaTooNew { .. } => UiError::new("data.import.too_new", "error.import_too_new"),
+        E::Checksum(_) | E::TooLarge(_) => UiError::new("data.import.checksum", "error.import_checksum"),
+        e => UiError::internal("data.import", e),
+    }
+}
+
+/// 重启 Hub（导入完成后让各服务按新数据重新加载）。
+#[tauri::command]
+#[specta::specta]
+pub fn app_restart(app: AppHandle) {
     app.restart()
 }
 
