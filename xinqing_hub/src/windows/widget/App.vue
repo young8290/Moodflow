@@ -508,12 +508,17 @@ body {
   white-space: nowrap;
 }
 
+/* 放大文字时右边（日程）先收窄，收到最窄左边再收，各自显示省略号，不画出窗口 */
 .footer-left {
-  flex: none;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 底栏很矮：点击目标靠负边距撑到 32 px 高（DS-A11Y-03），不把底栏撑高 */
 .footer-right {
+  flex-shrink: 1000;
   min-width: 0;
   margin: calc(-1 * var(--xq-sp-2)) calc(-1 * var(--xq-sp-1)) calc(-1 * var(--xq-sp-2)) 0;
   padding: 0 var(--xq-sp-1);

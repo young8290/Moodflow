@@ -162,7 +162,9 @@ watch(month, () => {
   align-items: center;
   justify-content: flex-start;
   width: 100%;
-  height: 76px; /* 固定高度：有没有 📓 的格子一样高，每行对齐 */
+  /* 固定高度：有没有 📓 的格子一样高，每行对齐；按行高令牌算（日期 + 图标 + 📓 + 间距 + 内边距 + 边框），
+     系统放大文字时格子跟着变高，📓 不会画出格子 */
+  height: calc(var(--xq-lh-xs) * 2 + var(--xq-lh-lg) + 4px + var(--xq-sp-1) * 2 + 4px);
   padding: var(--xq-sp-1);
   border-color: var(--xq-border);
   background: var(--xq-surface);

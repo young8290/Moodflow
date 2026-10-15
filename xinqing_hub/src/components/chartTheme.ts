@@ -32,18 +32,36 @@ const FALLBACK: ChartColors = {
   alert: '#c23a2e',
 }
 
+/**
+ * 令牌的值可能是系统颜色（高对比度主题下是 `CanvasText`、`Canvas` 等，tokens.css 的 forced-colors 一节），
+ * ECharts 认不出这些名字。借一个看不见的元素让浏览器算出实际的 rgb()，算不出（测试环境）再用令牌原文。
+ */
 export function chartColors(root: Element = document.documentElement): ChartColors {
   const css = getComputedStyle(root)
-  const v = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback
-  return {
-    series: v('--xq-chart-1', FALLBACK.series),
-    surface: v('--xq-surface', FALLBACK.surface),
-    grid: v('--xq-border', FALLBACK.grid),
-    axisText: v('--xq-text-3', FALLBACK.axisText),
-    text: v('--xq-text-1', FALLBACK.text),
-    tooltipBg: v('--xq-surface', FALLBACK.tooltipBg),
-    empty: v('--xq-surface-2', FALLBACK.empty),
-    alert: v('--xq-danger', FALLBACK.alert),
+  const probe = document.createElement('span')
+  probe.style.display = 'none'
+  ;(document.body ?? root).append(probe)
+  const v = (name: string, fallback: string) => {
+    const raw = css.getPropertyValue(name).trim()
+    if (!raw) return fallback
+    probe.style.color = ''
+    probe.style.color = `var(${name})`
+    const computed = getComputedStyle(probe).color
+    return computed.startsWith('rgb') ? computed : raw
+  }
+  try {
+    return {
+      series: v('--xq-chart-1', FALLBACK.series),
+      surface: v('--xq-surface', FALLBACK.surface),
+      grid: v('--xq-border', FALLBACK.grid),
+      axisText: v('--xq-text-3', FALLBACK.axisText),
+      text: v('--xq-text-1', FALLBACK.text),
+      tooltipBg: v('--xq-surface', FALLBACK.tooltipBg),
+      empty: v('--xq-surface-2', FALLBACK.empty),
+      alert: v('--xq-danger', FALLBACK.alert),
+    }
+  } finally {
+    probe.remove()
   }
 }
 
