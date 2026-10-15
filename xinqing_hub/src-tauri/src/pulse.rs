@@ -42,7 +42,7 @@ pub fn start(app: &AppHandle) {
                         if now - last_typo >= TYPO_MIN_GAP_MS {
                             last_typo = now;
                             if let Err(e) = (MoodTypo {}).emit(&app) {
-                                eprintln!("推送 mood:typo 失败：{e}");
+                                crate::hlog!("推送 mood:typo 失败：{e}");
                             }
                         }
                     }
@@ -57,7 +57,7 @@ pub fn start(app: &AppHandle) {
                     if dashboard_visible(&app)
                         && let Err(e) = (TypingPulse { keys }).emit(&app)
                     {
-                        eprintln!("推送 typing:pulse 失败：{e}");
+                        crate::hlog!("推送 typing:pulse 失败：{e}");
                     }
                 }
             }

@@ -342,7 +342,7 @@ pub fn schedule_export_ics(
         .arg(&path)
         .spawn()
     {
-        eprintln!("打开日历文件失败：{e}");
+        crate::hlog!("打开日历文件失败：{e}");
     }
     Ok(path.to_string_lossy().into_owned())
 }
@@ -363,7 +363,7 @@ pub fn reminder_action(
         .try_send(ReminderCmd::Act { id, action })
         .is_err()
     {
-        eprintln!("提醒服务没有在运行，操作未处理");
+        crate::hlog!("提醒服务没有在运行，操作未处理");
     }
     Ok(())
 }

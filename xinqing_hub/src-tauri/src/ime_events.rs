@@ -16,7 +16,7 @@ pub fn start(app: &AppHandle) {
         .name("ime-events".into())
         .spawn(move || run(&app));
     if let Err(e) = spawned {
-        eprintln!("启动输入法事件线程失败：{e}");
+        crate::hlog!("启动输入法事件线程失败：{e}");
     }
 }
 
@@ -33,7 +33,7 @@ fn run(app: &AppHandle) -> ! {
                 match events.next_config_change() {
                     Ok(change) => emit(app, change),
                     Err(e) => {
-                        eprintln!("输入法事件通道断开，稍后重连：{e}");
+                        crate::hlog!("输入法事件通道断开，稍后重连：{e}");
                         break;
                     }
                 }
@@ -45,6 +45,6 @@ fn run(app: &AppHandle) -> ! {
 
 fn emit(app: &AppHandle, change: ImeConfigChange) {
     if let Err(e) = ImeConfigChanged(change).emit(app) {
-        eprintln!("推送 ime_config:changed 失败：{e}");
+        crate::hlog!("推送 ime_config:changed 失败：{e}");
     }
 }

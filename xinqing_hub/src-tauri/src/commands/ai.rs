@@ -147,7 +147,7 @@ pub struct NetLogView {
 
 /// 网关计数的几类。日程识别按 L2 确认的次数计（每句命中初筛的话发一次 Q-PLAN 或 Q-TODO，ADR 0032）；
 /// 周信每周最多 2 次，计在“大模型”里，不单列（ADR 0030）。
-const USAGE_KINDS: [BudgetKind; 5] = [
+pub(crate) const USAGE_KINDS: [BudgetKind; 5] = [
     BudgetKind::Jev,
     BudgetKind::Llm,
     BudgetKind::ChatTurn,
@@ -212,7 +212,7 @@ pub fn ai_gateway_metrics(ai: State<'_, Arc<Ai>>) -> Result<GatewayMetricsView, 
     Ok(metrics_view(&ai.gateway()))
 }
 
-fn metrics_view(gw: &HttpGateway) -> GatewayMetricsView {
+pub(crate) fn metrics_view(gw: &HttpGateway) -> GatewayMetricsView {
     GatewayMetricsView {
         apis: gw
             .metrics()

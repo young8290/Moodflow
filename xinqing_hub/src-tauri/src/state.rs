@@ -126,7 +126,7 @@ fn open_or_rebuild(path: &Path) -> anyhow::Result<(Db, bool)> {
         Ok(db) => Ok((db, false)),
         Err(e @ StoreError::Sql(_)) if path.exists() => {
             let backup = backup_path(path);
-            eprintln!(
+            crate::hlog!(
                 "数据库无法打开（{e}），已备份到 {} 并重建",
                 backup.display()
             );

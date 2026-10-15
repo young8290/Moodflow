@@ -44,7 +44,7 @@ pub fn start(app: &AppHandle) {
             Arc::new(banned),
         ))),
         Err(e) => {
-            eprintln!("情绪日记不可用：{e}");
+            crate::hlog!("情绪日记不可用：{e}");
             None
         }
     };
@@ -79,6 +79,6 @@ impl DiaryPort for ShellPort {
     }
 
     fn note(&self, msg: &str) {
-        eprintln!("{msg}");
+        crate::hlog!("{msg}");
     }
 }

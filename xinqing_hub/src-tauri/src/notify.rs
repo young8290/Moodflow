@@ -27,7 +27,7 @@ pub fn start(app: &AppHandle) {
     let copy = match copy {
         Ok(c) => Some(c),
         Err(e) => {
-            eprintln!("系统通知不可用：{e}");
+            crate::hlog!("系统通知不可用：{e}");
             None
         }
     };
@@ -49,7 +49,7 @@ impl Notifier {
             if let Some(rest) = handle.try_state::<Rest>()
                 && rest.cmds.try_send(RestCmd::Act { kind, action }).is_err()
             {
-                eprintln!("休息提醒服务没在运行，通知上的操作被忽略");
+                crate::hlog!("休息提醒服务没在运行，通知上的操作被忽略");
             }
         })
     }
@@ -69,7 +69,7 @@ impl Notifier {
                     .try_send(xinqing_hub_core::reminder::ReminderCmd::Act { id, action })
                     .is_err()
             {
-                eprintln!("提醒服务没在运行，通知上的操作被忽略");
+                crate::hlog!("提醒服务没在运行，通知上的操作被忽略");
             }
         })
     }
@@ -109,7 +109,7 @@ fn show(
     {
         Ok(()) => true,
         Err(e) => {
-            eprintln!("弹系统通知失败：{e}");
+            crate::hlog!("弹系统通知失败：{e}");
             false
         }
     }

@@ -27,7 +27,7 @@ impl UiError {
 
     /// 内部错误：记录原因，给用户一句通用提示。
     pub fn internal(code: &str, cause: impl std::fmt::Display) -> Self {
-        eprintln!("[{code}] {cause}");
+        crate::hlog!("[{code}] {cause}");
         Self::new(code, "error.generic")
     }
 }
@@ -72,7 +72,7 @@ impl From<ImeRpcError> for UiError {
         match e {
             // 输入法核心没在跑：说清楚，不报技术细节（DS-COPY-06）
             ImeRpcError::Unavailable(cause) => {
-                eprintln!("[ime.unavailable] {cause}");
+                crate::hlog!("[ime.unavailable] {cause}");
                 UiError::new("ime.unavailable", "error.ime_unavailable")
             }
             e => UiError::internal("ime.rpc", e),

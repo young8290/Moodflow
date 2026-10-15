@@ -143,7 +143,7 @@ impl RestPort for ShellPort {
             tired: due.tired,
         };
         if let Err(e) = ev.emit(&self.app) {
-            eprintln!("推送 rest:due 失败：{e}");
+            crate::hlog!("推送 rest:due 失败：{e}");
         }
     }
 
@@ -176,7 +176,7 @@ impl RestPort for ShellPort {
     }
 
     fn note(&self, msg: &str) {
-        eprintln!("{msg}");
+        crate::hlog!("{msg}");
     }
 }
 

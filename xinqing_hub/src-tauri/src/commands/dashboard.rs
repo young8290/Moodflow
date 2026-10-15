@@ -163,7 +163,7 @@ pub fn week_stats(state: State<'_, AppState>, week_start: String) -> Result<Week
     let line = match paths::hub_template_dirs().and_then(|dirs| Ok(WeeklyLines::load(&dirs)?)) {
         Ok(lines) => lines.pick(&line_facts, seed),
         Err(e) => {
-            eprintln!("周报一句话模板不可用：{e}");
+            crate::hlog!("周报一句话模板不可用：{e}");
             "又过完了一周，辛苦了。".into()
         }
     };

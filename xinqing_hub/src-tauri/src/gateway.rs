@@ -152,13 +152,13 @@ fn choose(store: &SecretStore) -> (AiSecrets, Source) {
     if let Some((path, r)) = secrets::load_dev_file() {
         match r {
             Ok(s) => return (s, Source::DevFile),
-            Err(e) => eprintln!("{} 无法使用：{e}", path.display()),
+            Err(e) => crate::hlog!("{} 无法使用：{e}", path.display()),
         }
     }
     match store.load() {
         Ok(Some(s)) => return (s, Source::Saved),
         Ok(None) => {}
-        Err(e) => eprintln!("AI 配置无法读取，先用离线模式：{e}"),
+        Err(e) => crate::hlog!("AI 配置无法读取，先用离线模式：{e}"),
     }
     if cfg!(debug_assertions) {
         (AiSecrets::dev_from_env(), Source::DevMock)
@@ -173,7 +173,7 @@ fn build(
     old: Option<&HttpGateway>,
 ) -> HttpGateway {
     let gw = HttpGateway::new(secrets.to_config(), crate::sim::clock()).unwrap_or_else(|e| {
-        eprintln!("AI 网关配置无效，使用离线模式：{e}");
+        crate::hlog!("AI 网关配置无效，使用离线模式：{e}");
         HttpGateway::new(GatewayConfig::default(), crate::sim::clock())
             .expect("空配置的离线网关必须可创建")
     });
@@ -219,7 +219,7 @@ async fn supervise(app: AppHandle, ai: Arc<Ai>) {
             tokio::select! {
                 _ = refresh.tick() => {
                     if gw.configured().llm && let Err(err) = gw.refresh_models().await {
-                        eprintln!("刷新 AI 模型列表失败：{err}");
+                        crate::hlog!("刷新 AI 模型列表失败：{err}");
                     }
                 }
                 r = health.changed() => {
@@ -253,7 +253,7 @@ fn publish(app: &AppHandle, last: &mut Option<GatewayHealth>, h: GatewayHealth) 
         emit_status(app, snapshot);
     }
     if let Err(e) = GatewayHealthChanged(h).emit(app) {
-        eprintln!("推送 gateway:health 失败：{e}");
+        crate::hlog!("推送 gateway:health 失败：{e}");
     }
 }
 

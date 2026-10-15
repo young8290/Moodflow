@@ -41,7 +41,7 @@ use crate::windows::{self, WindowTarget};
 
 pub(crate) fn emit_status(app: &AppHandle, snap: StatusSnapshot) {
     if let Err(e) = StatusChanged(snap).emit(app) {
-        eprintln!("推送 status:changed 失败：{e}");
+        crate::hlog!("推送 status:changed 失败：{e}");
     }
 }
 
@@ -142,6 +142,61 @@ pub fn app_restart(app: AppHandle) {
     app.restart()
 }
 
+/// “导出运行信息”包里有哪些文件（FR-OPS-04：导出前先给用户看）。
+#[tauri::command]
+#[specta::specta]
+pub fn diagnostics_preview() -> Vec<crate::diagnostics::DiagFile> {
+    crate::diagnostics::preview()
+}
+
+/// 把运行信息写成 zip 到 `path`（用户在“另存为”里选的），返回文件数。不含数据库、密钥与任何用户文字。
+#[tauri::command]
+#[specta::specta]
+pub fn diagnostics_export(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    ai: State<'_, Arc<crate::gateway::Ai>>,
+    path: String,
+) -> Result<u32, UiError> {
+    use crate::diagnostics::{self, Display, Inputs};
+    let gw = ai.gateway();
+    let info = os_info::get();
+    let displays = app
+        .available_monitors()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|m| Display {
+            name: m.name().cloned(),
+            width: m.size().width,
+            height: m.size().height,
+            x: m.position().x,
+            y: m.position().y,
+            scale: m.scale_factor(),
+        })
+        .collect();
+    let net_log = state.db().net_log_recent(diagnostics::NET_LOG_ROWS)?;
+    let inputs = Inputs {
+        generated: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+        hub_version: HUB_VERSION.to_string(),
+        debug_build: cfg!(debug_assertions),
+        demo: crate::sim::demo(),
+        os: info.to_string(),
+        arch: std::env::consts::ARCH.into(),
+        displays,
+        status: state.status(),
+        health: xinqing_hub_core::infra::gateway::AiGateway::health(ai.inner().as_ref()),
+        usage: crate::commands::ai::ai_usage_today(ai.clone())?,
+        metrics: crate::commands::ai::metrics_view(&gw),
+        net_log,
+        template_overrides: crate::paths::hub_data_dir()
+            .map(|d| diagnostics::template_overrides(&d.join("templates")))
+            .unwrap_or_default(),
+        log: crate::runlog::lines(),
+    };
+    diagnostics::write_zip(std::path::Path::new(&path), &diagnostics::build(&inputs))
+        .map_err(|e| UiError::internal("diagnostics.write_failed", e))
+}
+
 /// 是否已设为登录 Windows 时在后台启动（FR-OPS-03）。以系统里的启动项为准，不另存设置。
 #[tauri::command]
 #[specta::specta]
@@ -187,7 +242,7 @@ pub fn data_delete_mood(
     if let Some(stats) = stats {
         sensing.apply_baseline(&stats);
         if sensing.cmds.try_send(SenseCmd::Baseline(stats)).is_err() {
-            eprintln!("清空基线未能交给感知任务，下次启动时生效");
+            crate::hlog!("清空基线未能交给感知任务，下次启动时生效");
         }
     }
     Ok(u32::try_from(n).unwrap_or(u32::MAX))
@@ -238,7 +293,7 @@ pub fn submit_feedback(
                     .try_send(SenseCmd::Unfit { state: f.state, ts })
                     .is_err()
             {
-                eprintln!("“不准”反馈未能交给感知任务，下次启动时重放");
+                crate::hlog!("“不准”反馈未能交给感知任务，下次启动时重放");
             }
         }
     }
@@ -284,14 +339,14 @@ pub fn self_report_set(
         })
         .is_err()
     {
-        eprintln!("自评未能交给感知任务，本次不覆盖显示");
+        crate::hlog!("自评未能交给感知任务，本次不覆盖显示");
     }
     let ev = SelfReportChanged {
         weather,
         until_ts: rec.until_ms as f64,
     };
     if let Err(e) = ev.emit(&app) {
-        eprintln!("推送 self_report:changed 失败：{e}");
+        crate::hlog!("推送 self_report:changed 失败：{e}");
     }
     Ok(())
 }
@@ -356,7 +411,7 @@ pub fn baseline_reset(
     let stats = state.writer().write_sync(|db| persist::reset(db, now))?;
     sensing.apply_baseline(&stats);
     if sensing.cmds.try_send(SenseCmd::Baseline(stats)).is_err() {
-        eprintln!("重置基线未能交给感知任务，下次启动时生效");
+        crate::hlog!("重置基线未能交给感知任务，下次启动时生效");
     }
     Ok(())
 }
@@ -404,7 +459,7 @@ pub fn settings_set(
         crate::hotkeys::apply(&app);
     }
     if changed && let Err(e) = (SettingsChanged { key }).emit(&app) {
-        eprintln!("推送 settings:changed 失败：{e}");
+        crate::hlog!("推送 settings:changed 失败：{e}");
     }
     Ok(())
 }
@@ -474,7 +529,7 @@ pub fn rest_action(
         .try_send(xinqing_hub_core::rest::RestCmd::Act { kind, action })
         .is_err()
     {
-        eprintln!("休息提醒服务没有在运行，操作未处理");
+        crate::hlog!("休息提醒服务没有在运行，操作未处理");
     }
     Ok(())
 }

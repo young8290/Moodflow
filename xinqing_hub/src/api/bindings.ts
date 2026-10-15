@@ -106,6 +106,10 @@ export const commands = {
 	appRestart: () => __TAURI_INVOKE<void>("app_restart"),
 	/**  是否已设为登录 Windows 时在后台启动（FR-OPS-03）。以系统里的启动项为准，不另存设置。 */
 	autostartGet: () => typedError<boolean, UiError>(__TAURI_INVOKE("autostart_get")),
+	/**  “导出运行信息”包里有哪些文件（FR-OPS-04：导出前先给用户看）。 */
+	diagnosticsPreview: () => __TAURI_INVOKE<DiagFile[]>("diagnostics_preview"),
+	/**  把运行信息写成 zip 到 `path`（用户在“另存为”里选的），返回文件数。不含数据库、密钥与任何用户文字。 */
+	diagnosticsExport: (path: string) => typedError<number, UiError>(__TAURI_INVOKE("diagnostics_export", { path })),
 	/**  开关登录时后台启动，返回改完后的实际状态。 */
 	autostartSet: (on: boolean) => typedError<boolean, UiError>(__TAURI_INVOKE("autostart_set", { on })),
 	/**
@@ -551,6 +555,12 @@ export type DemoStatus = {
 	enabled: boolean,
 	/**  时间加速倍数；不是演示模式时为 1 */
 	speed: number,
+};
+
+/**  导出前给界面看的一项。 */
+export type DiagFile = {
+	name: string,
+	what: string,
 };
 
 /**  `diary_generate` 的结果：草稿或空白模板，放进编辑框让用户改。 */

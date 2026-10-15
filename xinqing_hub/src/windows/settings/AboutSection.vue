@@ -8,6 +8,7 @@ import { t } from '@/i18n'
 import { licenseEntries } from './licenses'
 import PrivacySection from './PrivacySection.vue'
 import ResearchDevSection from './ResearchDevSection.vue'
+import RunInfoExport from './RunInfoExport.vue'
 
 const version = ref<string | null>(null)
 const licenses = licenseEntries()
@@ -40,6 +41,8 @@ onMounted(async () => {
     <!-- C-LAW-08 ④：注明基于清风开发、非官方版本；C-LAW-06：不提供医疗诊断或治疗 -->
     <p>{{ t('about.fork_notice') }}</p>
     <p>{{ t('about.disclaimer') }}</p>
+
+    <RunInfoExport />
 
     <h2>{{ t('about.licenses') }}</h2>
     <p class="muted">{{ t('about.licenses_intro') }}</p>

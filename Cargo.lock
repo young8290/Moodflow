@@ -5944,6 +5944,7 @@ dependencies = [
  "dirs 6.0.0",
  "futures",
  "mock-ai",
+ "os_info",
  "serde",
  "serde_json",
  "specta",
@@ -5963,6 +5964,7 @@ dependencies = [
  "xinqing-hub-gateway",
  "xqp",
  "zeroize",
+ "zip",
 ]
 
 [[package]]

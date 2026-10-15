@@ -7,6 +7,7 @@ mod chat;
 mod cleanup;
 mod comfort;
 mod commands;
+mod diagnostics;
 mod diary;
 mod error;
 mod evening;
@@ -22,6 +23,7 @@ mod pulse;
 mod research;
 mod rest;
 mod rewrite;
+mod runlog;
 mod schedule;
 mod secrets;
 mod sensing;
@@ -74,6 +76,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::data_import,
             commands::app_restart,
             commands::autostart_get,
+            commands::diagnostics_preview,
+            commands::diagnostics_export,
             commands::autostart_set,
             commands::rest_action,
             commands::ai::ai_config_get,
@@ -169,10 +173,10 @@ pub fn run() {
     // 删除全部数据（FR-DAT-04，ADR 0037）：上次确认删除后重启到这里，任何东西打开数据库之前先删
     if let Ok(dir) = paths::hub_data_dir() {
         match xinqing_hub_core::infra::wipe::apply_pending(&dir, secrets::SECRETS_FILE) {
-            Ok(Some(r)) => eprintln!("已删除全部心晴数据（{} 个文件）", r.removed.len()),
+            Ok(Some(r)) => crate::hlog!("已删除全部心晴数据（{} 个文件）", r.removed.len()),
             Ok(None) => {}
             // 删不掉（文件被占用）时标记留着，下次启动接着删
-            Err(e) => eprintln!("删除全部数据未完成，下次启动重试：{e}"),
+            Err(e) => crate::hlog!("删除全部数据未完成，下次启动重试：{e}"),
         }
     }
     // 演示模式要在任何服务取时钟之前定下来：`--demo` 或真实库里的 `dev.demo`（ADR 0023、0025）
@@ -186,7 +190,7 @@ pub fn run() {
             let again = LaunchArgs::parse(argv.into_iter().skip(1));
             let target = again.open.unwrap_or(WindowTarget::Widget);
             if let Err(e) = windows::open(app, target) {
-                eprintln!("打开窗口失败：{e}");
+                crate::hlog!("打开窗口失败：{e}");
             }
         }))
         // 系统“另存为”对话框：设置页“导出我的数据”选保存位置（FR-DAT-03）；权限只给设置窗口，见 capabilities/settings.json

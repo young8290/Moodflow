@@ -39,7 +39,7 @@ pub fn start(app: &AppHandle) {
     let (prompt, fallback, banned) = match loaded {
         Ok(t) => t,
         Err(e) => {
-            eprintln!("周信不可用：{e}");
+            crate::hlog!("周信不可用：{e}");
             return;
         }
     };
@@ -103,13 +103,13 @@ impl LetterPort for ShellPort {
             .writer()
             .write_sync(|db| db.settings_set(letter::LAST_WEEK_KEY, &v))
         {
-            eprintln!("记录周信进度失败：{e}");
+            crate::hlog!("记录周信进度失败：{e}");
         }
     }
 
     fn facts(&self, week: NaiveDate, now: DateTime<Local>) -> Option<WeekFacts> {
         read_week(&self.app.state::<AppState>().db(), week, now)
-            .inspect_err(|e| eprintln!("读取一周统计失败：{e}"))
+            .inspect_err(|e| crate::hlog!("读取一周统计失败：{e}"))
             .ok()
     }
 
@@ -127,7 +127,7 @@ impl LetterPort for ShellPort {
             .state::<AppState>()
             .writer()
             .write_sync(|db| db.letter_insert(&row))
-            .inspect_err(|e| eprintln!("保存周信失败：{e}"))
+            .inspect_err(|e| crate::hlog!("保存周信失败：{e}"))
             .ok()
     }
 
@@ -138,12 +138,12 @@ impl LetterPort for ShellPort {
             ai_generated: l.ai_generated,
         };
         if let Err(e) = ev.emit(&self.app) {
-            eprintln!("推送 letter:new 失败：{e}");
+            crate::hlog!("推送 letter:new 失败：{e}");
         }
     }
 
     fn note(&self, msg: &str) {
-        eprintln!("{msg}");
+        crate::hlog!("{msg}");
     }
 }
 

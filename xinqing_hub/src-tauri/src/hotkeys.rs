@@ -97,7 +97,7 @@ pub fn plugin<R: Runtime>() -> TauriPlugin<R> {
             if let Some(a) = action
                 && let Err(e) = run(app, a)
             {
-                eprintln!("快捷键 {a:?} 执行失败：{e}");
+                crate::hlog!("快捷键 {a:?} 执行失败：{e}");
             }
         })
         .build()
@@ -143,7 +143,7 @@ pub fn apply(app: &AppHandle) {
     };
     let gs = app.global_shortcut();
     if let Err(e) = gs.unregister_all() {
-        eprintln!("注销全局快捷键失败：{e}");
+        crate::hlog!("注销全局快捷键失败：{e}");
     }
     let mut bound = Vec::new();
     let mut status = Vec::new();
@@ -159,7 +159,7 @@ pub fn apply(app: &AppHandle) {
             match gs.register(sc) {
                 Ok(()) => bound.push((sc.id(), action)),
                 Err(e) => {
-                    eprintln!("注册快捷键 {keys} 失败：{e}");
+                    crate::hlog!("注册快捷键 {keys} 失败：{e}");
                     conflict = true;
                 }
             }

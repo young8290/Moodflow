@@ -22,7 +22,7 @@ pub fn start(app: &AppHandle) {
         match paths::hub_template_dirs().and_then(|dirs| Ok(EveningTemplates::load(&dirs)?)) {
             Ok(t) => t,
             Err(e) => {
-                eprintln!("晚间小结不可用：{e}");
+                crate::hlog!("晚间小结不可用：{e}");
                 return;
             }
         };
@@ -79,25 +79,25 @@ impl EveningPort for ShellPort {
             .writer()
             .write_sync(|db| db.settings_set(evening::SHOWN_ON_KEY, &v))
         {
-            eprintln!("记录晚间小结失败：{e}");
+            crate::hlog!("记录晚间小结失败：{e}");
         }
     }
 
     fn facts(&self, day: NaiveDate, now: DateTime<Local>) -> Option<DayFacts> {
         let state = self.app.state::<AppState>();
         read_facts(&state.db(), day, now)
-            .inspect_err(|e| eprintln!("读取当天统计失败：{e}"))
+            .inspect_err(|e| crate::hlog!("读取当天统计失败：{e}"))
             .ok()
     }
 
     fn show(&self, s: &EveningSummary) {
         if let Err(e) = ReviewEvening(s.clone()).emit(&self.app) {
-            eprintln!("推送 review:evening 失败：{e}");
+            crate::hlog!("推送 review:evening 失败：{e}");
         }
     }
 
     fn note(&self, msg: &str) {
-        eprintln!("{msg}");
+        crate::hlog!("{msg}");
     }
 }
 

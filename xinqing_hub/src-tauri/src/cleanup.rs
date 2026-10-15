@@ -24,7 +24,7 @@ pub fn start(app: &AppHandle) {
         loop {
             let handle = app.clone();
             if let Err(e) = tauri::async_runtime::spawn_blocking(move || run_once(&handle)).await {
-                eprintln!("数据清理任务异常退出：{e}");
+                crate::hlog!("数据清理任务异常退出：{e}");
             }
             let due = retention::next_run(Local::now());
             while Local::now() < due {
@@ -46,7 +46,7 @@ fn run_once(app: &AppHandle) {
         .writer()
         .write_sync(|db| retention::run(db, &policy, Local::now()));
     // 报告只有表名、条数和错误信息，不含用户内容（NFR-LOG-01）
-    eprintln!("{}", report.summary());
+    crate::hlog!("{}", report.summary());
 }
 
 /// `chat.retention_days`（FR-CHT-08）：30 / 90 / 365 天，`permanent` 不清理；读不到时按默认 90 天。

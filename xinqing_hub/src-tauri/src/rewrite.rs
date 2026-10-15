@@ -35,7 +35,7 @@ pub fn start(app: &AppHandle) {
     let (prompt, lexicon, banned) = match loaded {
         Ok(t) => t,
         Err(e) => {
-            eprintln!("温柔改写不可用：{e}");
+            crate::hlog!("温柔改写不可用：{e}");
             return;
         }
     };
@@ -72,13 +72,13 @@ impl RewritePort for ShellPort {
             .writer()
             .write_sync(|db| db.safety_log(ts, "lexicon"))
         {
-            eprintln!("写入 safety_log 失败：{e}");
+            crate::hlog!("写入 safety_log 失败：{e}");
         }
         let ev = SafetyInvite {
             source: SafetyInviteSource::Rewrite,
         };
         if let Err(e) = ev.emit(&self.app) {
-            eprintln!("推送 safety:invite 失败：{e}");
+            crate::hlog!("推送 safety:invite 失败：{e}");
         }
     }
 
@@ -100,6 +100,6 @@ impl RewritePort for ShellPort {
     }
 
     fn note(&self, msg: &str) {
-        eprintln!("{msg}");
+        crate::hlog!("{msg}");
     }
 }

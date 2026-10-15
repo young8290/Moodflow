@@ -33,7 +33,7 @@ pub const START_AT_ENV: &str = "XQ_SIM_START_AT";
 fn var(name: &str) -> Option<String> {
     if !cfg!(debug_assertions) {
         if std::env::var_os(name).is_some() {
-            eprintln!("发行构建忽略 {name}");
+            crate::hlog!("发行构建忽略 {name}");
         }
         return None;
     }
@@ -45,7 +45,7 @@ static DEMO: OnceLock<bool> = OnceLock::new();
 /// 启动时确定是否进入演示模式，必须在第一次调用 [`clock`] 之前。之后再调用不起作用。
 pub fn set_demo(on: bool) {
     if DEMO.set(on).is_err() {
-        eprintln!("演示模式已确定，忽略这次设置");
+        crate::hlog!("演示模式已确定，忽略这次设置");
     }
 }
 
@@ -71,7 +71,7 @@ fn start_at() -> Option<chrono::DateTime<Local>> {
     let raw = var(START_AT_ENV)?;
     let start = clock::today_at(&raw, Local::now().date_naive());
     if start.is_none() {
-        eprintln!("{START_AT_ENV}={raw} 无效（格式应为 HH:MM），使用系统时间");
+        crate::hlog!("{START_AT_ENV}={raw} 无效（格式应为 HH:MM），使用系统时间");
     }
     start
 }
@@ -86,7 +86,7 @@ pub fn clock() -> Arc<dyn Clock> {
             let start = start_at();
             if demo() {
                 let start = start.unwrap_or_else(Local::now);
-                eprintln!(
+                crate::hlog!(
                     "演示模式：Hub 时钟从 {} 起 ×{} 走",
                     start.format("%H:%M"),
                     demo::SPEED
@@ -95,7 +95,7 @@ pub fn clock() -> Arc<dyn Clock> {
             }
             match start {
                 Some(start) => {
-                    eprintln!("{START_AT_ENV}：Hub 时钟从 {} 起走", start.format("%H:%M"));
+                    crate::hlog!("{START_AT_ENV}：Hub 时钟从 {} 起走", start.format("%H:%M"));
                     Arc::new(OffsetClock::starting_at(start))
                 }
                 None => Arc::new(SystemClock),
@@ -144,9 +144,9 @@ pub fn open_demo_state(data_dir: &Path) -> anyhow::Result<AppState> {
         }
     })?;
     if base.is_none() {
-        eprintln!("演示模式：找不到 baseline_default.toml，演示库没有预置数据");
+        crate::hlog!("演示模式：找不到 baseline_default.toml，演示库没有预置数据");
     }
-    eprintln!(
+    crate::hlog!(
         "演示模式：演示库 {}，预置 {} 个窗口、{} 条待确认日程，沿用 {} 项同意",
         path.display(),
         seeded.windows,
@@ -177,7 +177,7 @@ pub fn fixed_baseline() -> Option<Baseline> {
     let path = PathBuf::from(var(BASELINE_ENV)?);
     match read_toml::<BaselineDefault>(&path) {
         Ok(d) => {
-            eprintln!(
+            crate::hlog!(
                 "{BASELINE_ENV}：使用固定基线 v{} {}",
                 d.version,
                 path.display()
@@ -185,7 +185,7 @@ pub fn fixed_baseline() -> Option<Baseline> {
             Some(Baseline::fixed(&d))
         }
         Err(e) => {
-            eprintln!(
+            crate::hlog!(
                 "{BASELINE_ENV}={} 读取失败，回放结果不可复现：{e}",
                 path.display()
             );
