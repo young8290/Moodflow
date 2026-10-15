@@ -2,11 +2,13 @@
 // 设置中心 · 关怀（07 FR-SET-05）：主动关怀频率（FR-CMF-06）、说话风格（FR-CHT-10）、状态摘要发给大模型（同意 ④，可撤回）、
 // 安静时段与勿扰应用（FR-CMF-01 第 5 条，ADR 0019）、学校心理中心电话（FR-SAF-03）、晴晴记住的事（FR-CHT-07 第 3 条）。
 // 改了就存。列表类设置每次提交整份列表；后端对不合格的值只回笼统的错误，所以先用 care.ts 按同样的规则拦一遍，说清哪里不对。
-// 晚间小结、周信的开关要等设置键注册表登记（C），登记后补在“说话风格”下面。
+// 晚间小结（FR-REV-01）与周信（FR-REV-02）的开关放在“说话风格”下面。“恢复默认”只改偏好，不动学校电话、记住的事和同意。
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { commands, unwrap, type MemoryItem, type SettingValue } from '@/api'
 import { errorText, t } from '@/i18n'
 import { useSettingsStore } from '@/stores/settings'
+import SectionHead from './SectionHead.vue'
+import { sameValue, useNotice } from './useHubSettings'
 import {
   APP_MAX_CHARS,
   MEMORY_ENTRY_CHARS,
@@ -23,11 +25,25 @@ import {
 
 const LEVELS = ['more', 'normal', 'less', 'off'] as const
 const STYLES = ['gentle', 'lively', 'brief'] as const
-const KEYS = ['care.level', 'care.style', 'care.quiet_hours', 'care.dnd_apps', 'safety.school_phone']
+/** “恢复默认”会改回出厂值的键 */
+const PREFS = [
+  'care.level',
+  'care.style',
+  'review.evening.enabled',
+  'review.evening.time',
+  'review.letter.enabled',
+  'care.quiet_hours',
+  'care.dnd_apps',
+]
+const KEYS = [...PREFS, 'safety.school_phone']
 type Field = 'quiet' | 'dnd' | 'phone' | 'memory'
 
 const settings = useSettingsStore()
 const error = ref<string | null>(null)
+const { notice, flash } = useNotice()
+/** 出厂值与晚间小结可选的时刻，取自 settings_schema */
+const defaults = ref<Record<string, SettingValue>>({})
+const eveningTimes = ref<string[]>([])
 /** 各块自己的提示，显示在出错的那一块下面 */
 const fieldError = reactive<Record<Field, string | null>>({
   quiet: null,
@@ -51,6 +67,8 @@ const style = computed(() => text('care.style', 'gentle'))
 const quiet = computed(() => list('care.quiet_hours'))
 const dnd = computed(() => list('care.dnd_apps'))
 const phone = computed(() => text('safety.school_phone', ''))
+const flag = (key: string) => (settings.values[key] ?? defaults.value[key]) === true
+const eveningTime = computed(() => text('review.evening.time', ''))
 
 // 同意 ④：null 表示还没读到，复选框先不可点
 const summary = ref<boolean | null>(null)
@@ -78,8 +96,10 @@ onBeforeUnmount(() => window.removeEventListener('focus', loadMemories))
 
 async function loadSchema(): Promise<void> {
   for (const f of await commands.settingsSchema()) {
+    defaults.value[f.key] = f.default
     if (f.kind.type === 'list' && f.key in maxItems)
       maxItems[f.key as keyof typeof maxItems] = f.kind.max_items
+    if (f.key === 'review.evening.time' && f.kind.type === 'choice') eveningTimes.value = f.kind.options
   }
 }
 
@@ -102,11 +122,25 @@ async function save(key: string, value: SettingValue, field?: Field): Promise<bo
   if (field) fieldError[field] = null
   try {
     await settings.set(key, value)
+    flash(t('settings.saved'))
     return true
   } catch (e) {
     if (field) fieldError[field] = errorText(e)
     else error.value = errorText(e)
     return false
+  }
+}
+
+async function restore(): Promise<void> {
+  error.value = null
+  try {
+    for (const key of PREFS) {
+      const d = defaults.value[key]
+      if (d !== undefined && !sameValue(settings.values[key], d)) await settings.set(key, d)
+    }
+    flash(t('settings.restored'))
+  } catch (e) {
+    error.value = errorText(e)
   }
 }
 
@@ -117,6 +151,7 @@ async function setSummary(granted: boolean): Promise<void> {
     summary.value = state.items.find((i) => i.item === 'llm_summary')?.granted ?? granted
     // 撤回时如实说明：已经发出去的收不回来（FR-DAT-05）
     withdrawn.value = !granted
+    flash(t('settings.saved'))
   } catch (e) {
     error.value = errorText(e)
   }
@@ -205,7 +240,7 @@ const day = (ts: number) => new Date(ts).toLocaleDateString('zh-CN')
 
 <template>
   <section>
-    <h1>{{ t('settings.care_nav') }}</h1>
+    <SectionHead :title="t('settings.care_nav')" @restore="restore" />
     <p v-if="error" class="error" role="alert">{{ error }}</p>
 
     <fieldset class="group" data-group="level">
@@ -228,6 +263,44 @@ const day = (ts: number) => new Date(ts).toLocaleDateString('zh-CN')
           <span class="eg">{{ t(`settings.care.style_${s}_eg`) }}</span>
         </span>
       </label>
+    </fieldset>
+
+    <fieldset class="group" data-group="evening">
+      <legend>{{ t('settings.care.evening') }}</legend>
+      <label class="choice">
+        <input
+          type="checkbox"
+          role="switch"
+          :checked="flag('review.evening.enabled')"
+          @change="save('review.evening.enabled', ($event.target as HTMLInputElement).checked)"
+        />
+        {{ flag('review.evening.enabled') ? t('settings.on') : t('settings.off') }}
+      </label>
+      <label v-if="eveningTimes.length" class="inline">
+        {{ t('settings.care.evening_time') }}
+        <select
+          :value="eveningTime"
+          :disabled="!flag('review.evening.enabled')"
+          @change="save('review.evening.time', ($event.target as HTMLSelectElement).value)"
+        >
+          <option v-for="o in eveningTimes" :key="o" :value="o">{{ o }}</option>
+        </select>
+      </label>
+      <p class="hint">{{ t('settings.care.evening_hint') }}</p>
+    </fieldset>
+
+    <fieldset class="group" data-group="letter">
+      <legend>{{ t('settings.care.letter') }}</legend>
+      <label class="choice">
+        <input
+          type="checkbox"
+          role="switch"
+          :checked="flag('review.letter.enabled')"
+          @change="save('review.letter.enabled', ($event.target as HTMLInputElement).checked)"
+        />
+        {{ flag('review.letter.enabled') ? t('settings.on') : t('settings.off') }}
+      </label>
+      <p class="hint">{{ t('settings.care.letter_hint') }}</p>
     </fieldset>
 
     <fieldset class="group" data-group="summary">
@@ -385,6 +458,8 @@ const day = (ts: number) => new Date(ts).toLocaleDateString('zh-CN')
       <p v-if="memories.length >= MEMORY_MAX" class="hint">{{ t('error.memory_full') }}</p>
       <p v-if="fieldError.memory" class="error" role="alert">{{ fieldError.memory }}</p>
     </fieldset>
+
+    <p v-if="notice" class="s-saved" role="status">{{ notice }}</p>
   </section>
 </template>
 
@@ -452,7 +527,8 @@ legend {
 
 input[type='text'],
 input[type='tel'],
-input[type='time'] {
+input[type='time'],
+select {
   min-height: 32px;
   padding: 0 var(--xq-sp-2);
   border: 1px solid var(--xq-border);

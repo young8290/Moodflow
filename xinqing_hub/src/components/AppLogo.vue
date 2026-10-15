@@ -4,7 +4,8 @@
 // 不使用清风输入法的任何 logo 元素（C-LAW-08）。
 import { t } from '@/i18n'
 
-withDefaults(defineProps<{ size?: number }>(), { size: 64 })
+// `decorative`：旁边已经写着“心晴”（引导页标题）时读屏不必再念一遍
+withDefaults(defineProps<{ size?: number; decorative?: boolean }>(), { size: 64, decorative: false })
 
 // 云：三个圆加一个圆角底座（与 gen_hub_icons.py 的 cloud_shapes / base 对应）
 const CIRCLES = [
@@ -21,8 +22,9 @@ const BASE = { x: 14, y: 62, width: 74, height: 24, rx: 12 }
     :width="size"
     :height="size"
     viewBox="0 0 100 100"
-    role="img"
-    :aria-label="t('window.widget')"
+    :role="decorative ? undefined : 'img'"
+    :aria-label="decorative ? undefined : t('window.widget')"
+    :aria-hidden="decorative ? 'true' : undefined"
   >
     <circle class="sun" cx="68" cy="32" r="24" />
     <!-- 先整体描一圈粗边，再在上面铺无边的填充：几个形状并起来只留外轮廓 -->

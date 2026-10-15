@@ -18,6 +18,12 @@ const mocks = vi.hoisted(() => ({
   safetyDismiss: vi.fn(),
   chatSetMode: vi.fn(),
   memoryAdd: vi.fn(),
+  diaryGenerate: vi.fn(),
+  diarySave: vi.fn(),
+  chatSearch: vi.fn(),
+  settingsSet: vi.fn(),
+  setAlwaysOnTop: vi.fn(),
+  chatOpen: null as null | ((e: { payload: number }) => void),
   /** 设置“关怀”里填的学校心理中心电话 */
   schoolPhone: '',
   hide: vi.fn(),
@@ -49,8 +55,23 @@ vi.mock('@/api', async (orig) => ({
     safetyDismiss: mocks.safetyDismiss,
     chatSetMode: mocks.chatSetMode,
     memoryAdd: mocks.memoryAdd,
+    diaryGenerate: mocks.diaryGenerate,
+    diarySave: mocks.diarySave,
+    chatSearch: mocks.chatSearch,
+    settingsSchema: async () => [
+      {
+        key: 'chat.retention_days',
+        kind: { type: 'choice', options: ['30', '90', '365', 'permanent'] },
+        default: '90',
+      },
+    ],
+    settingsSet: mocks.settingsSet,
     settingsGet: (key: string) =>
-      Promise.resolve({ status: 'ok', data: key === 'safety.school_phone' ? mocks.schoolPhone : 'system' }),
+      Promise.resolve({
+        status: 'ok',
+        data:
+          key === 'safety.school_phone' ? mocks.schoolPhone : key === 'chat.retention_days' ? '90' : 'system',
+      }),
   },
   events: {
     chatDelta: { listen: listen('delta') },
@@ -60,7 +81,16 @@ vi.mock('@/api', async (orig) => ({
     settingsChanged: { listen: async () => () => {} },
   },
 }))
-vi.mock('@tauri-apps/api/window', () => ({ getCurrentWindow: () => ({ hide: mocks.hide }) }))
+vi.mock('@tauri-apps/api/window', () => ({
+  getCurrentWindow: () => ({ hide: mocks.hide, setAlwaysOnTop: mocks.setAlwaysOnTop }),
+}))
+vi.mock('@tauri-apps/api/event', () => ({
+  emit: async () => {},
+  listen: async (name: string, cb: (e: { payload: number }) => void) => {
+    if (name === 'xq:chat-open') mocks.chatOpen = cb
+    return () => {}
+  },
+}))
 
 const { default: App } = await import('./App.vue')
 
@@ -242,7 +272,7 @@ describe('对话窗口', () => {
     const w = await mountChat()
     await w.find('.bar .icon').trigger('click')
     await flushPromises()
-    expect(document.activeElement).toBe(w.find('.drawer .item').element)
+    expect(document.activeElement).toBe(w.find('.drawer .search input').element)
     await w.find('main').trigger('keydown', { key: 'Escape' })
     await flushPromises()
     expect(w.find('.drawer').exists()).toBe(false)
@@ -435,6 +465,122 @@ describe('记忆与快捷指令', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('写成情绪日记、搜索、置顶与跳到某段对话', () => {
+  const session = (id: number, title: string): ChatSessionItem => ({
+    id,
+    title,
+    created_ts: NOW,
+    last_ts: NOW - id,
+    safe_mode: 'off',
+    mode: 'normal',
+  })
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    mocks.sessions = [session(1, '今天作业好多'), session(2, '昨天的事')]
+    mocks.messages = {
+      1: [],
+      2: [{ id: 5, role: 'user', content: '昨天没睡好', ts: NOW, ai_generated: false }],
+    }
+    mocks.diaryGenerate
+      .mockReset()
+      .mockReturnValue(ok({ draft_id: 9, text: '今天作业很多，有点累。', ai_generated: true }))
+    mocks.diarySave.mockReset().mockReturnValue(ok({ id: 3, source: 'ai_draft', safety: false }))
+    mocks.chatSearch
+      .mockReset()
+      .mockReturnValue(
+        ok([{ id: 5, session_id: 2, title: '昨天的事', role: 'user', content: '昨天没睡好', ts: NOW }]),
+      )
+    mocks.settingsSet.mockReset().mockReturnValue(ok())
+    mocks.setAlwaysOnTop.mockReset().mockResolvedValue(undefined)
+    mocks.chatOpen = null
+    localStorage.clear()
+    document.body.innerHTML = ''
+  })
+
+  const diaryBtn = (w: Awaited<ReturnType<typeof mountChat>>) =>
+    w.findAll('.shortcuts button').find((b) => b.text() === t('chat.shortcut_diary'))!
+
+  it('“写成情绪日记”用当前这段对话起草，保存后回到对话并提示（FR-CHT-06、FR-DIA-01）', async () => {
+    const w = await mountChat()
+    await diaryBtn(w).trigger('click')
+    await flushPromises()
+    expect(mocks.diaryGenerate).toHaveBeenCalledWith(1)
+    expect((w.find('.diary textarea').element as HTMLTextAreaElement).value).toBe('今天作业很多，有点累。')
+    await w.find('.diary form').trigger('submit')
+    await flushPromises()
+    expect(mocks.diarySave).toHaveBeenCalledWith(null, 9, '今天作业很多，有点累。')
+    expect(w.find('.diary').exists()).toBe(false)
+    expect(w.find('.info').text()).toBe(t('diary.saved'))
+  })
+
+  it('还没有对话时“写成情绪日记”不可点', async () => {
+    mocks.sessions = []
+    const w = await mountChat()
+    expect(diaryBtn(w).attributes('disabled')).toBeDefined()
+  })
+
+  it('历史搜索：显示命中的句子和所在对话，点了打开那段对话；清除后回到列表（FR-CHT-08）', async () => {
+    const w = await mountChat()
+    await w.find('.bar .icon').trigger('click')
+    await w.find('.drawer .search input').setValue('睡')
+    await w.find('.drawer .search').trigger('submit')
+    await flushPromises()
+    expect(mocks.chatSearch).toHaveBeenCalledWith('睡')
+    expect(w.find('.hits-head').text()).toContain(t('chat.search_count', { n: 1 }))
+    expect(w.find('.hit').text()).toContain('昨天没睡好')
+    await w.find('.hit').trigger('click')
+    await flushPromises()
+    expect(w.find('.drawer').exists()).toBe(false)
+    expect(w.find('.log').text()).toContain('昨天没睡好')
+
+    await w.find('.bar .icon').trigger('click')
+    await w.find('.hits-head .link').trigger('click')
+    expect(w.find('.hit').exists()).toBe(false)
+    expect(w.findAll('.drawer .item')).toHaveLength(2)
+  })
+
+  it('保留期限：抽屉底部可改 chat.retention_days', async () => {
+    const w = await mountChat()
+    await w.find('.bar .icon').trigger('click')
+    await flushPromises()
+    const select = w.find('.retention select')
+    expect(select.findAll('option').map((o) => o.text())).toEqual(['30 天', '90 天', '1 年', '一直保留'])
+    await select.setValue('30')
+    await flushPromises()
+    expect(mocks.settingsSet).toHaveBeenCalledWith('chat.retention_days', '30')
+  })
+
+  it('置顶：切换窗口置顶并记在本机，下次打开照旧（FR-CHT-01）', async () => {
+    const w = await mountChat()
+    const pin = w.findAll('.bar .icon')[1]!
+    expect(pin.attributes('aria-pressed')).toBe('false')
+    await pin.trigger('click')
+    await flushPromises()
+    expect(mocks.setAlwaysOnTop).toHaveBeenCalledWith(true)
+    expect(pin.attributes('aria-pressed')).toBe('true')
+    expect(pin.attributes('aria-label')).toBe(t('chat.unpin'))
+    w.unmount()
+
+    mocks.setAlwaysOnTop.mockClear()
+    const again = await mountChat()
+    expect(mocks.setAlwaysOnTop).toHaveBeenCalledWith(true)
+    expect(again.findAll('.bar .icon')[1]!.attributes('aria-pressed')).toBe('true')
+  })
+
+  it('看板要打开某段对话：刚打开窗口时从 localStorage 取，开着时听 xq:chat-open', async () => {
+    localStorage.setItem('xq.chat.open', '2')
+    const w = await mountChat()
+    expect(w.find('.log').text()).toContain('昨天没睡好')
+    expect(localStorage.getItem('xq.chat.open')).toBeNull()
+
+    mocks.messages[1] = [{ id: 7, role: 'user', content: '作业写完了', ts: NOW, ai_generated: false }]
+    mocks.chatOpen!({ payload: 1 })
+    await flushPromises()
+    expect(w.find('.log').text()).toContain('作业写完了')
   })
 })
 

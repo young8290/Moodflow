@@ -222,6 +222,15 @@ describe('首次引导', () => {
     })
   })
 
+  it('标题旁有心晴 logo，读屏只念标题（DS-BRAND-02）', async () => {
+    const w = mountApp()
+    await flushPromises()
+    const logo = w.find('.brand svg')
+    expect(logo.exists()).toBe(true)
+    expect(logo.attributes('aria-hidden')).toBe('true')
+    expect(logo.attributes('role')).toBeUndefined()
+  })
+
   it('未满 18 周岁：说明后只能关闭，不进入同意页（FR-ONB-02）', async () => {
     const w = mountApp()
     await flushPromises()

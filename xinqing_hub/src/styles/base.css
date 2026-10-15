@@ -80,6 +80,16 @@ button:disabled {
   color: var(--xq-text-2);
 }
 
+/* 只给读屏的文字（窗口没有可见标题时的 h1 等） */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* DS-MOTION-03：尊重系统“显示动画”设置 */
 @media (prefers-reduced-motion: reduce) {
   *,

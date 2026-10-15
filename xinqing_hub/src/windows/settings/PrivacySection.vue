@@ -8,6 +8,7 @@ import { commands, unwrap, type ConsentItem, type ConsentState, type NetLogView 
 import { errorText, isCopyKey, t } from '@/i18n'
 import { CONSENT_NUMBER, sendsToThirdParty } from '../shared/consent'
 import NoticeTable from '../shared/NoticeTable.vue'
+import { apiName } from './apiName'
 
 const consent = ref<ConsentState | null>(null)
 const consentBusy = ref(false)
@@ -69,12 +70,6 @@ async function loadNetlog(): Promise<void> {
   } catch (e) {
     netlogError.value = errorText(e)
   }
-}
-
-/** `jev`、`llm/chat` → 中文用途；不认识的显示原值 */
-function apiName(api: string): string {
-  const key = `privacy.api.${api.replace('/', '_')}`
-  return isCopyKey(key) ? t(key) : api
 }
 
 function result(r: NetLogView): string {

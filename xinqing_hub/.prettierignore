@@ -4,3 +4,4 @@ core
 pnpm-lock.yaml
 src/api/bindings.ts
 src/i18n/zh-CN.ts
+src/assets/sprite

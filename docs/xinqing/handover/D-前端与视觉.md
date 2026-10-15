@@ -3,21 +3,21 @@
 > 负责范围（产品书 13 第 1 节）：WGT 小组件、DSH 看板、SET 设置、ONB 引导、NTF 系统通知、REV-04 晴天收集的界面、设计规范；
 > 另是前后端绑定 `xinqing_hub/src/api/bindings.ts` 的契约负责人（13 第 3.1 节）。
 > 任务清单与估算见产品书 16 第 2.4 节。本文件随 D 的每个 PR 更新，任务中途换人时按产品书 13 第 3.1 节“交接”直接看这里。
-> 最后更新：2026-10-06（D-09：系统通知——小组件看不见时的休息提醒）
+> 最后更新：2026-10-15（[xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86)：D-02～D-09 收尾，含小精灵 lottie 动画与放大文字 / 高对比度 / 高 DPI 走查）
 
 ## 1. 任务状态
 
 | 编号 | 任务 | 状态 | 代码 / PR | 还差什么 |
 |---|---|---|---|---|
-| D-01 | 前端骨架：Vite + Vue 3、设计令牌、类型生成封装、多窗口 | 完成 | `xinqing_hub/src/`：`styles/tokens.css`、`api/`、`i18n/`、`windows/shared/mount.ts`、`vite.config.ts` | DS-ICON 要求的 Lucide 图标库还没引入（第一个用到图标的界面再加，记得在“关于”页列许可） |
-| D-02 | 小组件（布局、小精灵、一句话区、底栏、交互、贴边） | **进行中** | 第一部分（窗口行为、右键菜单）：[xinqing-ime#14](https://github.com/young8290/xinqing-ime/pull/14)（已合并）；第二部分（悬停解释）：[xinqing-ime#16](https://github.com/young8290/xinqing-ime/pull/16)；第三部分（全屏自动隐藏、首帧位置）、第四部分（“准 / 不准”）：随后的 PR | 见第 3 节 |
-| D-03 | 小精灵插画与 lottie 动画（6 天气 + 3 一次性动作）、logo | **进行中** | `components/WeatherSprite.vue`：SVG + CSS 动画——每种天气 2–4 秒循环（呼吸、眨眼，加上光芒转、云飘、雨落、闪电每 3 秒闪一下、月亮浮、风线摆），一次性动作 `play('shake' \| 'approach')`，“闭眼”即 `eyesClosed`；`WeatherStage.vue` 交叉淡化。应用图标是几何占位（`tools/gen_hub_icons.py`，形状已按 DS-BRAND-02） | 正式插画与 lottie 素材（要设计稿，Claude 做不了插画定稿）；“晃一下 / 靠近”还没接上触发源：打错字要 B / A 给瞬时事件，暖心话要 C-04 的事件；logo 的矢量版已做（`components/AppLogo.vue`，与 `gen_hub_icons.py` 同一套几何），引导页还没用上 |
-| D-04 | 卡片层（日程 / 待办 / 提醒 / 自评 / 小结 / 周信等 8 类） | 未开始 | — | 07 第 2 节的“卡片层”窗口还没在 `tauri.conf.json` 登记；卡片的数据来自 B、C 的事件，事件形状要先定（改 `bindings.ts` 走契约 PR） |
+| D-01 | 前端骨架：Vite + Vue 3、设计令牌、类型生成封装、多窗口 | 完成 | `xinqing_hub/src/`：`styles/tokens.css`、`api/`、`i18n/`、`windows/shared/mount.ts`、`vite.config.ts` | DS-ICON 要求的 Lucide 图标库还没引入：目前十几处图标都是内联 SVG（1.5 px 圆头描边，与 Lucide 同风格），需要成套图标时再引入，记得在“关于”页列许可 |
+| D-02 | 小组件（布局、小精灵、一句话区、底栏、交互、贴边） | 完成（P2 项除外） | 第一～五部分见第 3 节（#14、#16 等已合并）；一句话区消息队列、底栏、菜单“待确认日程与待办（n）”、研究 / 演示模式角标、“晃一下 / 靠近”、`Ctrl+Alt+W`：[xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86) | 菜单里的开始 / 结束专注、换装，底栏的专注倒计时：FR-RST-10、FR-REV-04 都是 P2，后端还没有 |
+| D-03 | 小精灵插画与 lottie 动画（6 天气 + 3 一次性动作）、logo | 完成 | `tools/gen_sprite_lottie.py` 从小精灵的矢量形状生成 6 种天气的 lottie 动画（`src/assets/sprite/*.json`，30 帧 / 秒），用标记分五段：loop 4 秒、shake 0.5 秒、approach 0.6 秒、close 闭眼（倒播为睁眼）、sleep 闭眼循环；`components/WeatherSprite.vue` 用 lottie-web 的 SVG 精简播放器按段播放，颜色由图层 class 按设计令牌上（深浅色、高对比度都跟着走），关闭动画时停在第一帧、不可见时暂停；CI 用 `--check` 核对动画与生成脚本一致。“晃一下”接 `mood:typo`、“靠近”接新暖心话。logo 矢量版 `components/AppLogo.vue`，用在“关于”和引导页；应用图标按 DS-BRAND-02 由 `tools/gen_hub_icons.py` 生成（[xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86)） | 形象与图标是 D 按 DS-BRAND 画的矢量版；以后若有设计师稿，换 `gen_sprite_lottie.py` 的形状或直接替换 JSON（保留五个标记与图层 class）即可，组件不用改 |
+| D-04 | 卡片层（日程 / 待办 / 提醒 / 自评 / 小结 / 周信等 8 类） | 完成 | `windows/cards/`（[xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86)）：新窗口 `cards`（ADR 0036 第 7 条），贴着小组件上方（小组件在上半屏时放下方），最多 2 张、其余排队，不抢焦点，Enter 主操作、Esc 收起；日程 / 待办卡片（识别中、AI 识别、标记、时间重叠，60 秒收起）、到点提醒与错过的提醒（`reminder_missed_take`，只显示一次）、休息提醒（从小组件挪来）、负面自评后的回应与“和晴晴聊聊”、晚间小结、周信提示。日程卡片的“修改”在看板日程页打开编辑框 | 卡片层跟随小组件的位置只在浏览器里看过，要在 Windows 真机上和吸附、贴边、多显示器一起走查 |
 | D-05 | 首次引导与同意 | 完成 | `windows/onboarding/`：FR-ONB-01～04；FR-ONB-05（xinqing-ime#64 已合并）——`AiStep.vue`（Jev 与大模型的地址和密钥，已保存的只显示末 4 位、留空不改，“测试连接”先保存再逐个模型测，可跳过进离线模式）、`PrefsStep.vue`（小组件放哪个角、`care.level`、四种休息提醒开关，改了就存）；完成后小组件由晴晴打招呼（`shared/firstRun.ts`） | 引导页不让改大模型的模型列表（沿用已有的或用默认），完整的放设置页“AI 服务”（FR-SET-08）；Jev 没有测试接口，只做说明 |
-| D-06 | 对话窗口（流式、标识、求助卡片 UI） | 第一版完成 | `windows/chat/`：`useChat.ts`（会话、流式事件、先到事件暂存）、`App.vue`（AI 说明、历史抽屉、气泡与 `AI 生成` 标签、复制、停止 / 重试）、`SafetyCard.vue`（求助卡片，折叠成一行不可移除）；与 C-07/C-08 同一个 PR，ADR 0018 | 快捷指令（吐槽 / 理一理 / 呼吸，`BreathingGuide.vue`）与“记住”确认条、消息上的“让晴晴记住”已由 C 补上（[xinqing-ime#57](https://github.com/young8290/xinqing-ime/pull/57)），样式 D 已走查（文字按钮的点击目标、`AI 生成` 标签按 DS-COPY-05、输入中三个点、Esc 先关呼吸引导、抽屉与引导的焦点、高对比度下气泡有边框）；“写成情绪日记”随 C-10；历史搜索（P1）；窗口置顶切换与全局快捷键 `Ctrl+Alt+Q`（求助卡片上的学校心理中心电话已接设置 `safety.school_phone`，填了就显示并可复制） |
-| D-07 | 情绪看板 | **进行中** | `windows/dashboard/`（xinqing-ime#70 已合并）：左侧六页导航（FR-DSH-01）；“今日”有当前天气和今天的自评（只显示时间和选项，不显示备注）；“周报”有作息洞察（FR-REV-03：最近 7 / 30 天停止打字时间折线、平均停止时间、晚于零点的晚数、按天查看表格）。引入 ECharts（`components/EChart.vue`，按需注册、SVG 渲染、颜色取设计令牌） | 今日的概要卡片、打字心电图、状态时间线、今天的暖心话；周报其余图表；情绪日历；信箱；日程与待办、对话与日记——都要先有统计 / 列表命令（B、C） |
-| D-08 | 设置中心（schema 表单生成器 + 9 个分类） | **进行中** | `windows/settings/`：左侧分类 + 每个分类一个组件；“输入法”（xinqing-ime#36 已合并：常用项中文名称 + 其余按 schema 生成、分组放进“高级”，修改即保存、重启横幅）、“外观”、“关怀”（xinqing-ime#67 已合并：关怀频率、说话风格带示例句、同意 ④ 可撤回、安静时段、勿扰应用、学校心理中心电话、晴晴记住的事可改可删；输入先按后端同样的规则校验，说清哪里不对）、“AI 服务”（xinqing-ime#66 已合并：地址与密钥只显示末 4 位、大模型优先级可拖动或按钮排序、测试连接、每日调用上限与今日用量）、“隐私与关于”（xinqing-ime#69 已合并“隐私”：与引导页同一张告知表、六项同意逐项撤回（撤回 ① 先确认，撤回会发给第三方的项如实说明）、最近 20 次出网记录（用途中文名、字段名、结果）、导出我的数据（系统“另存为”对话框 → `data_export`）；“关于”早已有）。契约（#35 已合并）：ADR 0016 + `core/src/infra/imeconf.rs`（wind-rpc 客户端，只用标准库）+ 命令 `ime_schema` / `ime_config_get` / `ime_config_set`。契约（xinqing-ime#38 已合并）：ADR 0017 + 事件通道读线程 `src-tauri/src/ime_events.rs` + 事件 `ime_config:changed`；“输入法”页接这个事件和窗口焦点刷新（xinqing-ime#39 已合并）；快捷键录制框、中英切换键改为五选一（xinqing-ime#41 已合并） | 下一步：其余分类（FR-SET-03、04、06、07、10）按各自后端逐个补；“关怀”里的晚间小结、周信开关等设置键登记（C）；“隐私”还差删除全部数据（FR-DAT-04）、导入（FR-DAT-07）、隐私说明全文，等 E 的命令和文本；开源许可的完整依赖清单要用工具生成 |
-| D-09 | 系统通知、无障碍与高对比度、DPI 走查 | 部分 | 令牌里已有 `forced-colors` 高对比度和 `prefers-reduced-motion`；不可见时暂停动画（`mount.ts` + `base.css`）；系统通知（本 PR）：`src-tauri/src/notify.rs` 用 Windows toast，小组件窗口看不见时代替休息提醒卡片，按钮“知道了”/“5 分钟后”交回休息服务；文案在 core `domain/notify.rs`（读 `ui_copy.toml` 的 `[notify]`、`[rest]`） | 日程提醒、错过的提醒两类通知要等日程模块的事件（C）；150% 文本大小与 100%–200% DPI 走查没做；通知要在 Windows 真机上验一次（发行版的应用标识靠安装包登记） |
+| D-06 | 对话窗口（流式、标识、求助卡片 UI） | 完成 | `windows/chat/`：`useChat.ts`（会话、流式事件、先到事件暂存）、`App.vue`（AI 说明、历史抽屉、气泡与 `AI 生成` 标签、复制、停止 / 重试）、`SafetyCard.vue`（求助卡片，折叠成一行不可移除）；与 C-07/C-08 同一个 PR，ADR 0018；快捷指令（吐槽 / 理一理 / 呼吸，`BreathingGuide.vue`）与“记住”确认条由 C 补上（#57），D 已走查样式；[xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86)：快捷指令“📝 写成情绪日记”（共用看板的 `shared/DiaryEditor.vue`，带当前会话起草）、历史抽屉的本地搜索（`chat_search`）与保留期限（`chat.retention_days`）、标题栏置顶切换（`capabilities/chat.json`）、看板点开某段对话（`xq:chat-open`）；`Ctrl+Alt+Q` 由全局快捷键打开 | —（求助卡片上的学校心理中心电话已接设置 `safety.school_phone`） |
+| D-07 | 情绪看板 | 完成（P2 项除外） | `windows/dashboard/`：左侧六页导航（#70 已合并）；[xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86) 补齐——今日（四张概要卡片、打字心电图 `typing:pulse`、状态时间线（点一段看解释，自评实心圆点，逐段列表）、今天的暖心话、写日记）、情绪日历（主导天气 / “—”、日记 📓，点某天看详情）、周报（一句话总结、休息完成率与饮水环比、新增日程与完成待办、状态分布、7 × 24 热力图、每日输入时长、按天查看表格、作息洞察）、日程与待办（待确认 / 已添加 / 已过期 / 已忽略、编辑、加入我的日历）、信箱、对话与日记。读取命令见 ADR 0036。每张图有读屏概括与表格视图 | 周报的专注总时长（FR-RST-10）与晴天值（FR-REV-04）是 P2，后端有数据后加数字卡片；状态分布用横条图而非 07 写的环形图（ADR 0036 第 11 条），待改产品书 |
+| D-08 | 设置中心（schema 表单生成器 + 9 个分类） | 完成 | `windows/settings/`：九个分类按 FR-SET-01 排序。此前已合并：输入法（#36、#39、#41）、关怀（#67）、AI 服务（#66）、隐私（#69）、关于。[xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86) 补齐：常规（总开关、小组件、颜色模式、全局快捷键与冲突提示，替换原“外观”）、感知（同意 ② / ⑤、不感知 / 只感知的程序、记住无痕状态、无痕模式快捷键、基线进度与重新熟悉）、提醒、日程与待办（同意 ③）、温柔改写（同意 ⑥、快捷键、今日次数）；关怀补晚间小结与周信，AI 服务补接口状态表，隐私与关于补参加研究与开发者选项；每页“恢复默认”（先确认，只写与出厂值不同的项；输入法里的项用新命令 `ime_config_defaults`，ADR 0036 第 10 条）与底部“已保存” | “隐私”的删除全部数据（FR-DAT-04）、导入（FR-DAT-07）、隐私说明全文要 E 的命令和文本；黑 / 白名单的“从正在运行的程序中选择”要外壳新增列进程的命令；温柔改写的默认风格与文本来源开关还没有设置键（核心按 Tab 轮换风格、先取最近上屏再取剪贴板，页面照实说明）；常规的“晴天收集”、提醒的专注设置是 P2 |
+| D-09 | 系统通知、无障碍与高对比度、DPI 走查 | 完成（真机复核待做） | 系统通知：休息提醒（D，`src-tauri/src/notify.rs`）、日程 / 待办 / 错过的提醒（C-05 接入同一个 `Notifier`）；令牌里有 `forced-colors` 与 `prefers-reduced-motion`，不可见时暂停动画。[xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86)：axe-core（WCAG 2.1 A/AA + best-practice）在浅色、深色、高对比度下走查全部窗口、看板六页、设置九个分类，无违规项；用浏览器模拟文字放大 150%、设备缩放 125% / 150% / 200%、Windows 高对比度逐个窗口查截断与越界，修了日历格子、小组件底栏、高对比度下图表颜色 | 模拟代替不了 Windows 真机：讲述人朗读、系统通知弹出、WebView2 对系统“文本大小”的实际处理、混合 DPI 多显示器，发版前在真机上复核一遍；深色 `--xq-text-3` 的令牌值待 07 第 1.2 节调整 |
 
 ## 2. 代码地图（D 负责的部分）
 
@@ -30,11 +30,12 @@ xinqing_hub/
 ├─ src/components/EChart.vue    ECharts 薄封装：按需注册、SVG 渲染、主题 / 尺寸变化重画、减少动态效果时不放动画
 ├─ src/components/chartTheme.ts 图表用色：从设计令牌解析（--xq-chart-1、--xq-surface、--xq-border、--xq-text-*）
 ├─ src/stores/                  status（状态快照 + status:changed）、settings（设置缓存 + settings:changed）
-├─ src/components/              AppLogo（logo 矢量版）、WeatherSprite（静态小精灵）、WeatherStage（交叉淡化）、ExplainPanel（状态解释，`actions` 插槽放“准 / 不准”）
+├─ src/components/              AppLogo（logo 矢量版）、WeatherSprite（lottie 小精灵，数据在 sprite.ts / assets/sprite，由 tools/gen_sprite_lottie.py 生成）、WeatherStage（交叉淡化）、ExplainPanel（状态解释，`actions` 插槽放“准 / 不准”）
 ├─ src/weather.ts               天气图标、名称、不确定说法
 ├─ src/selfReport.ts            自评选项文案、覆盖期推算（看板时间线也会用）
 ├─ src/explain.ts               状态解释的拼句（state_explain 的结构 → 标题 / 说明 / 来源），看板时间线也用它
-├─ src/windows/<label>/         每个窗口一个入口：widget / chat / dashboard / settings / onboarding
+├─ src/format.ts                时长、日期、钟点的显示格式（看板、底栏、卡片共用）
+├─ src/windows/<label>/         每个窗口一个入口：widget / cards / chat / dashboard / settings / onboarding
 │  └─ widget/
 │     ├─ App.vue                小组件界面与交互
 │     ├─ statusLine.ts          状态行（特殊情形优先级）
@@ -43,7 +44,18 @@ xinqing_hub/
 │     ├─ useSelfReport.ts       自评：开关面板、提交、跟踪“你说的”覆盖期
 │     ├─ SelfReportPanel.vue    “我现在…”面板
 │     ├─ placement.ts           位置计算纯函数：默认位置、吸附、按显示器记住、小标签
-│     └─ useWidgetWindow.ts     调 Tauri 窗口接口：恢复位置、拖动后吸附、贴边隐藏、置顶
+│     ├─ useWidgetWindow.ts     调 Tauri 窗口接口：恢复位置、拖动后吸附、贴边隐藏、置顶
+│     ├─ messages.ts            一句话区消息队列的纯函数：优先级、暖心话 2 小时后淡出为今日一句（FR-WGT-04）
+│     ├─ useMessages.ts         一句话区接事件：comfort:new、care:reduced、求助、周信提示、db_rebuilt_take
+│     ├─ MessageLine.vue        一句话区：逐字出现、AI 生成标签、悬停 👍 / 👎 / 🔕
+│     ├─ footer.ts / useFooter.ts  底栏：今日输入时长、最近的日程或未完成待办（FR-WGT-05）
+│  └─ cards/                    卡片层窗口（FR-WGT-07，ADR 0036 第 7 条）
+│     ├─ queue.ts / cards.ts    卡片排队（最多 2 张）与各类卡片的数据；rest.ts 休息提醒卡片的文案
+│     ├─ useCards.ts            接日程 / 待办 / 提醒 / 休息 / 自评回应 / 小结 / 周信事件，reminder_missed_take
+│     ├─ useCardsWindow.ts      贴着小组件摆放、按卡片高度调窗口大小、没卡片就隐藏
+│     └─ CardShell.vue 等       卡片外框与 Schedule / Reminder / Rest / Note 四种卡片
+│  └─ shared/bus.ts             窗口之间的 xq: 前端事件（卡片数、周信提示、看板跳页、对话窗口打开某段对话）
+│  └─ shared/DiaryEditor.vue    日记编辑框（起草、来源标识），看板与对话窗口共用
 │  └─ onboarding/
 │     ├─ App.vue                引导步骤：年龄 → 告知 → 同意 → 增强模式 → AI 服务 → 偏好
 │     ├─ AiStep.vue             AI 服务：地址与密钥、测试连接、可跳过（ADR 0012）
@@ -53,12 +65,16 @@ xinqing_hub/
 │  └─ shared/consent.ts         同意项编号 ①～⑥、哪些会发给第三方（撤回时要说明）
 │  └─ shared/firstRun.ts        引导交给小组件的偏好：放哪个角、要不要打招呼（localStorage）
 │  └─ dashboard/
-│     ├─ App.vue                看板左侧六页导航（FR-DSH-01），#weekly 等直接打开对应页
-│     ├─ TodayPage.vue          今日：当前天气、今天的自评（不显示备注）
-│     ├─ WeeklyPage.vue         周报：目前只有作息洞察
-│     ├─ RoutineInsight.vue     作息洞察：7 / 30 天切换、三个数字、折线、按天查看表格（FR-REV-03）
-│     ├─ routine.ts             作息洞察的纯函数：钟点格式、纵轴范围、ECharts option
-│     └─ ComingSoon.vue         还没有数据来源的页
+│     ├─ App.vue                看板左侧六页导航（FR-DSH-01），#weekly 等直接打开对应页，也听 xq:dashboard-nav
+│     ├─ TodayPage.vue          今日：概要卡片、TypingEcg（打字心电图）、StateTimeline（状态时间线）、ComfortList、写日记
+│     ├─ today.ts               今日的纯函数：概要卡片、时间线几何、心电图的 ECharts option
+│     ├─ CalendarPage.vue / calendar.ts  情绪日历（FR-DSH-03）
+│     ├─ WeeklyPage.vue / weekly.ts      周报（FR-DSH-04）：状态分布横条、热力图、每日输入时长、按天表格
+│     ├─ RoutineInsight.vue / routine.ts 作息洞察（FR-REV-03）
+│     ├─ SchedulePage.vue / agenda.ts    日程与待办（FR-SCH-09/13），ScheduleEditor / TodoEditor 编辑框
+│     ├─ MailboxPage.vue        信箱（FR-DSH-06）
+│     ├─ ChatDiaryPage.vue      对话与日记（FR-DSH-05、FR-DIA-03）
+│     └─ dashboard.css          看板共用版式（前缀 d-）
 │  └─ settings/
 │     ├─ App.vue                左侧分类（FR-SET-01 的顺序），默认“输入法”，#about 直接打开“隐私与关于”
 │     ├─ ImeSection.vue         输入法：取 schema 和配置、修改即保存、跳过原因 / 重启横幅 / 核心没运行；
@@ -67,21 +83,31 @@ xinqing_hub/
 │     ├─ imeForm.ts             常用项清单（改时同步 ui_copy.toml 的 [ime.field]）、高级分组、按点分键名取值
 │     ├─ hotkey.ts              快捷键：录制规则、键名与别名（hotkey.test.ts 对照清风 hotkey.rs）、用录制框的配置键清单
 │     ├─ HotkeyRecorder.vue     快捷键录制框：点一下录制，Esc 取消、退格清除，重复时提示
-│     ├─ AppearanceSection.vue  外观
-│     ├─ CareSection.vue        关怀：频率、说话风格、同意 ④、安静时段、勿扰应用、学校电话、晴晴记住的事（FR-SET-05）
-│     ├─ care.ts                关怀页的输入校验（与后端 SettingItem::accepts、memory_entry 同一套规则）
-│     ├─ AiSection.vue          AI 服务：地址与密钥、大模型优先级、测试连接、每日上限与今日用量（FR-SET-08）
-│     ├─ AboutSection.vue       隐私与关于：上面放 PrivacySection，下面是“关于”
+│     ├─ GeneralSection.vue     常规（FR-SET-03）：总开关、小组件、颜色模式、全局快捷键
+│     ├─ SenseSection.vue       感知（FR-SET-04）：同意 ② / ⑤、程序名单、无痕、基线
+│     ├─ CareSection.vue        关怀：频率、说话风格、晚间小结、周信、同意 ④、安静时段、勿扰应用、学校电话、晴晴记住的事（FR-SET-05）
+│     ├─ RestSection.vue        提醒（FR-SET-06）；AgendaSection.vue 日程与待办（FR-SET-07）；RewriteSection.vue 温柔改写（FR-SET-10）
+│     ├─ care.ts                设置页的输入校验（与后端 SettingItem::accepts、memory_entry 同一套规则，含研究编号）
+│     ├─ AiSection.vue          AI 服务：地址与密钥、大模型优先级、测试连接、每日上限与今日用量、接口状态（FR-SET-08）
+│     ├─ AboutSection.vue       隐私与关于：PrivacySection、ResearchDevSection（参加研究、演示模式），下面是“关于”
 │     ├─ PrivacySection.vue     隐私：告知表、同意与撤回、最近出网记录、导出我的数据（FR-SET-09）
+│     ├─ SectionHead.vue        分类标题与“恢复默认”（先确认）；settings.css 各分类共用版式（前缀 s-）
+│     ├─ useHubSettings.ts      Hub 设置键：读、修改即保存、“已保存”提示、按 settings_schema 恢复默认
+│     ├─ useImeKeys.ts          存在输入法里的几项（xinqing.*）：读写、ime_config_defaults 恢复默认
+│     ├─ useConsents.ts         分类页里的单独同意开关，撤回时如实说明
 │     └─ licenses.ts            开源许可条目；新增随包分发的组件 / 字体 / 素材 / 图标库时在这里加
 ├─ core/src/infra/imeconf.rs   wind-rpc 客户端（读写输入法配置，ADR 0016）
-├─ src-tauri/src/commands/ime.rs  ime_schema / ime_config_get / ime_config_set
+├─ src-tauri/src/commands/ime.rs  ime_schema / ime_config_get / ime_config_defaults / ime_config_set
+├─ core/src/domain/dashboard.rs  看板统计的纯函数（主导天气、时间线、周统计、一句话总结），ADR 0036
+├─ core/src/domain/hotkey.rs     Hub 全局快捷键的格式与校验；src-tauri/src/hotkeys.rs 注册与冲突
+├─ src-tauri/src/commands/dashboard.rs  comfort_list / day_stats / month_moods / week_stats
+├─ src-tauri/src/pulse.rs        mood:typo、typing:pulse 两个瞬时事件
 ├─ src/api/bindings.test.ts      守住生成的绑定：时间戳导出成 number（ADR 0027）
 ├─ core/src/domain/notify.rs     系统通知的文案与按钮（FR-NTF-01），读 ui_copy.toml 的 [notify]、[rest]
 ├─ src-tauri/src/notify.rs       系统通知：Windows toast + 按钮回调交回休息服务；非 Windows 不弹（退回小组件卡片）
 ├─ src-tauri/src/ime_events.rs  常驻线程读 wind-rpc 事件通道，转成 ime_config:changed（ADR 0017）
 └─ src-tauri/
-   ├─ capabilities/              default.json（各窗口共用）、widget.json（只给小组件：挪动、缩放、显示、置顶）
+   ├─ capabilities/              default.json（各窗口共用）、widget.json / cards.json（挪动、缩放、显示、置顶）、chat.json（置顶）、settings.json（另存为）
    ├─ src/fullscreen.rs          前台全屏时自动隐藏小组件（判断逻辑 AutoHide 平台无关，探测只在 Windows）
    └─ src/windows.rs             建窗口；小组件建好先不显示，由前端定位后 show()
 ```
@@ -90,7 +116,7 @@ xinqing_hub/
 `python3 tools/check_templates.py hub_templates`（禁用词）。看界面：`pnpm dev` 后浏览器打开 `http://localhost:1420/widget/index.html`
 （没有后端，窗口接口会失败并打警告，界面照常显示）；真窗口行为要 `pnpm tauri dev`（Linux 需要 WebKitGTK）。
 
-## 3. 进行中：D-02
+## 3. D-02 小组件明细
 
 | 部分 | 需求 | 状态 |
 |---|---|---|
@@ -99,18 +125,18 @@ xinqing_hub/
 | 贴边隐藏：吸附在左右边缘、开了 `widget.autohide` 时，鼠标离开 3 秒收成 24 × 72 小标签，移入或聚焦展开 | FR-WGT-01 | 完成（本 PR） |
 | 置顶跟随 `widget.topmost`、透明度跟随 `widget.opacity` | FR-WGT-01 | 完成（本 PR） |
 | 右键菜单（右键 / `Shift+F10` / 菜单键）：暂停·恢复感知、打开看板、设置、隐藏小组件 | FR-WGT-06 | 完成（本 PR）。其余项见下一行 |
-| 菜单里的开始 / 结束专注、换装、待确认日程与待办 | FR-WGT-06 | 未做：分别等 B-08 专注、FR-REV-04（P2）、C-05 待确认列表；按 `menu.ts` 顶部注释的顺序插入（“我现在…”已在第五部分加上） |
+| 菜单里的开始 / 结束专注、换装、待确认日程与待办 | FR-WGT-06 | “待确认日程与待办（n）”已加（xinqing-ime#86，点了打开看板日程页）；开始 / 结束专注（FR-RST-10）、换装（FR-REV-04）是 P2，后端有了再按 `menu.ts` 顶部注释的顺序插入 |
 | 天气切换 400 ms 交叉淡化 | FR-WGT-03 | 完成（本 PR） |
 | 一句话区悬停显示全文 | FR-WGT-04 | 完成（本 PR） |
-| 一句话区的消息优先级队列（求助 > 自评回应 > 卡片 > 休息提醒 > 暖心话 > 小结 > 今日一句 > 空闲问候） | FR-WGT-04 | 未做：消息来源的事件还没有（C-04 暖心话等），事件形状定了再写，避免先猜契约 |
+| 一句话区的消息优先级队列（求助 > 自评回应 > 卡片 > 休息提醒 > 暖心话 > 小结 > 今日一句 > 空闲问候） | FR-WGT-04 | 完成（xinqing-ime#86）：`messages.ts` 排序——求助入口 > 出错提示 > 暖心话 > 提示（降档、数据库重建）> 周信提示 > 今日一句 > 空闲问候。自评回应、日程卡片、休息提醒、小结按 FR-WGT-07 是卡片，挪进卡片层，不再占一句话区。暖心话逐字出现（减少动态效果时整句）、`AI 生成` 标签单独一行、2 小时后淡出为今日一句，悬停出现 👍 / 👎 / 🔕 |
 | 悬停状态行显示解释 | FR-WGT-06、FR-STA-09 | 完成（第二部分）：鼠标停留 300 ms 或键盘聚焦状态行时，面板盖住右侧整列，标题（不确定说法 + 可能性）、每条说明一行、来源与冷启动附注弱化；`Esc`、失焦、移开、状态变化都会收起。每次打开都重新取 `state_explain(null)`；它和当前快照不是同一个状态时不用，退回只显示标题。可能性百分比从状态行的悬停提示挪进了面板 |
 | 解释面板里的“准 / 不准” | FR-STA-07 | 完成（第四部分）：两个按钮放在来源那一行右侧，点了调 `submit_feedback('mood_state', null, …)`（记到最近一条状态记录，即当前显示的状态），换成“谢谢，我记下了”，状态变了再重新问。为了放下按钮，面板从只盖右侧一列改为盖住整个内容区（约 286 × 134 px），小精灵会被暂时盖住；按钮仍守 32 × 32 点击目标。文案在 `ui_copy.toml` 的 `[widget.feedback]` |
 | 状态行 ✎ 与自评面板、自评后 60 分钟显示“你说的：…” | FR-WGT-02/03/06、FR-STA-10 | 完成（第五部分）：状态行右侧 ✎ 或右键菜单第一项“我现在…”打开面板（`SelfReportPanel.vue`，盖住内容区）——六个选项点一下就提交，备注选填（≤ 50 字，提示只存本地）；收到 `self_report:changed` 后状态行显示“🌙 你说的：有点累”，到期由本地定时器收尾；窗口打开时没有覆盖期快照，就由 `self_report_list(今天)` 的最后一条推出（`src/selfReport.ts`）。覆盖期内不弹解释面板。离线角标改为状态行内联，与 ✎ 并排 |
-| 底栏：今日输入时长、下一个日程 / 待办数、专注倒计时 | FR-WGT-05 | 未做：等 B-08（使用时长）、C-05（日程待办） |
+| 底栏：今日输入时长、下一个日程 / 待办数、专注倒计时 | FR-WGT-05 | 完成（xinqing-ime#86）：今日输入时长（`day_stats`）、未来 24 小时最近的日程或未完成待办数，点了打开看板日程页；专注倒计时是 P2 |
 | 前台全屏应用时自动隐藏，退出后恢复 | FR-WGT-01 | 完成（第三部分）：外壳每秒调一次 `SHQueryUserNotificationState`（全屏应用、全屏 D3D 游戏、演示模式都算），进全屏时把可见的小组件藏起来，退出时只恢复自己藏的；用户自己隐藏的不会被叫回来，全屏期间用户叫出来的也不再藏回去 |
 | 首次启动不在默认位置闪一下 | FR-WGT-01 | 完成（第三部分）：小组件配置成 `visible: false`，外壳建好后不显示，前端挪到记住的位置再 `show()`；定位失败也照样显示 |
-| “晃一下”（打错字） | FR-WGT-03、DS-MOTION-02 | 未做：`status:changed` 不带 `typo`（它不是显示状态），需要一个瞬时事件，属于契约改动 |
-| `Ctrl+Alt+W` 显示 / 隐藏 | FR-WGT-01、FR-ENT-04 | 未做：要引入 Tauri 全局快捷键插件；FR-ENT-04 的其他 Hub 快捷键（`Ctrl+Alt+Q` / `D`）一起做，注册失败要在设置页提示冲突 |
+| “晃一下”（打错字） | FR-WGT-03、DS-MOTION-02 | 完成（xinqing-ime#86）：瞬时事件 `mood:typo`（外壳限频 1.5 秒，ADR 0036 第 5 条）；新暖心话时“靠近” |
+| `Ctrl+Alt+W` 显示 / 隐藏 | FR-WGT-01、FR-ENT-04 | 完成（xinqing-ime#86）：`tauri-plugin-global-shortcut`，与 `Ctrl+Alt+Q` / `D` 一起由设置键 `hotkey.*` 控制，注册不上的在设置“常规”提示（ADR 0036 第 6 条） |
 
 ## 4. 关键决定与待评审
 
@@ -145,6 +171,15 @@ xinqing_hub/
 - **系统“另存为”对话框用官方插件 `tauri-plugin-dialog`**（`@tauri-apps/plugin-dialog`）：`data_export(path)` 要前端给保存路径（E 的 xinqing-ime#47）。
   权限只给设置窗口、只开 `dialog:allow-save`（`src-tauri/capabilities/settings.json`）；对话框只把用户选的路径交回前端，读写文件仍在 Rust 端。
   以后“导入”要选文件时再加 `dialog:allow-open`。插件属 Tauri 项目，许可同 Tauri（“关于”页已列）。不涉及 `bindings.ts` 等契约，未写 ADR。
+- **ADR 0036（看板与小组件的读取命令和瞬时事件，D 提议，xinqing-ime#86）**：四个只读命令（`comfort_list` / `day_stats` / `month_moods` / `week_stats`）、
+  `comfort:new` 加 `trigger`、瞬时事件 `mood:typo` / `typing:pulse`（只有键间间隔与是否退格，不含键值）、全局快捷键设置键、卡片层窗口、
+  两个“只取一次”的命令、设置页“恢复默认”的 `ime_config_defaults`、周报状态分布用横条图。没有新迁移。待 B、C、E 评审，接受后改 07、10、15。
+- **状态分布不用环形图**（ADR 0036 第 11 条）：天气色按图表配色规则校验在正常视力下就分不开（多云 / 小雨 ΔE 7.0），扇区又只能靠颜色区分；
+  改为单色横条、按占比排序、直接标名称与百分比。天气色只用在小精灵和图标上，不拿来区分图表系列。
+- **设置“恢复默认”的范围**：只改偏好。总开关 `xinqing.enabled`、各项同意、学校电话、晴晴记住的事、AI 地址与密钥、研究编号与演示模式都不随它改；
+  所以“隐私与关于”没有“恢复默认”按钮（这一页没有偏好类的项）。
+- **对话窗口的置顶记在 WebView 的 localStorage**：和小组件位置一样是本机界面偏好，不进数据库。
+- **卡片层是独立窗口**：卡片 320 × ≤ 220、最多 2 张，放进小组件窗口（320 × 168）会盖住小精灵；独立窗口不抢焦点、能贴着小组件上下摆放。
 - **小标签 24 × 72**：07 只规定了宽 24 px，高度是这里定的（够露出 20 px 的小精灵）。24 px 宽低于 DS-A11Y-03 的 32 px 点击目标，但小标签不需要点击——鼠标移入或键盘聚焦就展开，所以没有按 32 px 做。如果评审认为要守 32 px，07 的 24 px 也要一起改。
 
 ## 5. 已知问题
@@ -153,29 +188,31 @@ xinqing_hub/
 - 吸附靠“最后一次移动事件后 400 ms 没再动”判断拖动停下。拖着不松手停顿超过 400 ms，窗口会先吸附一次，继续拖时 Windows 会把它拉回鼠标处，只是一下跳动。Tauri 没有“拖动结束”事件，暂时这样。
 - 全屏检测只在进出全屏的那一刻动手：如果小组件恰好是在全屏期间才建出来的（例如在全屏游戏里完成了引导），它会一直显示到下次进出全屏。
 - 自评覆盖期跨过午夜时（23:30 自评、00:10 重开小组件），当天的 `self_report_list` 里没有那一条，重开后不再显示“你说的”；要彻底解决得让快照带上覆盖期（B 的契约）。
-- 负面自评后晴晴的回应和“和晴晴聊聊”按钮（FR-STA-10 第 2 条）要等 C-04 暖心话的事件，界面这边还没接。
-- `AppState::db_rebuilt`（数据库损坏后已重建）还没有在一句话区提示（文案 `error.db_rebuilt`），等消息优先级队列一起做。
 - 快捷键录制框在 Hub 窗口里录：输入法自己的快捷键（例如 `Ctrl+Shift+E` 轮换方案）可能先被核心吃掉，录不到；`Win` 组合多数被系统占用。都要在 Windows 真机上走一遍。
 - “输入法”分类：wind-rpc 的 schema 没有数值范围和说明文字，高级区只显示键名；方案名来自 ui_copy 的 `[ime.schema]`，核心新增方案时显示原 id，需要补文案。没在真机上连过清风核心。
 - 系统通知只在 Linux 上编过、在 MSVC 目标上单独核对过 toast 的调用，没有在 Windows 真机上弹过；发行版要确认安装包登记了应用标识，否则 toast 不显示。
   小组件“贴边隐藏”时窗口仍算看得见，提醒走卡片（贴边小标签不会自动展开）——要不要也改走通知，真机试过再定。
-- 看板大部分区块没有数据来源：今日的概要卡片（输入时长、主导天气、暖心话次数、休息完成率）、打字心电图（要键间间隔的实时流）、状态时间线（要当天各时段状态）、
-  今天的暖心话列表；周报的状态分布、7 × 24 热力图、每日输入时长、休息与饮水、日程与待办、专注时长、一句话总结；情绪日历；信箱（周信列表）。
-  都要 B / C 先给统计或列表命令（改 `bindings.ts` 走契约 PR，D 评审）。页面上写了“还在准备中”。
 - 设置“隐私”：撤回 ① 时 09 FR-DAT-05 要“询问是否同时删除已有的情绪数据”，还没有删除情绪数据的命令（E-01），目前只确认一次再撤回；
   删除全部数据（FR-DAT-04）、导入（FR-DAT-07）、隐私说明全文（E-06）都还没有，页面底部写了“还在准备中”。
-- 设置“关怀”缺晚间小结（FR-REV-01）和周信（FR-REV-02）的开关：设置键注册表还没登记这两项（C 的契约），登记后加在“说话风格”下面。
 - “关怀”页的输入校验（`settings/care.ts`）抄了后端 `SettingItem::accepts` 的规则，后端只回笼统的 `settings.out_of_range`；后端规则改了要同步改这里（后端仍会拒绝，只是提示变笼统）。
 - 安静时段用 `<input type="time">`，显示 12 / 24 小时制跟系统区域设置走；存进去的始终是 `HH:MM`。
-- 窗口行为（吸附、贴边隐藏、多显示器）只有纯函数单测和组件测试，还没在 Windows 真机上走查（100%–200% 混合缩放、任务栏在左 / 上）。
+- 窗口行为（吸附、贴边隐藏、多显示器、卡片层跟随小组件）只有纯函数单测和组件测试，还没在 Windows 真机上走查（100%–200% 混合缩放、任务栏在左 / 上）。
+- 设置“常规”的总开关、“感知”的名单与无痕、“温柔改写”的快捷键存在输入法配置里：核心没运行时这几项不可改（页面有说明），恢复默认也只在核心运行时出现；
+  `ime_config_defaults`（wind-rpc `config.getDefaults`）只在单测里对过请求形状，没连过真核心。
+- Hub 全局快捷键与输入法快捷键的重复检测只比设置里的值；被别的软件占用要靠注册结果（`hotkey_status`），只在 Linux 上跑过注册逻辑的单测。
+- 小组件窗口固定 320 × 168：文字放大到 150% 时一句话区只放得下一行（悬停看全文），底栏日程先缩成省略号。
+- 打字心电图在看板可见时每秒最多收 10 次 `typing:pulse`、≤ 5 Hz 重画；低配电脑上的 CPU 占用没量过（DS-PERF）。
+- 深色模式 `--xq-text-3` 在卡片底（`--xq-surface`）上是 4.46:1，12 px 小字差一点到 4.5:1；看板已改用 `--xq-text-2`，其余用 text-3 的地方（日期、计数）
+  在页面底色上过了 axe 检查。令牌值待 07 第 1.2 节一起调。
 
 ## 6. 下一步（按优先级）
 
-1. D-03 剩余：“晃一下 / 靠近”等事件到位后接上（`play()` 已备好）；引导页用上 logo；
-2. D-07 后续：和 B / C 商定看板要的统计命令形状（今日概要、状态时间线、周统计、周信列表），命令到位后补各区块；
-3. D-08：其余分类（FR-SET-03、04、06、07、10）按各自后端补；“隐私”的删除 / 导入随 E 的命令补上；
-4. D-09：日程提醒、错过的提醒的通知（等日程事件）；DPI / 文本大小走查；真机验系统通知；
-5. D-04：卡片层窗口与事件形状（契约 PR），先做休息提醒卡片（配合 B-08）。
+1. Windows 真机复核（D-09）：小组件与卡片层的窗口行为、全局快捷键与录制框、系统通知、混合 DPI、系统“文本大小”、讲述人、高对比度主题（浏览器模拟已过）；
+2. ADR 0036 评审（B、C、E），接受后改产品书：07 FR-DSH-03/04（主导天气口径、状态分布横条图）、07 第 1.2 节（`--xq-chart-1`、深色 `--xq-text-3`）、
+   10 第 5.1 / 5.2 / 6.2 节（命令、事件、`hotkey.*`）、15 第 2 节（`weekly_line.toml` 已加载）；
+3. 若有设计师稿，按 `tools/gen_sprite_lottie.py` 的约定（五个标记、图层 class）替换小精灵动画与应用图标（D-03）；
+4. E 的删除全部数据、导入、隐私说明全文到位后补“隐私”（FR-SET-09）；外壳加列进程的命令后补“从正在运行的程序中选择”（FR-SET-04）；
+5. P2：专注（小组件菜单与底栏、周报、设置“提醒”）、晴天收集与换装（FR-REV-04）。
 
 ## 7. 修订记录
 
@@ -204,3 +241,5 @@ xinqing_hub/
 | 2026-10-05 | D-08：设置“隐私”部分（FR-SET-09）：告知表、同意与撤回、出网记录、导出；引入 tauri-plugin-dialog |
 | 2026-10-06 | D-07：情绪看板六页导航、今日（当前天气、自评）、周报作息洞察；引入 ECharts 与图表令牌 `--xq-chart-1` |
 | 2026-10-06 | D-09：系统通知——小组件看不见时休息提醒改弹 Windows toast（“知道了”/“5 分钟后”） |
+| 2026-10-11 | xinqing-ime#86：ADR 0036；D-02 收尾（一句话区队列、底栏、晃一下、全局快捷键）、D-04 卡片层、D-07 看板六页、D-08 设置九个分类与恢复默认、D-06 对话补齐（写日记、搜索、置顶、保留期限）、D-03 引导页 logo、D-09 axe 无障碍走查 |
+| 2026-10-15 | [xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86)：D-03 小精灵改用 lottie 动画（生成脚本、五段标记、令牌上色、CI 核对）；D-09 模拟放大文字 / 高 DPI / 高对比度走查并修复 |

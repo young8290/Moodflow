@@ -5,6 +5,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { commands, unwrap, type ConsentItem, type ConsentState } from '@/api'
+import AppLogo from '@/components/AppLogo.vue'
 import { errorText, t } from '@/i18n'
 import { CONSENT_NUMBER as NUMBER } from '../shared/consent'
 import { requestGreeting } from '../shared/firstRun'
@@ -60,7 +61,10 @@ function close(): void {
 
 <template>
   <main class="page">
-    <h1>{{ t('window.onboarding') }}</h1>
+    <header class="brand">
+      <AppLogo :size="48" decorative />
+      <h1>{{ t('window.onboarding') }}</h1>
+    </header>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
 
     <section v-if="step === 'age'">
@@ -133,6 +137,17 @@ function close(): void {
 <style scoped>
 .page {
   padding: var(--xq-sp-6);
+}
+
+/* logo 与标题一行（DS-BRAND-02） */
+.brand {
+  display: flex;
+  gap: var(--xq-sp-3);
+  align-items: center;
+}
+
+.brand h1 {
+  margin: 0;
 }
 
 .actions {

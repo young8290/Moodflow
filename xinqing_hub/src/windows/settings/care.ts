@@ -57,3 +57,11 @@ export function validMemory(s: string): boolean {
   const t = s.trim()
   return t !== '' && chars(t) <= MEMORY_ENTRY_CHARS
 }
+
+/** 研究编号最多多少字（`RESEARCH_ID_MAX_CHARS`） */
+export const RESEARCH_ID_MAX_CHARS = 16
+
+/** 研究编号（FR-DMO-04）：空串表示没填；否则只含 ASCII 字母、数字、`-`、`_`，不超过 16 个字符。 */
+export function validResearchId(s: string): boolean {
+  return /^[A-Za-z0-9_-]{0,16}$/.test(s)
+}

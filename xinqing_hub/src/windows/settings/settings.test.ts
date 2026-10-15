@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   imeSchema: vi.fn(),
   imeConfigGet: vi.fn(),
   imeConfigSet: vi.fn(),
+  imeConfigDefaults: vi.fn(),
   /** 最近一次订阅 `ime_config:changed` 的回调 */
   imeChanged: undefined as ((e: { payload: unknown }) => void) | undefined,
   imeUnlisten: vi.fn(),
@@ -74,6 +75,7 @@ vi.mock('@/api', async (orig) => ({
     imeSchema: mocks.imeSchema,
     imeConfigGet: mocks.imeConfigGet,
     imeConfigSet: mocks.imeConfigSet,
+    imeConfigDefaults: mocks.imeConfigDefaults,
   },
   events: {
     settingsChanged: { listen: async () => () => {} },
@@ -111,6 +113,7 @@ describe('设置中心', () => {
     mocks.imeConfigSet
       .mockReset()
       .mockImplementation(() => ok({ needs_restart: false, applied: 1, skipped: [] }))
+    mocks.imeConfigDefaults.mockReset().mockImplementation(() => ok({ values: CONFIG }))
     mocks.imeChanged = undefined
     mocks.imeUnlisten.mockReset()
     mocks.aiConfigGet.mockReset().mockImplementation(() => ok(AI_VIEW))
@@ -124,7 +127,17 @@ describe('设置中心', () => {
     const w = mount(App)
     await flushPromises()
     const nav = w.findAll('nav button')
-    expect(nav.map((b) => b.text())).toEqual(['输入法', '外观', '关怀', 'AI 服务', '隐私与关于'])
+    expect(nav.map((b) => b.text())).toEqual([
+      '输入法',
+      '常规',
+      '感知',
+      '关怀',
+      '提醒',
+      '日程与待办',
+      '温柔改写',
+      'AI 服务',
+      '隐私与关于',
+    ])
     expect(nav[0]!.attributes('aria-current')).toBe('page')
     expect(w.find('h1').text()).toBe('输入法')
   })
@@ -190,6 +203,20 @@ describe('设置中心', () => {
         .map((o) => o.text())
       expect(opts).toEqual(['全拼', '五笔 86'])
       expect((row(w, 'ui.candidate.per_page').find('input').element as HTMLInputElement).value).toBe('7')
+      w.unmount()
+    })
+
+    it('恢复默认：先确认，再按核心的出厂值只写回和当前不同的项', async () => {
+      mocks.imeConfigDefaults.mockImplementation(() =>
+        ok({ values: { ...CONFIG, ui: { ...CONFIG.ui, candidate: { per_page: 5, layout: 'horizontal' } } } }),
+      )
+      const w = await openIme()
+      await w.find('.s-head button').trigger('click')
+      expect(mocks.imeConfigDefaults).not.toHaveBeenCalled()
+      await w.find('.s-confirm .s-danger').trigger('click')
+      await flushPromises()
+      expect(mocks.imeConfigSet).toHaveBeenCalledWith([{ key: 'ui.candidate.per_page', value: 5 }])
+      expect(w.find('.saved').text()).toBe('已恢复默认')
       w.unmount()
     })
 

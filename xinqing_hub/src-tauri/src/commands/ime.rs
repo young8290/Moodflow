@@ -1,5 +1,5 @@
 //! 输入法设置命令（10 第 5.1 节“输入法设置”组，07 FR-SET-02，ADR 0016）：透传 wind-rpc 的
-//! `config.schema` / `config.get` / `config.setItems`。管道读写是阻塞的，放进 `spawn_blocking`，不占主线程。
+//! `config.schema` / `config.get` / `config.getDefaults` / `config.setItems`。管道读写是阻塞的，放进 `spawn_blocking`，不占主线程。
 //!
 //! 配置值是任意 JSON。specta 把 `serde_json::Value` 当递归类型内联导出时会栈溢出，所以值字段在
 //! TypeScript 里标成 `unknown`（`#[specta(type = Unknown)]`），由前端按 `ime_schema` 的类型自己判断。
@@ -53,6 +53,14 @@ pub async fn ime_schema() -> Result<Vec<ImeField>, UiError> {
 #[specta::specta]
 pub async fn ime_config_get() -> Result<ImeConfig, UiError> {
     blocking(|r| r.config().map(|values| ImeConfig { values })).await
+}
+
+/// 输入法配置的出厂默认（整份，wind-rpc `config.getDefaults`）：设置页“恢复默认”按键名取值，和当前值不同的
+/// 用 `ime_config_set` 写回（07 FR-SET-01）。
+#[tauri::command]
+#[specta::specta]
+pub async fn ime_config_defaults() -> Result<ImeConfig, UiError> {
+    blocking(|r| r.defaults().map(|values| ImeConfig { values })).await
 }
 
 /// 写入若干项：失败项不让整批失败，`skipped` 里带原因，界面显示在对应控件旁（17 第 3.4 节）。

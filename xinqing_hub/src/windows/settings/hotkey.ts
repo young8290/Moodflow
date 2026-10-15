@@ -1,7 +1,8 @@
 // 快捷键录制（07 FR-SET-02 “按键 → 快捷键录制框”、ADR 0016 第 5 条）。
 // 核心认的写法是 `ctrl+shift+e` 这样的字符串，由清风 `wind-config/src/hotkey.rs` 的 `parse_hotkey` / `parse_key_name` 解析；
 // wind-rpc 没有给出键名表的方法，所以这里留一份录制时会写出的键名，由 hotkey.test.ts 逐个对照那个文件，两边改名时测试失败。
-import { t } from '@/i18n'
+import { t, type CopyKey } from '@/i18n'
+import { fieldLabel } from './imeForm'
 
 /** 用录制框编辑的配置键：值是单个组合键，`none` 或空串表示不绑（核心解析不出就当没绑）。 */
 export const HOTKEY_KEYS = [
@@ -222,4 +223,39 @@ export function formatHotkey(raw: unknown): string {
 /** 录制中按住的修饰键：`ctrl+shift` → `Ctrl + Shift + …` */
 export function formatHeld(held: string): string {
   return held === '' ? '' : `${held.split('+').map(displayPart).join(' + ')} + …`
+}
+
+/**
+ * Hub 的全局快捷键（设置键 `hotkey.*`，core/src/domain/hotkey.rs）比输入法的窄：至少一个 Ctrl / Alt / Win，
+ * 主键只能是字母、数字或 F1–F24。`combo` 是规范写法（`recordKey` 的结果）。
+ */
+export function hubHotkeyOk(combo: string): boolean {
+  const parts = combo.split('+')
+  const key = parts.pop() ?? ''
+  return (
+    parts.some((m) => m === 'ctrl' || m === 'alt' || m === 'win') &&
+    /^([a-z0-9]|f([1-9]|1\d|2[0-4]))$/.test(key)
+  )
+}
+
+/** Hub 的三个全局快捷键（设置“常规”） */
+export const HUB_HOTKEYS = [
+  { action: 'chat', key: 'hotkey.chat', label: 'settings.general.hotkey_chat' },
+  { action: 'widget', key: 'hotkey.widget', label: 'settings.general.hotkey_widget' },
+  { action: 'dashboard', key: 'hotkey.dashboard', label: 'settings.general.hotkey_dashboard' },
+] as const satisfies readonly { action: string; key: string; label: CopyKey }[]
+
+/**
+ * 跨输入法与 Hub 的重复检测：`combo`（规范写法）已经给了哪一项（`self` 以外），返回它的名称；没有返回 null。
+ * `ime` / `hub` 按键名取当前值，取不到（输入法没在运行）的就不比。
+ */
+export function hotkeyOwner(
+  self: string,
+  combo: string,
+  ime: (key: string) => unknown,
+  hub: (key: string) => unknown,
+): string | null {
+  for (const k of HOTKEY_KEYS) if (k !== self && normalizeHotkey(ime(k)) === combo) return fieldLabel(k)
+  for (const h of HUB_HOTKEYS) if (h.key !== self && normalizeHotkey(hub(h.key)) === combo) return t(h.label)
+  return null
 }

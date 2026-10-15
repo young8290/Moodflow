@@ -1,11 +1,17 @@
 <script setup lang="ts">
 // 对话窗口（05 FR-CHT-01/02/04/09，16 D-06）：顶部常驻 AI 说明，危机时固定求助卡片（FR-SAF-02），
 // 左侧抽屉是按日期分组的历史会话，回复逐字显示并带 `AI 生成` 标签，可停止、重试、复制。
-// 快捷指令（FR-CHT-06）：吐槽 / 理一理切换会话的对话方式（ADR 0022），呼吸是本地动画；“写成情绪日记”随 C-10 的日记再加。
-// 记忆（FR-CHT-07）：对话里明确说“记住”或点消息上的“让晴晴记住”，都先确认再写入。历史搜索的界面（FR-CHT-08）随设置页。
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+// 快捷指令（FR-CHT-06）：吐槽 / 理一理切换会话的对话方式（ADR 0022），呼吸是本地动画，“写成情绪日记”把这段对话交给日记起草。
+// 记忆（FR-CHT-07）：对话里明确说“记住”或点消息上的“让晴晴记住”，都先确认再写入。
+// 历史抽屉（FR-CHT-08）：本地搜索（chat_search）、删除、保留期限（chat.retention_days）。可切换置顶（FR-CHT-01），记在本机。
+// 看板“对话与日记”点开某段对话时，经 xq:chat-open（刚打开窗口时从 localStorage 取）跳到那一段。
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { errorText, t } from '@/i18n'
+import { commands, unwrap, type ChatSearchItem, type DiarySaved } from '@/api'
+import { errorText, isCopyKey, t } from '@/i18n'
+import { useSettingsStore } from '@/stores/settings'
+import DiaryEditor from '../shared/DiaryEditor.vue'
+import { onChatOpen, takeChatOpen } from '../shared/bus'
 import BreathingGuide from './BreathingGuide.vue'
 import SafetyCard from './SafetyCard.vue'
 import { MAX_INPUT, dayGroup, useChat, type ChatLine } from './useChat'
@@ -23,6 +29,18 @@ const logEl = ref<HTMLElement | null>(null)
 const inputEl = ref<HTMLTextAreaElement | null>(null)
 const historyBtn = ref<HTMLButtonElement | null>(null)
 const drawerEl = ref<HTMLElement | null>(null)
+const diary = ref(false)
+const pinned = ref(false)
+const query = ref('')
+/** 搜索结果；null 表示没在搜，抽屉显示按日期分组的会话 */
+const hits = ref<ChatSearchItem[] | null>(null)
+const settings = useSettingsStore()
+const RETENTION_KEY = 'chat.retention_days'
+const retentionOptions = ref<string[]>([])
+/** 置顶记在本机（每台电脑各自的习惯），下次打开窗口照旧 */
+const PIN_STORAGE_KEY = 'xq.chat.pinned'
+let unlistenOpen: (() => void) | undefined
+let disposed = false
 
 const groups = computed(() => {
   const now = Date.now()
@@ -57,12 +75,99 @@ async function run(action: () => Promise<unknown>): Promise<void> {
   }
 }
 
-onMounted(() =>
-  run(async () => {
+onMounted(async () => {
+  await run(async () => {
     await chat.init()
+    const id = takeChatOpen()
+    if (id !== null) await chat.open(id)
     inputEl.value?.focus()
-  }),
-)
+  })
+  try {
+    const off = await onChatOpen((id) => void openSession(id))
+    if (disposed) off()
+    else unlistenOpen = off
+  } catch {
+    // 浏览器预览里没有 Tauri 事件
+  }
+  if (readPinned()) void setPinned(true)
+  void loadRetention()
+})
+onBeforeUnmount(() => {
+  disposed = true
+  unlistenOpen?.()
+})
+
+function readPinned(): boolean {
+  try {
+    return localStorage.getItem(PIN_STORAGE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+async function setPinned(on: boolean): Promise<void> {
+  await run(async () => {
+    await getCurrentWindow().setAlwaysOnTop(on)
+    pinned.value = on
+    try {
+      localStorage.setItem(PIN_STORAGE_KEY, on ? '1' : '0')
+    } catch {
+      // 记不住也照样置顶，只是下次打开要再点一次
+    }
+  })
+}
+
+async function loadRetention(): Promise<void> {
+  try {
+    const [schema] = await Promise.all([commands.settingsSchema(), settings.init([RETENTION_KEY])])
+    const f = schema.find((x) => x.key === RETENTION_KEY)
+    retentionOptions.value = f?.kind.type === 'choice' ? f.kind.options : []
+  } catch {
+    // 读不到就不显示这一项，聊天照常
+  }
+}
+
+function retentionLabel(v: string): string {
+  const k = `chat.retention_${v}`
+  return isCopyKey(k) ? t(k) : v
+}
+
+async function setRetention(v: string): Promise<void> {
+  await run(() => settings.set(RETENTION_KEY, v))
+}
+
+async function search(): Promise<void> {
+  const q = query.value.trim()
+  if (!q) {
+    hits.value = null
+    return
+  }
+  await run(async () => {
+    hits.value = await unwrap(commands.chatSearch(q))
+  })
+}
+
+function clearSearch(): void {
+  query.value = ''
+  hits.value = null
+}
+
+const hitDay = (ts: number) => new Date(ts).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
+
+function openDiary(): void {
+  breathing.value = false
+  diary.value = true
+}
+
+function onDiarySaved(r: DiarySaved): void {
+  diary.value = false
+  // 命中危机词表时后端已经在这个窗口打开求助卡片，不再另外提示
+  if (!r.safety) {
+    info.value = t('diary.saved')
+    setTimeout(() => (info.value = null), 3000)
+  }
+  inputEl.value?.focus()
+}
 
 // 有新内容时滚到底
 watch(
@@ -92,6 +197,7 @@ function onKeydown(e: KeyboardEvent): void {
   // Esc 关闭窗口，不结束会话（FR-CHT-01）；呼吸引导、抽屉开着时先关它们（DS-A11Y-01）
   if (e.key !== 'Escape') return
   if (breathing.value) closeBreathing()
+  else if (diary.value) diary.value = false
   else if (drawer.value) drawer.value = false
   else void getCurrentWindow().hide()
 }
@@ -104,7 +210,8 @@ function closeBreathing(): void {
 // 抽屉打开时焦点移进去，关上时回到“历史”按钮，键盘用户不会迷路（DS-A11Y-01）
 watch(drawer, async (open) => {
   await nextTick()
-  if (open) drawerEl.value?.querySelector<HTMLElement>('button')?.focus()
+  // 打开时焦点落在搜索框：可以直接打字搜，也可以 Tab 到会话列表
+  if (open) drawerEl.value?.querySelector<HTMLElement>('input, button')?.focus()
   else if (drawerEl.value === null && document.activeElement === document.body) historyBtn.value?.focus()
 })
 
@@ -156,6 +263,18 @@ async function removeAll(): Promise<void> {
         </svg>
       </button>
       <h1>{{ t('window.chat') }}</h1>
+      <button
+        class="icon"
+        :aria-label="pinned ? t('chat.unpin') : t('chat.pin')"
+        :title="pinned ? t('chat.unpin') : t('chat.pin')"
+        :aria-pressed="pinned"
+        :class="{ on: pinned }"
+        @click="setPinned(!pinned)"
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M6 2h4M7 2v4L4.5 9h7L9 6V2M8 9v5" />
+        </svg>
+      </button>
       <button class="compact" :disabled="chat.busy.value" @click="newChat">{{ t('chat.new_chat') }}</button>
     </header>
 
@@ -225,6 +344,9 @@ async function removeAll(): Promise<void> {
         {{ t('chat.shortcut_organize') }}
       </button>
       <button class="compact" @click="breathing = true">{{ t('chat.shortcut_breathe') }}</button>
+      <button class="compact" :disabled="chat.busy.value || chat.sessionId.value === null" @click="openDiary">
+        {{ t('chat.shortcut_diary') }}
+      </button>
     </div>
     <form class="composer" @submit.prevent="submit">
       <textarea
@@ -246,34 +368,78 @@ async function removeAll(): Promise<void> {
 
     <BreathingGuide v-if="breathing" @close="closeBreathing" />
 
+    <div v-if="diary" class="diary" role="dialog" aria-modal="true" :aria-label="t('diary.editor')">
+      <DiaryEditor :session-id="chat.sessionId.value" @saved="onDiarySaved" @cancel="diary = false" />
+    </div>
+
     <nav v-if="drawer" ref="drawerEl" class="drawer" :aria-label="t('chat.history')">
-      <p v-if="groups.length === 0" class="muted">{{ t('chat.history_empty') }}</p>
-      <section v-for="g in groups" :key="g.key">
-        <h2>{{ t(`chat.${g.key}`) }}</h2>
-        <ul>
-          <li v-for="s in g.items" :key="s.id" :class="{ current: s.id === chat.sessionId.value }">
-            <button class="item" @click="openSession(s.id)">{{ s.title }}</button>
-            <button
-              class="icon"
-              :aria-label="t('chat.delete')"
-              :title="t('chat.delete')"
-              @click="run(() => chat.remove(s.id))"
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M4 4l8 8M12 4l-8 8" />
-              </svg>
+      <form class="search" role="search" @submit.prevent="search">
+        <input
+          v-model="query"
+          type="search"
+          :aria-label="t('chat.search')"
+          :placeholder="t('chat.search')"
+          @keydown.esc.stop="clearSearch"
+        />
+        <button type="submit" class="compact">{{ t('chat.search_go') }}</button>
+      </form>
+      <template v-if="hits !== null">
+        <div class="hits-head">
+          <span class="muted" role="status">{{
+            hits.length ? t('chat.search_count', { n: hits.length }) : t('chat.search_empty')
+          }}</span>
+          <button class="link" @click="clearSearch">{{ t('chat.search_clear') }}</button>
+        </div>
+        <ul class="hits">
+          <li v-for="h in hits" :key="h.id">
+            <button class="hit" @click="openSession(h.session_id)">
+              <span class="hit-title"
+                >{{ h.title }}<span class="hit-day">{{ hitDay(h.ts) }}</span></span
+              >
+              <span class="hit-text">{{ h.content }}</span>
             </button>
           </li>
         </ul>
-      </section>
-      <div v-if="groups.length > 0" class="danger">
-        <template v-if="confirmAll">
-          <p>{{ t('chat.delete_all_confirm') }}</p>
-          <button class="compact" @click="removeAll">{{ t('chat.confirm') }}</button>
-          <button class="compact" @click="confirmAll = false">{{ t('chat.cancel') }}</button>
-        </template>
-        <button v-else class="compact" @click="confirmAll = true">{{ t('chat.delete_all') }}</button>
-      </div>
+      </template>
+      <template v-else>
+        <p v-if="groups.length === 0" class="muted">{{ t('chat.history_empty') }}</p>
+        <section v-for="g in groups" :key="g.key">
+          <h2>{{ t(`chat.${g.key}`) }}</h2>
+          <ul>
+            <li v-for="s in g.items" :key="s.id" :class="{ current: s.id === chat.sessionId.value }">
+              <button class="item" @click="openSession(s.id)">{{ s.title }}</button>
+              <button
+                class="icon"
+                :aria-label="t('chat.delete')"
+                :title="t('chat.delete')"
+                @click="run(() => chat.remove(s.id))"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                  <path d="M4 4l8 8M12 4l-8 8" />
+                </svg>
+              </button>
+            </li>
+          </ul>
+        </section>
+        <div v-if="groups.length > 0" class="danger">
+          <template v-if="confirmAll">
+            <p>{{ t('chat.delete_all_confirm') }}</p>
+            <button class="compact" @click="removeAll">{{ t('chat.confirm') }}</button>
+            <button class="compact" @click="confirmAll = false">{{ t('chat.cancel') }}</button>
+          </template>
+          <button v-else class="compact" @click="confirmAll = true">{{ t('chat.delete_all') }}</button>
+        </div>
+      </template>
+      <label v-if="retentionOptions.length" class="retention">
+        <span>{{ t('chat.retention') }}</span>
+        <select
+          :value="settings.values[RETENTION_KEY]"
+          @change="setRetention(($event.target as HTMLSelectElement).value)"
+        >
+          <option v-for="o in retentionOptions" :key="o" :value="o">{{ retentionLabel(o) }}</option>
+        </select>
+        <span class="muted">{{ t('chat.retention_hint') }}</span>
+      </label>
     </nav>
   </main>
 </template>
@@ -602,5 +768,101 @@ textarea {
 .danger p {
   width: 100%;
   margin: 0;
+}
+
+.icon.on {
+  color: var(--xq-primary);
+}
+
+.search {
+  display: flex;
+  gap: var(--xq-sp-1);
+}
+
+.search input,
+.retention select {
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 var(--xq-sp-2);
+  border: 1px solid var(--xq-border);
+  border-radius: var(--xq-radius-sm);
+  background: var(--xq-surface);
+  color: var(--xq-text-1);
+  font: inherit;
+}
+
+.search input {
+  flex: 1;
+}
+
+.hits-head {
+  display: flex;
+  justify-content: space-between;
+  margin: var(--xq-sp-2) 0 var(--xq-sp-1);
+  font-size: var(--xq-fs-sm);
+}
+
+.hit {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  min-height: 0;
+  padding: var(--xq-sp-2);
+  border-color: transparent;
+  background: transparent;
+  text-align: left;
+}
+
+.hit:hover {
+  background: var(--xq-surface-2);
+}
+
+.hit-title {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--xq-fs-sm);
+  font-weight: 500;
+}
+
+.hit-day {
+  flex: none;
+  margin-left: var(--xq-sp-2);
+  color: var(--xq-text-3);
+  font-weight: 400;
+}
+
+/* 命中的那句最多两行 */
+.hit-text {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--xq-text-2);
+  font-size: var(--xq-fs-xs);
+  line-height: var(--xq-lh-xs);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.retention {
+  display: grid;
+  gap: var(--xq-sp-1);
+  margin-top: var(--xq-sp-4);
+  padding-top: var(--xq-sp-3);
+  border-top: 1px solid var(--xq-border);
+  font-size: var(--xq-fs-sm);
+}
+
+.retention .muted {
+  font-size: var(--xq-fs-xs);
+}
+
+/* 写日记的面板盖在对话上，关掉回到对话 */
+.diary {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  padding: var(--xq-sp-4);
+  overflow-y: auto;
+  background: var(--xq-surface);
 }
 </style>
