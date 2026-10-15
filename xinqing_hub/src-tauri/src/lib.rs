@@ -69,6 +69,10 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::open_window,
             commands::hotkey_status,
             commands::db_rebuilt_take,
+            commands::data_delete_all,
+            commands::data_delete_mood,
+            commands::data_import,
+            commands::app_restart,
             commands::rest_action,
             commands::ai::ai_config_get,
             commands::ai::secrets_set,
@@ -160,6 +164,15 @@ pub fn export_bindings(path: &Path) -> anyhow::Result<()> {
 
 pub fn run() {
     let launch = LaunchArgs::parse(std::env::args().skip(1));
+    // 删除全部数据（FR-DAT-04，ADR 0037）：上次确认删除后重启到这里，任何东西打开数据库之前先删
+    if let Ok(dir) = paths::hub_data_dir() {
+        match xinqing_hub_core::infra::wipe::apply_pending(&dir, secrets::SECRETS_FILE) {
+            Ok(Some(r)) => eprintln!("已删除全部心晴数据（{} 个文件）", r.removed.len()),
+            Ok(None) => {}
+            // 删不掉（文件被占用）时标记留着，下次启动接着删
+            Err(e) => eprintln!("删除全部数据未完成，下次启动重试：{e}"),
+        }
+    }
     // 演示模式要在任何服务取时钟之前定下来：`--demo` 或真实库里的 `dev.demo`（ADR 0023、0025）
     let demo_key = paths::hub_data_dir().is_ok_and(|d| sim::demo_setting(&d));
     sim::set_demo(launch.demo || demo_key);

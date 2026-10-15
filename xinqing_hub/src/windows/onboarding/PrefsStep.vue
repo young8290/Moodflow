@@ -1,10 +1,12 @@
 <script setup lang="ts">
 // 首次引导 · 偏好（07 FR-ONB-05 第 2 条）：小组件放在哪个角、晴晴主动关心的频率（care.level）、四种休息提醒的开关（rest.*.enabled）。
 // 改了就保存：设置键经 settings_set 落库，小组件的角存本机（firstRun.ts）。默认值来自注册表，引导页不另定默认。
+// 页尾折叠着“从备份恢复”（09 FR-DAT-07）：换了电脑的人在这里导入旧电脑的导出包，导入后重启 Hub。
 import { onMounted, ref } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 import { errorText, t } from '@/i18n'
 import { CORNERS, loadCorner, saveCorner, type Corner } from '../shared/firstRun'
+import ImportData from '../shared/ImportData.vue'
 
 const emit = defineEmits<{ done: []; back: [] }>()
 
@@ -80,6 +82,12 @@ const restOn = (r: (typeof REST)[number]) => settings.values[`rest.${r}.enabled`
       </label>
     </fieldset>
 
+    <details class="restore">
+      <summary>{{ t('onboarding.prefs.restore') }}</summary>
+      <p class="muted">{{ t('onboarding.prefs.restore_hint') }}</p>
+      <ImportData />
+    </details>
+
     <p v-if="error" class="error" role="alert">{{ error }}</p>
 
     <div class="actions">
@@ -103,6 +111,11 @@ const restOn = (r: (typeof REST)[number]) => settings.values[`rest.${r}.enabled`
 legend {
   padding: 0 var(--xq-sp-1);
   font-weight: 600;
+}
+
+.restore summary {
+  min-height: 32px;
+  cursor: pointer;
 }
 
 /* 整行都能点，点击目标不小于 32 px 高（DS-A11Y-03） */

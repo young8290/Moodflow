@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "onboarding",
+  "description": "只给首次引导窗口：最后一页“从备份恢复”弹“打开”对话框选备份文件（09 FR-DAT-07）。对话框只把路径交回前端，读文件由 data_import 命令在 Rust 端完成。",
+  "windows": ["onboarding"],
+  "permissions": ["dialog:allow-open"]
+}

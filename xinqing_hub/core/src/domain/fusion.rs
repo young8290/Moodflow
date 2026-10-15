@@ -29,6 +29,17 @@ impl JevVerdict {
     }
 }
 
+/// 实时路径拿到的一次 Jev 判断：融合用的 [`JevVerdict`]，另带暖心话触发要的两个值（回答里缺了就是 `None`）
+/// 和写入 `mood_state` 的模型名、耗时。
+#[derive(Debug, Clone, PartialEq)]
+pub struct Judged {
+    pub verdict: JevVerdict,
+    pub valence: Option<f64>,
+    pub need_comfort: Option<f64>,
+    pub model: String,
+    pub latency_ms: u64,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Source {

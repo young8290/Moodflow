@@ -889,6 +889,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "db-grep"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "rusqlite",
+ "xinqing-hub-core",
+]
+
+[[package]]
 name = "dbus"
 version = "0.9.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"

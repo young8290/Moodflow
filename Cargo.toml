@@ -11,6 +11,7 @@ members = [
     "tools/xq-sim",
     "tools/mock-ai",
     "tools/typer",
+    "tools/db-grep",
 ]
 
 [workspace.package]

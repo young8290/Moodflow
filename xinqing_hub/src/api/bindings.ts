@@ -85,6 +85,26 @@ export const commands = {
 	 */
 	dbRebuiltTake: () => __TAURI_INVOKE<boolean>("db_rebuilt_take"),
 	/**
+	 *  删除全部数据（FR-DAT-04，ADR 0037）：记下“待删除”，然后重启 Hub；下次启动、打开数据库之前删掉数据库文件
+	 *  （连同损坏和导入前的备份），`include_secrets` 时连 AI 密钥一起删，再按新装的样子重建，重新进入首次引导。
+	 *  界面要先让用户输入“删除”二字确认。调用成功后进程会退出，前端拿不到返回值。
+	 */
+	dataDeleteAll: (includeSecrets: boolean) => typedError<null, UiError>(__TAURI_INVOKE("data_delete_all", { includeSecrets })),
+	/**
+	 *  撤回同意 ① 时一并删除情绪数据（FR-DAT-05 第 3 条，ADR 0037）：特征窗口、状态判断、基线、反馈、自评，
+	 *  以及每日汇总里的情绪列；对话、日记等自己写的内容不动。基线清空后重新进入冷启动。返回改动的行数。
+	 */
+	dataDeleteMood: () => typedError<number, UiError>(__TAURI_INVOKE("data_delete_mood")),
+	/**
+	 *  导入与恢复（FR-DAT-07，ADR 0037）：只收“导出我的数据”生成的 zip，校验清单与每个文件的 SHA-256，
+	 *  结构版本更新的包拒绝。`overwrite` 先把当前数据库备份到旁边（`*.bak-<时间>`）再替换；`merge` 保留两边、相同的只留一份。
+	 *  同意记录、出网记录不导入；`include_settings` 为假时设置也不导入。全部在一个事务里，失败整体回滚。
+	 *  成功后界面请用户重启 Hub（`app_restart`），各服务按新数据重新加载。
+	 */
+	dataImport: (path: string, mode: ImportMode, includeSettings: boolean) => typedError<ImportReport, UiError>(__TAURI_INVOKE("data_import", { path, mode, includeSettings })),
+	/**  重启 Hub（导入完成后让各服务按新数据重新加载）。 */
+	appRestart: () => __TAURI_INVOKE<void>("app_restart"),
+	/**
 	 *  用户点了休息提醒卡片上的按钮（FR-RST-06 第 2 条）：完成或关闭后该类计时清零，“5 分钟后”顺延；
 	 *  每次操作记一条 `reminder_log`（FR-RST-08）。服务没在运行时忽略。
 	 */
@@ -691,6 +711,23 @@ export type ImeSetResult = {
 export type ImeSkipped = {
 	key: string,
 	reason: string,
+};
+
+/**  合并还是覆盖 */
+export type ImportMode = 
+/**  保留两边的数据，相同的只留一份 */
+"merge" | 
+/**  用导入的数据替换（先自动备份当前数据库） */
+"overwrite";
+
+/**  导入结果 */
+export type ImportReport = {
+	/**  新写入的行 */
+	added: number,
+	/**  跳过的行（合并时已有相同的、设置不导入或不认识的键等） */
+	skipped: number,
+	/**  导入了几张表 */
+	tables: number,
 };
 
 export type JevInput = {

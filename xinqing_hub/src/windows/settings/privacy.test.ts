@@ -8,6 +8,11 @@ const mocks = vi.hoisted(() => ({
   consentSet: vi.fn(),
   netlog: [] as NetLogView[],
   dataExport: vi.fn(),
+  dataDeleteAll: vi.fn(),
+  dataDeleteMood: vi.fn(),
+  dataImport: vi.fn(),
+  appRestart: vi.fn(),
+  open: vi.fn(),
   save: vi.fn(),
 }))
 const ok = (data: unknown = null) => Promise.resolve({ status: 'ok', data })
@@ -24,9 +29,13 @@ vi.mock('@/api', async (orig) => ({
     consentSet: mocks.consentSet,
     aiNetLogRecent: async () => ok(mocks.netlog),
     dataExport: mocks.dataExport,
+    dataDeleteAll: mocks.dataDeleteAll,
+    dataDeleteMood: mocks.dataDeleteMood,
+    dataImport: mocks.dataImport,
+    appRestart: mocks.appRestart,
   },
 }))
-vi.mock('@tauri-apps/plugin-dialog', () => ({ save: mocks.save }))
+vi.mock('@tauri-apps/plugin-dialog', () => ({ save: mocks.save, open: mocks.open }))
 
 const { default: PrivacySection } = await import('./PrivacySection.vue')
 
@@ -52,6 +61,11 @@ describe('设置中心 · 隐私（FR-SET-09）', () => {
     mocks.netlog = []
     mocks.dataExport.mockReset().mockImplementation(() => ok())
     mocks.save.mockReset()
+    mocks.dataDeleteAll.mockReset().mockImplementation(() => ok())
+    mocks.dataDeleteMood.mockReset().mockImplementation(() => ok(42))
+    mocks.dataImport.mockReset().mockImplementation(() => ok({ added: 120, skipped: 3, tables: 9 }))
+    mocks.appRestart.mockReset().mockResolvedValue(undefined)
+    mocks.open.mockReset().mockResolvedValue('/backup/心晴数据-20261001.zip')
   })
 
   it('采集内容说明与引导页是同一张表', async () => {
@@ -98,6 +112,104 @@ describe('设置中心 · 隐私（FR-SET-09）', () => {
     expect((box(w, 'sense').element as HTMLInputElement).checked).toBe(false)
     // ① 只在本机，不用“收不回来”的说明
     expect(w.find('.note').exists()).toBe(false)
+  })
+
+  it('撤回 ① 时可以勾选同时删除情绪数据（FR-DAT-05）', async () => {
+    const w = await mountPrivacy()
+    await box(w, 'sense').setValue(false)
+    const confirm = w.find('[role=alertdialog]')
+    expect(confirm.text()).toContain(t('privacy.sense_delete_mood'))
+    await confirm.find('input[type=checkbox]').setValue(true)
+    await confirm.find('button').trigger('click')
+    await flushPromises()
+    expect(mocks.consentSet).toHaveBeenCalledWith('sense', false)
+    expect(mocks.dataDeleteMood).toHaveBeenCalledOnce()
+    expect(w.text()).toContain(t('privacy.mood_deleted', { n: 42 }))
+  })
+
+  it('撤回 ① 不勾选时不删情绪数据', async () => {
+    const w = await mountPrivacy()
+    await box(w, 'sense').setValue(false)
+    await w.find('[role=alertdialog] button').trigger('click')
+    await flushPromises()
+    expect(mocks.dataDeleteMood).not.toHaveBeenCalled()
+  })
+
+  it('删除全部数据：要输入“删除”才能点，点了清掉本机界面偏好再调 data_delete_all（FR-DAT-04）', async () => {
+    localStorage.setItem('xq.widget.placement', '{}')
+    const w = await mountPrivacy()
+    const g = w.find('[data-group=wipe]')
+    const btn = g.find('button.danger')
+    expect(btn.attributes('disabled')).toBeDefined()
+    await g.find('input[type=text]').setValue('删')
+    expect(btn.attributes('disabled')).toBeDefined()
+    await g.find('input[type=text]').setValue('删除')
+    expect(btn.attributes('disabled')).toBeUndefined()
+    await g.find('input[type=checkbox]').setValue(true)
+    await btn.trigger('click')
+    await flushPromises()
+    expect(mocks.dataDeleteAll).toHaveBeenCalledWith(true)
+    expect(localStorage.getItem('xq.widget.placement')).toBeNull()
+    expect(g.find('[role=status]').text()).toBe(t('privacy.deleting'))
+  })
+
+  it('删除失败时说明原因，按钮恢复', async () => {
+    mocks.dataDeleteAll.mockImplementation(() =>
+      Promise.resolve({ status: 'error', error: { code: 'data.delete', message_key: 'error.generic' } }),
+    )
+    const w = await mountPrivacy()
+    const g = w.find('[data-group=wipe]')
+    await g.find('input[type=text]').setValue('删除')
+    await g.find('button.danger').trigger('click')
+    await flushPromises()
+    expect(g.find('[role=alert]').text()).toBe(t('error.generic'))
+    expect(g.find('button.danger').attributes('disabled')).toBeUndefined()
+  })
+
+  it('从备份导入：选文件、选覆盖并导入设置、显示结果，再点重新启动（FR-DAT-07）', async () => {
+    const w = await mountPrivacy()
+    const g = w.find('[data-group=import]')
+    expect(g.find('input[type=radio]').exists()).toBe(false)
+    await g.find('button').trigger('click')
+    await flushPromises()
+    expect(mocks.open).toHaveBeenCalledWith(expect.objectContaining({ multiple: false }))
+    expect(g.text()).toContain('/backup/心晴数据-20261001.zip')
+    const radios = g.findAll('input[type=radio]')
+    expect((radios[0]!.element as HTMLInputElement).checked).toBe(true)
+    await radios[1]!.setValue(true)
+    await g.find('input[type=checkbox]').setValue(true)
+    await g.find('button.primary').trigger('click')
+    await flushPromises()
+    expect(mocks.dataImport).toHaveBeenCalledWith('/backup/心晴数据-20261001.zip', 'overwrite', true)
+    expect(g.find('[role=status]').text()).toBe(t('privacy.import_done', { added: 120, skipped: 3 }))
+    await g.findAll('button').at(-1)!.trigger('click')
+    expect(mocks.appRestart).toHaveBeenCalledOnce()
+  })
+
+  it('导入被拒（不是导出包、版本太新、校验不过）时说明原因', async () => {
+    mocks.dataImport.mockImplementation(() =>
+      Promise.resolve({
+        status: 'error',
+        error: { code: 'data.import.checksum', message_key: 'error.import_checksum' },
+      }),
+    )
+    const w = await mountPrivacy()
+    const g = w.find('[data-group=import]')
+    await g.find('button').trigger('click')
+    await flushPromises()
+    await g.find('button.primary').trigger('click')
+    await flushPromises()
+    expect(mocks.dataImport).toHaveBeenCalledWith('/backup/心晴数据-20261001.zip', 'merge', false)
+    expect(g.find('[role=alert]').text()).toBe(t('error.import_checksum'))
+  })
+
+  it('关掉选文件对话框时什么也不做', async () => {
+    mocks.open.mockResolvedValue(null)
+    const w = await mountPrivacy()
+    const g = w.find('[data-group=import]')
+    await g.find('button').trigger('click')
+    await flushPromises()
+    expect(g.find('button.primary').exists()).toBe(false)
   })
 
   it('出网记录：用途换成中文、列出字段名，不认识的用途和原因原样显示；没有记录时说明', async () => {

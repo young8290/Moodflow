@@ -16,6 +16,8 @@ use crate::error::UiError;
 pub const DB_FILE: &str = "xinqing.db";
 
 pub struct AppState {
+    /// 数据库文件（覆盖导入前在旁边做备份，FR-DAT-07）
+    path: PathBuf,
     /// 只读连接
     db: Mutex<Db>,
     writer: DbWriter,
@@ -41,12 +43,23 @@ impl AppState {
         let (db, db_rebuilt) = open_or_rebuild(&path)?;
         Ok(Self {
             db: Mutex::new(Db::open_reader(&path)?),
+            path: path.clone(),
             writer: DbWriter::new(db),
             status: RwLock::new(StatusSnapshot::default()),
             explanation: RwLock::new(None),
             auto_state: RwLock::new(None),
             db_rebuilt,
         })
+    }
+
+    /// 覆盖导入前的自动备份放哪：数据库旁边的 `<文件名>.bak-<时间>`（删除全部数据时一并删掉，ADR 0037）
+    pub fn backup_path(&self) -> PathBuf {
+        let ts = chrono::Local::now().format("%Y%m%d-%H%M%S");
+        let name = self
+            .path
+            .file_name()
+            .map_or_else(|| DB_FILE.into(), |n| n.to_string_lossy());
+        self.path.with_file_name(format!("{name}.bak-{ts}"))
     }
 
     /// 只读连接。写入一律走 [`AppState::writer`]。
@@ -139,6 +152,14 @@ fn backup_path(path: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn wipe_covers_real_and_demo_databases() {
+        use xinqing_hub_core::domain::demo;
+        use xinqing_hub_core::infra::wipe;
+        assert!(wipe::DB_FILES.contains(&DB_FILE));
+        assert!(wipe::DB_FILES.contains(&demo::DB_FILE));
+    }
 
     fn tmp_dir(tag: &str) -> PathBuf {
         let d = std::env::temp_dir().join(format!("xq-hub-{tag}-{}", std::process::id()));

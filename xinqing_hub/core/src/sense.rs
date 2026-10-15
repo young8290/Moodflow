@@ -7,8 +7,12 @@
 //! 定出会话起点对应的本地时间；之后每 250 ms 的 tick 用“最近一条事件的 ts + 收到它以来经过的时间”
 //! 推算当前会话时间（17 第 2.3 节）。
 //!
-//! Jev 判断（FR-STA-05）随 AI 网关接入外壳后加入；在此之前按 FR-STA-08 只用本地规则。
+//! Jev 判断（FR-STA-05）：窗口结束时，若外壳给了 AI 网关且用户同意了 ②（`jev_features`），把白名单内的
+//! 数值特征发给 Jev 问 Q-STATE / Q-VALENCE / Q-COMFORT，拿到结果（或失败、超时）后再融合。判断在后台任务里跑，
+//! 不阻塞事件处理；同一时刻只有一个请求在途，期间结束的窗口排队，按顺序融合。没有网关、没有同意、
+//! 请求失败或超过 [`JEV_DEADLINE`] 时，这个窗口只用本地规则（FR-STA-08）。
 
+use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -20,16 +24,23 @@ use crate::bus::{HubEvent, MoodEvent};
 use crate::domain::explain::{self, Evidence, ExplainSource, Explanation};
 use crate::domain::features::baseline::next_recompute_after;
 use crate::domain::features::{BaselineStats, WindowFeatures};
-use crate::domain::fusion::{FusionOut, Source};
+use crate::domain::fusion::{FusionOut, JevVerdict, Judged, Source};
 use crate::domain::rules::Hints;
 use crate::domain::self_report::{self, SelfWeather};
 use crate::domain::status::StatusSnapshot;
 use crate::infra::clock::Clock;
+use crate::infra::gateway::{
+    AiGateway, Answer, JudgeRequest, JudgeResponse, Question, STATE_FIELDS,
+};
 use crate::infra::xqp::{LinkEvent, XqpHandle};
 use crate::pipeline::{PipelineOut, StatePipeline, WindowOut};
 
 /// tick 间隔（17 第 2.3 节）。
 pub const TICK: Duration = Duration::from_millis(250);
+
+/// 等一个窗口的 Jev 判断最多这么久，超过按降级处理。网关自己的超时是 5 秒、可重试 1 次（FR-AIG-02），
+/// 这里再兜一层，免得网关卡住时窗口一直不融合。
+pub const JEV_DEADLINE: Duration = Duration::from_secs(12);
 
 /// 外壳提供给感知任务的能力。
 pub trait SensePort: Send + Sync {
@@ -50,6 +61,73 @@ pub trait SensePort: Send + Sync {
     fn recompute_baseline(&self, _now_ms: i64) -> Option<BaselineStats> {
         None
     }
+    /// 用户是否同意了 ②（把打字节奏特征发给 Jev，FR-ONB-04）。每个窗口结束时问一次，撤回立即生效。
+    fn jev_allowed(&self) -> bool {
+        false
+    }
+}
+
+/// 后台判断任务交回的结果；`judged` 为 `None` 表示失败或超时。
+#[derive(Debug)]
+pub struct JevDone {
+    seq: u64,
+    judged: Option<Judged>,
+}
+
+/// 一个窗口的 Q-STATE / Q-VALENCE / Q-COMFORT 请求：FR-STA-02 的数值特征、应用类别和本地提示，
+/// 不含任何文字和进程名（FR-STA-05、FR-AIG-05；网关发送前还会按白名单再过滤一次）。
+pub fn state_request(w: &WindowOut) -> JudgeRequest {
+    let mut state = match serde_json::to_value(&w.features) {
+        Ok(serde_json::Value::Object(m)) => m,
+        _ => serde_json::Map::new(),
+    };
+    state.retain(|k, _| STATE_FIELDS.contains(&k.as_str()));
+    state.insert("app_cat".into(), w.app_cat.as_str().into());
+    state.insert("local_hints".into(), w.hints.joined().into());
+    JudgeRequest {
+        questions: vec![Question::State, Question::Valence, Question::Comfort],
+        state,
+    }
+}
+
+fn unit(p: f64) -> Option<f64> {
+    p.is_finite().then(|| p.clamp(0.0, 1.0))
+}
+
+/// 读 Jev 的回答。Q-STATE 缺失、选项不是已知状态或概率不是数时整个结果作废（按降级处理）；
+/// Q-VALENCE（0–4）、Q-COMFORT（0–1）缺了或不合法只把对应的值置空。
+pub fn read_judged(resp: &JudgeResponse) -> Option<Judged> {
+    let parse = |s: &str| serde_json::from_value::<MoodState>(s.into()).ok();
+    let Some(Answer::Choice { probs, choice }) = resp.answers.get(&Question::State) else {
+        return None;
+    };
+    let choice = parse(choice).filter(|s| *s != MoodState::Unknown)?;
+    let probs: std::collections::HashMap<_, _> = probs
+        .iter()
+        .filter_map(|(k, p)| Some((parse(k)?, unit(*p)?)))
+        .collect();
+    let confidence = *probs.get(&choice)?;
+    let valence = match resp.answers.get(&Question::Valence) {
+        Some(Answer::Score { score }) if score.is_finite() => Some(score.clamp(0.0, 4.0)),
+        _ => None,
+    };
+    let need_comfort = match resp.answers.get(&Question::Comfort) {
+        Some(Answer::Noul { p }) => unit(*p),
+        _ => None,
+    };
+    Some(Judged {
+        verdict: JevVerdict {
+            probs,
+            choice,
+            confidence,
+            valence: valence.unwrap_or(2.0),
+            need_comfort: need_comfort.unwrap_or(0.0),
+        },
+        valence,
+        need_comfort,
+        model: resp.model.clone(),
+        latency_ms: resp.latency_ms,
+    })
 }
 
 /// 一个已结束的窗口，时间已换算成 Unix 毫秒。
@@ -59,6 +137,8 @@ pub struct WindowRecord<'a> {
     pub end_ms: i64,
     pub window: &'a WindowOut,
     pub fusion: &'a FusionOut,
+    /// 这个窗口的 Jev 判断；降级时为 `None`。
+    pub judged: Option<&'a Judged>,
 }
 
 /// 外壳发给感知任务的命令。
@@ -102,6 +182,14 @@ pub struct Sense {
     self_shown: Option<(MoodState, i64)>,
     /// 下一次基线重算的时刻（每天 04:00）。
     next_recompute: chrono::DateTime<chrono::Local>,
+    /// Jev（FR-STA-05）；外壳没给时只用本地规则。
+    gateway: Option<Arc<dyn AiGateway>>,
+    jev_tx: mpsc::UnboundedSender<JevDone>,
+    jev_rx: Option<mpsc::UnboundedReceiver<JevDone>>,
+    /// 等 Jev 判断的窗口，按结束顺序；队首在途时 `in_flight` 是它的序号。
+    pending: VecDeque<WindowOut>,
+    in_flight: Option<u64>,
+    next_seq: u64,
 }
 
 impl Sense {
@@ -113,6 +201,7 @@ impl Sense {
         clock: Arc<dyn Clock>,
     ) -> Self {
         let next_recompute = next_recompute_after(clock.now());
+        let (jev_tx, jev_rx) = mpsc::unbounded_channel();
         Self {
             pipeline,
             port,
@@ -128,7 +217,19 @@ impl Sense {
             explanation: None,
             self_shown: None,
             next_recompute,
+            gateway: None,
+            jev_tx,
+            jev_rx: Some(jev_rx),
+            pending: VecDeque::new(),
+            in_flight: None,
+            next_seq: 0,
         }
+    }
+
+    /// 接上 AI 网关：之后结束的窗口在用户同意 ② 时先问 Jev 再融合。
+    pub fn with_gateway(mut self, gateway: Arc<dyn AiGateway>) -> Self {
+        self.gateway = Some(gateway);
+        self
     }
 
     /// 最近一次自动判断切换的解释（自评期间也是自动判断的）；还没切换过时为 `None`。
@@ -145,8 +246,10 @@ impl Sense {
         let mut tick = tokio::time::interval(TICK);
         tick.set_missed_tick_behavior(MissedTickBehavior::Delay);
         let mut link_open = true;
+        let mut jev = self.jev_rx.take().expect("run 只调用一次");
         loop {
             tokio::select! {
+                Some(done) = jev.recv() => self.on_jev(done),
                 ev = link.recv(), if link_open => match ev {
                     Some(ev) => self.on_link(ev, Instant::now()),
                     None => link_open = false,
@@ -375,12 +478,67 @@ impl Sense {
     }
 
     fn on_window(&mut self, w: WindowOut) {
-        let fusion = self.pipeline.fuse(&w, None);
+        if self.pending.is_empty() && !self.jev_enabled() {
+            self.finish_window(w, None);
+            return;
+        }
+        self.pending.push_back(w);
+        self.pump();
+    }
+
+    fn jev_enabled(&self) -> bool {
+        self.gateway.is_some() && self.port.jev_allowed()
+    }
+
+    /// 队首没有在途请求时：能问 Jev 就发出去，否则（撤回了 ②）直接按规则融合，再看下一个。
+    fn pump(&mut self) {
+        while self.in_flight.is_none() {
+            let Some(w) = self.pending.front() else {
+                return;
+            };
+            match self.gateway.clone().filter(|_| self.port.jev_allowed()) {
+                Some(gw) => {
+                    let seq = self.next_seq;
+                    self.next_seq += 1;
+                    self.in_flight = Some(seq);
+                    let req = state_request(w);
+                    let tx = self.jev_tx.clone();
+                    tokio::spawn(async move {
+                        let judged = match tokio::time::timeout(JEV_DEADLINE, gw.judge(req)).await {
+                            Ok(Ok(resp)) => read_judged(&resp),
+                            _ => None,
+                        };
+                        let _ = tx.send(JevDone { seq, judged });
+                    });
+                }
+                None => {
+                    let w = self.pending.pop_front().expect("队首存在");
+                    self.finish_window(w, None);
+                }
+            }
+        }
+    }
+
+    /// Jev 判断回来了（或失败、超时）：融合队首窗口，再处理排在后面的。
+    pub fn on_jev(&mut self, done: JevDone) {
+        if self.in_flight != Some(done.seq) {
+            return;
+        }
+        self.in_flight = None;
+        if let Some(w) = self.pending.pop_front() {
+            self.finish_window(w, done.judged);
+        }
+        self.pump();
+    }
+
+    fn finish_window(&mut self, w: WindowOut, judged: Option<Judged>) {
+        let fusion = self.pipeline.fuse(&w, judged.as_ref().map(|j| &j.verdict));
         let rec = WindowRecord {
             start_ms: self.pipeline.unix_ms(w.start_ts),
             end_ms: self.pipeline.unix_ms(w.end_ts),
             window: &w,
             fusion: &fusion,
+            judged: judged.as_ref(),
         };
         self.port.save_window(&rec);
         let ts = rec.end_ms;
@@ -391,19 +549,22 @@ impl Sense {
         let _ = self.bus.send(HubEvent::Mood(MoodEvent::Sample {
             ts,
             out: fusion.clone(),
-            // Jev 接入后填上（FR-STA-05）；降级运行时没有，暖心话不主动关怀（FR-STA-08 第 2 条）
-            need_comfort: None,
-            valence: None,
+            // 降级运行时没有，暖心话不主动关怀（FR-STA-08 第 2 条）
+            need_comfort: judged.as_ref().and_then(|j| j.need_comfort),
+            valence: judged.as_ref().and_then(|j| j.valence),
         }));
         if fusion.changed {
-            // 可能性随 Jev 接入后给出；只有本地规则时界面不显示百分比
-            let source = match fusion.source {
-                Source::Jev => ExplainSource::Jev,
-                Source::Rule => ExplainSource::Rule,
+            // 只有本地规则时界面不显示百分比
+            let (source, prob) = match fusion.source {
+                Source::Jev => (
+                    ExplainSource::Jev,
+                    judged.as_ref().map(|j| j.verdict.p(fusion.shown)),
+                ),
+                Source::Rule => (ExplainSource::Rule, None),
             };
             let e = explain::build(
                 fusion.shown,
-                None,
+                prob,
                 source,
                 Evidence {
                     features: &w.features,
@@ -478,6 +639,7 @@ mod tests {
         explained: Mutex<Vec<Explanation>>,
         recompute: Mutex<Option<BaselineStats>>,
         exit_requests: Mutex<u32>,
+        jev: std::sync::atomic::AtomicBool,
     }
 
     impl SensePort for FakePort {
@@ -503,6 +665,9 @@ mod tests {
         }
         fn recompute_baseline(&self, _now_ms: i64) -> Option<BaselineStats> {
             self.recompute.lock().unwrap().clone()
+        }
+        fn jev_allowed(&self) -> bool {
+            self.jev.load(std::sync::atomic::Ordering::SeqCst)
         }
     }
 
@@ -910,5 +1075,215 @@ mod tests {
         let saved = r.port.saved.lock().unwrap().clone();
         assert_eq!(saved.len(), 1);
         assert!(saved[0].1 - saved[0].0 < 1_000);
+    }
+
+    mod jev {
+        use std::collections::HashMap;
+        use std::sync::atomic::Ordering;
+
+        use async_trait::async_trait;
+        use futures::stream::BoxStream;
+
+        use super::*;
+        use crate::infra::gateway::{
+            AiError, CompleteRequest, CompleteResponse, Delta, GatewayHealth,
+        };
+
+        /// 回固定答案（或固定错误）的 Jev，记下收到的请求。
+        struct FakeJev {
+            reply: Result<JudgeResponse, AiError>,
+            reqs: Mutex<Vec<JudgeRequest>>,
+        }
+
+        #[async_trait]
+        impl AiGateway for FakeJev {
+            async fn judge(&self, req: JudgeRequest) -> Result<JudgeResponse, AiError> {
+                self.reqs.lock().unwrap().push(req);
+                self.reply.clone()
+            }
+            async fn complete(&self, _: CompleteRequest) -> Result<CompleteResponse, AiError> {
+                Err(AiError::ModelUnavailable)
+            }
+            async fn stream(
+                &self,
+                _: CompleteRequest,
+            ) -> Result<BoxStream<'static, Result<Delta, AiError>>, AiError> {
+                Err(AiError::ModelUnavailable)
+            }
+            fn health(&self) -> GatewayHealth {
+                GatewayHealth {
+                    jev: true,
+                    llm: true,
+                }
+            }
+        }
+
+        fn response(choice: &str, p: f64) -> JudgeResponse {
+            let rest = (1.0 - p) / 4.0;
+            let probs = ["fluent", "hesitant", "low", "agitated", "tired"]
+                .into_iter()
+                .map(|s| (s.to_string(), if s == choice { p } else { rest }))
+                .collect();
+            JudgeResponse {
+                model: "jev-test".into(),
+                latency_ms: 40,
+                answers: HashMap::from([
+                    (
+                        Question::State,
+                        Answer::Choice {
+                            probs,
+                            choice: choice.into(),
+                        },
+                    ),
+                    (Question::Valence, Answer::Score { score: 1.0 }),
+                    (Question::Comfort, Answer::Noul { p: 0.8 }),
+                ]),
+            }
+        }
+
+        fn jev_rig(reply: Result<JudgeResponse, AiError>, allowed: bool) -> (Rig, Arc<FakeJev>) {
+            let mut r = rig();
+            let gw = Arc::new(FakeJev {
+                reply,
+                reqs: Mutex::new(Vec::new()),
+            });
+            r.sense.gateway = Some(gw.clone());
+            r.port.jev.store(allowed, Ordering::SeqCst);
+            r.sense.on_link(connected("s1"), r.t0);
+            (r, gw)
+        }
+
+        impl Rig {
+            /// 从 `start` 起打 12 个键，停顿 2 秒以上结束一个窗口。
+            fn type_window(&mut self, start: u64) {
+                for i in 0..12 {
+                    self.up(key(start + i * 150));
+                }
+                let last = start + 11 * 150;
+                self.sense
+                    .on_tick(self.t0 + Duration::from_millis(last + 2_100));
+            }
+            async fn jev_done(&mut self) {
+                let done = self.sense.jev_rx.as_mut().unwrap().recv().await.unwrap();
+                self.sense.on_jev(done);
+            }
+            fn samples(&mut self) -> Vec<(Option<f64>, Option<f64>, Source)> {
+                std::iter::from_fn(|| self.bus.try_recv().ok())
+                    .filter_map(|ev| match ev {
+                        HubEvent::Mood(MoodEvent::Sample {
+                            out,
+                            need_comfort,
+                            valence,
+                            ..
+                        }) => Some((need_comfort, valence, out.source)),
+                        _ => None,
+                    })
+                    .collect()
+            }
+        }
+
+        #[test]
+        fn request_carries_only_whitelisted_numbers() {
+            let w = WindowOut {
+                start_ts: 0,
+                end_ts: 1,
+                app_cat: crate::infra::templates::AppCat::Chat,
+                features: WindowFeatures {
+                    kpm: Some(210.0),
+                    minute_of_day: 600,
+                    ..Default::default()
+                },
+                hints: Hints(vec![crate::domain::rules::Hint::HesitationHint]),
+            };
+            let req = state_request(&w);
+            assert_eq!(
+                req.questions,
+                [Question::State, Question::Valence, Question::Comfort]
+            );
+            assert!(req.state.keys().all(|k| STATE_FIELDS.contains(&k.as_str())));
+            assert!(!req.state.contains_key("minute_of_day"));
+            assert_eq!(req.state["kpm"], 210.0);
+            assert_eq!(req.state["app_cat"], "chat");
+            assert_eq!(req.state["local_hints"], "hesitation_hint");
+            assert_eq!(req.filtered(), req.state, "网关的白名单过滤不再删任何字段");
+        }
+
+        #[test]
+        fn answers_are_validated() {
+            let j = read_judged(&response("agitated", 0.95)).unwrap();
+            assert_eq!(j.verdict.choice, MoodState::Agitated);
+            assert_eq!(j.verdict.confidence, 0.95);
+            assert_eq!((j.valence, j.need_comfort), (Some(1.0), Some(0.8)));
+
+            let mut odd = response("agitated", 0.95);
+            odd.answers.remove(&Question::Comfort);
+            odd.answers
+                .insert(Question::Valence, Answer::Score { score: 9.0 });
+            let j = read_judged(&odd).unwrap();
+            assert_eq!((j.valence, j.need_comfort), (Some(4.0), None));
+
+            // 不认识的选项、没有 Q-STATE：整个结果作废
+            assert_eq!(read_judged(&response("sleepy", 0.9)), None);
+            let mut no_state = response("fluent", 0.9);
+            no_state.answers.remove(&Question::State);
+            assert_eq!(read_judged(&no_state), None);
+        }
+
+        #[tokio::test]
+        async fn jev_verdict_drives_fusion_explanation_and_comfort_inputs() {
+            let (mut r, gw) = jev_rig(Ok(response("agitated", 0.95)), true);
+            r.type_window(1_000);
+            // 判断回来之前不融合
+            assert!(r.port.saved.lock().unwrap().is_empty());
+            r.jev_done().await;
+
+            assert_eq!(gw.reqs.lock().unwrap().len(), 1);
+            assert_eq!(r.port.saved.lock().unwrap().len(), 1);
+            assert_eq!(r.samples(), [(Some(0.8), Some(1.0), Source::Jev)]);
+            // p ≥ 0.9 立即切换，解释带可能性（FR-STA-06 第 4 条、FR-STA-09）
+            assert_eq!(r.status().state, MoodState::Agitated);
+            let e = r.sense.explanation().unwrap();
+            assert_eq!(e.source, ExplainSource::Jev);
+            assert_eq!(e.prob_pct, Some(95));
+        }
+
+        #[tokio::test]
+        async fn without_consent_jev_is_not_asked() {
+            let (mut r, gw) = jev_rig(Ok(response("agitated", 0.95)), false);
+            r.type_window(1_000);
+            assert!(gw.reqs.lock().unwrap().is_empty());
+            assert_eq!(r.port.saved.lock().unwrap().len(), 1);
+            assert_eq!(r.samples(), [(None, None, Source::Rule)]);
+        }
+
+        #[tokio::test]
+        async fn failed_judgment_falls_back_to_rules() {
+            let (mut r, _) = jev_rig(Err(AiError::Timeout), true);
+            r.type_window(1_000);
+            r.jev_done().await;
+            assert_eq!(r.port.saved.lock().unwrap().len(), 1);
+            assert_eq!(r.samples(), [(None, None, Source::Rule)]);
+        }
+
+        #[tokio::test]
+        async fn windows_wait_in_order_for_the_one_in_flight() {
+            let (mut r, gw) = jev_rig(Ok(response("fluent", 0.9)), true);
+            r.type_window(1_000);
+            r.type_window(10_000);
+            // 第二个窗口排队，不另发请求
+            assert_eq!((r.sense.pending.len(), r.sense.in_flight), (2, Some(0)));
+            assert!(r.port.saved.lock().unwrap().is_empty());
+            r.jev_done().await;
+            assert_eq!(r.port.saved.lock().unwrap().len(), 1);
+            assert_eq!((r.sense.pending.len(), r.sense.in_flight), (1, Some(1)));
+            // 撤回 ②：之后的窗口不再问，在途的照常回来
+            r.port.jev.store(false, Ordering::SeqCst);
+            r.jev_done().await;
+            r.type_window(20_000);
+            let saved = r.port.saved.lock().unwrap().clone();
+            assert_eq!(saved.len(), 3);
+            assert!(saved.windows(2).all(|p| p[0].1 <= p[1].0), "{saved:?}");
+            assert_eq!(gw.reqs.lock().unwrap().len(), 2);
+        }
     }
 }

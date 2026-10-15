@@ -1,13 +1,16 @@
 <script setup lang="ts">
 // 设置中心 · 隐私（07 FR-SET-09 上半部分，放在“隐私与关于”分类里）：
 // 采集内容说明（与引导页同一张表）、逐项同意与撤回（FR-DAT-05）、最近 20 次出网记录（只有字段名和时间）、导出我的数据（FR-DAT-03）。
-// 删除全部数据（FR-DAT-04）、导入（FR-DAT-07）、隐私说明全文等 E 的命令和文本到位后加在这里。
+// 隐私说明全文（PrivacyNotice.vue，产品书 21 第 1 节）；删除全部数据（FR-DAT-04，ADR 0037）：输入“删除”二字确认，可选连 AI 密钥一起删，删完 Hub 重启、重新引导；
+// 撤回 ① 时可选同时删除已有的情绪数据（FR-DAT-05 第 3 条）；从备份导入（FR-DAT-07）：合并或覆盖，设置可选，导入后请用户重启。
 import { onMounted, ref } from 'vue'
 import { save } from '@tauri-apps/plugin-dialog'
 import { commands, unwrap, type ConsentItem, type ConsentState, type NetLogView } from '@/api'
 import { errorText, isCopyKey, t } from '@/i18n'
 import { CONSENT_NUMBER, sendsToThirdParty } from '../shared/consent'
+import ImportData from '../shared/ImportData.vue'
 import NoticeTable from '../shared/NoticeTable.vue'
+import PrivacyNotice from './PrivacyNotice.vue'
 import { apiName } from './apiName'
 
 const consent = ref<ConsentState | null>(null)
@@ -17,6 +20,14 @@ const withdrawNotice = ref(false)
 /** 撤回 ① 先确认一次：它是使用心晴的前提 */
 const confirmSense = ref(false)
 const consentError = ref<string | null>(null)
+/** 撤回 ① 时顺便删掉情绪数据 */
+const deleteMood = ref(false)
+const moodDeleted = ref<string | null>(null)
+
+const wipeSecrets = ref(false)
+const wipeTyped = ref('')
+const wiping = ref(false)
+const wipeError = ref<string | null>(null)
 
 const netlog = ref<NetLogView[] | null>(null)
 const netlogError = ref<string | null>(null)
@@ -44,11 +55,35 @@ async function setConsent(item: ConsentItem, granted: boolean): Promise<void> {
   try {
     consent.value = await unwrap(commands.consentSet(item, granted))
     withdrawNotice.value = !granted && sendsToThirdParty(item)
+    if (item === 'sense' && !granted && deleteMood.value) {
+      const n = await unwrap(commands.dataDeleteMood())
+      moodDeleted.value = t('privacy.mood_deleted', { n })
+    }
   } catch (e) {
     consentError.value = errorText(e)
   } finally {
     consentBusy.value = false
     confirmSense.value = false
+    deleteMood.value = false
+  }
+}
+
+async function wipeAll(): Promise<void> {
+  if (wipeTyped.value.trim() !== t('privacy.delete_type')) return
+  wipeError.value = null
+  wiping.value = true
+  try {
+    // 这台电脑上的界面偏好（小组件位置、首次引导交接等）也清掉，和新装一样
+    try {
+      localStorage.clear()
+    } catch {
+      // 清不掉不影响删除数据库
+    }
+    // 成功时 Hub 会重启，这里拿不到返回
+    await unwrap(commands.dataDeleteAll(wipeSecrets.value))
+  } catch (e) {
+    wipeError.value = errorText(e)
+    wiping.value = false
   }
 }
 
@@ -131,6 +166,7 @@ async function exportData(): Promise<void> {
   <h3>{{ t('privacy.what') }}</h3>
   <NoticeTable />
   <p class="small">{{ t('onboarding.third_party') }}</p>
+  <PrivacyNotice />
 
   <h3>{{ t('privacy.consent') }}</h3>
   <p class="muted small">{{ t('privacy.consent_hint') }}</p>
@@ -147,12 +183,17 @@ async function exportData(): Promise<void> {
   </div>
   <div v-if="confirmSense" class="confirm" role="alertdialog" :aria-label="t('privacy.sense_confirm')">
     <p>{{ t('privacy.sense_confirm') }}</p>
+    <label class="check">
+      <input v-model="deleteMood" type="checkbox" />
+      <span>{{ t('privacy.sense_delete_mood') }}</span>
+    </label>
     <button class="compact danger" :disabled="consentBusy" @click="setConsent('sense', false)">
       {{ t('privacy.sense_confirm_yes') }}
     </button>
     <button class="compact" @click="confirmSense = false">{{ t('privacy.sense_confirm_no') }}</button>
   </div>
   <p v-if="withdrawNotice" class="note" role="status">{{ t('error.withdraw_notice') }}</p>
+  <p v-if="moodDeleted" class="note" role="status">{{ moodDeleted }}</p>
   <p v-if="consentError" class="error" role="alert">{{ consentError }}</p>
 
   <h3>{{ t('privacy.netlog') }}</h3>
@@ -194,7 +235,33 @@ async function exportData(): Promise<void> {
   </div>
   <p v-if="exportError" class="error" role="alert">{{ exportError }}</p>
 
-  <p class="muted small pending">{{ t('privacy.pending') }}</p>
+  <h3>{{ t('privacy.import') }}</h3>
+  <p class="muted small">{{ t('privacy.import_hint') }}</p>
+  <ImportData />
+
+  <h3>{{ t('privacy.delete') }}</h3>
+  <p class="muted small">{{ t('privacy.delete_hint') }}</p>
+  <div class="wipe" data-group="wipe">
+    <label class="check">
+      <input v-model="wipeSecrets" type="checkbox" :disabled="wiping" />
+      <span>{{ t('privacy.delete_secrets') }}</span>
+    </label>
+    <label class="row">
+      <span>{{ t('privacy.delete_type_label') }}</span>
+      <input v-model="wipeTyped" type="text" class="typed" autocomplete="off" :disabled="wiping" />
+    </label>
+    <div class="row">
+      <button
+        class="danger"
+        :disabled="wiping || wipeTyped.trim() !== t('privacy.delete_type')"
+        @click="wipeAll"
+      >
+        {{ t('privacy.delete_btn') }}
+      </button>
+      <span v-if="wiping" role="status">{{ t('privacy.deleting') }}</span>
+    </div>
+    <p v-if="wipeError" class="error" role="alert">{{ wipeError }}</p>
+  </div>
 </template>
 
 <style scoped>
@@ -221,7 +288,8 @@ h3 {
 }
 
 /* 整行都能点，点击目标不小于 32 px 高（DS-A11Y-03） */
-.consent {
+.consent,
+.check {
   display: flex;
   gap: var(--xq-sp-2);
   align-items: flex-start;
@@ -322,7 +390,20 @@ h3 {
   color: var(--xq-danger);
 }
 
-.pending {
-  margin-top: var(--xq-sp-5);
+.wipe {
+  display: grid;
+  gap: var(--xq-sp-2);
+  max-width: 560px;
+}
+
+.typed {
+  width: 120px;
+  min-height: 32px;
+  padding: 0 var(--xq-sp-2);
+  border: 1px solid var(--xq-border);
+  border-radius: var(--xq-radius-sm);
+  background: var(--xq-surface);
+  color: var(--xq-text-1);
+  font: inherit;
 }
 </style>

@@ -11,7 +11,7 @@ use xqp::MoodState;
 
 use crate::domain::explain::{self, Evidence, ExplainSource, Explanation};
 use crate::domain::features::{Baseline, BaselineRow, Bucket, WindowFeatures};
-use crate::domain::fusion::Source;
+use crate::domain::fusion::{Judged, Source};
 use crate::domain::rules::Hints;
 use crate::infra::gateway::NetLogEntry;
 use crate::infra::templates::AppCat;
@@ -21,7 +21,10 @@ mod comfort;
 mod dashboard;
 pub mod demo;
 mod diary;
+pub mod erase;
 pub mod export;
+pub mod grep;
+pub mod import;
 mod letter;
 mod rest;
 mod schedule;
@@ -161,6 +164,25 @@ impl Db {
             params![ts, window_id, state.as_str(), shown.as_str(), source],
         )?;
         Ok(self.conn.last_insert_rowid())
+    }
+
+    /// 给一条状态记录补上 Jev 的判断（D-07 的 `probs_json`、`valence`、`need_comfort`、`model`、`latency_ms`）。
+    /// `probs_json` 的格式与历史解释读回时一致：状态名 → 概率。
+    pub fn set_mood_jev(&self, mood_state_id: i64, j: &Judged) -> Result<(), StoreError> {
+        let probs = serde_json::to_string(&j.verdict.probs)?;
+        self.conn.execute(
+            "UPDATE mood_state SET probs_json = ?2, valence = ?3, need_comfort = ?4, model = ?5, latency_ms = ?6
+             WHERE id = ?1",
+            params![
+                mood_state_id,
+                probs,
+                j.valence,
+                j.need_comfort,
+                j.model,
+                i64::try_from(j.latency_ms).unwrap_or(i64::MAX)
+            ],
+        )?;
+        Ok(())
     }
 
     /// 一个已存特征窗口的特征和规则提示。
@@ -732,15 +754,41 @@ mod tests {
             "停顿来自触发窗口，“打了又删”来自上一个窗口"
         );
 
-        // Jev 记录带概率
-        db.conn()
-            .execute(
-                "UPDATE mood_state SET source = 'jev', probs_json = '{\"hesitant\":0.83}' WHERE id = ?1",
-                [id],
+        // Jev 记录带概率：实时路径用 set_mood_jev 写，历史解释读回同一格式
+        let jev = db
+            .insert_mood_state(
+                3,
+                Some(w2),
+                MoodState::Hesitant,
+                MoodState::Hesitant,
+                Source::Jev,
             )
             .unwrap();
-        let e = db.explain_mood_state(id, &base).unwrap().unwrap();
+        let judged = crate::domain::fusion::Judged {
+            verdict: crate::domain::fusion::JevVerdict {
+                probs: [(MoodState::Hesitant, 0.83), (MoodState::Fluent, 0.1)].into(),
+                choice: MoodState::Hesitant,
+                confidence: 0.83,
+                valence: 1.5,
+                need_comfort: 0.0,
+            },
+            valence: Some(1.5),
+            need_comfort: None,
+            model: "jev-test".into(),
+            latency_ms: 40,
+        };
+        db.set_mood_jev(jev, &judged).unwrap();
+        let e = db.explain_mood_state(jev, &base).unwrap().unwrap();
         assert_eq!((e.source, e.prob_pct), (ExplainSource::Jev, Some(83)));
+        let row: (Option<f64>, Option<f64>, String, i64) = db
+            .conn()
+            .query_row(
+                "SELECT valence, need_comfort, model, latency_ms FROM mood_state WHERE id = ?1",
+                [jev],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(row, (Some(1.5), None, "jev-test".into(), 40));
 
         // 不存在、没有关联窗口时为 None
         assert_eq!(db.explain_mood_state(999, &base).unwrap(), None);

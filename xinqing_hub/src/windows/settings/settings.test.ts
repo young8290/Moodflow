@@ -154,7 +154,7 @@ describe('设置中心', () => {
 
   it('开源许可列表：清风 MIT 全文与第三方资源声明都随包带着', async () => {
     const w = await openAbout()
-    const full = w.findAll('details')
+    const full = w.findAll('.licenses details')
     expect(full).toHaveLength(2)
     expect(full[0]!.find('summary').text()).toContain('MIT')
     expect(full[0]!.find('pre').text()).toContain('Permission is hereby granted')

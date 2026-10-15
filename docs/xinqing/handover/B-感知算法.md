@@ -13,7 +13,7 @@
 | B-03 | 窗口切分、特征计算 | 完成 | `domain/features/{window,calc,typo}.rs`，ADR 0008；Python 对拍：`eval/tools/features_ref.py` + `tests/features_parity.rs`（[xinqing-ime#45](https://github.com/young8290/xinqing-ime/pull/45)） | — |
 | B-04 | 个人基线、冷启动默认值 | 完成 | `domain/features/baseline.rs`（分桶统计、`compute_stats`、`next_recompute_after`）、`domain/features/persist.rs`（读库重算、重置）、`hub_templates/baseline_default.toml`；[xinqing-ime#25](https://github.com/young8290/xinqing-ime/pull/25)，ADR 0014 | 默认值 `calibrated = false`，等 B-02 录制后用真实数据校准；7 天基线统计已与 Python 对拍（#45） |
 | B-05 | 本地规则 R1–R6 | 完成（R1b 除外） | `domain/rules.rs`、`domain/features/typo.rs` | R1b 需要核心在 `comp` 里加 `invalid` 字段（ADR 0008 第 5 条），待 A 决定 |
-| B-06 | 融合与滞回、降级运行 | 完成 | `domain/fusion.rs`、`pipeline.rs`、`sense.rs` | Jev 判断还没接进 `Sense`（等 C 的网关 PR），现在实时路径全部走降级 |
+| B-06 | 融合与滞回、降级运行 | 完成 | `domain/fusion.rs`、`pipeline.rs`、`sense.rs`；Jev 接入实时路径：D 先行实现（ADR 0038，待 B / C 评审） | 同意 ② 时每个窗口问 Q-STATE / Q-VALENCE / Q-COMFORT，失败或超时按规则；见第 5 节 |
 | B-07 | 状态解释、反馈校准、自评天气（后端） | 后端完成 | 第一部分（状态解释）：[xinqing-ime#11](https://github.com/young8290/xinqing-ime/pull/11)（已合并），ADR 0010；第二部分（`state_explain` 命令）：[xinqing-ime#12](https://github.com/young8290/xinqing-ime/pull/12)（已合并）；第三部分（反馈校准）：[xinqing-ime#15](https://github.com/young8290/xinqing-ime/pull/15)（已合并）；第四部分（自评天气）：[xinqing-ime#17](https://github.com/young8290/xinqing-ime/pull/17)（已合并），ADR 0011 | 见第 3 节 |
 | B-08 | 使用时长与四类休息提醒等（P0） | 第一部分完成（PR 合并后） | 判断 `domain/rest.rs`、服务 `rest.rs`、`infra/store/rest.rs`；外壳 `src-tauri/src/rest.rs`；小组件 `windows/widget/{useRest.ts,RestCard.vue}` | 见第 3.1 节：系统通知、专注时段、设置界面 |
 | B-09 | 作息洞察统计 | 后端完成 | 统计 `domain/routine.rs`、写库 `infra/store/summary.rs`；`get_routine(days)` 命令；见第 3.2 节 | 看板周报的折线和数字归 D-07；周信 / 晚间小结引用等 C-10 认领 |
@@ -124,10 +124,10 @@ hub_templates/        baseline_default.toml、app_categories.toml、explain.toml
 
 ## 5. 已知问题
 
-- 实时路径没有 Jev 结果，`Explanation.prob_pct` 恒为 `None`，界面不显示百分比；Jev 接入后要把显示状态的概率传给 `explain::build`（`sense.rs` 的 `on_window`）。
+- Jev 已接进实时路径（ADR 0038）：显示状态来自 Jev 时 `Explanation.prob_pct` 有值；只有本地规则时仍为 `None`，界面不显示百分比。Jev 的阈值（FR-STA-06）、`JEV_DEADLINE`（12 秒）还没有真实数据校准，等 B-02 录制后与 E-STATE 一起评测。
 - 冷启动的“有效窗口数”口径（ADR 0014 第 3 条）：最近 7 天、上次重置之后的窗口数；启动时从库里重算，实时路径与历史解释口径一致。
 - 历史解释的 `{p}` 用的是当前基线的中位数，不是当时的；“上一个窗口”取库里 id 紧挨着的那条，可能跨会话（实时路径在新会话时会清掉上一个窗口）。
-- 阈值上调只作用于 Jev 路径（FR-STA-06 第 4、5 条的阈值）。现在实时路径全部走降级（只用本地规则），所以“不准”目前只写库、记入融合，暂时不改变显示结果，Jev 接入后自动生效。
+- 阈值上调只作用于 Jev 路径（FR-STA-06 第 4、5 条的阈值）。Jev 接入后（ADR 0038）在同意 ② 且 Jev 可用时生效；降级运行时“不准”只写库、记入融合，不改变显示结果。
 - `feedback` 表要按 D-17 保留 90 天、`self_report` 按 D-24 保留 1 年，清理归 E-01（自动清理）。
 - 时间戳（`SelfReportItem.ts`、`self_report:changed.until_ts`）用 f64 毫秒导出，因为 specta 不导出 i64；specta 把 f64 导出成 `number | null`，实际不会是 `null`。根治是在 `export_bindings` 里把 BigInt 导出为 number（毫秒时间戳小于 2^53，安全），那是 D 的导出配置，建议 D 评估后统一改。
 - 自评覆盖只在内存里，重启 Hub 后回到自动判断（ADR 0011 第 5 条）。
