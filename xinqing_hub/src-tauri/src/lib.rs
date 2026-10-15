@@ -20,6 +20,7 @@ mod ime_events;
 mod letter;
 mod notify;
 mod paths;
+mod procs;
 mod pulse;
 mod research;
 mod rest;
@@ -78,6 +79,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::app_restart,
             commands::collection_get,
             commands::collection_equip,
+            commands::running_apps,
             commands::focus_start,
             commands::focus_stop,
             commands::focus_status,

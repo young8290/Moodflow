@@ -9,6 +9,7 @@ import { errorText, t } from '@/i18n'
 import { useSettingsStore } from '@/stores/settings'
 import SectionHead from './SectionHead.vue'
 import { sameValue, useNotice } from './useHubSettings'
+import { useRunningApps } from './useRunningApps'
 import {
   APP_MAX_CHARS,
   MEMORY_ENTRY_CHARS,
@@ -83,6 +84,7 @@ const editInput = ref<HTMLInputElement[]>([])
 const qFrom = ref('22:00')
 const qTo = ref('07:00')
 const newApp = ref('')
+const running = useRunningApps()
 
 onMounted(async () => {
   window.addEventListener('focus', loadMemories)
@@ -388,9 +390,14 @@ const day = (ts: number) => new Date(ts).toLocaleDateString('zh-CN')
           spellcheck="false"
           autocomplete="off"
           :maxlength="APP_MAX_CHARS"
+          list="xq-running-apps-dnd"
           :aria-label="t('settings.care.dnd_placeholder')"
           :placeholder="t('settings.care.dnd_placeholder')"
+          @focus="running.load()"
         />
+        <datalist id="xq-running-apps-dnd">
+          <option v-for="a in running.apps.value" :key="a" :value="a" />
+        </datalist>
         <button type="submit" class="compact">{{ t('settings.care.dnd_add') }}</button>
       </form>
       <p v-if="fieldError.dnd" class="error" role="alert">{{ fieldError.dnd }}</p>

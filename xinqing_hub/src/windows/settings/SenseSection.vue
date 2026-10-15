@@ -9,6 +9,7 @@ import { useSettingsStore } from '@/stores/settings'
 import HotkeyRecorder from './HotkeyRecorder.vue'
 import SectionHead from './SectionHead.vue'
 import { APP_MAX_CHARS, hasApp, validApp } from './care'
+import { useRunningApps } from './useRunningApps'
 import { HUB_HOTKEYS, hotkeyOwner } from './hotkey'
 import { useConsents } from './useConsents'
 import { useNotice } from './useHubSettings'
@@ -45,6 +46,7 @@ async function confirmEnhanced(): Promise<void> {
 }
 
 // ── 程序名单 ──
+const running = useRunningApps()
 const drafts = reactive<Record<string, string>>({})
 const listError = reactive<Record<string, string | null>>({})
 const listOf = (key: string): string[] => {
@@ -197,13 +199,19 @@ async function restore(): Promise<void> {
           spellcheck="false"
           autocomplete="off"
           :maxlength="APP_MAX_CHARS"
+          list="xq-running-apps"
           :aria-label="`${t(l.label)} ${t('settings.sense.app_placeholder')}`"
           :placeholder="t('settings.sense.app_placeholder')"
+          @focus="running.load()"
         />
         <button type="submit" class="s-compact">{{ t('settings.sense.add') }}</button>
       </form>
       <p v-if="listError[l.key]" class="s-error" role="alert">{{ listError[l.key] }}</p>
     </fieldset>
+
+    <datalist id="xq-running-apps">
+      <option v-for="a in running.apps.value" :key="a" :value="a" />
+    </datalist>
 
     <fieldset class="s-group" data-group="pause" :disabled="imeReady !== true">
       <legend>{{ t('settings.sense.pause_group') }}</legend>

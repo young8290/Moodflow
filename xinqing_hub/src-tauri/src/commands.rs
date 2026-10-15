@@ -250,6 +250,15 @@ pub fn collection_equip(
     collection_now(&state)
 }
 
+/// 正在运行的程序名（只有可执行文件名，去掉系统进程、按名字排序），给设置页的程序名单当候选。
+#[tauri::command]
+#[specta::specta]
+pub async fn running_apps() -> Vec<String> {
+    tauri::async_runtime::spawn_blocking(crate::procs::running_apps)
+        .await
+        .unwrap_or_default()
+}
+
 /// 开始专注（FR-RST-10），时长 10–120 分钟；已经在专注时报错。
 #[tauri::command]
 #[specta::specta]
