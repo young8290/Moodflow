@@ -572,6 +572,7 @@ hotkeys_hint = "点一下再按组合键，按退格清除。无痕模式和温�
 hotkey_chat = "打开对话"
 hotkey_widget = "显示或隐藏小组件"
 hotkey_dashboard = "打开看板"
+hotkey_focus = "开始 / 结束专注（25 分钟）"
 hotkey_invalid = "只能用 Ctrl、Alt 或 Win 加一个字母、数字或 F1～F24。"
 
 [settings.sense]             # 07 FR-SET-04“感知”
@@ -650,8 +651,15 @@ consent = "温柔改写"
 consent_hint = "只有按下改写快捷键时才把那一段文字发给 AI 服务改写；不按就不会发送。"
 hotkey = "改写快捷键"
 usage = "今天改写了 {used} 次（每天最多 {cap} 次）"
-style_hint = "改写时按 Tab 换风格：更温和、更礼貌得体、更简洁、更有条理。"
-sources_hint = "改写的文字取自你刚上屏的那句；没有时取剪贴板里的文字。"
+style = "一开始用哪种风格"
+style_gentle = "更温和"
+style_polite = "更礼貌得体"
+style_concise = "更简洁"
+style_structured = "更有条理"
+style_hint = "改写时在候选框里按 Tab 还能换风格。"
+sources = "改写哪段文字"
+clipboard = "没有刚上屏的文字时，改写剪贴板里的文字"
+sources_hint = "先取你刚上屏的那句；关掉这一项后只改写刚上屏的，剪贴板里的文字不会发出去。"
 
 [settings.ai.metrics]        # 07 FR-SET-08、08 FR-AIG-08：网关的内存指标，不发请求、不扣额度
 title = "接口状态"

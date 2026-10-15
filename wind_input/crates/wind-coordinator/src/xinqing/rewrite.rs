@@ -67,6 +67,16 @@ pub(crate) fn style_label(s: RewriteStyle) -> &'static str {
     }
 }
 
+/// 起始风格（`xinqing.rewrite_style`）；认不出的值按“更温和”。
+fn start_style(s: &str) -> RewriteStyle {
+    match s {
+        "polite" => RewriteStyle::Polite,
+        "concise" => RewriteStyle::Concise,
+        "structured" => RewriteStyle::Structured,
+        _ => RewriteStyle::Gentle,
+    }
+}
+
 fn next_style(s: RewriteStyle) -> RewriteStyle {
     let i = STYLES.iter().position(|x| *x == s).unwrap_or(0);
     STYLES[(i + 1) % STYLES.len()]
@@ -199,6 +209,11 @@ impl Coordinator {
         }
         let (source, text, replace_len) = match t.take_recent() {
             Some(r) => (RewriteSource::Recent, r.text, Some(r.utf16_len)),
+            // 用户关掉了剪贴板来源（xinqing.rewrite_clipboard，ADR 0041）
+            None if !self.rt().config.xinqing.rewrite_clipboard => {
+                self.show_xinqing_tip("先上屏一句再改写哦", TIP_MS);
+                return Some(KeyAction::Consumed);
+            }
             None => {
                 // 剪贴板读取最多阻塞几十毫秒，不在 state 锁里读
                 let clip = self
@@ -214,7 +229,7 @@ impl Coordinator {
                 (RewriteSource::Clipboard, text, None)
             }
         };
-        let style = RewriteStyle::Gentle;
+        let style = start_style(&self.rt().config.xinqing.rewrite_style);
         let req_id = NEXT_REQ.fetch_add(1, Ordering::Relaxed);
         if !t.send_rewrite_req(RewriteReq {
             req_id,
@@ -562,6 +577,16 @@ mod tests {
         assert_eq!(lines.len(), MAX_LINES);
         assert!(lines[2].ends_with('…'));
         assert_eq!(lines[2].chars().count(), LINE_CHARS);
+    }
+
+    #[test]
+    fn start_style_follows_config_and_falls_back_to_gentle() {
+        assert_eq!(start_style("concise"), RewriteStyle::Concise);
+        assert_eq!(start_style("structured"), RewriteStyle::Structured);
+        assert_eq!(start_style("whatever"), RewriteStyle::Gentle);
+        for s in wind_config::XINQING_REWRITE_STYLES {
+            assert_eq!(serde_json::to_value(start_style(s)).unwrap(), *s, "与 XQP 写法一致");
+        }
     }
 
     #[test]

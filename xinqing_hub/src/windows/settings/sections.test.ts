@@ -459,6 +459,20 @@ describe('设置中心 · 温柔改写（FR-SET-10）', () => {
     await record(w, 'hk-rewrite', { code: 'KeyG', ctrlKey: true, altKey: true })
     expect(mocks.imeConfigSet).toHaveBeenCalledWith([{ key: 'xinqing.rewrite_hotkey', value: 'ctrl+alt+g' }])
   })
+
+  it('起始风格与剪贴板来源写输入法配置；没配过时按“更温和”、开着剪贴板显示（ADR 0041）', async () => {
+    const w = await open(RewriteSection)
+    const radios = group(w, 'style').findAll<HTMLInputElement>('input[type=radio]')
+    expect(radios.map((r) => r.element.checked)).toEqual([true, false, false, false])
+    await radios[2]!.trigger('change')
+    await flushPromises()
+    expect(mocks.imeConfigSet).toHaveBeenCalledWith([{ key: 'xinqing.rewrite_style', value: 'concise' }])
+    const clip = group(w, 'sources').find<HTMLInputElement>('input')
+    expect(clip.element.checked).toBe(true)
+    await clip.setValue(false)
+    await flushPromises()
+    expect(mocks.imeConfigSet).toHaveBeenCalledWith([{ key: 'xinqing.rewrite_clipboard', value: false }])
+  })
 })
 
 describe('设置中心 · 参加研究与开发者选项（FR-DMO-03、FR-DMO-04）', () => {

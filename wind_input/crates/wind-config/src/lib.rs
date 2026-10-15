@@ -37,7 +37,7 @@ pub use config::{
     MixGlobal, MobileAssociationConfig, MobileConfig, ModeIndicatorStyle, Orientation,
     PinyinEnglishMerge, PinyinFuzzy, PinyinGlobalConfig, PreeditDisplay, ResourceLayer,
     SessionAction, SingleCharAction, TOOLBAR_ITEM_KEYS, TOOLBAR_LABEL_MAX_WIDTH, TextOrientation,
-    ToolbarButtonSpec, TopCommitMode, XINQING_DEFAULT_BLOCKLIST, XinqingConfig,
+    ToolbarButtonSpec, TopCommitMode, XINQING_DEFAULT_BLOCKLIST, XINQING_REWRITE_STYLES, XinqingConfig,
     sanitize_dota2_alias, toolbar_label_trunc,
 };
 pub use dir_var::{dir_var, dir_var_help, dir_var_names, dir_var_str, is_dir_var};

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// 设置中心 · 温柔改写（07 FR-SET-10）：功能开关（同意 ⑥）、改写快捷键（输入法配置 xinqing.rewrite_hotkey）、今日改写次数。
-// 默认风格与文本来源开关还没有登记设置键（核心按 Tab 轮换风格、先取最近上屏再取剪贴板），这里先照实说明。
+// 设置中心 · 温柔改写（07 FR-SET-10）：功能开关（同意 ⑥）、改写快捷键、起始风格与剪贴板来源（都是输入法配置
+// xinqing.*，核心开始改写时读，ADR 0041）、今日改写次数。
 import { onMounted, ref } from 'vue'
 import { commands, unwrap, type UsageRow } from '@/api'
 import { t } from '@/i18n'
@@ -13,9 +13,12 @@ import { useNotice } from './useHubSettings'
 import { useImeKeys } from './useImeKeys'
 
 const HOTKEY = 'xinqing.rewrite_hotkey'
+const STYLE = 'xinqing.rewrite_style'
+const CLIPBOARD = 'xinqing.rewrite_clipboard'
+const STYLES = ['gentle', 'polite', 'concise', 'structured'] as const
 
 const settings = useSettingsStore()
-const ime = useImeKeys([HOTKEY])
+const ime = useImeKeys([HOTKEY, STYLE, CLIPBOARD])
 const { available: imeReady, error: imeError, get: imeGet } = ime
 const consents = useConsents()
 const { granted, withdrawn, error: consentError } = consents
@@ -38,6 +41,10 @@ async function setConsent(on: boolean): Promise<void> {
 
 async function saveHotkey(v: string): Promise<void> {
   if (await ime.set(HOTKEY, v)) flash(t('settings.saved'))
+}
+
+async function saveIme(key: string, v: unknown): Promise<void> {
+  if (await ime.set(key, v)) flash(t('settings.saved'))
 }
 
 async function restore(): Promise<void> {
@@ -82,7 +89,36 @@ const takenBy = (combo: string) => hotkeyOwner(HOTKEY, combo, imeGet, (k) => set
       />
       <p v-if="imeReady === false" class="s-note">{{ t('settings.sense.ime_needed') }}</p>
       <p v-if="imeError" class="s-error" role="alert">{{ imeError }}</p>
+    </fieldset>
+
+    <fieldset class="s-group" data-group="style">
+      <legend>{{ t('settings.rewrite.style') }}</legend>
+      <label v-for="s in STYLES" :key="s" class="s-choice">
+        <input
+          type="radio"
+          name="rewrite-style"
+          :value="s"
+          :checked="(imeGet(STYLE) ?? 'gentle') === s"
+          :disabled="imeReady !== true"
+          @change="saveIme(STYLE, s)"
+        />
+        {{ t(`settings.rewrite.style_${s}`) }}
+      </label>
       <p class="s-hint">{{ t('settings.rewrite.style_hint') }}</p>
+    </fieldset>
+
+    <fieldset class="s-group" data-group="sources">
+      <legend>{{ t('settings.rewrite.sources') }}</legend>
+      <label class="s-choice">
+        <input
+          type="checkbox"
+          role="switch"
+          :checked="imeGet(CLIPBOARD) !== false"
+          :disabled="imeReady !== true"
+          @change="saveIme(CLIPBOARD, ($event.target as HTMLInputElement).checked)"
+        />
+        {{ t('settings.rewrite.clipboard') }}
+      </label>
       <p class="s-hint">{{ t('settings.rewrite.sources_hint') }}</p>
     </fieldset>
 
