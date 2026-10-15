@@ -32,6 +32,7 @@ const { error, notice, ready, flash, bool, num, text, range, options, save, rest
   'widget.opacity',
   'ui.theme',
   ...HOTKEYS.map((h) => h.key),
+  'collection.enabled',
 ])
 // 总开关不随“恢复默认”改：关着时恢复默认不该悄悄重新打开感知
 const { available: imeReady, error: imeError, get: imeGet, set: imeSet } = useImeKeys([])
@@ -166,6 +167,21 @@ async function restoreAll(): Promise<void> {
         />
         <output>{{ t('settings.percent', { n: opacity }) }}</output>
       </label>
+    </fieldset>
+
+    <fieldset class="s-group" data-group="collection">
+      <legend>{{ t('settings.general.collection') }}</legend>
+      <label class="s-choice">
+        <input
+          type="checkbox"
+          role="switch"
+          :checked="bool('collection.enabled')"
+          :disabled="!ready"
+          @change="save('collection.enabled', ($event.target as HTMLInputElement).checked)"
+        />
+        {{ bool('collection.enabled') ? t('settings.on') : t('settings.off') }}
+      </label>
+      <p class="s-hint">{{ t('settings.general.collection_hint') }}</p>
     </fieldset>
 
     <fieldset class="s-group" data-group="theme">

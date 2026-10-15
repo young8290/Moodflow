@@ -37,6 +37,11 @@ describe('menuEntries', () => {
     expect(menuEntries(null)[2]?.id).toBe('pause')
   })
 
+  it('解锁了装扮才出现“换装”，排在专注后面（FR-WGT-08）', () => {
+    expect(menuEntries(snap).some((e) => e.id === 'outfit')).toBe(false)
+    expect(menuEntries(snap, 0, false, true)[2]).toEqual({ id: 'outfit', text: '换装' })
+  })
+
   it('专注中换成“结束专注”（FR-RST-10）', () => {
     expect(menuEntries(snap, 0, true)[1]).toEqual({ id: 'focus_stop', text: '结束专注' })
   })

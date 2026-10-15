@@ -40,6 +40,7 @@ const SCHEMA: SettingField[] = [
   { key: 'hotkey.chat', kind: { type: 'text', item: 'hotkey' }, default: 'ctrl+alt+q' },
   { key: 'hotkey.widget', kind: { type: 'text', item: 'hotkey' }, default: 'ctrl+alt+w' },
   { key: 'hotkey.dashboard', kind: { type: 'text', item: 'hotkey' }, default: 'ctrl+alt+d' },
+  { key: 'collection.enabled', kind: { type: 'bool' }, default: true },
   { key: 'rest.eye.enabled', kind: { type: 'bool' }, default: true },
   { key: 'rest.eye.interval', kind: { type: 'number', min: 15, max: 60 }, default: 20 },
   { key: 'rest.water.enabled', kind: { type: 'bool' }, default: true },
@@ -215,6 +216,15 @@ describe('设置中心 · 常规（FR-SET-03）', () => {
     mocks.autostart = null
     w = await open(GeneralSection)
     expect(group(w, 'login-start').exists()).toBe(false)
+  })
+
+  it('晴天收集开关默认开，关掉就保存（FR-REV-04）', async () => {
+    const w = await open(GeneralSection)
+    const sw = group(w, 'collection').find('input')
+    expect((sw.element as HTMLInputElement).checked).toBe(true)
+    await sw.setValue(false)
+    await flushPromises()
+    expect(mocks.settingsSet).toHaveBeenCalledWith('collection.enabled', false)
   })
 
   it('心晴功能总开关写输入法配置；输入法没在运行时不可点并说明', async () => {
