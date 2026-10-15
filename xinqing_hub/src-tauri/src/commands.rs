@@ -206,7 +206,9 @@ pub fn focus_start(
 ) -> Result<xinqing_hub_core::focus::FocusStatus, UiError> {
     use xinqing_hub_core::focus::FocusError;
     focus.start(minutes).map_err(|e| match e {
-        FocusError::InvalidMinutes => UiError::new("focus.invalid_minutes", "error.focus_invalid_minutes"),
+        FocusError::InvalidMinutes => {
+            UiError::new("focus.invalid_minutes", "error.focus_invalid_minutes")
+        }
         FocusError::AlreadyRunning => UiError::new("focus.running", "error.focus_running"),
     })
 }

@@ -796,9 +796,16 @@ mod tests {
         let t = type_for(&mut e, at(10, 0), 30);
         assert_eq!(e.poll(idle(t, 5), Ctx::default()), None);
         e.set_focusing(false);
-        assert_eq!(e.poll(idle(t, 10), Ctx::default()), None, "结束后不立刻弹护眼");
+        assert_eq!(
+            e.poll(idle(t, 10), Ctx::default()),
+            None,
+            "结束后不立刻弹护眼"
+        );
         let t = type_for(&mut e, t + Duration::seconds(40), 20);
-        assert!(e.poll(idle(t, 5), Ctx::default()).is_some(), "重新连续 20 分钟后照常");
+        assert!(
+            e.poll(idle(t, 5), Ctx::default()).is_some(),
+            "重新连续 20 分钟后照常"
+        );
     }
 
     #[test]

@@ -61,7 +61,10 @@ mod tests {
     #[test]
     fn sessions_add_up_per_day_and_empty_ones_are_skipped() {
         let db = Db::open_in_memory().unwrap();
-        let day = Local.with_ymd_and_hms(2026, 10, 15, 9, 0, 0).unwrap().timestamp_millis();
+        let day = Local
+            .with_ymd_and_hms(2026, 10, 15, 9, 0, 0)
+            .unwrap()
+            .timestamp_millis();
         db.record_focus(&summary(day, 25)).unwrap();
         db.record_focus(&summary(day + 3_600_000, 12)).unwrap();
         db.record_focus(&summary(day + 7_200_000, 0)).unwrap();

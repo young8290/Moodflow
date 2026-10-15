@@ -206,7 +206,12 @@ mod tests {
             Local.with_ymd_and_hms(2026, 10, 15, 9, 0, 0).unwrap(),
         ));
         let (bus, rx) = crate::bus::channel();
-        (FocusHandle::new(port.clone(), clock.clone(), bus), port, clock, rx)
+        (
+            FocusHandle::new(port.clone(), clock.clone(), bus),
+            port,
+            clock,
+            rx,
+        )
     }
 
     fn key(src: KeySrc) -> Up {
@@ -275,6 +280,13 @@ mod tests {
         assert_eq!(port.saved.lock().unwrap()[0], s);
         // 不在专注时计数不算
         h.on_up(&commit(9));
-        assert_eq!(h.status(), FocusStatus { active: false, planned_min: 0, remaining_s: 0 });
+        assert_eq!(
+            h.status(),
+            FocusStatus {
+                active: false,
+                planned_min: 0,
+                remaining_s: 0
+            }
+        );
     }
 }

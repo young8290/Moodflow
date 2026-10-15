@@ -1100,7 +1100,10 @@ mod tests {
         r.sense.on_link(connected("s1"), r.t0);
         r.sense.on_cmd(SenseCmd::Focus(true));
         let changes = r.play("hesitant");
-        assert!(changes.contains(&MoodState::Hesitant), "自动判断照常：{changes:?}");
+        assert!(
+            changes.contains(&MoodState::Hesitant),
+            "自动判断照常：{changes:?}"
+        );
         assert_eq!(r.status().state, MoodState::Fluent, "专注中不切换显示");
         r.sense.on_cmd(SenseCmd::Focus(false));
         assert_eq!(
