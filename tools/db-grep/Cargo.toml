@@ -1,0 +1,13 @@
+[package]
+name = "db-grep"
+description = "库扫描：在 xinqing.db 所有列里搜索测试句，验证不存原文（产品书 12 第 2 节、NFR-PRI-04 / TC-PRI-01）"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+xinqing-hub-core = { path = "../../xinqing_hub/core" }
+rusqlite = { version = "0.32", features = ["bundled"] }
+anyhow.workspace = true
+clap.workspace = true

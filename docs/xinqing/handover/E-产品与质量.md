@@ -15,7 +15,7 @@
 | PM-04 | 一手调研：问卷与访谈 | 未开始（需要人） | 问卷与提纲：12 第 8 节 | 要真人做，Claude 只能帮整理结果 |
 | E-01 | 数据导出、删除、撤回同意、自动清理 | **进行中** | 第一部分（自动清理）：[xinqing-ime#20](https://github.com/young8290/xinqing-ime/pull/20)（已合并），ADR 0013；第二部分（导出，core）：[xinqing-ime#32](https://github.com/young8290/xinqing-ime/pull/32)；Tauri `data_export(path)` 命令：[xinqing-ime#47](https://github.com/young8290/xinqing-ime/pull/47)；删除全部数据与撤回 ① 时删除情绪数据：D 为补齐设置页“隐私”先行实现（[xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86)，ADR 0037：`core/src/infra/wipe.rs`、`store/erase.rs`，命令 `data_delete_all` / `data_delete_mood`）——**待 E 评审** | 见第 3 节；请按 09 FR-DAT-04/05 核对 ADR 0037 的删除范围（模板覆盖保留）与“情绪数据”的范围 |
 | E-02 | 数据导入与恢复（合并 / 覆盖、事务回滚） | **待 E 评审** | D 先行实现（[xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86)，ADR 0037）：`core/src/infra/store/import.rs`（校验清单与 SHA-256、结构版本、合并去重与行号重映射、覆盖前 `VACUUM INTO` 备份、单事务回滚），命令 `data_import` / `app_restart`；设置页与首次引导最后一页的入口 | 评审合并的去重规则（内容完全相同才算同一条）、不导入出网记录与 `dev.*` 设置是否合适；NFR-PERF-10：按一年约 12 万窗口 + 12 万状态记录造数据，release 构建覆盖导入 3.5 秒、合并（全部重复）2.0 秒（`year_of_data_imports_within_a_minute`，默认不跑），真机再复核一次 |
-| E-03 | db-grep、隐私自动化测试（NFR-PRI） | 未开始 | — | 计划 W8。已有的隐私约束测试：`window_features_reject_text`（store）、Q-STATE 字段白名单与脱敏（`core/src/infra/gateway`） |
+| E-03 | db-grep、隐私自动化测试（NFR-PRI） | **D 先行实现、待 E 评审** | `tools/db-grep`（扫描逻辑 `core/src/infra/store/grep.rs`）、50 句特征句 `eval/datasets/pri_sentences.txt`、自动化测试 `core/tests/privacy_db.rs`（NFR-PRI-03、04） | 请评审测试句是否够“特征明显”；TC-PRI-01 真机步骤见 `tools/db-grep/README.md`。NFR-PRI-01/02（零采集）、05（撤回 ② 后不再请求 Jev：`Sense` 每个窗口查同意，ADR 0038 有单元测试）、07/08（改写不留痕）还没有端到端自动化 |
 | E-04 | 测试用例维护与执行（18 全部用例）、缺陷管理 | 未开始 | — | 计划 W6–W12；目前各 PR 的单元测试按需求编号写，还没人按 TC 编号执行和记录 |
 | E-05 | 用户研究（招募、知情同意、7 天试用、分析） | 未开始（需要人） | 知情同意书：21 第 2 节 | 计划 W8 招募（R-11） |
 | E-06 | 隐私说明、用户手册、运维手册定稿 | **进行中** | 初稿：21、19、20；隐私说明正文已随包放进 `hub_templates/privacy_notice.md`、设置页可看（D，[xinqing-ime#86](https://github.com/young8290/xinqing-ime/pull/86)，core 测试核对版本 = `POLICY_VER`） | 填写【】处的团队、联系方式、生效日期；用户手册、运维手册按实现核对；正文改动同步 `privacy_notice.md` 并给 `POLICY_VER` +1 |
@@ -50,8 +50,8 @@ eval/datasets/e_crisis_ext.jsonl  危机词表扩充集（E-08 补充的开发�
 | 本地存储、数据库损坏后备份并重建 | FR-DAT-01、TC-DAT-07 | 完成（C，`state.rs`，有测试）；界面提示“已为你重建”等 D-02 一句话区 |
 | 自动清理：按 09 第 1 节保留期删除、增量 VACUUM、失败只记日志 | FR-DAT-02、TC-DAT-08 | 完成（#20）。对话保留期暂用默认 90 天：`chat.retention_days` 还没登记（设置键注册表负责人 C），登记后在 `cleanup.rs` 的 `run_once` 里读 |
 | 导出：zip，每表一个 JSON + 字段说明 + `manifest.json`（版本、SHA-256），AI 文本带标识，不导出密钥 | FR-DAT-03、TC-DAT-01、TC-PERF-11 | core 完成（#32，`infra/store/export.rs`）；[xinqing-ime#47](https://github.com/young8290/xinqing-ime/pull/47) 接入 Tauri `data_export(path)`（异步命令，导出在 `spawn_blocking` 里跑，不占主线程）；同一读事务、`.part` 原子替换和性能测试保持不变。**还差** 设置页按钮（D-08） |
-| 删除全部数据：输入“删除”确认，删库重建、删日志 Hub 部分、可选删密钥，回到引导 | FR-DAT-04、TC-DAT-02、NFR-PRI-06 | 未做。要在外壳里关闭连接 → 删 `xinqing.db*` → 重建 → 重新打开引导窗口；密钥已由 C 存进 `hub\secrets.bin`（ADR 0012），“含密钥”时删这一个文件 |
-| 撤回同意：逐项撤回立即生效，② ③ ⑤ 提示“已发送的数据无法撤回”，撤回 ① 询问是否删情绪数据 | FR-DAT-05、TC-DAT-03、NFR-PRI-05 | 未做。`consent_set` 已能写撤回；要补：撤回后重新下发 XQP `cfg`、通知网关停止 Jev、撤回 ① 时删 D-06～D-10、D-16～D-18 |
+| 删除全部数据：输入“删除”确认，删库重建、删日志 Hub 部分、可选删密钥，回到引导 | FR-DAT-04、TC-DAT-02、NFR-PRI-06 | D 先行实现（ADR 0037）：写标记后重启、启动时打开数据库前删库重建、可选删密钥，回到引导；Hub 目前不写日志文件 |
+| 撤回同意：逐项撤回立即生效，② ③ ⑤ 提示“已发送的数据无法撤回”，撤回 ① 询问是否删情绪数据 | FR-DAT-05、TC-DAT-03、NFR-PRI-05 | 完成：`consent_set` 每次都重新下发 XQP `cfg`；撤回 ② 后下一个窗口起不再请求 Jev（ADR 0038，`Sense` 每个窗口查同意）；设置页提示 `privacy.withdraw_notice`；撤回 ① 时可选删除情绪数据（ADR 0037） |
 
 ## 4. 项目经理视角
 
@@ -81,7 +81,7 @@ eval/datasets/e_crisis_ext.jsonl  危机词表扩充集（E-08 补充的开发�
 | 编号 | 状态 | 说明 |
 |---|---|---|
 | R-05 状态识别准确率 | 未缓解 | 只有合成脚本，B-02 真人录制没做，阈值没用真实数据校验 |
-| R-07 隐私执行不到位 | 部分缓解 | 结构约束（features_json 只允许数值）、Q-STATE 字段白名单已有测试；db-grep（E-03）和 NFR-PRI 自动化测试还没有 |
+| R-07 隐私执行不到位 | 部分缓解 | 结构约束（features_json 只允许数值）、Q-STATE 字段白名单已有测试；`db-grep` 与 NFR-PRI-03/04 的自动化测试已有（E-03，待 E 评审）；零采集、改写不留痕还没有端到端自动化 |
 | R-10 / R-13 进度与范围 | 未处理 | 见 4.2 第 1 条 |
 | R-06 危机漏报 | **E-08 发现并部分处理** | E-CRISIS 的 20/20 不代表泛化：日常说法上 v1 召回只有 50%。v2 补到扩充集 45/45，不调参的一轮是 14/15。仍缺：第二评审人、真正的留出集、Jev 通道（Q-CRISIS）的评测结果；改写路径走不到求助卡片（ADR 0009 第 11 条） |
 | 新增：危机安全链路的缺口 | 未处理 | 改写模式里判定为危机时只显示不能点的气泡（ADR 0009 第 11 条），FR-RWR-05 第 3 条要求能打开求助卡片。进试用前必须补，A 与 C 定方案 |
@@ -100,7 +100,7 @@ eval/datasets/e_crisis_ext.jsonl  危机词表扩充集（E-08 补充的开发�
 1. E-08 收尾：找第二评审人确认词表 v2；请一位没看过词表的组员写危机留出集（≥ 20 正 / 20 负），只测不调；
 2. E-01 第二部分收尾：契约 PR 加 `data_export(path)` 命令（D 评审），设置页按钮交给 D-08；
 3. E-01 第三部分：撤回同意的后续动作（FR-DAT-05）与删除全部数据（FR-DAT-04）；
-4. E-03：`tools/db-grep` 与 NFR-PRI-04 自动化测试（用 xq-sim 回放 50 句特征句后扫库）；
+4. E-03：评审 `tools/db-grep` 与 50 句特征句；补 NFR-PRI-01/02/07/08 的端到端自动化，真机跑 TC-PRI-01；
 5. PM：W1 评审会议程（第 4.2 节），建 `docs/meetings/`。
 
 ## 7. 修订记录

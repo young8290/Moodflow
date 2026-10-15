@@ -424,7 +424,7 @@ cargo test -p wind-rpc --test wind_setting_assets
 | `xinqing_hub/gateway/` | AI 网关的 HTTP 实现（Jev、OpenAI 兼容大模型），core 不依赖它 | [README](xinqing_hub/gateway/README.md) |
 | `xinqing_hub/src-tauri/`、`xinqing_hub/src/` | Hub 的 Tauri 外壳与 Vue 3 前端 | [README](xinqing_hub/README.md) |
 | `hub_templates/` | 出厂模板：危机词表、禁用词表、暖心话、界面文案、提示词 | — |
-| `tools/` | `xq-sim`（扮演核心服务的 XQP 模拟器）、`mock-ai`（模拟 AI 接口）、`typer`（经 SendInput 按节奏发键，性能与 R1 测试用）、校验脚本 | [typer](tools/typer/README.md) |
+| `tools/` | `xq-sim`（扮演核心服务的 XQP 模拟器）、`mock-ai`（模拟 AI 接口）、`typer`（经 SendInput 按节奏发键，性能与 R1 测试用）、`db-grep`（在数据库里搜测试句，验证不存原文）、校验脚本 | [typer](tools/typer/README.md)、[db-grep](tools/db-grep/README.md) |
 | `eval/` | 评测数据集与危机词表参考实现 | — |
 | `docs/xinqing/`、`docs/adr/` | 身份改造说明、心晴的架构决策记录（0007 起） | — |
 
