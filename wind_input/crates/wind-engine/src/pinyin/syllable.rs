@@ -243,7 +243,6 @@ pub fn is_full_pinyin_code(code: &str, boundary: u64) -> bool {
         .is_some_and(|syls| syls.iter().all(|s| TRIE.is_syllable(s)))
 }
 
-
 /// 心晴：组字串里有没有切不出来的拼音（R1b 拼音手误，产品书 04 第 3 节、ADR 0041）。
 ///
 /// 全拼允许简拼（`zg`、`bjdx`），所以“合法”放得很宽：只要能切成若干段、每段都是某个标准音节的前缀

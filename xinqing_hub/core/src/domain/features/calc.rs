@@ -109,7 +109,10 @@ pub fn compute(win: &WindowBuf, base: &Baseline, ctx: &SessionCtx) -> WindowFeat
             WinEvent::Key { .. } => {}
             WinEvent::KeyUp { ts, vk } => ups.push((*ts, *vk)),
             WinEvent::Comp {
-                ts, op, len, invalid,
+                ts,
+                op,
+                len,
+                invalid,
             } => {
                 if matches!(op, CompOp::Update) {
                     comps.push((*ts, *invalid));
