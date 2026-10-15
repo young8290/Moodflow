@@ -8,6 +8,7 @@
     shake     0.5 秒 晃一下（打错字）
     approach  0.6 秒 靠近（出现暖心话）
     close     0.3 秒 闭眼（无痕 / 密码框 / 暂停）；倒着播就是睁眼
+    （sleep 之后）focus 4 秒循环：“专心”造型——眯起眼、两道小眉毛、呼吸放慢、不眨眼（FR-RST-10，ADR 0041）
     sleep     4 秒   闭着眼的循环：呼吸更轻，配饰不动
 
 颜色不写死：每个图层只有一种样式（一种填充或一种描边），图层带 class（lottie 的 `cl`），
@@ -34,7 +35,7 @@ WEATHERS = ["sunny", "wind", "cloudy", "rain", "storm", "night"]
 
 FPS = 30
 LOOP = 120  # 4 秒
-SEGMENTS = [("loop", LOOP), ("shake", 15), ("approach", 18), ("close", 9), ("sleep", 120)]
+SEGMENTS = [("loop", LOOP), ("shake", 15), ("approach", 18), ("close", 9), ("sleep", 120), ("focus", LOOP)]
 START = {}
 _t = 0
 for _name, _dur in SEGMENTS:
@@ -410,6 +411,7 @@ def offset_pos(pivot: Point, dx: float, dy: float) -> list[float]:
 def build(weather: str) -> dict:
     c = Comp(weather)
     shake, approach, close, sleep = START["shake"], START["approach"], START["close"], START["sleep"]
+    focus = START["focus"]
 
     # 整体：晃一下（左右摆两下回原位）、靠近（放大一点再回来），支点在脚下 (48, 80)
     foot = (48.0, 80.0)
@@ -449,7 +451,11 @@ def build(weather: str) -> dict:
                 (LOOP, [100, 100, 100], LINEAR, False),
                 (sleep, [100, 100, 100], EASE, False),
                 (sleep + 60, [102, 99, 100], EASE, False),
-                (sleep + 120, [100, 100, 100], None, False),
+                (sleep + 120, [100, 100, 100], LINEAR, False),
+                # 专心：呼吸更轻更慢
+                (focus, [100, 100, 100], EASE, False),
+                (focus + LOOP / 2, [101, 99, 100], EASE, False),
+                (focus + LOOP, [100, 100, 100], None, False),
             ]
         ),
     )
@@ -472,10 +478,12 @@ def build(weather: str) -> dict:
                 (LOOP * 0.96, [100, 10, 100], LINEAR, False),
                 (LOOP, [100, 100, 100], LINEAR, False),
                 (close, [100, 100, 100], EASE, False),
-                (close + 6, [100, 10, 100], None, False),
+                (close + 6, [100, 10, 100], None, True),
+                # 专心：眯着眼，不眨
+                (focus, [100, 55, 100], None, False),
             ]
         ),
-        o=keys([(0, 100, None, True), (close + 6, 0, None, True)]),
+        o=keys([(0, 100, None, True), (close + 6, 0, None, True), (focus, 100, None, True)]),
     )
     c.shape(
         "eyes-closed",
@@ -484,7 +492,17 @@ def build(weather: str) -> dict:
         breath,
         eye_pivot,
         width=2,
-        o=keys([(0, 0, None, True), (close + 6, 100, None, True)]),
+        o=keys([(0, 0, None, True), (close + 6, 100, None, True), (focus, 0, None, True)]),
+    )
+    # 专心的两道小眉毛：只在 focus 段出现
+    c.shape(
+        "focus-brows",
+        "xq-line-on",
+        shapes_of("M33 39l9 2") + shapes_of("M63 39l-9 2"),
+        breath,
+        eye_pivot,
+        width=2,
+        o=keys([(0, 0, None, True), (focus, 100, None, True)]),
     )
     c.shape("mouth", "xq-line-on", shapes_of("M42 60q6 5 12 0"), breath, (48, 60), width=2)
     return c.to_json()

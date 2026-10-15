@@ -7,8 +7,9 @@ import { ref } from 'vue'
 import type { Weather } from '@/api'
 import WeatherSprite, { type SpriteAction } from './WeatherSprite.vue'
 
-withDefaults(defineProps<{ weather: Weather; eyesClosed?: boolean; size?: number }>(), {
+withDefaults(defineProps<{ weather: Weather; eyesClosed?: boolean; focusing?: boolean; size?: number }>(), {
   eyesClosed: false,
+  focusing: false,
   size: 96,
 })
 
@@ -20,7 +21,14 @@ defineExpose({ play: (a: SpriteAction) => sprite.value?.play(a) })
 <template>
   <div class="stage" :style="{ width: `${size}px`, height: `${size}px` }">
     <Transition name="xq-crossfade">
-      <WeatherSprite :key="weather" ref="sprite" :weather="weather" :eyes-closed="eyesClosed" :size="size" />
+      <WeatherSprite
+        :key="weather"
+        ref="sprite"
+        :weather="weather"
+        :eyes-closed="eyesClosed"
+        :focusing="focusing"
+        :size="size"
+      />
     </Transition>
     <slot />
   </div>
