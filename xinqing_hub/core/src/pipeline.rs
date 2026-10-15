@@ -119,6 +119,9 @@ impl StatePipeline {
                     .map(|a| self.apps.classify(a))
                     .unwrap_or(AppCat::Other);
             }
+            Up::Comp {
+                ts, op, invalid, ..
+            } if *op == xqp::CompOp::Update => self.typo.on_comp(*ts, *invalid == Some(true)),
             Up::Key {
                 ts, kind, vk, src, ..
             } => {

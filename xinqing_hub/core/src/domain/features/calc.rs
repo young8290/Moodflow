@@ -85,6 +85,8 @@ pub fn compute(win: &WindowBuf, base: &Baseline, ctx: &SessionCtx) -> WindowFeat
     let mut page_flips = 0u32;
     let mut cand_pos: Vec<f64> = Vec::new();
     let mut ups: Vec<(u64, Option<u8>)> = Vec::new();
+    // R1b：组字更新的 (时刻, 是否有切不出来的全拼)，按时间与按键交错喂给打错字判定
+    let mut comps: Vec<(u64, bool)> = Vec::new();
 
     for e in &win.events {
         match e {
@@ -106,7 +108,12 @@ pub fn compute(win: &WindowBuf, base: &Baseline, ctx: &SessionCtx) -> WindowFeat
             }
             WinEvent::Key { .. } => {}
             WinEvent::KeyUp { ts, vk } => ups.push((*ts, *vk)),
-            WinEvent::Comp { op, len, .. } => {
+            WinEvent::Comp {
+                ts, op, len, invalid,
+            } => {
+                if matches!(op, CompOp::Update) {
+                    comps.push((*ts, *invalid));
+                }
                 comp_active = matches!(op, CompOp::Update) && len.unwrap_or(1) > 0;
                 if matches!(op, CompOp::Cancel | CompOp::Clear) {
                     abandon = true;
@@ -159,7 +166,15 @@ pub fn compute(win: &WindowBuf, base: &Baseline, ctx: &SessionCtx) -> WindowFeat
     let mut typo = TypoDetector::new();
     let mut typo_cnt = 0u32;
     let mut delete_committed = 0u32;
+    let mut next_comp = comps.iter().peekable();
     for k in &keys {
+        while let Some(&&(ts, invalid)) = next_comp.peek() {
+            if ts > k.ts {
+                break;
+            }
+            typo.on_comp(ts, invalid);
+            next_comp.next();
+        }
         if k.kind == KeyKind::Backspace {
             bs += 1;
             run += 1;
@@ -356,6 +371,25 @@ mad = 55.0
     }
 
     #[test]
+    fn backspace_after_invalid_pinyin_counts_as_typo() {
+        // R1b：打出 ii（切不出来）后马上退格
+        let win = WindowBuf {
+            events: vec![
+                key(0, KeyKind::Letter, Some(b'I')),
+                key(150, KeyKind::Letter, Some(b'I')),
+                WinEvent::Comp {
+                    ts: 160,
+                    op: CompOp::Update,
+                    len: Some(2),
+                    invalid: true,
+                },
+                key(400, KeyKind::Backspace, Some(8)),
+            ],
+        };
+        assert_eq!(compute(&win, &base(), &ctx()).typo_cnt, 1);
+    }
+
+    #[test]
     fn long_gap_excluded_from_active_and_comp_pause_counted() {
         let win = WindowBuf {
             events: vec![
@@ -364,6 +398,7 @@ mad = 55.0
                     ts: 1,
                     op: CompOp::Update,
                     len: Some(1),
+                    invalid: false,
                 },
                 key(100, KeyKind::Letter, Some(b'I')),
                 key(3_600, KeyKind::Letter, Some(b'H')),
@@ -371,6 +406,7 @@ mad = 55.0
                     ts: 3_700,
                     op: CompOp::Cancel,
                     len: None,
+                    invalid: false,
                 },
                 key(3_800, KeyKind::Letter, Some(b'A')),
                 key(4_000, KeyKind::Letter, Some(b'O')),

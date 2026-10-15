@@ -20,7 +20,7 @@ use std::io;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-pub use gate::{AppFilter, BUILTIN_EXCLUDED, DEFAULT_BLOCKLIST};
+pub use gate::{AppFilter, BUILTIN_EXCLUDED, DEFAULT_BLOCKLIST, app_listed};
 pub use recent::RecentText;
 pub use xqp::{
     ByeReason, CandOp, CompOp, Down, KeyKind, MoodState, OpenTarget, PIPE_NAME, PIPE_NAME_DEV,
@@ -280,13 +280,15 @@ impl Tap {
         s.emit_focus(&mut st, false);
     }
 
-    /// 组字变化（FR-SEN-04）；`len` 只在 `update` 时有意义。
-    pub fn hook_comp(&self, op: CompOp, len: u16) {
+    /// 组字变化（FR-SEN-04）；`len` 只在 `update` 时有意义。`invalid`：组字串里有切不出来的全拼
+    /// （心晴 R1b，ADR 0041），只在 `update` 时上报，且只报 `true`。
+    pub fn hook_comp(&self, op: CompOp, len: u16, invalid: bool) {
         let s = &self.shared;
         if !s.gate.allow() {
             return;
         }
         let len = (op == CompOp::Update).then_some(len);
+        let invalid = (op == CompOp::Update && invalid).then_some(true);
         s.push(
             true,
             Up::Comp {
@@ -294,6 +296,7 @@ impl Tap {
                 seq: None,
                 op,
                 len,
+                invalid,
             },
         );
     }

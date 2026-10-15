@@ -243,6 +243,38 @@ pub fn is_full_pinyin_code(code: &str, boundary: u64) -> bool {
         .is_some_and(|syls| syls.iter().all(|s| TRIE.is_syllable(s)))
 }
 
+
+/// 心晴：组字串里有没有切不出来的拼音（R1b 拼音手误，产品书 04 第 3 节、ADR 0041）。
+///
+/// 全拼允许简拼（`zg`、`bjdx`），所以“合法”放得很宽：只要能切成若干段、每段都是某个标准音节的前缀
+/// （完整音节也是自己的前缀）就算合法；`'` 是用户手动分隔，各段分别判断。切不动的才算非法，
+/// 如 `ii`、`uu`、`zhv`、`vb`——这些在全拼里打不出任何字，多半是手误。
+/// 含大写、数字、非 ASCII 等字符时不判断（返回 `false`），那不是在打全拼。
+pub fn has_invalid_syllable(code: &str) -> bool {
+    static TRIE: std::sync::LazyLock<SyllableTrie> = std::sync::LazyLock::new(SyllableTrie::new);
+    if code.is_empty() || !code.bytes().all(|b| b.is_ascii_lowercase() || b == b'\'') {
+        return false;
+    }
+    code.split('\'').filter(|p| !p.is_empty()).any(|part| {
+        let n = part.len();
+        let mut reach = vec![false; n + 1];
+        reach[0] = true;
+        for i in 0..n {
+            if !reach[i] {
+                continue;
+            }
+            for j in i + 1..=n {
+                if TRIE.is_prefix(&part[i..j]) {
+                    reach[j] = true;
+                } else {
+                    break;
+                }
+            }
+        }
+        !reach[n]
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -364,6 +396,18 @@ mod tests {
 
     /// 刻意**不**收的读音（取舍理由见 [`STANDARD_SYLLABLES`] 尾部注释）：
     /// 台湾国语 / 方言音 / 非《汉语拼音方案》拼式。锁住决定，免得被按「词库里有」顺手补进来。
+    #[test]
+    fn invalid_syllables_are_flagged_but_abbreviations_are_not() {
+        // 心晴 R1b
+        for ok in ["nihao", "zg", "bjdx", "zhuang", "xi'an", "n", ""] {
+            assert!(!has_invalid_syllable(ok), "{ok}");
+        }
+        for bad in ["ii", "uu", "zhv", "vb", "nihaoii"] {
+            assert!(has_invalid_syllable(bad), "{bad}");
+        }
+        assert!(!has_invalid_syllable("Nihao"), "大写不判断");
+    }
+
     #[test]
     fn nonstandard_readings_stay_out_of_table() {
         let trie = SyllableTrie::new();

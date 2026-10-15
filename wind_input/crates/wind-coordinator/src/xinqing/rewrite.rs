@@ -229,6 +229,13 @@ impl Coordinator {
                 (RewriteSource::Clipboard, text, None)
             }
         };
+        // 删不准原文的宿主：只插入改写结果，原文留着（xinqing.rewrite_insert_apps，ADR 0041）
+        let replace_len = replace_len.filter(|_| {
+            !wind_xinqing_tap::app_listed(
+                &self.rt().config.xinqing.rewrite_insert_apps,
+                &super::focus_app(),
+            )
+        });
         let style = start_style(&self.rt().config.xinqing.rewrite_style);
         let req_id = NEXT_REQ.fetch_add(1, Ordering::Relaxed);
         if !t.send_rewrite_req(RewriteReq {

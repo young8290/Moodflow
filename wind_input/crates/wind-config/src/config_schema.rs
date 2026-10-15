@@ -713,6 +713,7 @@ static REGISTRY: &[ConfigField] = &[
         Enum(crate::config::XINQING_REWRITE_STYLES),
     ),
     f("xinqing.rewrite_clipboard", Bool),
+    f("xinqing.rewrite_insert_apps", StrList),
     f("xinqing.remember_pause", Bool),
     f("xinqing.hub_autostart", Bool),
     // -- debug（调试）--
