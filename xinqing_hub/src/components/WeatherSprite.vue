@@ -27,7 +27,8 @@ const host = ref<HTMLDivElement | null>(null)
 let anim: AnimationItem | null = null
 /** 正在播一次性的段（晃一下、靠近、闭眼 / 睁眼），播完回到循环 */
 let oneShot = false
-const motion = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-reduced-motion: reduce)') : null
+const motion =
+  typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-reduced-motion: reduce)') : null
 
 const reduced = () => motion?.matches ?? false
 const range = (name: SpriteSegment) => segment(SPRITES[props.weather], name)

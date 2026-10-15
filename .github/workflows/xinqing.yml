@@ -111,6 +111,8 @@ jobs:
           python3 tools/check_xqp_scripts.py "$RUNNER_TEMP/xqp"
       - name: 出厂模板校验
         run: python3 tools/check_templates.py hub_templates
+      - name: 小精灵动画与生成脚本一致
+        run: python3 tools/gen_sprite_lottie.py --check
       - name: 危机词表评测与对拍文件一致
         run: |
           python3 eval/tools/check_crisis.py --golden "$RUNNER_TEMP/golden.json"
