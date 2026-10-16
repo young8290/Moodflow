@@ -1,8 +1,8 @@
 //! R1 打错字（FR-STA-04）：字母 X → 600 ms 内退格 → 退格后 800 ms 内字母 Y，
 //! Y ≠ X 且 Y 是 X 在 QWERTY 布局上的相邻键（含对角相邻）。1 秒内最多触发 1 次。
 //!
-//! R1b（非法拼音音节后退格）需要组字内容，而 XQP 只发编码长度，Hub 无法判断；
-//! 需要核心侧在 `comp` 中补一个 `invalid` 标记后再实现（见 docs/adr/0008）。
+//! R1b 拼音手误：组字中出现切不出来的全拼（核心在 `comp{op:"update"}` 里带 `invalid: true`，
+//! ADR 0041）后 600 ms 内退格。与 R1 共用 `typo` 事件和 1 秒去重。
 
 use xqp::KeyKind;
 
@@ -44,6 +44,8 @@ pub struct TypoDetector {
     last_letter: Option<(u64, u8)>,
     backspace_after: Option<(u64, u8)>,
     last_fire: Option<u64>,
+    /// 最近一次组字更新里有切不出来的全拼（R1b）
+    invalid_at: Option<u64>,
 }
 
 impl TypoDetector {
@@ -51,7 +53,23 @@ impl TypoDetector {
         Self::default()
     }
 
-    /// 输入一个按下事件；命中 R1（且不在 1 秒去重期内）时返回 `true`。
+    /// 组字更新（R1b）：`invalid` 为真时记下时刻，否则清掉。
+    pub fn on_comp(&mut self, ts: u64, invalid: bool) {
+        self.invalid_at = invalid.then_some(ts);
+    }
+
+    fn fire(&mut self, ts: u64) -> bool {
+        if self
+            .last_fire
+            .is_none_or(|f| ts.saturating_sub(f) >= DEDUP_MS)
+        {
+            self.last_fire = Some(ts);
+            return true;
+        }
+        false
+    }
+
+    /// 输入一个按下事件；命中 R1 或 R1b（且不在 1 秒去重期内）时返回 `true`。
     pub fn on_key(&mut self, ts: u64, kind: KeyKind, vk: Option<u8>) -> bool {
         match (kind, vk) {
             (KeyKind::Backspace, _) => {
@@ -60,7 +78,11 @@ impl TypoDetector {
                     _ => None,
                 };
                 self.last_letter = None;
-                false
+                let r1b = self
+                    .invalid_at
+                    .take()
+                    .is_some_and(|t| ts.saturating_sub(t) <= BACKSPACE_WITHIN_MS);
+                r1b && self.fire(ts)
             }
             (KeyKind::Letter, Some(y)) => {
                 let hit = match self.backspace_after.take() {
@@ -68,15 +90,7 @@ impl TypoDetector {
                     None => false,
                 };
                 self.last_letter = Some((ts, y));
-                if hit
-                    && self
-                        .last_fire
-                        .is_none_or(|f| ts.saturating_sub(f) >= DEDUP_MS)
-                {
-                    self.last_fire = Some(ts);
-                    return true;
-                }
-                false
+                hit && self.fire(ts)
             }
             _ => {
                 self.last_letter = None;
@@ -124,6 +138,22 @@ mod tests {
         d.on_key(0, KeyKind::Letter, Some(b'S'));
         d.on_key(200, KeyKind::Backspace, Some(8));
         assert!(!d.on_key(400, KeyKind::Letter, Some(b'K')));
+    }
+
+    #[test]
+    fn backspace_soon_after_invalid_pinyin_is_r1b() {
+        let mut d = TypoDetector::new();
+        d.on_key(0, KeyKind::Letter, Some(b'I'));
+        d.on_comp(5, true);
+        assert!(d.on_key(400, KeyKind::Backspace, Some(8)));
+        // 太慢、或组字已经合法了都不算
+        let mut d = TypoDetector::new();
+        d.on_comp(0, true);
+        assert!(!d.on_key(700, KeyKind::Backspace, Some(8)));
+        let mut d = TypoDetector::new();
+        d.on_comp(0, true);
+        d.on_comp(100, false);
+        assert!(!d.on_key(200, KeyKind::Backspace, Some(8)));
     }
 
     #[test]

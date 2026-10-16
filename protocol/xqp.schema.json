@@ -94,7 +94,8 @@
         "ts": { "$ref": "#/$defs/ts" },
         "seq": { "$ref": "#/$defs/seq" },
         "op": { "type": "string", "enum": ["update", "cancel", "clear", "terminated"] },
-        "len": { "type": "integer", "minimum": 0, "maximum": 65535, "description": "编码长度，不含编码内容" }
+        "len": { "type": "integer", "minimum": 0, "maximum": 65535, "description": "编码长度，不含编码内容" },
+        "invalid": { "type": "boolean", "description": "只在 update 且全拼组字串里有切不出来的音节时为 true（R1b，ADR 0041），不含编码内容" }
       }
     },
     "up_cand": {

@@ -155,6 +155,17 @@ impl AppFilter {
     }
 }
 
+/// 进程名是否命中一组通配符（`*` / `?`，忽略大小写），不含内置排除项。
+/// 温柔改写的“只插入不替换”名单用它（`xinqing.rewrite_insert_apps`，ADR 0041）。
+pub fn app_listed<S: AsRef<str>>(patterns: &[S], app: &str) -> bool {
+    let name = fold(app);
+    patterns
+        .iter()
+        .map(|p| p.as_ref().trim())
+        .filter(|p| !p.is_empty())
+        .any(|p| glob(&fold(p), &name))
+}
+
 fn fold(s: &str) -> Vec<char> {
     s.chars().flat_map(char::to_lowercase).collect()
 }
@@ -183,6 +194,14 @@ fn glob(pat: &[char], s: &[char]) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn app_listed_uses_globs_without_builtin_exclusions() {
+        assert!(app_listed(&["WINWORD.EXE", "*notes*"], "winword.exe"));
+        assert!(app_listed(&["*notes*"], "OneNotesHelper.exe"));
+        assert!(!app_listed(&["winword.exe"], "excel.exe"));
+        assert!(!app_listed::<&str>(&[], "winword.exe"));
+    }
+
     use super::*;
 
     fn gate(

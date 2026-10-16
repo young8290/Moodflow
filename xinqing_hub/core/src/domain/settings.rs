@@ -380,6 +380,12 @@ pub const KEYS: &[KeySpec] = &[
         kind: Kind::Text(SettingItem::Hotkey),
         default: || "ctrl+alt+d".into(),
     },
+    // 开始 / 结束专注（FR-RST-10）：07 第 2 节写“默认不设置”
+    KeySpec {
+        key: "hotkey.focus",
+        kind: Kind::Text(SettingItem::Hotkey),
+        default: || "".into(),
+    },
     KeySpec {
         key: "dev.mode",
         kind: Kind::Bool,

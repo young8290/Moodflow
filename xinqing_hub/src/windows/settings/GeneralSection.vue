@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // 设置中心 · 常规（07 FR-SET-03）：心晴功能总开关（输入法配置 xinqing.enabled）、小组件显示 / 置顶 / 贴边收起 / 不透明度
 // （FR-WGT-01）、颜色模式（DS-COLOR-03）、全局快捷键（FR-ENT-04，ADR 0036）。
-// “晴天收集”是 P2（FR-REV-04），还没有设置键，暂不显示。
+// “晴天收集”（FR-REV-04）的开关 `collection.enabled`：关掉时清空已解锁的装扮（ADR 0040）。
 import { computed, onMounted, reactive, ref } from 'vue'
 import { commands, unwrap, type HotkeyAction, type HotkeyStatus } from '@/api'
 import { errorText, t, type CopyKey } from '@/i18n'

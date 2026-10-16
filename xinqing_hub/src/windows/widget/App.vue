@@ -341,7 +341,13 @@ function onPointerUp(): void {
       @keydown="onKeydown"
     >
       <h1 class="visually-hidden">{{ t('window.widget') }}</h1>
-      <WeatherStage v-if="line" ref="stage" :weather="line.weather" :eyes-closed="line.eyesClosed">
+      <WeatherStage
+        v-if="line"
+        ref="stage"
+        :weather="line.weather"
+        :eyes-closed="line.eyesClosed"
+        :focusing="focus.active.value"
+      >
         <SpriteOutfit v-if="outfit.equipped.value" :item="outfit.equipped.value" />
       </WeatherStage>
       <div class="content">

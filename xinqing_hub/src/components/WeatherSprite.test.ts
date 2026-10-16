@@ -70,6 +70,15 @@ describe('WeatherSprite（lottie）', () => {
     expect(a.playSegments).toHaveBeenLastCalledWith(segment(SPRITES.rain, 'loop'), true)
   })
 
+  it('专注中睁眼的循环换成 focus 段，结束后回到 loop（FR-RST-10）', async () => {
+    const w = mount(WeatherSprite, { props: { weather: 'sunny' } })
+    const a = last()
+    await w.setProps({ focusing: true })
+    expect(a.playSegments).toHaveBeenLastCalledWith(segment(SPRITES.sunny, 'focus'), true)
+    await w.setProps({ focusing: false })
+    expect(a.playSegments).toHaveBeenLastCalledWith(segment(SPRITES.sunny, 'loop'), true)
+  })
+
   it('一开始就闭着眼：直接循环 sleep', () => {
     mount(WeatherSprite, { props: { weather: 'night', eyesClosed: true } })
     expect(last().playSegments).toHaveBeenLastCalledWith(segment(SPRITES.night, 'sleep'), true)
@@ -127,6 +136,7 @@ describe('小精灵动画数据（tools/gen_sprite_lottie.py）', () => {
       expect(seconds(d, 'approach'), w).toBeCloseTo(0.6)
       expect(seconds(d, 'close'), w).toBeGreaterThan(0)
       expect(seconds(d, 'sleep'), w).toBeGreaterThan(0)
+      expect(seconds(d, 'focus'), w).toBeCloseTo(4)
     }
   })
 

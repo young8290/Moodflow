@@ -222,7 +222,7 @@ fn handshake_then_nothing_until_cfg() {
         modified: true,
         ..key(KeyKind::Letter, b'C')
     });
-    tap.hook_comp(CompOp::Update, 1);
+    tap.hook_comp(CompOp::Update, 1, false);
     tap.hook_cand(CandOp::Select, Some(2));
     let mut seqs = Vec::new();
     match hub.recv() {

@@ -93,6 +93,14 @@ describe('首次引导', () => {
     expect(w.find('[data-item=enhanced]').exists()).toBe(false)
   })
 
+  it('勾选温柔改写时给出 AI 内容的告知（FR-RWR-06）', async () => {
+    const w = await toConsentPage()
+    expect(w.find('.rewrite-notice').exists()).toBe(false)
+    await w.find('[data-item=rewrite] input').trigger('change')
+    await flushPromises()
+    expect(w.find('.rewrite-notice').text()).toBe(t('rewrite.first_use_notice'))
+  })
+
   it('不勾选 ① 不能继续；勾选后落库并可继续', async () => {
     const w = await toConsentPage()
     const next = () => w.find('button.primary')

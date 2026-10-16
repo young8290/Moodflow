@@ -4,6 +4,7 @@
 // - loop：4 秒循环——呼吸、眨眼，加上各自配饰的动作；
 // - play('shake')“晃一下”（打错字，0.5 秒）、play('approach')“靠近”（出现暖心话，0.6 秒），播完回到 loop；
 // - eyesClosed 变真时播 close（闭眼）再循环 sleep，变假时倒着播 close（睁眼）再回到 loop；
+// - focusing（专注计时中，FR-RST-10）时睁眼的循环换成 focus 段：眯眼、小眉毛、呼吸放慢的“专心”造型；
 // - 系统关闭动画时不播，只停在 loop / sleep 的第一帧（DS-MOTION-03）；窗口不可见时暂停（DS-MOTION-05）；
 //   闪电 4 秒暗一下，远低于每秒 3 次（DS-MOTION-04）。
 // 颜色不在素材里：每个图层只有一种填充或描边、带一个 class，由下面的 CSS 按设计令牌上色，深浅色与高对比度跟着令牌走。
@@ -15,10 +16,14 @@ import { t } from '@/i18n'
 import { weatherColor, weatherName } from '@/weather'
 import { SPRITES, segment, type SpriteSegment } from './sprite'
 
-const props = withDefaults(defineProps<{ weather: Weather; eyesClosed?: boolean; size?: number }>(), {
-  eyesClosed: false,
-  size: 96,
-})
+const props = withDefaults(
+  defineProps<{ weather: Weather; eyesClosed?: boolean; focusing?: boolean; size?: number }>(),
+  {
+    eyesClosed: false,
+    focusing: false,
+    size: 96,
+  },
+)
 
 export type SpriteAction = 'shake' | 'approach'
 
@@ -33,11 +38,11 @@ const motion =
 const reduced = () => motion?.matches ?? false
 const range = (name: SpriteSegment) => segment(SPRITES[props.weather], name)
 
-/** 回到循环：睁眼是 loop，闭眼是 sleep；关闭动画时只停在那一段的第一帧 */
+/** 回到循环：睁眼是 loop（专注中是 focus），闭眼是 sleep；关闭动画时只停在那一段的第一帧 */
 function rest(): void {
   if (!anim) return
   oneShot = false
-  const [from, to] = range(props.eyesClosed ? 'sleep' : 'loop')
+  const [from, to] = range(props.eyesClosed ? 'sleep' : props.focusing ? 'focus' : 'loop')
   if (reduced()) {
     anim.goToAndStop(from, true)
     return
@@ -98,6 +103,12 @@ watch(
   },
 )
 watch(() => props.weather, load)
+watch(
+  () => props.focusing,
+  () => {
+    if (!oneShot) rest()
+  },
+)
 
 onMounted(() => {
   load()

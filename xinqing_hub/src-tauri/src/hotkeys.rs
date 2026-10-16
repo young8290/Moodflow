@@ -30,13 +30,16 @@ pub enum HotkeyAction {
     Widget,
     /// 打开看板
     Dashboard,
+    /// 开始 / 结束专注（FR-RST-10）：没在专注时按第一个预设（25 分钟）开始，专注中按下结束
+    Focus,
 }
 
 impl HotkeyAction {
-    pub const ALL: [HotkeyAction; 3] = [
+    pub const ALL: [HotkeyAction; 4] = [
         HotkeyAction::Chat,
         HotkeyAction::Widget,
         HotkeyAction::Dashboard,
+        HotkeyAction::Focus,
     ];
 
     /// 对应的设置键。
@@ -45,6 +48,7 @@ impl HotkeyAction {
             HotkeyAction::Chat => "hotkey.chat",
             HotkeyAction::Widget => "hotkey.widget",
             HotkeyAction::Dashboard => "hotkey.dashboard",
+            HotkeyAction::Focus => "hotkey.focus",
         }
     }
 }
@@ -107,6 +111,16 @@ fn run<R: Runtime>(app: &AppHandle<R>, action: HotkeyAction) -> Result<(), crate
     match action {
         HotkeyAction::Chat => windows::open(app, WindowTarget::Chat),
         HotkeyAction::Dashboard => windows::open(app, WindowTarget::Dashboard),
+        HotkeyAction::Focus => {
+            if let Some(focus) = app.try_state::<xinqing_hub_core::focus::FocusHandle>() {
+                if focus.status().active {
+                    focus.stop();
+                } else if let Err(e) = focus.start(xinqing_hub_core::domain::focus::PRESETS[0]) {
+                    crate::hlog!("快捷键开始专注失败：{e}");
+                }
+            }
+            Ok(())
+        }
         HotkeyAction::Widget => match app.get_webview_window(WindowTarget::Widget.label()) {
             Some(w) if w.is_visible()? => Ok(w.hide()?),
             _ => windows::open(app, WindowTarget::Widget),
@@ -187,6 +201,11 @@ mod tests {
                 .unwrap_or_else(|| panic!("{} 没登记", a.setting_key()));
             let d = (spec.default)();
             let d = d.as_str().unwrap();
+            // 空串表示出厂不设（专注快捷键，07 第 2 节）；设了的必须能注册
+            if a == HotkeyAction::Focus {
+                assert_eq!(d, "", "专注快捷键出厂不设");
+                continue;
+            }
             assert!(shortcut(&Hotkey::parse(d).unwrap()).is_some(), "{d}");
         }
     }

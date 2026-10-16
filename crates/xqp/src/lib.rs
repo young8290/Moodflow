@@ -192,6 +192,9 @@ pub enum Up {
         op: CompOp,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         len: Option<u16>,
+        /// 只在 `update` 且组字串里有切不出来的全拼时为 `true`（R1b，ADR 0041）；不带编码内容
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        invalid: Option<bool>,
     },
     Cand {
         ts: u64,

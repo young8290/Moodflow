@@ -93,6 +93,7 @@ vi.mock('@/api', async (orig) => ({
         ? { status: 'error', error: { code: 'autostart.failed', message_key: 'error.generic' } }
         : ok(mocks.autostart),
     autostartSet: mocks.autostartSet,
+    runningApps: async () => ['Code.exe', 'WeChat.exe'],
   },
   events: {
     settingsChanged: { listen: async () => () => {} },
@@ -291,6 +292,18 @@ describe('设置中心 · 常规（FR-SET-03）', () => {
 })
 
 describe('设置中心 · 感知（FR-SET-04）', () => {
+  it('程序名输入框获得焦点时给出正在运行的程序当候选', async () => {
+    const w = await open(SenseSection)
+    const input = w.find('input[list="xq-running-apps"]')
+    expect(w.findAll('#xq-running-apps option')).toHaveLength(0)
+    await input.trigger('focus')
+    await flushPromises()
+    expect(w.findAll('#xq-running-apps option').map((o) => o.attributes('value'))).toEqual([
+      'Code.exe',
+      'WeChat.exe',
+    ])
+  })
+
   it('云端判断是同意 ②：撤回时如实说明已发出的收不回来', async () => {
     const w = await open(SenseSection)
     await group(w, 'cloud').find('input').setValue(false)
@@ -458,6 +471,20 @@ describe('设置中心 · 温柔改写（FR-SET-10）', () => {
     expect(group(w, 'consent').text()).toContain(t('settings.rewrite.usage', { used: 3, cap: 100 }))
     await record(w, 'hk-rewrite', { code: 'KeyG', ctrlKey: true, altKey: true })
     expect(mocks.imeConfigSet).toHaveBeenCalledWith([{ key: 'xinqing.rewrite_hotkey', value: 'ctrl+alt+g' }])
+  })
+
+  it('起始风格与剪贴板来源写输入法配置；没配过时按“更温和”、开着剪贴板显示（ADR 0041）', async () => {
+    const w = await open(RewriteSection)
+    const radios = group(w, 'style').findAll<HTMLInputElement>('input[type=radio]')
+    expect(radios.map((r) => r.element.checked)).toEqual([true, false, false, false])
+    await radios[2]!.trigger('change')
+    await flushPromises()
+    expect(mocks.imeConfigSet).toHaveBeenCalledWith([{ key: 'xinqing.rewrite_style', value: 'concise' }])
+    const clip = group(w, 'sources').find<HTMLInputElement>('input')
+    expect(clip.element.checked).toBe(true)
+    await clip.setValue(false)
+    await flushPromises()
+    expect(mocks.imeConfigSet).toHaveBeenCalledWith([{ key: 'xinqing.rewrite_clipboard', value: false }])
   })
 })
 

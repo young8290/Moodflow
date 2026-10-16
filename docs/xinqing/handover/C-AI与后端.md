@@ -121,7 +121,7 @@ dev 构建默认连这个 mock-ai，启动后 `net_log` 表里会出现一条 `l
 | 危机内容不改写、不出网，记 `safety_log`，推 `safety:invite {source: "rewrite"}` | FR-RWR-05 第 3 条，E 在 ADR 0009 的阻塞项 | 后端完成（ADR 0028 第 4 条，E 的方案 ②）；**一句话区的求助入口与点击打开对话 + 求助卡片是 D 的界面** |
 | `rewrite_log`（来源、风格、第几个、长度、结果，不含文字） | FR-RWR-04，09 D-28 | 完成；`chosen` 记 1～3（ADR 0028 第 6 条），排队写入 |
 | 每种风格缓存 5 分钟 | FR-RWR-02 | 核心一侧已做（A-08），Hub 不重复 |
-| 首次使用说明 | FR-RWR-06 第 3 条 | 未做：归属待 A、C、D 商定 |
+| 首次使用说明 | FR-RWR-06 第 3 条 | 完成（ADR 0041 第 3 条）：Hub 同意 ⑥ 处显示 `rewrite.first_use_notice` |
 | E-REWRITE 评测 | 08 第 8 节 | 未做：要真实接口 |
 
 ### 3.5 C-10 晚间小结（第一部分）

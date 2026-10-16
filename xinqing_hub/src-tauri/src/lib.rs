@@ -20,6 +20,7 @@ mod ime_events;
 mod letter;
 mod notify;
 mod paths;
+mod procs;
 mod pulse;
 mod research;
 mod rest;
@@ -78,6 +79,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::app_restart,
             commands::collection_get,
             commands::collection_equip,
+            commands::running_apps,
             commands::focus_start,
             commands::focus_stop,
             commands::focus_status,
@@ -182,7 +184,13 @@ pub fn run() {
     // 删除全部数据（FR-DAT-04，ADR 0037）：上次确认删除后重启到这里，任何东西打开数据库之前先删
     if let Ok(dir) = paths::hub_data_dir() {
         match xinqing_hub_core::infra::wipe::apply_pending(&dir, secrets::SECRETS_FILE) {
-            Ok(Some(r)) => crate::hlog!("已删除全部心晴数据（{} 个文件）", r.removed.len()),
+            Ok(Some(r)) => {
+                // Hub 的日志文件也一并删掉（FR-DAT-04）；输入法核心的日志归核心管
+                if let Ok(logs) = paths::log_dir() {
+                    runlog::remove_files(&logs);
+                }
+                crate::hlog!("已删除全部心晴数据（{} 个文件）", r.removed.len())
+            }
             Ok(None) => {}
             // 删不掉（文件被占用）时标记留着，下次启动接着删
             Err(e) => crate::hlog!("删除全部数据未完成，下次启动重试：{e}"),
@@ -220,6 +228,11 @@ pub fn run() {
         )
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
+            // 日志文件（NFR-LOG-02/03）：到这里才是唯一的那个实例（第二个实例在单实例插件里就退出了，
+            // 不能去滚动正在写的文件）；前面记在内存里的行会补写进去
+            if let Ok(dir) = paths::log_dir() {
+                runlog::open_file(&dir);
+            }
             builder.mount_events(app);
             let data_dir = paths::hub_data_dir()?;
             let state = if sim::demo() {

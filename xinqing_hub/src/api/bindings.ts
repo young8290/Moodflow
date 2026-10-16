@@ -108,6 +108,8 @@ export const commands = {
 	collectionGet: () => typedError<CollectionView, UiError>(__TAURI_INVOKE("collection_get")),
 	/**  换装（FR-WGT-08）：穿上一件已解锁的，或 `item` 为空时脱下。同一时间只穿一件。推送 `collection:changed`。 */
 	collectionEquip: (item: string | null) => typedError<CollectionView, UiError>(__TAURI_INVOKE("collection_equip", { item })),
+	/**  正在运行的程序名（只有可执行文件名，去掉系统进程、按名字排序），给设置页的程序名单当候选。 */
+	runningApps: () => __TAURI_INVOKE<string[]>("running_apps"),
 	/**  开始专注（FR-RST-10），时长 10–120 分钟；已经在专注时报错。 */
 	focusStart: (minutes: number) => typedError<FocusStatus, UiError>(__TAURI_INVOKE("focus_start", { minutes })),
 	/**  结束专注（随时可以，不做任何评价），返回这次的小结；没在专注时为空。小结也会以 `focus:done` 推送。 */
@@ -732,7 +734,9 @@ export type HotkeyAction =
 /**  显示 / 隐藏小组件（FR-WGT-01） */
 "widget" | 
 /**  打开看板 */
-"dashboard";
+"dashboard" | 
+/**  开始 / 结束专注（FR-RST-10）：没在专注时按第一个预设（25 分钟）开始，专注中按下结束 */
+"focus";
 
 /**  一项快捷键现在的样子（设置页“常规”分类）。 */
 export type HotkeyStatus = {

@@ -6778,6 +6778,17 @@ pub struct XinqingConfig {
     /// 温柔改写快捷键（FR-RWR-01），`"none"` 或空串表示不绑。
     #[serde(default = "default_xinqing_rewrite_hotkey")]
     pub rewrite_hotkey: String,
+    /// 心晴：温柔改写一开始用哪种风格（FR-RWR-03，ADR 0041）：`gentle` / `polite` / `concise` / `structured`，
+    /// 认不出的值按 `gentle`。之后在候选框里按 Tab 照常轮换。
+    #[serde(default = "default_xinqing_rewrite_style")]
+    pub rewrite_style: String,
+    /// 心晴：没有最近上屏的文字时，是否改写剪贴板里的文字（FR-RWR-01 的第二来源，ADR 0041）。
+    #[serde(default = "default_true")]
+    pub rewrite_clipboard: bool,
+    /// 心晴：在这些程序里改写“最近上屏”的文字时只插入、不替换原文（ReplaceBackward 在个别宿主里删不准，
+    /// FR-RWR-04，ADR 0041）。通配符 `*` / `?`，忽略大小写；出厂为空，兼容测试发现问题的宿主再加进来。
+    #[serde(default)]
+    pub rewrite_insert_apps: Vec<String>,
     /// 是否记住无痕状态；不记住时每次启动都从“未暂停”开始，免得用户忘了重新打开。
     #[serde(default)]
     pub remember_pause: bool,
@@ -6812,6 +6823,13 @@ fn default_xinqing_rewrite_hotkey() -> String {
     "ctrl+alt+r".into()
 }
 
+/// 心晴：温柔改写的四种风格（与 XQP `RewriteStyle` 的写法一致）。
+pub const XINQING_REWRITE_STYLES: &[&str] = &["gentle", "polite", "concise", "structured"];
+
+fn default_xinqing_rewrite_style() -> String {
+    "gentle".into()
+}
+
 impl Default for XinqingConfig {
     fn default() -> Self {
         Self {
@@ -6820,6 +6838,9 @@ impl Default for XinqingConfig {
             app_allowlist: Vec::new(),
             pause_hotkey: default_xinqing_pause_hotkey(),
             rewrite_hotkey: default_xinqing_rewrite_hotkey(),
+            rewrite_style: default_xinqing_rewrite_style(),
+            rewrite_clipboard: true,
+            rewrite_insert_apps: Vec::new(),
             remember_pause: false,
             hub_autostart: true,
         }

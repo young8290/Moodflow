@@ -27,6 +27,8 @@ pub enum WinEvent {
         ts: u64,
         op: CompOp,
         len: Option<u16>,
+        /// 组字串里有切不出来的全拼（R1b，ADR 0041）
+        invalid: bool,
     },
     Cand {
         ts: u64,
@@ -162,13 +164,20 @@ impl WindowCutter {
                 }
                 None
             }
-            Up::Comp { ts, op, len, .. } => {
+            Up::Comp {
+                ts,
+                op,
+                len,
+                invalid,
+                ..
+            } => {
                 self.in_comp = matches!(op, CompOp::Update) && len.unwrap_or(1) > 0;
                 if let Some(w) = &mut self.cur {
                     w.events.push(WinEvent::Comp {
                         ts: *ts,
                         op: *op,
                         len: *len,
+                        invalid: *invalid == Some(true),
                     });
                 }
                 None
@@ -339,6 +348,7 @@ mod tests {
             seq: None,
             op: CompOp::Update,
             len: Some(2),
+            invalid: None,
         }
     }
 

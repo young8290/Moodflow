@@ -100,6 +100,14 @@ function close(): void {
         <input type="checkbox" :checked="e.granted" :disabled="busy" @change="toggle(e.item, !e.granted)" />
         <span>{{ NUMBER[e.item] }} {{ t(`consent.${e.item}`) }}</span>
       </label>
+      <!-- FR-RWR-06：同意温柔改写时告知一次（文字会发出去；公开发布 AI 生成内容要主动说明，ADR 0041） -->
+      <p
+        v-if="mainItems.some((e) => e.item === 'rewrite' && e.granted)"
+        class="muted rewrite-notice"
+        role="note"
+      >
+        {{ t('rewrite.first_use_notice') }}
+      </p>
       <p v-if="!canContinue" class="muted">{{ t('onboarding.sense_required') }}</p>
       <div class="actions">
         <button @click="step = 'notice'">{{ t('onboarding.btn_back') }}</button>

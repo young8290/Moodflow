@@ -243,6 +243,7 @@ export const HUB_HOTKEYS = [
   { action: 'chat', key: 'hotkey.chat', label: 'settings.general.hotkey_chat' },
   { action: 'widget', key: 'hotkey.widget', label: 'settings.general.hotkey_widget' },
   { action: 'dashboard', key: 'hotkey.dashboard', label: 'settings.general.hotkey_dashboard' },
+  { action: 'focus', key: 'hotkey.focus', label: 'settings.general.hotkey_focus' },
 ] as const satisfies readonly { action: string; key: string; label: CopyKey }[]
 
 /**

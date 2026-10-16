@@ -73,6 +73,8 @@ pub struct WeekFacts {
     /// 这周各晚的平均停止打字时间（作息洞察，分钟数，18:00 = 1080）与熬夜天数
     pub avg_stop_min: Option<u32>,
     pub late_nights: u32,
+    /// 这周得的晴天值（FR-REV-04）；关闭晴天收集时为 `None`，统计里不出现这一项
+    pub sunny_points: Option<u32>,
 }
 
 impl WeekFacts {
@@ -107,6 +109,9 @@ pub struct WeeklyStats {
     pub stop_avg: Option<String>,
     pub late_nights: u32,
     pub self_reports: u32,
+    /// 晴天值变化（FR-REV-02 输入）；关闭晴天收集时不出现
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sunny_points: Option<u32>,
 }
 
 /// 时段（04 的五段划分）：05–11 上午、11–14 中午、14–18 下午、18–23 晚上、23–05 深夜。深夜算前一天。
@@ -223,6 +228,7 @@ pub fn stats(f: &WeekFacts) -> WeeklyStats {
         stop_avg: f.avg_stop_min.map(clock_cn),
         late_nights: f.late_nights,
         self_reports: f.self_reports,
+        sunny_points: f.sunny_points,
     }
 }
 
@@ -507,6 +513,7 @@ mod tests {
             self_reports: 1,
             avg_stop_min: Some(23 * 60 + 10),
             late_nights: 0,
+            sunny_points: Some(9),
         }
     }
 
@@ -610,5 +617,15 @@ mod tests {
         assert!(!s.contains("{style_block}"));
         let s = p.render(Style::Brief, "{}");
         assert!(s.contains(Style::Brief.style_block()));
+    }
+
+    #[test]
+    fn sunny_points_join_the_stats_only_when_collection_is_on() {
+        let mut f = facts();
+        let json = serde_json::to_string(&stats(&f)).unwrap();
+        assert!(json.contains("\"sunny_points\":9"), "{json}");
+        f.sunny_points = None;
+        let json = serde_json::to_string(&stats(&f)).unwrap();
+        assert!(!json.contains("sunny_points"));
     }
 }

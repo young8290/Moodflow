@@ -58,6 +58,13 @@ pub const HUB_EXE: &str = "xinqing_hub.exe";
 pub const HUB_EXE: &str = "xinqing_hub";
 
 static TAP: OnceLock<Arc<Tap>> = OnceLock::new();
+/// 心晴：当前焦点所在的进程名（小写，空串表示未知）。温柔改写判断“只插入不替换”名单用（ADR 0041）。
+static FOCUS_APP: Mutex<String> = Mutex::new(String::new());
+
+/// 心晴：当前焦点所在的进程名（小写，空串表示未知）。
+pub(crate) fn focus_app() -> String {
+    FOCUS_APP.lock().unwrap_or_else(|e| e.into_inner()).clone()
+}
 /// 下行回调要回到协调器（记住 Hub 发来的无痕状态）；弱引用，不延长协调器寿命。
 static COORD: OnceLock<Weak<Coordinator>> = OnceLock::new();
 static GUARD: OnceLock<Arc<HubGuard>> = OnceLock::new();
@@ -519,6 +526,8 @@ pub fn downlink(msg: Down) {
 pub(crate) struct CompSnap {
     pub len: usize,
     pub page: usize,
+    /// 心晴：全拼组字串里有切不出来的音节（R1b，ADR 0041）。双拼、码表方案恒为 false。
+    pub invalid: bool,
 }
 
 /// 取当前组字快照；没装 Tap 时返回 `None`，调用方据此跳过钩子、不取锁。
@@ -526,9 +535,15 @@ pub(crate) fn snap(c: &crate::coordinator::Coordinator) -> Option<CompSnap> {
     tap()?;
     let _t = perf::hook_timer();
     let s = c.state.lock().unwrap_or_else(|e| e.into_inner());
+    let full_pinyin = matches!(
+        c.engine_mgr.current_engine_type(),
+        Some(wind_engine::EngineType::Pinyin)
+    ) && !c.engine_mgr.pinyin_is_shuangpin();
     Some(CompSnap {
         len: s.input_buffer.chars().count(),
         page: s.current_page,
+        invalid: full_pinyin
+            && wind_engine::pinyin::syllable::has_invalid_syllable(&s.input_buffer),
     })
 }
 
@@ -644,14 +659,18 @@ pub(crate) fn after_key(data: &KeyEventData, before: CompSnap, after: CompSnap) 
     }
     if after.len > 0 {
         if after.len != before.len {
-            tap.hook_comp(CompOp::Update, after.len.min(u16::MAX as usize) as u16);
+            tap.hook_comp(
+                CompOp::Update,
+                after.len.min(u16::MAX as usize) as u16,
+                after.invalid,
+            );
         } else if before.len > 0 && after.page != before.page {
             tap.hook_cand(CandOp::Page, None);
         }
     } else if before.len > 0 {
         match key_kind(data.key_code) {
-            Some(KeyKind::Esc) => tap.hook_comp(CompOp::Cancel, 0),
-            Some(KeyKind::Backspace) => tap.hook_comp(CompOp::Clear, 0),
+            Some(KeyKind::Esc) => tap.hook_comp(CompOp::Cancel, 0, false),
+            Some(KeyKind::Backspace) => tap.hook_comp(CompOp::Clear, 0, false),
             // 其余是上屏结束了组字，上屏钩子已经发过
             _ => {}
         }
@@ -698,6 +717,7 @@ pub(crate) fn on_commit(text: &str, keystrokes: u32, cand_pos: i32, source: Comm
 
 /// 焦点或输入框类型变化（FR-SEN-03）。`app` 是小写进程名，空串表示未知。
 pub(crate) fn on_focus(app: &str, scope: Scope) {
+    *FOCUS_APP.lock().unwrap_or_else(|e| e.into_inner()) = app.to_string();
     let Some(tap) = tap() else {
         return;
     };
@@ -768,7 +788,7 @@ pub(crate) fn on_selection_changed() {
 /// 宿主终止了组字（FR-SEN-04）。
 pub(crate) fn on_comp_terminated() {
     if let Some(tap) = tap() {
-        tap.hook_comp(CompOp::Terminated, 0);
+        tap.hook_comp(CompOp::Terminated, 0, false);
     }
 }
 
