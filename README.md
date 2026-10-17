@@ -1,5 +1,5 @@
 <!-- 心晴：本仓是私有分支，下面一段说明不是上游内容 -->
-> **心晴（XinQing）**：本仓是清风输入法 (WindInput) 的非官方私有分支，与原项目及其作者无关。
+> **Moodflow（原名心晴，代码与目录里仍叫 XinQing）**：本仓是清风输入法 (WindInput) 的非官方私有分支，与原项目及其作者无关。
 > 心晴新增部分（Hub、XQP 协议、开发工具）的说明见 [docs/xinqing/README.md](docs/xinqing/README.md)，协作约定见 [AGENTS.md](AGENTS.md)。
 
 <p align="center">

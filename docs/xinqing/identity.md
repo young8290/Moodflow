@@ -29,7 +29,7 @@ python3 scripts/xinqing/rebrand.py --check  # CI 同样会跑这一步，有残�
 | 注册表 | `HKLM\Software\WindInput[Dev]` | `HKLM\Software\XinQing[Dev]` | `Globals.h`（`WIND_APP_REGKEY`）、`tsf_profile_name.rs`、`dev.ps1` |
 | 内核对象 | `Local\WindInput_*`、`Local\WindInputIMEService*` | `Local\XinQing_*`、`Local\XinQingIMEService*` | `wind-ipc`、`wind-bridge`、`apps/service`、`Globals.h` |
 | 窗口类名 / 窗口消息 | `WindInputCandidate`、`WindInputHotkeyWnd`、`WindInputHotkeyRetry_v1` 等 | `XinQing…` | `wind-ui`、`wind_tsf/src` |
-| 显示名 | 清风输入法（开发版） | 心晴输入法（开发版） | `Globals.h`、`LangBarItemButton.cpp`、`version.rc.in`、`build.rs`、协调器文案 |
+| 显示名 | 清风输入法（开发版） | Moodflow 输入法（开发版）（ADR 0045 起；之前叫心晴输入法） | `Globals.h`、`LangBarItemButton.cpp`、`version.rc.in`、`build.rs`、协调器文案 |
 | 安装目录 | `C:\Program Files\WindInput[Dev]` | `C:\Program Files\XinQing[Dev]` | `dev.ps1`、`config/app.toml` |
 | 核心服务 exe | `wind_input[_dev].exe` | `xinqing_core[_dev].exe` | `dev.ps1`、`dev.sh`、`remote-build.*`、`pack-installer.sh`、`wind_cli.bat`、`Globals.h`（`WIND_SERVICE_EXE`）、`build.rs`、`config/app.toml` |
 | TSF DLL | `wind_tsf[_x86][_dev].dll` | `xinqing_tsf[_x86][_dev].dll` | `CMakeLists.txt`、`Makefile`、`version.rc.in`、`wind_tsf.def`、上述脚本 |
