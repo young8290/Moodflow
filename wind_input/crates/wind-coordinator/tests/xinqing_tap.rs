@@ -785,7 +785,10 @@ fn coordinator_events_reach_hub() {
     assert_eq!(user_enabled(&user), Some(false));
     wait_until(|| guard.state() == GuardState::Idle);
     let labels = coord.debug_main_menu_labels();
-    assert!(labels.iter().any(|l| l == "开启 Moodflow 功能"), "{labels:?}");
+    assert!(
+        labels.iter().any(|l| l == "开启 Moodflow 功能"),
+        "{labels:?}"
+    );
     assert!(!labels.iter().any(|l| l == "和晴晴聊聊"));
     assert_eq!(
         coord.debug_xinqing_toolbar_cell(),

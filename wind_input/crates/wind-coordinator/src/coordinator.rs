@@ -14971,9 +14971,15 @@ mod initial_mode_tests {
             "Moodflow 输入法 - 英文大写 (中文模式, Caps Lock)"
         );
         set(false, true);
-        assert_eq!(c.langbar_tooltip(), "Moodflow 输入法 - 英文模式 (Caps Lock 开)");
+        assert_eq!(
+            c.langbar_tooltip(),
+            "Moodflow 输入法 - 英文模式 (Caps Lock 开)"
+        );
         set(false, false);
-        assert_eq!(c.langbar_tooltip(), "Moodflow 输入法 - 英文模式 (Caps Lock 关)");
+        assert_eq!(
+            c.langbar_tooltip(),
+            "Moodflow 输入法 - 英文模式 (Caps Lock 关)"
+        );
 
         // ★★ 不可输入那两档要先稳够 INPUT_BLOCK_DELAY 才呈现——tooltip 与图标读**同一个**
         // effective_input_block，所以文案也跟着迟滞。这是对的：图标还显着方案标签、
