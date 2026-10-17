@@ -13,8 +13,12 @@ use tracing::error;
 /// - `(A;;GA;;;SY)` — SYSTEM 完全访问
 /// - `(A;;GA;;;BA)` — Administrators 完全访问
 /// - `(A;;GA;;;AC)` — AppContainer 完全访问（UWP/Store 应用必需）
+/// - `(A;;GRGWGX;;;S-1-15-2-2)` — ALL RESTRICTED APPLICATION PACKAGES 读、写、等待：LPAC 宿主
+///   （如新版搜索框）不在 `AC` 里，缺这一条就连不上管道、打不开共享内存与事件。只给读写与
+///   SYNCHRONIZE（事件等待需要 GX），不给建实例与改 ACL（XSIME 同口径，见
+///   docs/design/xsime-feature-port-plan.md §3.6）
 /// - `S:(ML;;NW;;;LW)` — 低完整性级别（UWP 进程必需）
-pub(crate) const SDDL: &str = "D:P(A;;GA;;;WD)(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;AC)S:(ML;;NW;;;LW)";
+pub(crate) const SDDL: &str = "D:P(A;;GA;;;WD)(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;AC)(A;;GRGWGX;;;S-1-15-2-2)S:(ML;;NW;;;LW)";
 
 /// SDDL_REVISION_1 = 1
 const SDDL_REVISION_1: u32 = 1;
@@ -94,4 +98,17 @@ pub fn shared_object_security_descriptor() -> Option<SecurityDescriptor> {
 /// SecurityDescriptor 必须保持存活直到 CreateNamedPipe 调用完成。
 pub(crate) fn create_pipe_security_attributes() -> Option<SecurityDescriptor> {
     SecurityDescriptor::from_sddl(SDDL)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SDDL;
+
+    #[test]
+    fn lpac_hosts_get_read_write_and_synchronize_only() {
+        assert!(SDDL.contains("(A;;GRGWGX;;;S-1-15-2-2)"));
+        assert!(!SDDL.contains("(A;;GA;;;S-1-15-2-2)"), "LPAC 不给完全访问");
+        // 完整性标签必须留在 SACL 末尾，否则低完整性进程连不上。
+        assert!(SDDL.ends_with("S:(ML;;NW;;;LW)"));
+    }
 }

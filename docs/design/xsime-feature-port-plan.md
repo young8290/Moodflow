@@ -340,10 +340,10 @@ Buffer 是 AI/翻译二批的地基；并击风险最高（TSF keyup），放最
 
 **核查结论**
 
-- §3.6 LPAC：`moodflow-bridge/src/security.rs` 的管道 SDDL 只放行 `WD`、`SY`、`BA`、`AC`，没有
-  `ALL RESTRICTED APPLICATION PACKAGES`（`S-1-15-2-2`），LPAC 宿主（如新版搜索框）预计连不上。
-  建议补 `(A;;GRGW;;;S-1-15-2-2)` 并保留对客户端 SID/会话/PID 的校验；涉及安全边界，**须在 Windows 真机上验证后再改**。
-  另：现有 `WD`/`AC` 为 `GA`（完全访问），XSIME 只给读 + 写数据、不给建实例与改 ACL，可一并收窄。
+- §3.6 LPAC：**已补**（2026-10-17）。管道、共享内存与命名事件共用的 SDDL 原先只放行 `WD`、`SY`、`BA`、`AC`，
+  LPAC 宿主（如新版搜索框）不在 `AC` 里、连不上。现加 `(A;;GRGWGX;;;S-1-15-2-2)`：读、写与等待（事件等待需要
+  SYNCHRONIZE），不给建实例与改 ACL；单测见 `moodflow-bridge/src/security.rs`（仅 Windows 编译）。
+  **待真机确认** LPAC 宿主里能出字。现有 `WD`/`AC` 的 `GA` 收窄为读写须另行在真机回归后再改，本次未动。
 - §3.6 无组字时的写编辑会话：`UpdateComposition` 对文本与光标未变的请求直接跳过，模式切换不经它，预计已满足；需真机抓日志确认。
 - §3.8 竖排溢出分列：候选窗按工作区钳制宽度与旋转态高度，未见「放不下时增加列」的逻辑，需真机看长竖排是否被截断。
 
