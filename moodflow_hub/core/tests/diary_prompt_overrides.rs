@@ -1,9 +1,9 @@
 //! C-10：用户日记提示词覆盖、启动校验与出厂安全约束。
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use moodflow_hub_core::domain::diary::{DiaryCopy, DiaryPrompt, Reject, check_draft};
 use moodflow_hub_core::domain::validate::BannedWords;
 use moodflow_hub_core::infra::templates::TemplateDirs;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 const PROMPT: &str = "<!-- version: 42 -->\n<!-- 自定义注释不出网 -->\n自定义日记\n摘要：{summary}\n要点：{chat_digest}";

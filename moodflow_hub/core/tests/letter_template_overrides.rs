@@ -1,9 +1,9 @@
 //! C-10：周信提示词与配套文案的独立覆盖、校验和回退。
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use moodflow_hub_core::domain::comfort::Style;
 use moodflow_hub_core::domain::letter::{LetterFallback, LetterPrompt, WeekFacts, stats};
 use moodflow_hub_core::infra::templates::TemplateDirs;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 const LINE: &str = "给自己留一点安静的时间。";

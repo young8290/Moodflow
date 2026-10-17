@@ -1,6 +1,6 @@
-use std::path::PathBuf;
 use moodflow_hub_core::domain::letter::{LetterFallback, WeekFacts, stats};
 use moodflow_hub_core::infra::templates::TemplateDirs;
+use std::path::PathBuf;
 
 #[test]
 fn fallback_override_renders_optional_data_and_rejects_broken_syntax() {

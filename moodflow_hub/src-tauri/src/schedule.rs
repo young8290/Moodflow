@@ -72,10 +72,12 @@ impl ScheduleCopy {
                     )
                     .is_some()
             {
-                return Err(moodflow_hub_core::infra::templates::TemplateError::Invalid {
-                    file: "ui_copy.toml",
-                    reason: "日程导出说明版本或正文校验失败",
-                });
+                return Err(
+                    moodflow_hub_core::infra::templates::TemplateError::Invalid {
+                        file: "ui_copy.toml",
+                        reason: "日程导出说明版本或正文校验失败",
+                    },
+                );
             }
             Ok(raw.schedule)
         })?)

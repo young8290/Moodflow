@@ -1,7 +1,7 @@
-use std::path::PathBuf;
 use moodflow_hub_core::domain::chat::{ChatMode, ChatPrompts};
 use moodflow_hub_core::domain::comfort::Style;
 use moodflow_hub_core::infra::templates::TemplateDirs;
+use std::path::PathBuf;
 
 #[test]
 fn ordinary_chat_and_modes_override_independently_while_safe_prompt_stays_factory() {

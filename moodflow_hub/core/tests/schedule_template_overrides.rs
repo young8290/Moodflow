@@ -1,7 +1,7 @@
 use chrono::NaiveDate;
-use std::path::PathBuf;
 use moodflow_hub_core::domain::schedule::{CandidateKind, ExtractPrompts, ScheduleRecognizer};
 use moodflow_hub_core::infra::templates::TemplateDirs;
+use std::path::PathBuf;
 
 #[test]
 fn schedule_and_todo_prompts_override_independently() {

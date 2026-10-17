@@ -1,7 +1,7 @@
-use std::path::PathBuf;
+use mfp::RewriteStyle;
 use moodflow_hub_core::domain::rewrite::RewritePrompt;
 use moodflow_hub_core::infra::templates::TemplateDirs;
-use mfp::RewriteStyle;
+use std::path::PathBuf;
 
 #[test]
 fn rewrite_override_validates_required_fields_and_falls_back() {

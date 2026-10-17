@@ -1,6 +1,6 @@
-use std::path::PathBuf;
 use moodflow_hub_core::domain::reminder::{RemindKind, ReminderCopy, Subject};
 use moodflow_hub_core::infra::templates::TemplateDirs;
+use std::path::PathBuf;
 
 #[test]
 fn reminder_override_keeps_subjects_actions_and_rejects_broken_fields() {
