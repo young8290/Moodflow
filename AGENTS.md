@@ -156,6 +156,10 @@ CI 承接）、CI 另有 `cargo tree` 断言 coordinator 无 moodflow-ui 依赖�
 **禁止 `git add -A` / `git add .`**——会把其它会话未提交的文件一起卷入提交。
 提交前 `git status` 确认暂存区只含自己改的文件。
 
+**小改动直接提交到 `main`，大改动才开 PR**（维护者定，2026-10-17）：文档修正、措辞、单文件的小修补
+直接在 `main` 上提交并推送，不开分支、不开 PR；新增模块、大块功能或大量代码才走分支 + PR。
+直接推 `main` 前照样跑完对应的检查（fmt / clippy / 测试），提交信息格式不变。
+
 提交信息保持常规工程风格（`type(scope): 摘要`，中文正文）：**不要**添加
 `Co-Authored-By`、`Generated with` 以及 `Constraint:` / `Confidence:` / `Tested:` 等
 AI 附加 trailer。
