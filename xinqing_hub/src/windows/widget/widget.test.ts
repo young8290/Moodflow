@@ -92,6 +92,8 @@ vi.mock('@/api', async (orig) => ({
         : ok({ enabled: false, points: 0, next_item: null, next_need: 0, items: [], equipped: null }),
     collectionEquip: mocks.collectionEquip,
     focusStop: mocks.focusStop,
+    petSheet: (id: string) =>
+      ok({ id, builtin: true, version: 1, sheet: 'data:,sheet', body: 'data:,body', lines: 'data:,lines' }),
     todoList: (status: string) =>
       ok(Array.from({ length: status === 'open' ? mocks.openTodos : 0 }, (_, i) => ({ id: i }))),
   },
@@ -339,9 +341,43 @@ describe('小组件', () => {
     await items[0]!.trigger('click')
     await flushPromises()
     expect(mocks.collectionEquip).toHaveBeenCalledWith('straw_hat')
-    expect(w.find('.stage .outfit').attributes('data-item')).toBe('straw_hat')
+    expect(w.find('.pet-wrap .outfit').attributes('data-item')).toBe('straw_hat')
     expect(w.text()).not.toMatch(/断签|连续/)
     mocks.collection = null
+  })
+
+  it('桌宠：内置晴晴按天气上色；打错字吓一跳，暂停时打盹且不表演（ADR 0044）', async () => {
+    const w = await mountWidget()
+    const pet = w.find('.pet-wrap')
+    expect(pet.attributes('data-state')).toBe('idle')
+    // 两层：身体蒙版按天气色上色，线条叠在上面
+    const layers = pet.findAll('.layer')
+    expect(layers).toHaveLength(2)
+    expect(layers[0]!.attributes('style')).toContain('var(--xq-w-cloudy)')
+    mocks.emitTypo!()
+    await flushPromises()
+    expect(pet.attributes('data-state')).toBe('jumping')
+    mocks.emitStatus!({ ...mocks.snapshot, paused: true })
+    await flushPromises()
+    expect(pet.attributes('data-state')).toBe('jumping')
+  })
+
+  it('桌宠：单击（没拖动）打开对话；气泡平时收着，新消息来了才出现', async () => {
+    const w = await mountWidget()
+    expect(w.find('.bubble').classes()).not.toContain('open')
+    // 状态行仍在页面里，读屏读得到
+    expect(w.find('.status').exists()).toBe(true)
+    const pet = w.find('.pet-wrap')
+    await pet.trigger('pointerdown')
+    await pet.trigger('pointerup')
+    await flushPromises()
+    expect(mocks.openWindow).toHaveBeenCalledWith('chat')
+    expect(pet.attributes('data-state')).toBe('waving')
+    mocks.emitComfort!({ id: 9, text: '慢慢来。', source: 'template', ai_generated: false, trigger: 'auto' })
+    await flushPromises()
+    // 新的暖心话（逐字出现）：气泡亮起来，宠物招手
+    expect(w.find('.bubble').classes()).toContain('open')
+    expect(pet.attributes('data-state')).toBe('waving')
   })
 
   it('已暂停时菜单给“恢复感知”', async () => {

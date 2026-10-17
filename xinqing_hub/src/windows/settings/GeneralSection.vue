@@ -1,11 +1,12 @@
 <script setup lang="ts">
 // 设置中心 · 常规（07 FR-SET-03）：心晴功能总开关（输入法配置 xinqing.enabled）、小组件显示 / 置顶 / 贴边收起 / 不透明度
 // （FR-WGT-01）、颜色模式（DS-COLOR-03）、全局快捷键（FR-ENT-04，ADR 0036）。
-// “晴天收集”（FR-REV-04）的开关 `collection.enabled`：关掉时清空已解锁的装扮（ADR 0040）。
+// “晴天收集”（FR-REV-04）的开关 `collection.enabled`：关掉时清空已解锁的装扮（ADR 0040）。桌宠（ADR 0044）见 PetSettings。
 import { computed, onMounted, reactive, ref } from 'vue'
 import { commands, unwrap, type HotkeyAction, type HotkeyStatus } from '@/api'
 import { errorText, t, type CopyKey } from '@/i18n'
 import HotkeyRecorder from './HotkeyRecorder.vue'
+import PetSettings from './PetSettings.vue'
 import SectionHead from './SectionHead.vue'
 import { HUB_HOTKEYS, UNSET, hotkeyOwner, hubHotkeyOk } from './hotkey'
 import { useHubSettings } from './useHubSettings'
@@ -37,6 +38,7 @@ const { error, notice, ready, flash, bool, num, text, range, options, save, rest
 // 总开关不随“恢复默认”改：关着时恢复默认不该悄悄重新打开感知
 const { available: imeReady, error: imeError, get: imeGet, set: imeSet } = useImeKeys([])
 
+const petSettings = ref<InstanceType<typeof PetSettings> | null>(null)
 const status = ref<HotkeyStatus[]>([])
 const hotkeyError = reactive<Record<string, string | null>>({})
 
@@ -98,6 +100,7 @@ async function setEnabled(on: boolean): Promise<void> {
 async function restoreAll(): Promise<void> {
   for (const k of Object.keys(hotkeyError)) hotkeyError[k] = null
   await restore()
+  await petSettings.value?.restore()
   await loadStatus()
   // 出厂是关着的
   if (loginStart.value) await setLoginStart(false)
@@ -168,6 +171,8 @@ async function restoreAll(): Promise<void> {
         <output>{{ t('settings.percent', { n: opacity }) }}</output>
       </label>
     </fieldset>
+
+    <PetSettings ref="petSettings" />
 
     <fieldset class="s-group" data-group="collection">
       <legend>{{ t('settings.general.collection') }}</legend>

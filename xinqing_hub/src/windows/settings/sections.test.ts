@@ -22,6 +22,10 @@ const mocks = vi.hoisted(() => ({
   emit: vi.fn(),
   autostart: false as boolean | null,
   autostartSet: vi.fn(),
+  pets: [] as { id: string; name: string; description: string; builtin: boolean; version: number }[],
+  petImport: vi.fn(),
+  petRemove: vi.fn(),
+  found: [] as { path: string; id: string; name: string; source: string; imported: boolean }[],
 }))
 const ok = (data: unknown = null) => Promise.resolve({ status: 'ok', data })
 const ITEMS: ConsentItem[] = ['sense', 'jev_features', 'schedule', 'llm_summary', 'enhanced', 'rewrite']
@@ -41,6 +45,9 @@ const SCHEMA: SettingField[] = [
   { key: 'hotkey.widget', kind: { type: 'text', item: 'hotkey' }, default: 'ctrl+alt+w' },
   { key: 'hotkey.dashboard', kind: { type: 'text', item: 'hotkey' }, default: 'ctrl+alt+d' },
   { key: 'collection.enabled', kind: { type: 'bool' }, default: true },
+  { key: 'pet.id', kind: { type: 'text', item: 'pet_id' }, default: 'qingqing' },
+  { key: 'pet.size', kind: { type: 'choice', options: ['small', 'medium', 'large'] }, default: 'medium' },
+  { key: 'pet.roam', kind: { type: 'bool' }, default: true },
   { key: 'rest.eye.enabled', kind: { type: 'bool' }, default: true },
   { key: 'rest.eye.interval', kind: { type: 'number', min: 15, max: 60 }, default: 20 },
   { key: 'rest.water.enabled', kind: { type: 'bool' }, default: true },
@@ -94,6 +101,10 @@ vi.mock('@/api', async (orig) => ({
         : ok(mocks.autostart),
     autostartSet: mocks.autostartSet,
     runningApps: async () => ['Code.exe', 'WeChat.exe'],
+    petList: async () => ok(mocks.pets),
+    petDiscover: async () => ok(mocks.found),
+    petImport: mocks.petImport,
+    petRemove: mocks.petRemove,
   },
   events: {
     settingsChanged: { listen: async () => () => {} },
@@ -157,6 +168,10 @@ beforeEach(() => {
   mocks.researchClear.mockReset().mockImplementation(() => ok(4))
   mocks.openWindow.mockReset().mockImplementation(() => ok())
   mocks.emit.mockReset().mockResolvedValue(undefined)
+  mocks.pets = [{ id: 'qingqing', name: '晴晴', description: '心晴的小精灵', builtin: true, version: 1 }]
+  mocks.found = []
+  mocks.petImport.mockReset()
+  mocks.petRemove.mockReset().mockImplementation(() => ok())
 })
 
 describe('Hub 快捷键与研究编号的格式（与后端一致）', () => {
@@ -288,6 +303,62 @@ describe('设置中心 · 常规（FR-SET-03）', () => {
     expect(w.find('.s-saved').text()).toBe(t('settings.restored'))
     // 总开关不随恢复默认改
     expect(mocks.imeConfigSet).not.toHaveBeenCalled()
+  })
+})
+
+describe('设置中心 · 常规 · 桌宠（ADR 0044）', () => {
+  it('列出晴晴和导入的宠物，选了就存 pet.id；导入的能删，晴晴不能删', async () => {
+    mocks.pets.push({ id: 'boba', name: 'Boba', description: '', builtin: false, version: 1 })
+    const w = await open(GeneralSection)
+    const pets = group(w, 'pet').findAll('.pet')
+    expect(pets.map((p) => p.attributes('data-pet'))).toEqual(['qingqing', 'boba'])
+    expect((pets[0]!.find('input').element as HTMLInputElement).checked).toBe(true)
+    expect(pets[0]!.find('button').exists()).toBe(false)
+    await pets[1]!.find('input').setValue(true)
+    await flushPromises()
+    expect(mocks.settingsSet).toHaveBeenCalledWith('pet.id', 'boba')
+    await pets[1]!.find('button').trigger('click')
+    await flushPromises()
+    expect(mocks.petRemove).toHaveBeenCalledWith('boba')
+  })
+
+  it('Codex / petdex 里装过的宠物一键导入，导入后换上它', async () => {
+    mocks.found = [
+      { path: '/home/u/.codex/pets/mochi', id: 'mochi', name: 'Mochi', source: 'codex', imported: false },
+    ]
+    mocks.petImport.mockImplementation(() =>
+      ok({ id: 'mochi', name: 'Mochi', description: '', builtin: false, version: 2 }),
+    )
+    const w = await open(GeneralSection)
+    const row = group(w, 'pet').find('[data-candidate="mochi"]')
+    expect(row.text()).toContain('Codex')
+    await row.find('button').trigger('click')
+    await flushPromises()
+    expect(mocks.petImport).toHaveBeenCalledWith('/home/u/.codex/pets/mochi')
+    expect(mocks.settingsSet).toHaveBeenCalledWith('pet.id', 'mochi')
+    expect(group(w, 'pet').find('.s-saved').text()).toBe(
+      t('settings.general.pet_imported', { name: 'Mochi' }),
+    )
+  })
+
+  it('导入失败给可读提示；大小与散步照常存', async () => {
+    mocks.found = [{ path: '/x', id: 'bad', name: 'Bad', source: 'petdex', imported: false }]
+    mocks.petImport.mockImplementation(() =>
+      Promise.resolve({
+        status: 'error',
+        error: { code: 'pet.invalid', message_key: 'pet.error.bad_sheet' },
+      }),
+    )
+    const w = await open(GeneralSection)
+    await group(w, 'pet').find('[data-candidate="bad"] button').trigger('click')
+    await flushPromises()
+    expect(group(w, 'pet').find('[role=alert]').text()).toBe(t('pet.error.bad_sheet'))
+    const sizes = group(w, 'pet').findAll('input[name=pet-size]')
+    await sizes[2]!.setValue(true)
+    await group(w, 'pet').find('input[role=switch]').setValue(false)
+    await flushPromises()
+    expect(mocks.settingsSet).toHaveBeenCalledWith('pet.size', 'large')
+    expect(mocks.settingsSet).toHaveBeenCalledWith('pet.roam', false)
   })
 })
 

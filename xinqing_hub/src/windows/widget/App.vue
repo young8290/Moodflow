@@ -1,14 +1,16 @@
 <script setup lang="ts">
-// 桌面小组件（07 FR-WGT-01～06）：状态行、小精灵、一句话区（消息优先级，FR-WGT-04）、底栏（FR-WGT-05）、离线 / 研究 / 演示角标、
-// 单击打开对话、拖动吸附、右键菜单、贴边隐藏、悬停状态行显示解释、“我现在…”自评与研究模式的邀请。
+// 桌面小组件（07 FR-WGT-01～06）：桌宠（ADR 0044）站在桌面上，头顶一个气泡装着原来卡片上的东西——状态行、一句话区
+// （消息优先级，FR-WGT-04）、底栏（FR-WGT-05）、离线 / 研究 / 演示角标；悬停、来了新消息、开着面板时气泡出现。
+// 单击打开对话、拖动（甩出去会落到屏幕底边）、右键菜单、贴边隐藏、悬停状态行显示解释、“我现在…”自评与研究模式的邀请。
+// 窗口透明：鼠标不在宠物和气泡上时点穿到桌面。
 // 日程、待办、提醒、休息、自评回应、晚间小结、周信这些卡片在卡片层窗口（../cards，FR-WGT-07）。
-import { computed, nextTick, onMounted, ref, toRef } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRef, watch } from 'vue'
 import { LogicalPosition, getCurrentWindow } from '@tauri-apps/api/window'
 import { Menu } from '@tauri-apps/api/menu'
 import { commands, events, unwrap, type ComfortVerdict, type SelfWeather, type Verdict } from '@/api'
 import ExplainPanel from '@/components/ExplainPanel.vue'
+import PetSprite from '@/components/PetSprite.vue'
 import WeatherSprite from '@/components/WeatherSprite.vue'
-import WeatherStage from '@/components/WeatherStage.vue'
 import { t } from '@/i18n'
 import { useSettingsStore } from '@/stores/settings'
 import { useStatusStore } from '@/stores/status'
@@ -30,6 +32,9 @@ import { useFooter } from './useFooter'
 import { useMessages } from './useMessages'
 import { useSelfReport } from './useSelfReport'
 import { useWidgetWindow } from './useWidgetWindow'
+import { CELL_H, CELL_W, type Mood } from './pet'
+import { PET_KEYS, usePet } from './usePet'
+import { usePetMotion } from './usePetMotion'
 
 const status = useStatusStore()
 const settings = useSettingsStore()
@@ -88,12 +93,74 @@ async function startFocus(minutes: number): Promise<void> {
   }
 }
 const place = useWidgetWindow({ autohide, topmost, holdOpen })
+const mood = computed<Mood | null>(() =>
+  line.value
+    ? { weather: line.value.weather, eyesClosed: line.value.eyesClosed, focusing: focus.active.value }
+    : null,
+)
+const pet = usePet(mood)
+/** 气泡区的大小（逻辑像素）：解释、自评、专注、换装面板都放在这里 */
+const BUBBLE_W = 300
+const BUBBLE_H = 156
+const petW = computed(() => Math.round(CELL_W * pet.scale.value))
+const petH = computed(() => Math.round(CELL_H * pet.scale.value))
+/** 换装叠在内置晴晴身上：装扮图层按 96 × 96 的小精灵画（身体圆心 48,50、半径 30），晴晴的身体圆心 96,122、半径 54 */
+const OUTFIT_K = 54 / 30
+const outfitStyle = computed(() => {
+  const k = pet.scale.value
+  return { left: `${(96 - 48 * OUTFIT_K) * k}px`, top: `${(122 - 50 * OUTFIT_K) * k}px` }
+})
+const showOutfit = computed(
+  () =>
+    pet.sheet.value?.builtin === true &&
+    outfit.equipped.value !== null &&
+    ['idle', 'waiting', 'review'].includes(pet.state.value),
+)
+const focusWithin = ref(false)
+/** 新消息到来后气泡留这么久 */
+const BUBBLE_FLASH_MS = 8000
+const flashUntil = ref(0)
+const nowTick = ref(Date.now())
+const bubbleOpen = computed(
+  () =>
+    place.over.value ||
+    focusWithin.value ||
+    holdOpen.value ||
+    explain.lines.value !== null ||
+    flashUntil.value > nowTick.value,
+)
+let clock: ReturnType<typeof setInterval> | undefined
+// 新消息：气泡亮一会儿，宠物招手；求助入口不表演，操作失败哭一下（ADR 0044）
+watch(
+  () => msgs.shown.value,
+  (m, old) => {
+    if (!m || (old && m.at === old.at && m.kind === old.kind)) return
+    if (m.kind === 'today' || m.kind === 'idle') return
+    flashUntil.value = Date.now() + BUBBLE_FLASH_MS
+    pet.react(m.kind === 'safety' ? 'calm' : m.kind === 'error' ? 'error' : 'message')
+  },
+)
+const petEl = ref<HTMLElement | null>(null)
+const bubbleEl = ref<HTMLElement | null>(null)
+const motion = usePetMotion({
+  area: place.area,
+  moveTo: place.moveTo,
+  drive: place.drive,
+  motion: pet.motion,
+  react: pet.react,
+  mood,
+  roam: pet.roam,
+  reducedMotion: pet.reducedMotion,
+  busy: computed(() => bubbleOpen.value || menuOpen.value),
+  onClick: () => void openChat(),
+})
+// 换了宠物大小：窗口跟着变，脚底不动
+watch([petW, petH], ([w, h]) => void place.fit(Math.max(BUBBLE_W, w), BUBBLE_H + h))
 const explain = useExplain(
   toRef(status, 'snapshot'),
   computed(() => selfReport.active.value !== null),
 )
 const penEl = ref<HTMLElement | null>(null)
-const stage = ref<InstanceType<typeof WeatherStage> | null>(null)
 
 /** 打开“我现在…”（状态行的 ✎ 或右键菜单，FR-WGT-06） */
 function openSelfReport(): void {
@@ -188,6 +255,7 @@ onMounted(async () => {
         'widget.topmost',
         'research.enabled',
         'research.id',
+        ...PET_KEYS,
       ]),
     ])
   } catch (e) {
@@ -195,18 +263,25 @@ onMounted(async () => {
   }
   // 自评覆盖期取不到时只是少显示“你说的”，不打扰用户
   selfReport.init().catch((e) => console.warn('读取自评失败', e))
-  // 新的暖心话：小精灵“靠近”（FR-CMF-04 第 5 条）；取不到“今日一句”时只是少一句话
-  msgs.init(() => stage.value?.play('approach')).catch((e) => console.warn('订阅一句话区消息失败', e))
+  // 新的暖心话由上面的 watch 让宠物招手（FR-CMF-04 第 5 条）；取不到“今日一句”时只是少一句话
+  msgs.init().catch((e) => console.warn('订阅一句话区消息失败', e))
   footer.init().catch((e) => console.warn('读取底栏失败', e))
   focus.init().catch((e) => console.warn('读取专注状态失败', e))
   outfit.init().catch((e) => console.warn('读取晴天收集失败', e))
   onCards((c) => (cards.value = c.count)).catch((e) => console.warn('订阅卡片层失败', e))
-  // 打错字：小精灵“晃一下”，天气不变（FR-WGT-03、DS-MOTION-02）；闭眼（暂停）时不晃
-  events.moodTypo
-    .listen(() => {
-      if (!line.value?.eyesClosed) stage.value?.play('shake')
-    })
-    .catch((e) => console.warn('订阅打错字事件失败', e))
+  // 打错字：宠物吓一跳，天气不变（FR-WGT-03、DS-MOTION-02）；闭眼（暂停）时不动
+  events.moodTypo.listen(() => pet.react('typo')).catch((e) => console.warn('订阅打错字事件失败', e))
+  // 专注结束：跑两圈庆祝一下
+  events.focusDone.listen(() => pet.react('focus_done')).catch((e) => console.warn('订阅专注结束失败', e))
+  pet.start()
+  clock = setInterval(() => (nowTick.value = Date.now()), 500)
+  void place.fit(Math.max(BUBBLE_W, petW.value), BUBBLE_H + petH.value)
+  place.passThrough(() =>
+    [petEl.value, bubbleOpen.value ? bubbleEl.value : null]
+      .filter((el): el is HTMLElement => el !== null)
+      .map((el) => el.getBoundingClientRect()),
+  )
+  motion.scheduleWalk()
   try {
     demo.value = (await unwrap(commands.demoStatus())).enabled
   } catch (e) {
@@ -295,26 +370,14 @@ function onKeydown(e: KeyboardEvent): void {
   }
 }
 
-// 按下后移动超过 4 px 视为拖动窗口，否则松开时算单击（FR-WGT-06：左键单击打开对话）
-const DRAG_THRESHOLD = 4
-let press: { x: number; y: number } | null = null
-
-function onPointerDown(e: PointerEvent): void {
-  if (e.button === 0) press = { x: e.screenX, y: e.screenY }
+/** 焦点离开整个小组件才收起气泡 */
+function onRootFocusOut(e: FocusEvent): void {
+  const to = e.relatedTarget
+  const root = e.currentTarget as HTMLElement | null
+  if (!(to instanceof Node && root?.contains(to))) focusWithin.value = false
 }
 
-function onPointerMove(e: PointerEvent): void {
-  if (!press) return
-  if (Math.hypot(e.screenX - press.x, e.screenY - press.y) > DRAG_THRESHOLD) {
-    press = null
-    void getCurrentWindow().startDragging()
-  }
-}
-
-function onPointerUp(): void {
-  if (press) void openChat()
-  press = null
-}
+onBeforeUnmount(() => clearInterval(clock))
 </script>
 
 <template>
@@ -334,23 +397,19 @@ function onPointerUp(): void {
       class="widget"
       :style="{ opacity }"
       tabindex="0"
-      @pointerdown="onPointerDown"
-      @pointermove="onPointerMove"
-      @pointerup="onPointerUp"
       @contextmenu.prevent="openMenu()"
       @keydown="onKeydown"
+      @focusin="focusWithin = true"
+      @focusout="onRootFocusOut"
     >
       <h1 class="visually-hidden">{{ t('window.widget') }}</h1>
-      <WeatherStage
-        v-if="line"
-        ref="stage"
-        :weather="line.weather"
-        :eyes-closed="line.eyesClosed"
-        :focusing="focus.active.value"
+      <section
+        ref="bubbleEl"
+        class="bubble"
+        :class="{ open: bubbleOpen }"
+        :style="{ bottom: `${petH + 6}px` }"
+        :aria-label="t('widget.bubble_label')"
       >
-        <SpriteOutfit v-if="outfit.equipped.value" :item="outfit.equipped.value" />
-      </WeatherStage>
-      <div class="content">
         <!-- 状态行：悬停或键盘聚焦时显示解释（FR-WGT-06、FR-STA-09）；右侧依次是离线角标和 ✎“我现在…” -->
         <div class="status-row">
           <p
@@ -450,13 +509,53 @@ function onPointerUp(): void {
             {{ footer.right.value }}
           </button>
         </footer>
+      </section>
+      <!-- 桌宠（ADR 0044）：按住拖动、甩出去会落到底边，单击打开对话 -->
+      <div
+        ref="petEl"
+        class="pet-wrap"
+        :style="{ width: `${petW}px`, height: `${petH}px` }"
+        :data-state="pet.state.value"
+        @pointerdown="motion.onPointerDown"
+        @pointermove="motion.onPointerMove"
+        @pointerup="motion.onPointerUp"
+        @pointercancel="motion.onPointerCancel"
+      >
+        <template v-if="line">
+          <PetSprite
+            v-if="pet.sheet.value"
+            :sheet="pet.sheet.value"
+            :col="pet.cell.value.col"
+            :row="pet.cell.value.row"
+            :scale="pet.scale.value"
+            :weather="line.weather"
+          />
+          <WeatherSprite
+            v-else
+            :weather="line.weather"
+            :eyes-closed="line.eyesClosed"
+            :focusing="focus.active.value"
+            :size="Math.round(petW * 0.7)"
+          />
+          <SpriteOutfit
+            v-if="showOutfit && outfit.equipped.value"
+            class="pet-outfit"
+            :item="outfit.equipped.value"
+            :size="Math.round(96 * OUTFIT_K * pet.scale.value)"
+            :style="outfitStyle"
+          />
+          <!-- 导入的宠物不随天气变色：旁边挂一个小天气，颜色之外还有图形区分（DS-COLOR-02） -->
+          <span v-if="pet.sheet.value && !pet.sheet.value.builtin" class="weather-chip">
+            <WeatherSprite :weather="line.weather" :eyes-closed="line.eyesClosed" :size="24" />
+          </span>
+        </template>
       </div>
     </main>
   </div>
 </template>
 
 <style>
-/* 小组件窗口是透明的，圆角卡片之外不铺底色 */
+/* 小组件窗口是透明的，气泡与宠物之外不铺底色 */
 html,
 body {
   background: transparent;
@@ -471,17 +570,93 @@ body {
 
 .widget {
   position: relative;
-  display: flex;
-  gap: var(--xq-sp-3);
-  align-items: center;
   height: 100%;
-  padding: var(--xq-sp-4);
+  user-select: none;
+  cursor: default;
+  outline: none;
+}
+
+/* 气泡：原来卡片上的内容。平时藏起来（仍在页面里，读屏照样读得到状态行），悬停、新消息、开面板时出现 */
+.bubble {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: 156px;
+  padding: var(--xq-sp-3) var(--xq-sp-4);
   border: 1px solid var(--xq-border);
   border-radius: var(--xq-radius-window);
   background: var(--xq-surface);
   box-shadow: var(--xq-shadow-card);
-  user-select: none;
-  cursor: default;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(6px);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease,
+    visibility 0s linear 160ms;
+}
+
+.bubble.open {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+/* 气泡底下的小尖角，指向宠物 */
+.bubble::after {
+  position: absolute;
+  bottom: -7px;
+  left: calc(50% - 7px);
+  width: 12px;
+  height: 12px;
+  border-right: 1px solid var(--xq-border);
+  border-bottom: 1px solid var(--xq-border);
+  background: var(--xq-surface);
+  transform: rotate(45deg);
+  content: '';
+}
+
+.widget:focus-visible .bubble {
+  outline: 2px solid var(--xq-focus);
+  outline-offset: 2px;
+}
+
+.pet-wrap {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  transform: translateX(-50%);
+  cursor: grab;
+  touch-action: none;
+}
+
+.pet-wrap:active {
+  cursor: grabbing;
+}
+
+.pet-outfit {
+  position: absolute;
+}
+
+.weather-chip {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble,
+  .bubble.open {
+    transition: none;
+  }
 }
 
 /* 贴边隐藏后的小标签：24 px 宽，只露出小精灵（FR-WGT-01）。窗口本身就是标签大小 */
@@ -495,14 +670,6 @@ body {
   padding: 0;
   border-radius: var(--xq-radius-sm);
   background: var(--xq-surface);
-}
-
-.content {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-  height: 100%;
 }
 
 .status-row {
@@ -542,12 +709,12 @@ body {
 }
 
 /*
- * 解释面板与自评面板都盖住卡片的整个内容区（约 286 × 134 px）：解释最多 3 条说明、两行附注再加 32 px 高的
- * “准 / 不准”，自评是标题、备注和两行选项，只有这么宽才放得下（只盖右侧那一列时高度不够）。
+ * 解释、自评、专注、换装面板盖住气泡的整个内容区（约 276 × 132 px）：解释最多 3 条说明、两行附注再加 32 px 高的
+ * “准 / 不准”，自评是标题、备注和两行选项，只有这么宽才放得下。
  */
 .overlay {
   position: absolute;
-  inset: var(--xq-sp-4);
+  inset: var(--xq-sp-3) var(--xq-sp-4);
   z-index: 1;
   background: var(--xq-surface);
 }
