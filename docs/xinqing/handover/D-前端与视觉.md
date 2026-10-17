@@ -37,7 +37,8 @@ xinqing_hub/
 ├─ src/format.ts                时长、日期、钟点的显示格式（看板、底栏、卡片共用）
 ├─ src/windows/<label>/         每个窗口一个入口：widget / cards / chat / dashboard / settings / onboarding
 │  └─ widget/
-│     ├─ App.vue                小组件界面与交互
+│     ├─ App.vue                小组件界面与交互（桌宠 + 气泡，ADR 0044）
+│     ├─ pet.ts / usePet.ts / usePetMotion.ts  桌宠：状态表与反应、播哪一帧、拖 / 扔 / 散步
 │     ├─ statusLine.ts          状态行（特殊情形优先级）
 │     ├─ menu.ts                右键菜单项（规格顺序）
 │     ├─ useExplain.ts          悬停 / 聚焦状态行时取解释、开关面板
@@ -136,6 +137,7 @@ xinqing_hub/
 | 前台全屏应用时自动隐藏，退出后恢复 | FR-WGT-01 | 完成（第三部分）：外壳每秒调一次 `SHQueryUserNotificationState`（全屏应用、全屏 D3D 游戏、演示模式都算），进全屏时把可见的小组件藏起来，退出时只恢复自己藏的；用户自己隐藏的不会被叫回来，全屏期间用户叫出来的也不再藏回去 |
 | 首次启动不在默认位置闪一下 | FR-WGT-01 | 完成（第三部分）：小组件配置成 `visible: false`，外壳建好后不显示，前端挪到记住的位置再 `show()`；定位失败也照样显示 |
 | “晃一下”（打错字） | FR-WGT-03、DS-MOTION-02 | 完成（xinqing-ime#86）：瞬时事件 `mood:typo`（外壳限频 1.5 秒，ADR 0036 第 5 条）；新暖心话时“靠近” |
+| 桌宠：小组件换成站在桌面上的宠物，内容进头顶气泡；拖、扔、散步、点穿；导入 Codex / petdex 桌宠 | FR-WGT-01～08、ADR 0044 | 完成：精灵图用 Codex 格式（8 列 × 9 / 11 行、每格 192 × 208），内置晴晴由 `tools/gen_pet_sheet.py` 生成到 `hub_templates/pets/qingqing/`（多给身体蒙版与线条两层，身体按天气令牌上色）；`widget/pet.ts`（状态表、反应、扔与散步的纯函数）、`usePet.ts`（选哪一行哪一帧）、`usePetMotion.ts`（拖、扔、散步）、`useWidgetWindow.ts` 加了 `area` / `moveTo` / `drive` / `fit` / `passThrough`；`components/PetSprite.vue`；设置“常规 → 桌宠”（`settings/PetSettings.vue`）；外壳 `src-tauri/src/pets.rs`。点穿与扔的手感要在 Windows 真机上看 |
 | `Ctrl+Alt+W` 显示 / 隐藏 | FR-WGT-01、FR-ENT-04 | 完成（xinqing-ime#86）：`tauri-plugin-global-shortcut`，与 `Ctrl+Alt+Q` / `D` 一起由设置键 `hotkey.*` 控制，注册不上的在设置“常规”提示（ADR 0036 第 6 条） |
 
 ## 4. 关键决定与待评审
