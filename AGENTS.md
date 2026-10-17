@@ -45,6 +45,7 @@
 | `moodflow-chord` | 并击输入（纯逻辑）：键位方案 JSON 格式与校验（草稿/应用两级）、同批与先左后右的结算、组合 → 拼音片段 | — |
 | `moodflow-clipboard` | 剪贴板历史（纯逻辑）：文本/链接条目、去重置顶、收藏、按保留期与条数清理、搜索、JSON 快照；采集由平台事件注入，正文不进日志 | — |
 | `moodflow-manifest` | 安装数据逐文件 SHA-256 清单：打包时生成 `data/manifest.json`（拒收用户库、build/、sync/、符号链接），安装/解包时复核；工具 `moodflow-tools --bin data_manifest` | — |
+| `moodflow-plugin-api` | 插件清单、能力与设置声明（纯数据 + 校验，ADR 0054）：逐键扩展点不得联网、内容包不得声明代码能力、升级新增能力需重新同意 | — |
 | `moodflow-aux-code` | 辅助码过滤：拼音后追加字形辅助码，按字形裁减候选字词（**出厂关闭**，`schema.pinyin.aux_code.enabled`） | [AGENTS.md](moodflow_input/crates/moodflow-aux-code/AGENTS.md) |
 | `moodflow-punct` | 标点转换纯逻辑（中英标点/全半角/数字后智能） | — |
 | `moodflow-transform` | 文本变换：标点、全角、自动配对、简繁 | — |

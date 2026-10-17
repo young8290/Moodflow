@@ -1,0 +1,14 @@
+[package]
+name = "moodflow-plugin-api"
+version.workspace = true
+edition.workspace = true
+
+# 插件清单、能力与设置声明的纯数据定义与校验（ADR 0054）。宿主、市场、两端设置页共用。
+# 零平台依赖，须过 cargo check-android。
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+
+[lints]
+workspace = true

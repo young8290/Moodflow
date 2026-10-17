@@ -1383,6 +1383,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "moodflow-plugin-api"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "toml 0.8.23",
+]
+
+[[package]]
 name = "moodflow-punct"
 version = "0.1.0"
 dependencies = [
