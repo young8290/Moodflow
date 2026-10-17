@@ -1598,10 +1598,17 @@ name = "moodflow-tools"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "ed25519-dalek",
  "moodflow-candidate",
  "moodflow-manifest",
+ "moodflow-market",
+ "moodflow-plugin-api",
+ "moodflow-plugin-host",
  "serde",
+ "serde_json",
+ "sha2",
  "toml 0.8.23",
+ "zip",
 ]
 
 [[package]]

@@ -34,10 +34,21 @@ path = "src/bin/gen_aux_code.rs"
 name = "data_manifest"
 path = "src/bin/data_manifest.rs"
 
+[[bin]]
+name = "plugin_tool"
+path = "src/bin/plugin_tool.rs"
+
 [dependencies]
 # gen_block_charsets 直接读区块表生成 charsets/blocks.yaml——两份数据因此同源。
 moodflow-candidate = { path = "../../crates/moodflow-candidate" }
 moodflow-manifest = { path = "../../crates/moodflow-manifest" }
+moodflow-plugin-api = { path = "../../crates/moodflow-plugin-api" }
+moodflow-plugin-host = { path = "../../crates/moodflow-plugin-host" }
+moodflow-market = { path = "../../crates/moodflow-market" }
+ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
+sha2 = { workspace = true }
+serde_json = { workspace = true }
+zip = { version = "2", default-features = false, features = ["deflate"] }
 anyhow = { workspace = true }
 serde = { workspace = true }
 toml = { workspace = true }
