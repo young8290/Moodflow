@@ -1639,6 +1639,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "moodflow-typing-stats"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "moodflow-ui"
 version = "0.1.0"
 dependencies = [

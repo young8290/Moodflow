@@ -44,6 +44,7 @@
 | `moodflow-buffer` | Buffer 上屏前文本工作台（纯逻辑、零依赖）：块编辑、目标绑定与投递授权、两段式投递、容量上限；设计见 `docs/design/buffer.md` | — |
 | `moodflow-chord` | 并击输入（纯逻辑）：键位方案 JSON 格式与校验（草稿/应用两级）、同批与先左后右的结算、组合 → 拼音片段 | — |
 | `moodflow-clipboard` | 剪贴板历史（纯逻辑）：文本/链接条目、去重置顶、收藏、按保留期与条数清理、搜索、JSON 快照；采集由平台事件注入，正文不进日志 | — |
+| `moodflow-typing-stats` | 日常输入统计与打字测速（纯逻辑）：按键分布、上屏次数、成文字数、活跃时长（只累计 ≤10 秒的间隔），只存计数不存正文；练习按有效速度/过程正确率/有界编辑距离字准计分 | — |
 | `moodflow-manifest` | 安装数据逐文件 SHA-256 清单：打包时生成 `data/manifest.json`（拒收用户库、build/、sync/、符号链接），安装/解包时复核；工具 `moodflow-tools --bin data_manifest` | — |
 | `moodflow-plugin-api` | 插件清单、能力与设置声明（纯数据 + 校验，ADR 0054）：逐键扩展点不得联网、内容包不得声明代码能力、升级新增能力需重新同意 | — |
 | `moodflow-plugin-host` | L1 沙箱插件宿主（wasmi 纯解释器，portable-dispatch）：按能力放行 `mf` 宿主函数、加载时检查导入、每次调用限步数与内存、连续失败自动停用、密码框/无痕等场景不调用插件 | — |
