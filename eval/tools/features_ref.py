@@ -2,7 +2,7 @@
 """心晴 · 窗口切分、特征计算与个人基线的 Python 参考实现（FR-STA-01～03），用于与 Rust 对拍。
 
 按产品书 04 FR-STA-01～03 与 ADR 0008 的解释独立实现，不调用 Hub 代码。对拍内容：
-1. 窗口特征：回放 tools/xq-sim/scripts 的合成脚本，以及本文件 `cases()` 中的 10 组固定事件序列
+1. 窗口特征：回放 tools/xq-sim/scripts 的合成脚本，以及本文件 `cases()` 中的 11 组固定事件序列
    （FR-STA-02 验收：“对 10 组固定事件序列，特征计算结果与手算值误差 < 1%”）；
 2. 个人基线：确定性生成 7 天的窗口特征样本，按白天 / 夜间分桶算中位数与 MAD
    （FR-STA-03 验收：“注入 7 天模拟数据后，基线与离线 Python 脚本计算结果一致”）。
@@ -73,19 +73,32 @@ def adjacent(a, b):
 
 
 class Typo:
-    """字母 X → 600 ms 内退格 → 800 ms 内相邻字母 Y（Y ≠ X），1 秒内最多一次。"""
+    """R1：字母 X → 600 ms 内退格 → 800 ms 内相邻字母 Y（Y ≠ X）；
+    R1b：组字更新带 invalid（切不出的全拼）后 600 ms 内退格（ADR 0041 第 4 条）。两者共用 1 秒去重。"""
 
     def __init__(self):
         self.last_letter = None  # (ts, vk)
         self.bs_after = None  # (ts, x)
         self.last_fire = None
+        self.invalid_at = None  # 最近一次组字更新里有切不出的全拼
+
+    def on_comp(self, ts, invalid):
+        self.invalid_at = ts if invalid else None
+
+    def fire(self, ts):
+        if self.last_fire is None or ts - self.last_fire >= TYPO_DEDUP_MS:
+            self.last_fire = ts
+            return True
+        return False
 
     def on_key(self, ts, kind, vk):
         if kind == "backspace":
             ll = self.last_letter
             self.bs_after = (ts, ll[1]) if ll and ts - ll[0] <= BACKSPACE_WITHIN_MS else None
             self.last_letter = None
-            return False
+            r1b = self.invalid_at is not None and ts - self.invalid_at <= BACKSPACE_WITHIN_MS
+            self.invalid_at = None
+            return r1b and self.fire(ts)
         if kind == "letter" and vk is not None:
             hit = False
             if self.bs_after is not None:
@@ -93,10 +106,7 @@ class Typo:
                 hit = ts - tb <= RETYPE_WITHIN_MS and adjacent(x, vk)
             self.bs_after = None
             self.last_letter = (ts, vk)
-            if hit and (self.last_fire is None or ts - self.last_fire >= TYPO_DEDUP_MS):
-                self.last_fire = ts
-                return True
-            return False
+            return hit and self.fire(ts)
         self.last_letter = None
         self.bs_after = None
         return False
@@ -230,7 +240,7 @@ def bucket_of(hour):
 def compute(win, base, session_min, start_min):
     src = key_src(win)
     tsf = src == "tsf"
-    keys, in_comp_at, ups, cand_pos = [], [], [], []
+    keys, in_comp_at, ups, cand_pos, comps = [], [], [], [], []
     comp_active = abandon = False
     page_flips = 0
     for e in win:
@@ -242,6 +252,8 @@ def compute(win, base, session_min, start_min):
         elif t == "key_up":
             ups.append(e)
         elif t == "comp":
+            if e["op"] == "update":
+                comps.append((e["ts"], e.get("invalid") is True))
             comp_active = e["op"] == "update" and e.get("len", 1) > 0
             if e["op"] in ("cancel", "clear"):
                 abandon = True
@@ -271,7 +283,12 @@ def compute(win, base, session_min, start_min):
     bs = run = burst = 0
     typo = Typo()
     typo_cnt = del_committed = 0
+    ci = 0
     for k in keys:
+        # 只送早于这次按键的组字更新（同一毫秒的是这次按键的结果），与 calc.rs 一致
+        while ci < len(comps) and comps[ci][0] < k["ts"]:
+            typo.on_comp(*comps[ci])
+            ci += 1
         if k["kind"] == "backspace":
             bs += 1
             run += 1
@@ -364,7 +381,7 @@ def load_defaults():
 
 
 # ---------------------------------------------------------------------------
-# 10 组固定事件序列（每组覆盖 FR-STA-01/02 的一类规则）
+# 11 组固定事件序列（每组覆盖 FR-STA-01/02 的一类规则）
 # ---------------------------------------------------------------------------
 
 def k(ts, kind="letter", vk=None, in_comp=False, src="core", **kw):
@@ -379,10 +396,12 @@ def up(ts, vk, kind="letter"):
     return {"t": "key_up", "ts": ts, "kind": kind, "vk": vk}
 
 
-def comp(ts, op="update", length=None):
+def comp(ts, op="update", length=None, invalid=False):
     e = {"t": "comp", "ts": ts, "op": op}
     if length is not None:
         e["len"] = length
+    if invalid:
+        e["invalid"] = True
     return e
 
 
@@ -499,6 +518,20 @@ def cases():
     e += [k(60_000 + i * 200, "letter", vk=ord("B")) for i in range(10)]   # 间隔 < 2 分钟：连续
     e += [k(200_000 + i * 220, "letter", vk=ord("C")) for i in range(10)]  # 间隔 > 2 分钟：重新计
     cs.append(("c10_night_session", 23 * 60 + 40, e))
+
+    # 11 打错字 R1b（ADR 0041 第 4 条）：全拼切不出（II）后 600 ms 内退格算一次；退格太慢、
+    # 或组字已经合法了再退格都不算。退格引起的合法更新与退格同一毫秒，不能抢先清掉标记
+    e = [hello(), focus(0, "WeChat.exe")]
+    e += [k(100, vk=ord("I")), comp(100, "update", 1)]
+    e += [k(250, vk=ord("I"), in_comp=True), comp(250, "update", 2, invalid=True)]
+    e += [k(500, "backspace", vk=8, in_comp=True), comp(500, "update", 1)]               # 命中
+    e += [k(2000, vk=ord("V"), in_comp=True), comp(2000, "update", 2, invalid=True)]
+    e += [k(2700, "backspace", vk=8, in_comp=True), comp(2700, "update", 1)]             # 700 ms：太慢
+    e += [k(4000, vk=ord("V"), in_comp=True), comp(4000, "update", 2, invalid=True)]
+    e += [k(4100, vk=ord("A"), in_comp=True), comp(4100, "update", 3)]                   # 又合法了
+    e += [k(4300, "backspace", vk=8, in_comp=True), comp(4300, "update", 2)]             # 不算
+    e += [k(4500, "esc", in_comp=True), comp(4500, "cancel")]
+    cs.append(("c11_typo_r1b", DEFAULT_START_MIN, e))
     return cs
 
 
