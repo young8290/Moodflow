@@ -1620,6 +1620,7 @@ dependencies = [
  "moodflow-dict",
  "moodflow-store",
  "moodflow-theme",
+ "moodflow-utils",
  "serde",
  "serde_json",
  "serde_yaml",

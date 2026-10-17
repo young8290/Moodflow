@@ -449,8 +449,11 @@ fn collect_dicts(
 
 /// 读 `.dict.yaml` 头部（到 `...` 为止）的 `import_tables`。
 fn dict_imports(bytes: &[u8]) -> Vec<String> {
-    let text = String::from_utf8_lossy(bytes);
-    let header: String = text
+    let raw = String::from_utf8_lossy(bytes);
+    // 孤立 \r 的旧 Mac 行尾会让整份头部变成一行，import_tables 整个读不到。
+    let normalized = moodflow_utils::text::normalize_input(&raw);
+    let header: String = normalized
+        .as_ref()
         .lines()
         .take_while(|l| l.trim_end() != "...")
         .collect::<Vec<_>>()
@@ -570,11 +573,11 @@ pub fn write_wpkg(scheme: &ConvertedScheme, out: &Path) -> anyhow::Result<()> {
 /// 每行 `词<TAB>编码[<TAB>权重]`；也接受 `编码<TAB>词`（第一列全是 ASCII 字母、第二列含非 ASCII 时自动对调）。
 /// 空行与 `#` 注释跳过；格式不对的行计数后跳过。返回 `(dict.yaml 文本, 跳过的行数)`。
 pub fn text_to_rime_dict(bytes: &[u8], name: &str) -> Result<(String, usize), RimeImportError> {
-    let text = decode_text(bytes)?;
+    let decoded = decode_text(bytes)?;
+    let normalized = moodflow_utils::text::normalize_input(&decoded);
     let mut lines = Vec::new();
     let mut skipped = 0usize;
-    for raw in text.lines() {
-        let line = raw.trim_end_matches('\r');
+    for line in normalized.as_ref().lines() {
         if line.trim().is_empty() || line.starts_with('#') {
             continue;
         }

@@ -239,3 +239,17 @@ fn text_dictionary_decodes_utf16_and_rejects_garbage() {
         RimeImportError::EmptyDictionary
     );
 }
+
+#[test]
+fn old_mac_line_endings_are_normalized() {
+    let (out, _) = text_to_rime_dict("你好\tnihao\r再见\tzaijian\r".as_bytes(), "d").unwrap();
+    assert!(
+        out.contains("你好\tnihao\n") && out.contains("再见\tzaijian\n"),
+        "{out}"
+    );
+    let dict = "---\rname: x\rimport_tables:\r  - extra/words\r...\r";
+    assert_eq!(
+        dict_imports(dict.as_bytes()),
+        vec!["extra/words".to_string()]
+    );
+}

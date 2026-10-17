@@ -7,6 +7,7 @@ edition.workspace = true
 moodflow-store = { path = "../moodflow-store" }
 moodflow-dict = { path = "../moodflow-dict" }
 moodflow-config = { path = "../moodflow-config" }
+moodflow-utils = { path = "../moodflow-utils" }
 anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
