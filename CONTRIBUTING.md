@@ -1,6 +1,6 @@
 # 贡献指南
 
-感谢您对清风输入法 (WindInput) 项目的关注！我们欢迎所有形式的贡献，包括 Bug 报告、功能建议和代码提交。
+感谢您对 Moodflow 输入法项目的关注！我们欢迎所有形式的贡献，包括 Bug 报告、功能建议和代码提交。
 
 > **⚠️ alpha 阶段 PR 政策**
 >
@@ -32,9 +32,9 @@
 - 出现问题的应用程序名称
 - 重现步骤、预期行为与实际行为
 - 相关日志文件
-  - Windows 安装版：`%LOCALAPPDATA%\WindInput\logs\`
+  - Windows 安装版：`%LOCALAPPDATA%\Moodflow\logs\`
   - Windows 便携版：`<程序目录>\localdata\logs\`
-  - macOS：`~/Library/Logs/WindInput/`
+  - macOS：`~/Library/Logs/Moodflow/`
 
 ## 功能建议
 
@@ -68,8 +68,8 @@ macOS 额外需要：
 
 构建脚本会自动下载第三方词库数据（缓存于 `.cache/`）并生成完整数据目录。
 
-> 配套的设置程序（wind-setting）、便携启动器（wind-portable）与安装器
-> （wind-installer）为独立的未开源仓库，构建脚本在其不存在时会自动跳过，
+> 配套的设置程序（moodflow-setting）、便携启动器（moodflow-portable）与安装器
+> （moodflow-installer）为独立的未开源仓库，构建脚本在其不存在时会自动跳过，
 > 不影响核心部分的构建。
 
 ### Git Hooks（首次克隆后建议激活）
@@ -112,8 +112,8 @@ scripts/dev.sh hooks       # Linux/macOS
 ### 代码风格
 
 - **Rust**: 必须使用 `cargo fmt` 格式化（CI 会检查）；逻辑修改与 fmt 修改分开提交
-- **C++**: 遵循项目现有代码风格（参考 `wind_tsf/src/`）
-- **Swift**: 遵循项目 macOS 端现有风格（参考 `wind_macos/Sources/`）
+- **C++**: 遵循项目现有代码风格（参考 `moodflow_tsf/src/`）
+- **Swift**: 遵循项目 macOS 端现有风格（参考 `moodflow_macos/Sources/`）
 
 ### Pull Request 流程
 
@@ -128,9 +128,9 @@ scripts/dev.sh hooks       # Linux/macOS
 
 | 目录 | 说明 |
 |------|------|
-| `wind_input/` | Rust 核心服务（cargo workspace，18 个 crate） |
-| `wind_tsf/` | Windows TSF 接口层（C++/CMake） |
-| `wind_macos/` | macOS IMKit 输入法客户端（Swift/SwiftPM） |
+| `moodflow_input/` | Rust 核心服务（cargo workspace，18 个 crate） |
+| `moodflow_tsf/` | Windows TSF 接口层（C++/CMake） |
+| `moodflow_macos/` | macOS IMKit 输入法客户端（Swift/SwiftPM） |
 | `data/` | 入库的方案、码表、主题等数据源文件 |
 | `scripts/` | 构建与部署脚本 |
 | `docs/` | 设计文档 |
@@ -141,5 +141,3 @@ scripts/dev.sh hooks       # Linux/macOS
 
 提交贡献即表示您同意您的贡献将按照项目的 [MIT 许可证](LICENSE) 进行授权。词库相关的第三方资源许可证请参阅 [NOTICE.md](NOTICE.md)。
 
-此外，若您将本项目分支后公开发布，请更换项目名称与 logo 并注明为非官方分支。
-该项不影响您对代码的任何权利，详见 [项目名称与标识使用约定](BRANDING.md)。
