@@ -161,6 +161,7 @@ impl Coordinator {
     /// 扩展类功能随配置同步：剪贴板监听、插件注册表。构造后与每次配置重载后调用。
     pub(crate) fn sync_extensions(&self) {
         self.sync_clipboard_monitor();
+        self.sync_plugins();
     }
 
     /// 按当前配置开关剪贴板监听。

@@ -96,7 +96,7 @@ pub(crate) fn apply_newline_style(action: KeyAction, style: NewlineStyle) -> Key
     if style == NewlineStyle::Keep {
         return action;
     }
-    let conv = |text: String| -> String {
+    map_commit_text(action, |text: String| -> String {
         if !text.contains(['\r', '\n']) {
             return text;
         }
@@ -104,7 +104,16 @@ pub(crate) fn apply_newline_style(action: KeyAction, style: NewlineStyle) -> Key
             std::borrow::Cow::Borrowed(_) => text,
             std::borrow::Cow::Owned(s) => s,
         }
-    };
+    })
+}
+
+/// 对 `action` 里所有**最终写入宿主文档**的文本字段逐个套用 `conv`（组合区文本不动，
+/// 理由见 [`apply_newline_style`]）。换行改写与插件上屏变换共用这一份字段清单——
+/// 两份清单各写各的，迟早有一个字段只被其中一边处理。
+pub(crate) fn map_commit_text(
+    action: KeyAction,
+    mut conv: impl FnMut(String) -> String,
+) -> KeyAction {
     match action {
         KeyAction::InsertText {
             text,
@@ -730,6 +739,7 @@ impl MessageHandler for Coordinator {
         // 上屏换行改写。与 record_input_stats / note_commit_action 同一收口理由（上屏路径
         // 40+ 个返回点，散点接线必漏），而且这里还多一条：换行形式是**平台/宿主**的表达
         // 约定，属于服务端的职责——DLL 拿到什么就写什么，不再自己判断（A3-3）。
+        let action = self.apply_plugin_transform(action);
         let action = self.apply_commit_newline(action);
         self.record_input_stats(&action);
         // 自提交打点 + 码表自动造词投喂。与 record_input_stats 同一收口理由：上屏路径有

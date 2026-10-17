@@ -41,6 +41,7 @@ pub mod handle_key;
 pub mod handle_lifecycle;
 pub mod handle_menu;
 pub mod handle_mode;
+pub(crate) mod handle_plugins;
 pub mod handle_punct;
 pub mod handle_quick_format;
 mod handle_reverse;

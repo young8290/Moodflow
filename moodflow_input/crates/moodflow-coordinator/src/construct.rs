@@ -343,10 +343,10 @@ impl Coordinator {
         }));
         let user_dir = user_dir.map(|d| d.to_path_buf());
         let store = user_dir.as_deref().and_then(Self::open_user_store);
-        (
-            Self::build(config, data_dir, push_server, ui_tx, user_dir, store, None),
-            rx,
-        )
+        let c = Self::build(config, data_dir, push_server, ui_tx, user_dir, store, None);
+        // Android 生产路径同样加载插件（同一个 .wasm 两端通用）；剪贴板由宿主注入，不需要监听器。
+        c.sync_plugins();
+        (c, rx)
     }
 
     /// 打开用户目录下的 redb（缺目录时创建）。失败只 warn：store 不可用时协调器

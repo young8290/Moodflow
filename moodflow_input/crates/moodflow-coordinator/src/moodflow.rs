@@ -739,8 +739,19 @@ impl InputPrivacy {
 /// `(private_field, secure_desktop)`，每次焦点变化时更新；无 Tap 时也更新。
 static FOCUS_PRIVACY: Mutex<(bool, bool)> = Mutex::new((false, false));
 
+#[cfg(test)]
+thread_local! {
+    /// 测试用：本线程固定的隐私状态。`FOCUS_PRIVACY` 是进程级的，并行的其它用例会报密码框焦点，
+    /// 不隔离的话依赖它的用例会随调度时序时绿时红。
+    pub(crate) static TEST_PRIVACY: Cell<Option<InputPrivacy>> = const { Cell::new(None) };
+}
+
 /// 当前输入环境的隐私状态。
 pub(crate) fn input_privacy() -> InputPrivacy {
+    #[cfg(test)]
+    if let Some(p) = TEST_PRIVACY.with(Cell::get) {
+        return p;
+    }
     let (private_field, secure_desktop) = *FOCUS_PRIVACY.lock().unwrap_or_else(|e| e.into_inner());
     let (incognito, app_blocked) = tap().map_or((false, false), |t| (t.paused(), t.app_blocked()));
     InputPrivacy {

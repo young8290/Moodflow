@@ -1342,6 +1342,7 @@ dependencies = [
  "moodflow-ipc",
  "moodflow-keys",
  "moodflow-phrase",
+ "moodflow-plugin-registry",
  "moodflow-punct",
  "moodflow-quick-input",
  "moodflow-reverse",
@@ -1359,6 +1360,7 @@ dependencies = [
  "toml 0.8.23",
  "tracing",
  "unicode-segmentation",
+ "wat",
  "windows",
  "winreg",
 ]

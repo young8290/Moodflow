@@ -18,7 +18,7 @@ mod app_schema;
 mod first_show;
 pub(crate) mod fullscreen_watch;
 mod langbar_icon;
-mod message_handler;
+pub(crate) mod message_handler;
 mod push_config;
 mod state_writer;
 mod status_placement;
@@ -2013,6 +2013,8 @@ pub struct Coordinator {
     pub(crate) app_schema: app_schema::AppSchemaState,
     /// 剪贴板历史（`handle_clipboard`）。
     pub(crate) clipboard: crate::handle_clipboard::ClipboardState,
+    /// 插件注册表（`handle_plugins`）。
+    pub(crate) plugins: crate::handle_plugins::PluginState,
 }
 
 /// 拆字资产当前生效状态：库的解析后绝对路径 + 已下发的字根字体（路径, DWrite 家族名）。
@@ -2796,6 +2798,7 @@ impl Coordinator {
                 user_dir.as_deref(),
                 &config.clipboard,
             ),
+            plugins: Default::default(),
         });
         // CapsLock 钩子的动作消费线程。钩子回调只做非阻塞投递（它超时会被系统静默移除且
         // 无从察觉），真正的动作在这里执行，可安全加锁。未装钩子时它一直阻塞在 channel 上。
