@@ -3,7 +3,7 @@
 > 状态：设计已定（2026-09-28），实施中。分支 `feat/per-app-overrides`。
 > 来源：看板 C0-7 / C3-3（GH#80）、A2-37 ②（t197）、C2-33（GH#148）。
 
-应用独立配置即 `compat.toml` 的 `[[apps]]`（`wind-config/src/app_compat.rs` 的 `AppCompatRule`）。
+应用独立配置即 `compat.toml` 的 `[[apps]]`（`moodflow-config/src/app_compat.rs` 的 `AppCompatRule`）。
 本轮加三组能力，全部是**用户偏好**字段——一律 `Option`，`None` = 跟随全局；**不进**
 `ProtocolFields`（那是宿主协议级修正的继承通道，偏好字段走整条覆盖）。
 
@@ -187,7 +187,7 @@ password_force_english = false
   （模式 + 坐标一起写），否则写全局，照 `save_candidate_pos_for_app`。
 - 菜单「应用独立配置 → 状态提示位置」：跟随全局 / 跟随光标 / 固定（取当前位置）/ ── /
   各锚点 / 子菜单「坐标不可用时」（跟随全局 / 上次位置 / 不显示 / 各锚点）。
-- 设置页（wind-setting）：状态提示段的「位置」下拉补锚点档，新增「坐标不可用时」下拉。
+- 设置页（moodflow-setting）：状态提示段的「位置」下拉补锚点档，新增「坐标不可用时」下拉。
 
 ### 实施补注（与上文的差异与细化）
 
@@ -217,8 +217,8 @@ password_force_english = false
 - **macOS**：`CMD_STATUS_SHOW` 尾部追加 `anchor:i32`（旧 `.app` 忽略，互容）。`.app` 的
   「焦点所在屏」取**鼠标所在屏**，其次光标点所在屏：`NSScreen.main` 问的是 `.app` 自己的
   key window（输入法没有），而锚点兜底场景下光标点恰恰不可信。窗口锚点降级为屏幕锚点。
-- 未做：文档站（WindInputDocs）的 `guides/compat.mdx` / `settings/menu.mdx` / `guides/config`
-  补注，与设置页（wind-setting）两个下拉，留给后续阶段。
+- 未做：文档站（MoodflowDocs）的 `guides/compat.mdx` / `settings/menu.mdx` / `guides/config`
+  补注，与设置页（moodflow-setting）两个下拉，留给后续阶段。
 
 ---
 

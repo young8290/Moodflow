@@ -17,7 +17,7 @@ on:
         type: string
         default: ""
       setting_ref:
-        description: "wind-setting 检出的分支/标签(留空 = 默认分支,Linux 适配已在其 main;验证 wind-setting 上尚未合入的改动时填分支名)"
+        description: "moodflow-setting 检出的分支/标签(留空 = 默认分支,Linux 适配已在其 main;验证 moodflow-setting 上尚未合入的改动时填分支名)"
         required: false
         type: string
         default: ""
@@ -57,7 +57,7 @@ jobs:
     needs: prep
     uses: ./.github/workflows/linux-build.yml
     secrets:
-      WIND_REPOS_TOKEN: ${{ secrets.WIND_REPOS_TOKEN }}
+      MOODFLOW_REPOS_TOKEN: ${{ secrets.MOODFLOW_REPOS_TOKEN }}
     with:
       version: ${{ needs.prep.outputs.version }}
       ref: ${{ inputs.tag }}
@@ -89,7 +89,7 @@ jobs:
         run: |
           ls -lh dist
           for a in amd64 arm64; do
-            [ -f "dist/WindInput-${VERSION}-linux-${a}.deb" ] || { echo "缺 $a 的 .deb" >&2; exit 1; }
+            [ -f "dist/Moodflow-${VERSION}-linux-${a}.deb" ] || { echo "缺 $a 的 .deb" >&2; exit 1; }
           done
       # Release 不存在就建草稿(不发布):草稿由人工审过再点 Publish;后续 release.yml 对同一 tag
       # 建 Release 时会复用这个草稿并追加 Windows / macOS 产物。
@@ -97,7 +97,7 @@ jobs:
         run: |
           if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft \
-              --verify-tag --title "清风输入法 v${VERSION}" \
+              --verify-tag --title "Moodflow 输入法 v${VERSION}" \
               --notes "Linux 测试版安装包(Ubuntu 22.04+ / Debian 系,含 Deepin)。Windows / macOS 安装包随后补充。"
           fi
           gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber dist/*

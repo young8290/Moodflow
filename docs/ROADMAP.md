@@ -1,4 +1,4 @@
-# WindInput — 现状差距与重设计路线
+# Moodflow — 现状差距与重设计路线
 
 > 本文是**当前现状 + 下一步路线**，基于 2026-06-15 对两侧仓库的真实命令核查。
 > 项目初始的整体构建蓝图见 [MIGRATION_PLAN.md](./MIGRATION_PLAN.md)（技术选型/协议兼容仍可参考，
@@ -6,21 +6,21 @@
 
 ## 仓库目录结构（2026-06-15 定）
 
-本仓库从"纯 Rust 工程"转为"多语言产品仓"，最终完全替代 Go 版 `WindInput`。
-采用**按组件分子目录 + 共享资产在根**的布局（镜像 Go），Rust 核心服务放在 `wind_input/`：
+本仓库从"纯 Rust 工程"转为"多语言产品仓"，最终完全替代 Go 版 `Moodflow`。
+采用**按组件分子目录 + 共享资产在根**的布局（镜像 Go），Rust 核心服务放在 `moodflow_input/`：
 
 ```
-WindInput/              产品仓根
-├── wind_input/            Rust 核心服务 (Cargo workspace: Cargo.toml + crates/ + apps/ + scripts/)
+Moodflow/              产品仓根
+├── moodflow_input/            Rust 核心服务 (Cargo workspace: Cargo.toml + crates/ + apps/ + scripts/)
 ├── docs/                  产品级文档 (ROADMAP / MIGRATION_PLAN / VERSION)
 ├── .gitignore
-└── (将来) wind_tsf/        C++ TSF DLL
-         wind_macos/        macOS 组件
+└── (将来) moodflow_tsf/        C++ TSF DLL
+         moodflow_macos/        macOS 组件
          data/ installer/   共享数据与安装包
 ```
 
-- Cargo workspace 根 = `wind_input/`（不在 git 根，cargo 不受影响）。
-- 构建脚本 `wind_input/scripts/dev.{sh,ps1,bat}` 内部用 `PROJECT_ROOT`(wind_input) /
+- Cargo workspace 根 = `moodflow_input/`（不在 git 根，cargo 不受影响）。
+- 构建脚本 `moodflow_input/scripts/dev.{sh,ps1,bat}` 内部用 `PROJECT_ROOT`(moodflow_input) /
   `PRODUCT_ROOT`(产品仓根) 两级定位；`VERSION` 读自产品仓 `docs/VERSION`，Go 仓库在产品仓同级。
 
 ## 现状（核实于 2026-06-17）
@@ -28,7 +28,7 @@ WindInput/              产品仓根
 - **基本输入闭环已通**：wubi、拼音、混输的击键 → 候选 → 上屏基本流程都能用。
 - **核心输入链 + 输入质量 + 按键管线已走完**（见下"已完成里程碑"），差距主要转移到**外围交互
   （cmdbar、应用级配置）、配套（rpc/设置/备份/字体/主题深度/测试设施）与跨平台**。
-- **体量**：Rust ≈ 2.26 万行（12 crates + 2 apps） vs Go `wind_input` ≈ 15.3 万行（666 文件，`internal/` 22 模块）。
+- **体量**：Rust ≈ 2.26 万行（12 crates + 2 apps） vs Go `moodflow_input` ≈ 15.3 万行（666 文件，`internal/` 22 模块）。
   行数 ≠ 完成度（Rust 更精简、Go 含大量平台/测试样板），下表 🟡/🔴 为**结构层证据**，深度仍需逐项核。
 
 ### 已完成里程碑（2026-06-16/17）
@@ -43,22 +43,22 @@ WindInput/              产品仓根
 
 | Go 模块 | Go 行 | Rust 对应 | Rust 行 | 状态 |
 |---|---|---|---|---|
-| coordinator | 23570 | wind-coordinator | 5184 | 🟢 核心链完整（S0–S4 单点管线/全码策略） |
-| ui | 22426 | wind-ui | 3929 | 🟡 部分（候选窗/工具栏可用，深度待核） |
-| engine | 19933 | wind-engine | 2989 | 🟢 拼音/码表/混输 + 全码策略；模糊音等深度待核 |
-| dict | 16021 | wind-dict | 1611 | 🟢 CompositeDict 接通 + mmap/redb 层 |
-| tooltip | 8743 | wind-ui/tooltip（内含） | — | 🟡 部分 |
-| theme | 7224(+pkg) | wind-theme | 493 | 🟡 浅（调色板/ResolvedV3/bgimage 深度不足） |
-| config | 6139 | wind-config | 1747 | 🟢 富 Schema + 三层合并 + code_commit 全局 |
-| store | 5328 | wind-store | 1457 | 🟢 redb 落地 |
-| bridge | 5261 | wind-bridge | 1403 | 🟡 部分（管道/共享内存通，边角待核） |
-| cmdbar | 5481 | wind-cmdbar | 181 | 🔴 骨架（34 内置函数是桩；基础日期/计算走 quick_input） |
-| schema | 4854 | wind-config/schema（内含） | — | 🟢 富 Schema |
+| coordinator | 23570 | moodflow-coordinator | 5184 | 🟢 核心链完整（S0–S4 单点管线/全码策略） |
+| ui | 22426 | moodflow-ui | 3929 | 🟡 部分（候选窗/工具栏可用，深度待核） |
+| engine | 19933 | moodflow-engine | 2989 | 🟢 拼音/码表/混输 + 全码策略；模糊音等深度待核 |
+| dict | 16021 | moodflow-dict | 1611 | 🟢 CompositeDict 接通 + mmap/redb 层 |
+| tooltip | 8743 | moodflow-ui/tooltip（内含） | — | 🟡 部分 |
+| theme | 7224(+pkg) | moodflow-theme | 493 | 🟡 浅（调色板/ResolvedV3/bgimage 深度不足） |
+| config | 6139 | moodflow-config | 1747 | 🟢 富 Schema + 三层合并 + code_commit 全局 |
+| store | 5328 | moodflow-store | 1457 | 🟢 redb 落地 |
+| bridge | 5261 | moodflow-bridge | 1403 | 🟡 部分（管道/共享内存通，边角待核） |
+| cmdbar | 5481 | moodflow-cmdbar | 181 | 🔴 骨架（34 内置函数是桩；基础日期/计算走 quick_input） |
+| schema | 4854 | moodflow-config/schema（内含） | — | 🟢 富 Schema |
 | rpc | 4718 | apps/rpc | 22 | 🔴 空桩（**用户已明确延后**，设置程序通信用） |
 | uicmd | 2872 | 散落 coordinator | — | 🔴 缺/散落 |
-| transform | 1453 | wind-transform | 553 | 🟡 部分（标点/全半角/配对/智能符号；简繁 s2t 待核） |
-| ipc | 1534 | wind-ipc | 1047 | 🟢 接近（含 ReplaceBackward 等新命令码） |
-| candidate | 315 | wind-candidate | 311 | 🟢 接近 |
+| transform | 1453 | moodflow-transform | 553 | 🟡 部分（标点/全半角/配对/智能符号；简繁 s2t 待核） |
+| ipc | 1534 | moodflow-ipc | 1047 | 🟢 接近（含 ReplaceBackward 等新命令码） |
+| candidate | 315 | moodflow-candidate | 311 | 🟢 接近 |
 | keyinject | 576 | — | 0 | 🔴 缺（基础上屏走 KeyAction::InsertText，专用注入未移植） |
 | backup | 1075 | — | 0 | 🔴 缺 |
 | foreground | 206 | — | 0 | 🔴 缺（前台窗口检测驱动的应用级配置） |
@@ -85,7 +85,7 @@ WindInput/              产品仓根
 
 ### 阶段 A — 重设计基线（设计先行，read-only）
 对核心链逐子系统产出一份"设计差分"：**Go 设计要点 / Go 坏设计（不照搬）/ Rust 现状 / Rust 目标边界**。
-参考 Go 仓库 `wind_input/docs/design/`（含归档设计稿）。
+参考 Go 仓库 `moodflow_input/docs/design/`（含归档设计稿）。
 - 优先子系统：**engine、dict、store**（候选质量短板集中处），其次 coordinator、schema/config。
 - 产出：每子系统一份 redesign spec（落 `docs/redesign/<模块>.md`），用户逐份确认后再进入补实现。
 - **已完成（2026-06-16）**：engine / dict / store / coordinator / config-schema 五份差分，证据化（Go 侧 agent 提取 + grep 抽验 file:line）。
@@ -94,8 +94,8 @@ WindInput/              产品仓根
   ④ coordinator 吸取 Go 统一管线/模式融合**目标态**（避开半迁移双轨）；⑤ schema 是质量特性配置面，统一为一套富 Schema。
   ⑥ **智能拼音单列权威设计**（见 redesign/pinyin-smart-input.md）：lattice 用 trie common-prefix-search（拼音系统词库=只读 mmap trie，crawdad/yada/fst 评估），bigram 必做；
   **纠正**前 dict.md"弃 wdat 统一 wdb"——码表用 wdb、拼音用 trie（按访问模式分，Go 分法是对的）。
-  ⑦ **跨平台包架构**（见 redesign/platform-architecture.md）：核心 crate 已 0 平台行（含 coordinator），耦合仅 wind-ui/wind-bridge/apps；
-  目标=核心无关层 + 平台 trait 层(Transport/TextClient/Surface/SystemServices) + 平台实现(cfg/平台crate) + 原生 host(wind_tsf C++/wind_macos Swift) + wind-ffi；
+  ⑦ **跨平台包架构**（见 redesign/platform-architecture.md）：核心 crate 已 0 平台行（含 coordinator），耦合仅 moodflow-ui/moodflow-bridge/apps；
+  目标=核心无关层 + 平台 trait 层(Transport/TextClient/Surface/SystemServices) + 平台实现(cfg/平台crate) + 原生 host(moodflow_tsf C++/moodflow_macos Swift) + moodflow-ffi；
   光栅用 tiny-skia(跨平台)、文本走 backend trait(DirectWrite/CoreText)；macOS 实现排期阶段 D 后，现在只留门(trait 边界 + CI 守护核心 0 平台行 + 缺失能力按平台 trait 设计)。
   落地顺序：config 合并修复 + 富 Schema → store redb(user/temp/freq/shadow) → dict 接通 composite → engine 打分器/拼音 lattice trie + bigram → coordinator pipeline。
 
@@ -118,7 +118,7 @@ WindInput/              产品仓根
 rpc（空桩，**用户已明确延后**）、backup、clipboard、systemfont、theme 完整、perf、e2e 测试设施、macOS 平台实现。
 
 ### 贯穿原则
-- 每个改动用 `wind_input/scripts/dev.sh ci`（fmt-check + clippy + test）把关。
+- 每个改动用 `moodflow_input/scripts/dev.sh ci`（fmt-check + clippy + test）把关。
 - 删坏设计：发现 Go 的冗余/坏抽象，记录在对应 redesign spec 的"不照搬"小节，明确不移植。
 - 增量提交，单次聚焦单一职责。
 

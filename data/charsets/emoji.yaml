@@ -1,5 +1,5 @@
 ---
-# 由 wind-tools/gen_emoji_chars 生成，请勿手改。
+# 由 moodflow-tools/gen_emoji_chars 生成，请勿手改。
 # 数据源: Unicode 17.0 emoji-data.txt 的 `Emoji` 属性。
 # 已排除 keycap 基字符 0-9 # *（独立时不是 emoji），已补入 U+20E3。
 #

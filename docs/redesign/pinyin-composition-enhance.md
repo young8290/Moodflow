@@ -4,7 +4,7 @@
 > ① 选「你」后「hao」留缓冲但已与「你」割裂，无法分步组词、无法自动造词；
 > ② 混输模式选「你」后剩余「hao」落到五笔引擎。
 > 标准拼音输入法（Rime / Google / 搜狗 / 本项目 Go 原版）用的是**组合区内逐步转换**模型。
-> 本文档基于 Go 原版（`WindInput/wind_input`，权威参考）调研结论给出 Rust 实现方案。
+> 本文档基于 Go 原版（`Moodflow/moodflow_input`，权威参考）调研结论给出 Rust 实现方案。
 
 ## 〇、网络调研结论（libime / sunpinyin / Rime，2026-06）
 
@@ -62,13 +62,13 @@ Go 原版只是参考之一且不够好（词频朴素）。对照主流开源�
 | 组合区 committed 前缀 | **无**（State 只有 `input_buffer`/`temp_pinyin_buffer`/`mix_buffer`） |
 | 选词分段 | 有 `consumed_length`，但选词后**直接上屏**（`commit_selected` 返回 InsertText） |
 | 长句尾残码 | 引擎 sentence 解码在**整串**（含残码）上跑 lattice → 残码毁掉整句，退化单字（bug①根因） |
-| 造词基建 | **已具备**：`wind-store` `add_user_word`/`on_word_selected`(阈值加权)、`temp_words`(晋升)；`wind-dict` User 层 |
+| 造词基建 | **已具备**：`moodflow-store` `add_user_word`/`on_word_selected`(阈值加权)、`temp_words`(晋升)；`moodflow-dict` User 层 |
 | 造词接线 | **未接**到拼音上屏路径 |
 
 ## 三、Rust 实现方案（分阶段）
 
 ### P. 引擎长句尾残码（修 bug①，最契合、风险低）
-`wind-engine/src/pinyin/mod.rs convert()`：当前用整串 `input` 建 lattice。改为：
+`moodflow-engine/src/pinyin/mod.rs convert()`：当前用整串 `input` 建 lattice。改为：
 - 取 `completed = 连续完成音节拼接`（已有 `compute_composition` 得 `completed_syllables`/`partial`）；
 - lattice/Viterbi 在 `completed` 上跑，sentence 候选 `consumed_length = completed.len()`；
 - 残码 `partial` 不参与整句，保留在 preedit 显示。
@@ -115,5 +115,5 @@ mix 文本透镜（拼音/英文成员）选词走同一组合区模型，剩余
 ## 四、风险 / 注意
 - coordinator 热路径（~5200 行），改动集中在拼音/临拼/mix 三处选词与 preedit 组装；
   其余模式（五笔/英文/URL/特殊/计算）不受影响。
-- 提交纪律：仅 `git add` 自己的文件（并发会话在改 wind-ui 主题）。
+- 提交纪律：仅 `git add` 自己的文件（并发会话在改 moodflow-ui 主题）。
 - host 可测：引擎 P 段、store 造词；coordinator C/M 段靠交叉编译 + 设备验证。

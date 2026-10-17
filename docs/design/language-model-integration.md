@@ -15,7 +15,7 @@
 ② 开启路径的性能优化；③ `preceding_text`（§4.4，句首上下文，独立工作线）。
 
 工具：`scripts/lm/gram.py`（`.gram` 解析）、`scripts/lm/bigram_coverage.py`（命中率评估）、
-`tests/grammar_sentence_eval.rs`（整句标定，支持 `WIND_GRAM_WEIGHT` / `WIND_GRAM_MODEL`）。
+`tests/grammar_sentence_eval.rs`（整句标定，支持 `MOODFLOW_GRAM_WEIGHT` / `MOODFLOW_GRAM_MODEL`）。
 **目标读者**：准备给拼音引擎接上下文模型的人。
 **前置阅读**：`docs/design/sentence-weight-same-axis.md` §7（与参考实现的架构对照）。
 
@@ -369,7 +369,7 @@ P2 按此实现，`P1` 的 `context_at` 已经是「回看两个词」的语义�
 
 ### 4.3 存储：中等，但有现成骨架
 
-复用 `wind-dict` 的「mmap + 内容指纹缓存」骨架（`datformat.rs` / `commentdict.rs` /
+复用 `moodflow-dict` 的「mmap + 内容指纹缓存」骨架（`datformat.rs` / `commentdict.rs` /
 `cache_fp.rs` / `reader_pool.rs` 已跑熟）。
 
 **★ 结论：只做 bgc 的话，连 trie 都不需要。** 见 §2.2.3d——bgc 是纯 2-gram，
@@ -411,7 +411,7 @@ let Some(start) = self.walk(v, prefix) else { return ... };   // ← 先走到 c
 （光标前已上屏的文本），由 `translator->GetPrecedingText(start)` 提供。
 
 **本仓不存在任何对应物**——grep `preceding_text` / `GetPrecedingText` / 「前文」
-在 `wind_input/crates` 下零命中。后果：
+在 `moodflow_input/crates` 下零命中。后果：
 
 - 句首的第一个词**永远没有 context**，只能吃 `non_collocation_penalty` 基线；
 - `ContextualTranslation`（按上文给**普通候选**重排，不只整句）**完全做不了**。
@@ -451,7 +451,7 @@ let Some(start) = self.walk(v, prefix) else { return ... };   // ← 先走到 c
 - ~~模型规模~~ → §5
 - ~~Viterbi 改动量~~ → §4.2
 - ~~训练数据 `value` 的量纲~~ → **`ln(频次) × 10000`**，见 §2.2.3b
-- ~~`wind-dict` 的 DAT 能否带起始节点搜索~~ → **能**，见 §4.3
+- ~~`moodflow-dict` 的 DAT 能否带起始节点搜索~~ → **能**，见 §4.3
 - ~~bgc 在我们数据上的实际命中率~~ → **88.21%**，见 §2.2.3f（P0 已执行）
 
 **仍待查**：
@@ -497,7 +497,7 @@ python scripts/lm/bigram_coverage.py --gram <zh-hans-t-essay-bgc.gram> \
 1. `pinyin_eval` 剔除耗时字段后与基线 **JSON 逐位相同**——四类指标、misses 明细全等。
 2. 新增单测 `null_grammar_does_not_change_result`（挂 `NullGrammar` 与不挂结果逐位相同）
    与 `grammar_receives_context_and_rear_flag`（context 回看两词、`is_rear` 只在末尾为真）。
-   wind-engine 全量 0 failed。
+   moodflow-engine 全量 0 failed。
 
 ★ 两条缺一不可：只有第 1 条的话，`query` 这条路径**从未被执行过**，
 证明的只是「没接模型时没坏」，而不是「接上去的通路是通的」。
@@ -574,7 +574,7 @@ python scripts/lm/bigram_coverage.py --gram <zh-hans-t-essay-bgc.gram> \
 
 **P3 — 接真模型** ✅ **已完成，2026-08-11**（但**结论是保守的**，见下）
 
-`wind-dict/src/gramdb.rs`（mmap + darts-clone 只读查询 + `encode`）
+`moodflow-dict/src/gramdb.rs`（mmap + darts-clone 只读查询 + `encode`）
 与 `pinyin/octagram.rs`（`OctagramGrammar`）；配置 `[schema.pinyin.grammar]`
 的 `weight` / `model`，`weight = 0`（默认）时**根本不读文件**。
 

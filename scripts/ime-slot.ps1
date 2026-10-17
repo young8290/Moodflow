@@ -1,9 +1,9 @@
 # ime-slot.ps1 —— 查「哪个构建正占着输入法的 CLSID 槽位」。
 #
 # 为什么需要它: TSF 输入法必须在全局注册表占一个 COM 类才能被系统加载, 而本产品只有
-# 两个变体 (wind-portable\src\variant.rs 的 `is_dev ? WindInputDev : WindInput`), 即
+# 两个变体 (moodflow-portable\src\variant.rs 的 `is_dev ? MoodflowDev : Moodflow`), 即
 # **全机只有两个槽位**。便携部署看着像沙箱, 但它走的同样是 regsvr32 + InstallLayoutOrTip
-# (wind-portable\src\registration.rs), 隔离的只是文件位置 / userdata / 自启项, **不隔离
+# (moodflow-portable\src\registration.rs), 隔离的只是文件位置 / userdata / 自启项, **不隔离
 # CLSID** —— 谁后部署谁占用, 且会顶掉同变体的系统安装。
 #
 # 多个 worktree 同时开发时, dev 槽位是公共资源, 需交替使用。本脚本不做锁也不做仲裁

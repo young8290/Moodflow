@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# WindInput 开发菜单 (Linux 开发机)
+# Moodflow 开发菜单 (Linux 开发机)
 #
 # ★ 构建不在本机进行 —— 凡会写进 build[_dev]/ 或 dist/ 的命令都转发到 Windows 编译机,
-#   用原生 MSVC 编, 产物回传本机。理由: clang/cargo-xwin 交叉编出的 xinqing_tsf.dll 在带
+#   用原生 MSVC 编, 产物回传本机。理由: clang/cargo-xwin 交叉编出的 moodflow_tsf.dll 在带
 #   安全加固的宿主里 COM 激活失败, 根因在工具链代码生成层 (6dbc8595)。本机的 cargo-xwin
 #   只剩 check/clippy 一个正当用途 —— 那两个不链接、不产出交付物。
 #   配置: cp scripts/build.local.example scripts/build.local; 未配置时构建类命令硬失败。
@@ -12,38 +12,38 @@
 #   ./scripts/dev.sh <命令>     # 非交互直调, 如 ./scripts/dev.sh release
 #
 # 本机 (Linux) 交叉编译为 Windows (MSVC) 可执行文件:
-#   - Rust(wind_input): cargo-xwin → x86_64-pc-windows-msvc (+crt-static 自包含)
-#   - Rust(../wind-setting): 独立仓库, 不存在则跳过设置程序
-#   - Rust(../wind-portable): 独立仓库, 不存在则跳过便携启动器
+#   - Rust(moodflow_input): cargo-xwin → x86_64-pc-windows-msvc (+crt-static 自包含)
+#   - Rust(../moodflow-setting): 独立仓库, 不存在则跳过设置程序
+#   - Rust(../moodflow-portable): 独立仓库, 不存在则跳过便携启动器
 #   - C++ TSF: clang + lld-link + llvm-rc + cargo-xwin 的 MSVC SDK (x64 + x86)
 #   - 依赖: cargo-xwin + clang-19/lld-19/llvm-19 (MSVC STL 要 clang≥19)
 #   - 全构建产物落【项目根】build/(release) 或 build_dev/(dev)，内容 == 安装内容
 #
 # 命令（菜单与命令行直调同一套；前缀 d=dev, p=push, m=单模块）:
-#   1            Release 全构建: wind_input + tsf(x64/x86) + setting + portable + 词库数据 → build/
+#   1            Release 全构建: moodflow_input + tsf(x64/x86) + setting + portable + 词库数据 → build/
 #   d1           Debug 全构建 → build_dev/
 #   m1 / dm1     仅 tsf (x64+x86)            release / dev
-#   m2 / dm2     仅 wind_input (核心 exe)     release / dev
-#   m3 / dm3     仅 wind_setting (../wind-setting)              release / dev (不存在则跳过)
-#   m4 / dm4     仅 wind_portable (../wind-portable)            release / dev (不存在则跳过)
+#   m2 / dm2     仅 moodflow_input (核心 exe)     release / dev
+#   m3 / dm3     仅 moodflow_setting (../moodflow-setting)              release / dev (不存在则跳过)
+#   m4 / dm4     仅 moodflow_portable (../moodflow-portable)            release / dev (不存在则跳过)
 #   8            生成安装包 (= 1 + 打包 → Setup.exe + sha256)
 #   8s           跳过编译，直接打包现有 build/
-#   9            生成便携包 (= 1 + 打 zip → dist/WindInput-Portable-<版本>.zip + sha256)
-#                (免安装；不依赖 wind-installer；内含便携标记，不含 userdata/)
+#   9            生成便携包 (= 1 + 打 zip → dist/Moodflow-Portable-<版本>.zip + sha256)
+#                (免安装；不依赖 moodflow-installer；内含便携标记，不含 userdata/)
 #   9s           跳过编译，直接打包现有 build/
 #   instbins     从编译机取安装器三件套(原生 MSVC) → .cache/installer-bins/
-#   stage/dstage 打发布中转产物 → dist/WindInput[Dev]-Stage-<版本>.zip (release / dev)
+#   stage/dstage 打发布中转产物 → dist/Moodflow[Dev]-Stage-<版本>.zip (release / dev)
 #                (build/ + 安装器三件套 + stage.json；拷到本机 dev.ps1 unstage 后签名打包)
 #   p1 / pd1     push 全部 build[_dev]/ → Windows 安装目录 (release / dev)
 #   pm1/pm2      push 单模块 (tsf/核心, release)
 #   pdm1/pdm2    push 单模块 (dev)
 #   k=check  l=clippy  t=test  f=fmt  fmt-check  ci(=fmt+clippy+test)  hooks(=激活pre-commit)  clean
-#   sk=setting-check  st=setting-test  sg=setting-regen   邻仓 ../wind-setting
+#   sk=setting-check  st=setting-test  sg=setting-regen   邻仓 ../moodflow-setting
 #     (交叉到 Windows 目标; st/sg 经 wine 执行。sg = 重生成检入的 capability 快照与 mockdata)
-#     ↑ 只改了 core 配置注册表的话, 先跑 cargo test -p wind-rpc --test wind_setting_assets
-#       (在 core 这边对账邻仓三份检入产物, 不必编译 wind-setting)
+#     ↑ 只改了 core 配置注册表的话, 先跑 cargo test -p moodflow-rpc --test moodflow_setting_assets
+#       (在 core 这边对账邻仓三份检入产物, 不必编译 moodflow-setting)
 #     ↑ 这几个【在本机跑】: 不产出交付物, cargo-xwin 在 Linux 上仅存的正当用途就是它们;
-#       t/test 更是原生 cargo test。想在本机直接出二进制看看链接过不过: WIND_BUILD_LOCAL=1
+#       t/test 更是原生 cargo test。想在本机直接出二进制看看链接过不过: MOODFLOW_BUILD_LOCAL=1
 #       (⚠️ 产物不能部署也不能发版, 见 lib/remote-build.sh)
 #   gd=gen-data  r=repl  dl=pull-data  pc=pull-config  pl=pull-log(pla=全部)
 #   远程诊断(靶机现场, 配置见 deploy.local):
@@ -58,10 +58,10 @@
 #   Win 靶机     部署、实机运行、日志现场 (deploy.local; p*/pd* 推送, r* 诊断)
 #
 # 部署配置 scripts/deploy.local（SSH 推送到 Windows 实测机）:
-#   WIND_REMOTE              = user@host             # SSH 目标
-#   WIND_REMOTE_DIR_RELEASE  = C:/.../WindInput      # p1 全量/ pm* 推送目录
-#   WIND_REMOTE_DIR_DEV    = C:/.../WindInputDev  # pd1 / pdm* 推送目录
-#   WIND_DATA_DIR / WIND_LOCAL_DIR  = %APPDATA% / %LOCALAPPDATA%\<App>  # pull-config/log 用
+#   MOODFLOW_REMOTE              = user@host             # SSH 目标
+#   MOODFLOW_REMOTE_DIR_RELEASE  = C:/.../Moodflow      # p1 全量/ pm* 推送目录
+#   MOODFLOW_REMOTE_DIR_DEV    = C:/.../MoodflowDev  # pd1 / pdm* 推送目录
+#   MOODFLOW_DATA_DIR / MOODFLOW_LOCAL_DIR  = %APPDATA% / %LOCALAPPDATA%\<App>  # pull-config/log 用
 #
 # 数据目录说明：
 #   data/           源文件（入库）：配置、五笔词库、主题等手工维护文件
@@ -77,17 +77,17 @@ set -o pipefail
 # 目录层级: <产品仓>/scripts/dev.sh
 #   SCRIPT_DIR   = <产品仓>/scripts
 #   PRODUCT_ROOT = <产品仓>          (含 docs/VERSION、data/、.cache/ 等)
-#   PROJECT_ROOT = <产品仓>/wind_input (Cargo workspace 根)
+#   PROJECT_ROOT = <产品仓>/moodflow_input (Cargo workspace 根)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PRODUCT_ROOT="$(dirname "$SCRIPT_DIR")"
-PROJECT_ROOT="$PRODUCT_ROOT/wind_input"
-# C++ TSF 核心层（clang/MSVC 交叉编译，见 wind_tsf/Makefile）
-TSF_DIR="$PRODUCT_ROOT/wind_tsf"
-SETTING_DIR="$(cd "$PRODUCT_ROOT/.." && pwd)/wind-setting"
-PORTABLE_DIR="$(cd "$PRODUCT_ROOT/.." && pwd)/wind-portable"
-# wind-installer: 通用安装器生成器（兄弟仓库, app.toml 驱动）。默认值与覆盖用的环境变量
-# 都与 pack-installer.sh 的 WIND_INSTALLER_DIR 保持一致, 免得两个脚本各找各的安装器。
-INSTALLER_DIR="${WIND_INSTALLER_DIR:-$(cd "$PRODUCT_ROOT/.." && pwd)/wind-installer}"
+PROJECT_ROOT="$PRODUCT_ROOT/moodflow_input"
+# C++ TSF 核心层（clang/MSVC 交叉编译，见 moodflow_tsf/Makefile）
+TSF_DIR="$PRODUCT_ROOT/moodflow_tsf"
+SETTING_DIR="$(cd "$PRODUCT_ROOT/.." && pwd)/moodflow-setting"
+PORTABLE_DIR="$(cd "$PRODUCT_ROOT/.." && pwd)/moodflow-portable"
+# moodflow-installer: 通用安装器生成器（兄弟仓库, app.toml 驱动）。默认值与覆盖用的环境变量
+# 都与 pack-installer.sh 的 MOODFLOW_INSTALLER_DIR 保持一致, 免得两个脚本各找各的安装器。
+INSTALLER_DIR="${MOODFLOW_INSTALLER_DIR:-$(cd "$PRODUCT_ROOT/.." && pwd)/moodflow-installer}"
 VERSION="$(tr -d '[:space:]' < "$PRODUCT_ROOT/docs/VERSION" 2>/dev/null || echo '?')"
 # 发布产物目录在【项目根】（内容 == 安装到 Program Files 的内容，无中间产物）
 BUILD_DIR="$PRODUCT_ROOT/build"
@@ -100,30 +100,30 @@ CACHE_DIR="$PRODUCT_ROOT/.cache"
 # 刻意不放进 cargo 的 target/ —— 那里会被下一次本地 cargo xwin build 覆盖成交叉编版本,
 # 而同一路径此前是原生、此后是交叉编, 肉眼分不出来。理由全文见 do_instbins 头部。
 INSTALLER_BIN_DIR="$CACHE_DIR/installer-bins"
-# Rust 工具链根目录（wind_input/ workspace）
-RUST_WORKSPACE="$PRODUCT_ROOT/wind_input"
+# Rust 工具链根目录（moodflow_input/ workspace）
+RUST_WORKSPACE="$PRODUCT_ROOT/moodflow_input"
 
 # 远程 Windows 测试机配置（SSH）。在 scripts/deploy.local 或环境变量中设置：
-#   WIND_REMOTE              = user@host          （SSH 目标）
-#   WIND_REMOTE_DIR_RELEASE  = release 安装目录    （p1/pm* 推送目标；scp 正斜杠风格，
-#                              如 'C:/Users/me/AppData/Local/Programs/WindInput'）
-#   WIND_REMOTE_DIR_DEV    = dev 安装目录      （pd1/pdm* 推送目标，如 .../WindInputDev）
+#   MOODFLOW_REMOTE              = user@host          （SSH 目标）
+#   MOODFLOW_REMOTE_DIR_RELEASE  = release 安装目录    （p1/pm* 推送目标；scp 正斜杠风格，
+#                              如 'C:/Users/me/AppData/Local/Programs/Moodflow'）
+#   MOODFLOW_REMOTE_DIR_DEV    = dev 安装目录      （pd1/pdm* 推送目标，如 .../MoodflowDev）
 [ -f "$SCRIPT_DIR/deploy.local" ] && . "$SCRIPT_DIR/deploy.local"
-WIND_REMOTE="${WIND_REMOTE:-}"
-WIND_REMOTE_DIR_RELEASE="${WIND_REMOTE_DIR_RELEASE:-}"
-WIND_REMOTE_DIR_DEV="${WIND_REMOTE_DIR_DEV:-}"
-WIND_REMOTE_DIR="${WIND_REMOTE_DIR:-}"   # 兼容旧配置：未设 _RELEASE 时作 release 回退
+MOODFLOW_REMOTE="${MOODFLOW_REMOTE:-}"
+MOODFLOW_REMOTE_DIR_RELEASE="${MOODFLOW_REMOTE_DIR_RELEASE:-}"
+MOODFLOW_REMOTE_DIR_DEV="${MOODFLOW_REMOTE_DIR_DEV:-}"
+MOODFLOW_REMOTE_DIR="${MOODFLOW_REMOTE_DIR:-}"   # 兼容旧配置：未设 _RELEASE 时作 release 回退
 # 远程数据/本地目录（拉配置、拉日志用；见 deploy.local 注释）：
-#   WIND_DATA_DIR   = %APPDATA%\<App>        含 config.toml（用户配置）
-#   WIND_LOCAL_DIR  = %LOCALAPPDATA%\<App>   含 logs/（服务日志）、cache/
-WIND_DATA_DIR="${WIND_DATA_DIR:-}"
-WIND_LOCAL_DIR="${WIND_LOCAL_DIR:-}"
+#   MOODFLOW_DATA_DIR   = %APPDATA%\<App>        含 config.toml（用户配置）
+#   MOODFLOW_LOCAL_DIR  = %LOCALAPPDATA%\<App>   含 logs/（服务日志）、cache/
+MOODFLOW_DATA_DIR="${MOODFLOW_DATA_DIR:-}"
+MOODFLOW_LOCAL_DIR="${MOODFLOW_LOCAL_DIR:-}"
 # 从远程拉取的配置/日志落地处（本地查看用，不入库）
 REMOTE_PULL_DIR="$PRODUCT_ROOT/.remote"
 REMOTE_DIR=""   # 由 resolve_remote_dir 按 profile 填充
 
 # Rust 交叉编译目标:MSVC(经 cargo-xwin 在 Linux 上交叉编,tier-1 目标)。
-# C++ TSF DLL 也走 MSVC(clang + xwin SDK,见 wind_tsf/Makefile),整链统一。
+# C++ TSF DLL 也走 MSVC(clang + xwin SDK,见 moodflow_tsf/Makefile),整链统一。
 TARGET="x86_64-pc-windows-msvc"
 
 # ---------- 颜色 ----------
@@ -147,9 +147,9 @@ fsize() { ls -lh "$1" 2>/dev/null | awk '{print $5}'; }
 # ---------- cargo-xwin / clang (统一 MSVC 交叉编译工具链) ----------
 # Rust/Tauri 经 cargo-xwin、C++ TSF 经 clang+llvm-rc,均交叉编 *-pc-windows-msvc,
 # 共用 cargo-xwin 下载的 MSVC CRT/Windows SDK(缓存于 ~/.cache/cargo-xwin)。
-# 统一用带版本号的 clang(MSVC STL 要求 clang≥19);可用 WIND_LLVM_VER 切到 20。
+# 统一用带版本号的 clang(MSVC STL 要求 clang≥19);可用 MOODFLOW_LLVM_VER 切到 20。
 # 依赖:cargo-xwin、clang-<ver>、lld-<ver>、llvm-<ver>(含 llvm-rc/llvm-lib)。
-# XWIN_BIN / WIND_LLVM_VER / setup_xwin_env 定义在共享环境桥里 —— pack-installer.sh
+# XWIN_BIN / MOODFLOW_LLVM_VER / setup_xwin_env 定义在共享环境桥里 —— pack-installer.sh
 # 写同一个 $XWIN_BIN 目录，两处各存一份实现会互相覆盖（原委见 lib/xwin-env.sh 头部）。
 . "$SCRIPT_DIR/lib/xwin-env.sh"
 
@@ -206,7 +206,7 @@ cargo_target_dir() {
     printf '%s\n' "$d"
 }
 
-# 模块一：wind_input 核心 exe。
+# 模块一：moodflow_input 核心 exe。
 # dev 变体 = dev-variant profile（继承 dev 优化 + 关 debug_assertions）；源码与 release 完全一致：
 #   ① debug_assertions 关闭 → windows_subsystem="windows" 生效，无控制台窗口；
 #   ② opt-level=1 快编译且手感够用；③ 独立 _dev 身份(管道/目录隔离, 运行期按 exe 名探测)。
@@ -215,24 +215,24 @@ build_core() {
     mkdir -p "$outdir"; cd "$PROJECT_ROOT" || return 1
     local suffix="" prof="release"
     [ "$profile" = dev ] && { prof="dev-variant"; suffix="_dev"; }
-    say "\n[core] 交叉编译 wind_input ($prof, $TARGET)..."
-    cargo_xwin build --profile "$prof" --target "$TARGET" -p wind_service \
-        || { err "wind_input 构建失败!"; return 1; }
-    local src="$(cargo_target_dir "$PROJECT_ROOT")/$TARGET/$prof/wind_input.exe"
+    say "\n[core] 交叉编译 moodflow_input ($prof, $TARGET)..."
+    cargo_xwin build --profile "$prof" --target "$TARGET" -p moodflow_service \
+        || { err "moodflow_input 构建失败!"; return 1; }
+    local src="$(cargo_target_dir "$PROJECT_ROOT")/$TARGET/$prof/moodflow_input.exe"
     [ -f "$src" ] || { err "未找到产物: $src"; return 1; }
-    cp -f "$src" "$outdir/xinqing_core${suffix}.exe"
-    gray "已构建: xinqing_core${suffix}.exe ($(fsize "$outdir/xinqing_core${suffix}.exe"))"
-    # CLI 包装器 (wind_input config ...; 运行时自辨 dev/release exe, 两变体共用一份)
-    [ -f "$PROJECT_ROOT/scripts/wind_cli.bat" ] && cp -f "$PROJECT_ROOT/scripts/wind_cli.bat" "$outdir/wind_cli.bat" && gray "已复制: wind_cli.bat"
+    cp -f "$src" "$outdir/moodflow_core${suffix}.exe"
+    gray "已构建: moodflow_core${suffix}.exe ($(fsize "$outdir/moodflow_core${suffix}.exe"))"
+    # CLI 包装器 (moodflow_input config ...; 运行时自辨 dev/release exe, 两变体共用一份)
+    [ -f "$PROJECT_ROOT/scripts/moodflow_cli.bat" ] && cp -f "$PROJECT_ROOT/scripts/moodflow_cli.bat" "$outdir/moodflow_cli.bat" && gray "已复制: moodflow_cli.bat"
 }
 
-# 模块二：wind-setting 设置程序。
+# 模块二：moodflow-setting 设置程序。
 # 独立兄弟仓库；本地开发缺仓库时跳过。GitHub Release workflow 会先强制 checkout，
 # 无权限或缺产物会在 workflow/pack 阶段失败。
 build_setting() {
     local profile="${1:-release}" outdir="${2:-$(out_for "$1")}"
     if [ ! -d "$SETTING_DIR" ]; then
-        warn "../wind-setting 仓库不存在, 跳过设置程序。"
+        warn "../moodflow-setting 仓库不存在, 跳过设置程序。"
         return 0
     fi
 
@@ -245,34 +245,34 @@ build_setting() {
     fi
 
     mkdir -p "$outdir"; cd "$SETTING_DIR" || return 1
-    say "\n[setting] 交叉编译 wind_setting ($profile, $TARGET)..."
-    export WIND_APP_VERSION="$VERSION"   # 版本注入: docs/VERSION → wind-setting (与主仓统一)
-    cargo_xwin "${cargo_args[@]}" || { err "wind_setting 构建失败!"; return 1; }
+    say "\n[setting] 交叉编译 moodflow_setting ($profile, $TARGET)..."
+    export MOODFLOW_APP_VERSION="$VERSION"   # 版本注入: docs/VERSION → moodflow-setting (与主仓统一)
+    cargo_xwin "${cargo_args[@]}" || { err "moodflow_setting 构建失败!"; return 1; }
 
-    local src="$(cargo_target_dir "$SETTING_DIR")/$TARGET/$target_dir/wind_setting.exe"
+    local src="$(cargo_target_dir "$SETTING_DIR")/$TARGET/$target_dir/moodflow_setting.exe"
     [ -f "$src" ] || { err "未找到产物: $src"; return 1; }
-    cp -f "$src" "$outdir/wind_setting${suffix}.exe"
-    gray "已构建: wind_setting${suffix}.exe ($(fsize "$outdir/wind_setting${suffix}.exe"))"
+    cp -f "$src" "$outdir/moodflow_setting${suffix}.exe"
+    gray "已构建: moodflow_setting${suffix}.exe ($(fsize "$outdir/moodflow_setting${suffix}.exe"))"
 }
 
-# 模块三：wind-portable 便携启动器。
+# 模块三：moodflow-portable 便携启动器。
 # 独立兄弟仓库；dev/release 均产出同一份 release 二进制。
 build_portable() {
     local profile="${1:-release}" outdir="${2:-$(out_for "$1")}"
     if [ ! -d "$PORTABLE_DIR" ]; then
-        warn "../wind-portable 仓库不存在, 跳过便携启动器。"
+        warn "../moodflow-portable 仓库不存在, 跳过便携启动器。"
         return 0
     fi
 
     mkdir -p "$outdir"; cd "$PORTABLE_DIR" || return 1
-    say "\n[portable] 交叉编译 wind_portable ($profile → 单一二进制, $TARGET)..."
-    export WIND_APP_VERSION="$VERSION"   # 版本注入: docs/VERSION → wind-portable (与主仓统一)
-    cargo_xwin build --release --target "$TARGET" || { err "wind_portable 构建失败!"; return 1; }
+    say "\n[portable] 交叉编译 moodflow_portable ($profile → 单一二进制, $TARGET)..."
+    export MOODFLOW_APP_VERSION="$VERSION"   # 版本注入: docs/VERSION → moodflow-portable (与主仓统一)
+    cargo_xwin build --release --target "$TARGET" || { err "moodflow_portable 构建失败!"; return 1; }
 
-    local src="$(cargo_target_dir "$PORTABLE_DIR")/$TARGET/release/wind_portable.exe"
+    local src="$(cargo_target_dir "$PORTABLE_DIR")/$TARGET/release/moodflow_portable.exe"
     [ -f "$src" ] || { err "未找到产物: $src"; return 1; }
-    cp -f "$src" "$outdir/wind_portable.exe"
-    gray "已构建: wind_portable.exe ($(fsize "$outdir/wind_portable.exe"))"
+    cp -f "$src" "$outdir/moodflow_portable.exe"
+    gray "已构建: moodflow_portable.exe ($(fsize "$outdir/moodflow_portable.exe"))"
 }
 
 do_check() {
@@ -296,27 +296,27 @@ do_clippy() {
 
 do_test() {
     # --no-fail-fast: 默认首个失败的 test binary 就停, 排在它后面的整个不跑。本机
-    # Windows 有 113 个 test binary, CI 的 Linux job 曾在第 84 个(wind-ui)停下 ——
+    # Windows 有 113 个 test binary, CI 的 Linux job 曾在第 84 个(moodflow-ui)停下 ——
     # 中间 29 个在 CI 上从未执行过。代价是失败时更慢, 换来一次看全所有失败点。
     say "\n正在运行 cargo test (本机, 全工作区)..."
     cd "$PROJECT_ROOT" && cargo test --workspace --no-fail-fast
 }
 
-# ---------- 邻仓 wind-setting: 本机检查 / 测试 ----------
-# 【为什么要交叉到 Windows 目标】wind-setting 依赖 windui, 而 windui 对非 Windows/macOS
-# 目标是 `compile_error!("windui 目前仅支持 Windows 与 macOS 平台")` —— 原生 Linux 编不过,
+# ---------- 邻仓 moodflow-setting: 本机检查 / 测试 ----------
+# 【为什么要交叉到 Windows 目标】moodflow-setting 依赖 moodflowui, 而 moodflowui 对非 Windows/macOS
+# 目标是 `compile_error!("moodflowui 目前仅支持 Windows 与 macOS 平台")` —— 原生 Linux 编不过,
 # 且那不是 rfd 后端的问题(rfd 只是最先爆的那个)。交叉到 x86_64-pc-windows-msvc 则一切正常,
 # check --all-targets 含测试代码一并过。
 #
 # 【与 core 的跨仓对账各管一段】本机改了 core 的配置注册表之后:
-#   · `cargo test -p wind-rpc --test wind_setting_assets` 在 core 这边比对邻仓三份产物
-#     (键在不在、类型/默认值对不对), 不需要编译 wind-setting —— 日常改配置用这个最快;
-#   · sk/st 跑的是 wind-setting **自己那套**守护测试(值的策展偏离、控件类型、选项文案),
+#   · `cargo test -p moodflow-rpc --test moodflow_setting_assets` 在 core 这边比对邻仓三份产物
+#     (键在不在、类型/默认值对不对), 不需要编译 moodflow-setting —— 日常改配置用这个最快;
+#   · sk/st 跑的是 moodflow-setting **自己那套**守护测试(值的策展偏离、控件类型、选项文案),
 #     那些只有它自己知道。
 do_setting_check() {
-    [ -d "$SETTING_DIR" ] || { err "../wind-setting 仓库不存在"; return 1; }
-    say "\n正在检查 wind_setting ($TARGET, 含测试代码)..."
-    export WIND_APP_VERSION="$VERSION"
+    [ -d "$SETTING_DIR" ] || { err "../moodflow-setting 仓库不存在"; return 1; }
+    say "\n正在检查 moodflow_setting ($TARGET, 含测试代码)..."
+    export MOODFLOW_APP_VERSION="$VERSION"
     cd "$SETTING_DIR" && cargo_xwin check --target "$TARGET" --all-targets
 }
 
@@ -326,35 +326,35 @@ do_setting_check() {
 #
 # 【实测 2026-09-17, wine 9.0 / Ubuntu 24.04】全量 1041 passed / 0 failed / 4 ignored, 1.6s。
 # 两个顾虑都不成立: env!("CARGO_MANIFEST_DIR") 的 Linux 绝对路径 wine 解析得了(邻仓多处
-# 测试靠它找 ../WindInput/data, 全过), 启动时那句 "wine32 is missing" 对 x64 目标无碍。
+# 测试靠它找 ../Moodflow/data, 全过), 启动时那句 "wine32 is missing" 对 x64 目标无碍。
 # 首次跑会建 ~/.wine prefix(慢一次, 之后秒级)。
 do_setting_test() {
-    [ -d "$SETTING_DIR" ] || { err "../wind-setting 仓库不存在"; return 1; }
+    [ -d "$SETTING_DIR" ] || { err "../moodflow-setting 仓库不存在"; return 1; }
     if ! command -v wine >/dev/null 2>&1 && ! command -v wine64 >/dev/null 2>&1; then
         err "需要 wine 才能跑 Windows 目标的测试二进制: sudo apt install wine64"
         err "只想验证编不编得过, 用 sk (setting-check, 不需要 wine)。"
         return 1
     fi
-    say "\n正在运行 wind_setting 测试 ($TARGET, 经 wine)..."
-    export WIND_APP_VERSION="$VERSION"
+    say "\n正在运行 moodflow_setting 测试 ($TARGET, 经 wine)..."
+    export MOODFLOW_APP_VERSION="$VERSION"
     cd "$SETTING_DIR" && cargo_xwin test --target "$TARGET"
 }
 
 # 重新生成邻仓的两份检入产物(capabilities.snapshot.json / mockdata/config.json)。
 #
 # 这两个生成器是 `#[ignore]` 的维护工具, 邻仓 capabilities.rs 明令「重新生成而不是手改
-# JSON —— 手改正是漂移的来源」。**以前只能上编译机跑**(见 wind-setting 那段 README 式注释),
+# JSON —— 手改正是漂移的来源」。**以前只能上编译机跑**(见 moodflow-setting 那段 README 式注释),
 # 现在经 wine 本机就能跑, 实测重生成的产物与检入版逐字一致。
 #
 # ⚠️ 跑完 `git diff` 里若只剩 appVersion 一行, 那是**正常的**: 它跟着 docs/VERSION 走,
 #    与配置契约无关(邻仓的守护测试也刻意不比它)。别把它跟自己的改动一起提交。
 do_setting_regen() {
-    [ -d "$SETTING_DIR" ] || { err "../wind-setting 仓库不存在"; return 1; }
+    [ -d "$SETTING_DIR" ] || { err "../moodflow-setting 仓库不存在"; return 1; }
     if ! command -v wine >/dev/null 2>&1 && ! command -v wine64 >/dev/null 2>&1; then
         err "需要 wine: sudo apt install wine64"; return 1
     fi
-    say "\n正在重生成 wind_setting 的检入产物 ($TARGET, 经 wine)..."
-    export WIND_APP_VERSION="$VERSION"
+    say "\n正在重生成 moodflow_setting 的检入产物 ($TARGET, 经 wine)..."
+    export MOODFLOW_APP_VERSION="$VERSION"
     cd "$SETTING_DIR" && cargo_xwin test --target "$TARGET" -- --ignored regenerate_
 }
 
@@ -395,9 +395,9 @@ do_ci() {
 build_tsf_all() {
     local profile="${1:-release}" outdir="${2:-$(out_for "$1")}"
     mkdir -p "$outdir"
-    if ! command -v "clang++-$WIND_LLVM_VER" >/dev/null 2>&1; then
-        warn "未找到 clang++-$WIND_LLVM_VER（C++ TSF 需 clang≥19）；跳过 TSF。"
-        gray "  安装 clang-$WIND_LLVM_VER lld-$WIND_LLVM_VER llvm-$WIND_LLVM_VER 后可构建。"
+    if ! command -v "clang++-$MOODFLOW_LLVM_VER" >/dev/null 2>&1; then
+        warn "未找到 clang++-$MOODFLOW_LLVM_VER（C++ TSF 需 clang≥19）；跳过 TSF。"
+        gray "  安装 clang-$MOODFLOW_LLVM_VER lld-$MOODFLOW_LLVM_VER llvm-$MOODFLOW_LLVM_VER 后可构建。"
         return 0
     fi
     if [ ! -d "$HOME/.cache/cargo-xwin/xwin/sdk" ]; then
@@ -406,15 +406,15 @@ build_tsf_all() {
     fi
     local dv=0; [ "$profile" = dev ] && dv=1
     local objbase="$CACHE_DIR/tsf-obj"
-    say "\n[tsf] 交叉编译 x64 + x86 ($profile, clang-$WIND_LLVM_VER/MSVC)..."
+    say "\n[tsf] 交叉编译 x64 + x86 ($profile, clang-$MOODFLOW_LLVM_VER/MSVC)..."
     local a objsfx; [ "$dv" = 1 ] && objsfx="d" || objsfx=""
     for a in x64 x86; do
         make -C "$TSF_DIR" ARCH="$a" DEV_VARIANT="$dv" VERSION="$VERSION" OUTDIR="$outdir" \
              OBJDIR="$objbase/$a$objsfx" \
-             CLANG="clang++-$WIND_LLVM_VER" LLVM_RC="llvm-rc-$WIND_LLVM_VER" >/dev/null \
+             CLANG="clang++-$MOODFLOW_LLVM_VER" LLVM_RC="llvm-rc-$MOODFLOW_LLVM_VER" >/dev/null \
           || { err "TSF $a 构建失败！见 'make -C $TSF_DIR ARCH=$a' 输出。"; return 1; }
     done
-    gray "已构建: $(cd "$outdir" && ls xinqing_tsf*.dll 2>/dev/null | tr '\n' ' ')"
+    gray "已构建: $(cd "$outdir" && ls moodflow_tsf*.dll 2>/dev/null | tr '\n' ' ')"
 }
 
 # ---------- 词库下载 ----------
@@ -491,7 +491,7 @@ download_dicts() {
 
     # Unicode CLDR emoji 中文注解 + emoji 白名单。不参与常规构建——emoji 命名表
     # (custom_emoji_named.txt) 已入库，这些原始档只在需要重新生成它时用到：
-    #   cargo run -p wind-tools --bin gen_emoji_names -- --cldr .cache/cldr \
+    #   cargo run -p moodflow-tools --bin gen_emoji_names -- --cldr .cache/cldr \
     #     --stopwords <gen_dict数据目录>/emoji_stopwords.txt --out <同目录>/custom_emoji_named.txt
     # 许可证 Unicode-3.0，见 NOTICE.md
     local cldr="$CACHE_DIR/cldr"
@@ -564,8 +564,8 @@ assemble_data() {
     # 安装目录。它们都被 .gitignore 挡着，git 里看不见，只能在组装时剥掉。
     strip_tool_state "$data"
 
-    # 1b. 合并 wind_input/data/settings/（manifest.toml 等 RPC 元数据）。
-    # wind-rpc 运行时优先读 data_dir()/settings/manifest.toml；
+    # 1b. 合并 moodflow_input/data/settings/（manifest.toml 等 RPC 元数据）。
+    # moodflow-rpc 运行时优先读 data_dir()/settings/manifest.toml；
     # 该文件不在 PRODUCT_ROOT/data/ 故需单独合并，否则 Windows 部署端缺失/过期。
     if [ -d "$PROJECT_ROOT/data/settings" ]; then
         mkdir -p "$data/settings"
@@ -591,7 +591,7 @@ assemble_data() {
     done
 
     # 4.（unigram.txt 不再随 data/ 分发：引擎侧的读取链已移除，词图打分改用词条自身的
-    #    词典权重，见 wind-engine/pinyin/lattice.rs::score_node_inner。
+    #    词典权重，见 moodflow-engine/pinyin/lattice.rs::score_node_inner。
     #    .cache 里的 unigram.txt 仍由 gen-data 生成 —— gen_dict 用它给五笔扩展词库的
     #    CJK 条目赋权，见 gen_dict/extra.rs::assign_weights。）
 
@@ -624,7 +624,7 @@ assemble_data() {
         gray "生成五笔词库 (gen_dict) ..."
         mkdir -p "$wubi_out"
         # district 由 gen_dict 的 passthrough 一并处理（原样透传 + 清洗头部）
-        ( cd "$RUST_WORKSPACE" && cargo run -q -p wind-tools --bin gen_dict -- \
+        ( cd "$RUST_WORKSPACE" && cargo run -q -p moodflow-tools --bin gen_dict -- \
             --cache "$CACHE_DIR" --out "$wubi_out" --report "$rime_wubi" ) \
             || warn "五笔词库生成失败（五笔方案不可用）"
     else
@@ -640,7 +640,7 @@ assemble_data() {
     if [ -f "$CACHE_DIR/aux-code/stroke.dict.yaml" ]; then
         gray "生成辅助码表 + 笔画方案词库 (gen_aux_code) ..."
         mkdir -p "$schemas/aux_code"
-        ( cd "$RUST_WORKSPACE" && cargo run -q -p wind-tools --bin gen_aux_code -- \
+        ( cd "$RUST_WORKSPACE" && cargo run -q -p moodflow-tools --bin gen_aux_code -- \
             --cache "$CACHE_DIR" --out "$schemas/aux_code" --schema-out "$schemas" ) \
             || warn "辅助码表生成失败（辅助码功能与笔画方案不可用）"
     else
@@ -689,27 +689,27 @@ do_repl() {
         fi
     fi
     say "\n启动候选 REPL (data=$data)..."
-    cd "$PROJECT_ROOT" && WIND_DATA="$data" cargo run --release -p wind-repl -- "$data"
+    cd "$PROJECT_ROOT" && MOODFLOW_DATA="$data" cargo run --release -p moodflow-repl -- "$data"
 }
 
 require_remote() {
-    if [ -z "$WIND_REMOTE" ]; then
-        err "未配置 WIND_REMOTE：请在 $SCRIPT_DIR/deploy.local 设置 SSH 目标"
-        echo "  示例: WIND_REMOTE=me@192.0.2.20"
+    if [ -z "$MOODFLOW_REMOTE" ]; then
+        err "未配置 MOODFLOW_REMOTE：请在 $SCRIPT_DIR/deploy.local 设置 SSH 目标"
+        echo "  示例: MOODFLOW_REMOTE=me@192.0.2.20"
         return 1
     fi
 }
 
 # 解析远端安装目录（按 profile）。结果写入全局 REMOTE_DIR（去尾斜杠避免 // ）。
-#   release → WIND_REMOTE_DIR_RELEASE（兼容旧 WIND_REMOTE_DIR）；dev → WIND_REMOTE_DIR_DEV
+#   release → MOODFLOW_REMOTE_DIR_RELEASE（兼容旧 MOODFLOW_REMOTE_DIR）；dev → MOODFLOW_REMOTE_DIR_DEV
 resolve_remote_dir() {
     local profile="${1:-release}"
     if [ "$profile" = dev ]; then
-        REMOTE_DIR="${WIND_REMOTE_DIR_DEV:-}"
-        [ -n "$REMOTE_DIR" ] || { err "未配置 WIND_REMOTE_DIR_DEV（deploy.local）"; return 1; }
+        REMOTE_DIR="${MOODFLOW_REMOTE_DIR_DEV:-}"
+        [ -n "$REMOTE_DIR" ] || { err "未配置 MOODFLOW_REMOTE_DIR_DEV（deploy.local）"; return 1; }
     else
-        REMOTE_DIR="${WIND_REMOTE_DIR_RELEASE:-${WIND_REMOTE_DIR:-}}"
-        [ -n "$REMOTE_DIR" ] || { err "未配置 WIND_REMOTE_DIR_RELEASE（deploy.local）"; return 1; }
+        REMOTE_DIR="${MOODFLOW_REMOTE_DIR_RELEASE:-${MOODFLOW_REMOTE_DIR:-}}"
+        [ -n "$REMOTE_DIR" ] || { err "未配置 MOODFLOW_REMOTE_DIR_RELEASE（deploy.local）"; return 1; }
     fi
     REMOTE_DIR="${REMOTE_DIR%/}"
 }
@@ -729,20 +729,20 @@ remote_ps() {
     local script b64
     script="\$ProgressPreference='SilentlyContinue'; [Console]::OutputEncoding=[Text.Encoding]::UTF8; $1"
     b64="$(printf '%s' "$script" |  iconv -f UTF-8 -t UTF-16LE | base64 | tr -d '\n')"
-    ssh "$WIND_REMOTE" "powershell -NoProfile -NonInteractive -OutputFormat Text -EncodedCommand $b64"
+    ssh "$MOODFLOW_REMOTE" "powershell -NoProfile -NonInteractive -OutputFormat Text -EncodedCommand $b64"
 }
 
 # 本 profile 的二进制基名（exe/dll）。data/ 不在此（不会被锁，直接 scp 覆盖）。
 #
-# ⚠️ x86 那个是 xinqing_tsf_x86_dev.dll 而不是 xinqing_tsf_dev_x86.dll —— 后缀顺序是
-#    base + _x86 + _dev，真源是 wind_tsf/Makefile 的 TARGET := xinqing_tsf$(ARCHSUFFIX)$(DBGSUFFIX)。
+# ⚠️ x86 那个是 moodflow_tsf_x86_dev.dll 而不是 moodflow_tsf_dev_x86.dll —— 后缀顺序是
+#    base + _x86 + _dev，真源是 moodflow_tsf/Makefile 的 TARGET := moodflow_tsf$(ARCHSUFFIX)$(DBGSUFFIX)。
 #    写反了【只在 dev 变体上发作】(release 的 sfx 为空，两种写法碰巧同名)，且是静默的:
 #    remote_rename_aside 的 Test-Path 为假就跳过，不报错；于是它从不让路，仅当恰好有
-#    32 位宿主正加载着它时 scp 覆盖才失败。判据: 靶机 dev 目录里 xinqing_tsf_dev.dll 攒了
-#    一堆 .old_*，而 xinqing_tsf_x86_dev.dll 一个都没有 —— 那就是它从没被让路过。
+#    32 位宿主正加载着它时 scp 覆盖才失败。判据: 靶机 dev 目录里 moodflow_tsf_dev.dll 攒了
+#    一堆 .old_*，而 moodflow_tsf_x86_dev.dll 一个都没有 —— 那就是它从没被让路过。
 bins_for() {
     local sfx=""; [ "$1" = dev ] && sfx="_dev"
-    printf '%s\n' "xinqing_core${sfx}.exe" "xinqing_tsf${sfx}.dll" "xinqing_tsf_x86${sfx}.dll"
+    printf '%s\n' "moodflow_core${sfx}.exe" "moodflow_tsf${sfx}.dll" "moodflow_tsf_x86${sfx}.dll"
 }
 
 # 把 bash 列表转成 PowerShell 字符串数组字面量： a b → 'a','b'
@@ -751,39 +751,39 @@ ps_list() { local out="" x; for x in "$@"; do out="$out${out:+,}'$x'"; done; pri
 # 终止远端进程（按 profile 决定 _dev 后缀；mod 限定只杀该模块的进程）。
 #
 # ⚠️ **全量推送（mod 为空）必须连设置端一起停**：`do_push_full` 推的是整个 build[_dev]/
-# 目录，里面有 wind_setting[_dev].exe，而运行中的 exe 在 Windows 上**不可覆盖** ⇒ scp 直接
-# 报 `dest open "...wind_setting_dev.exe": Failure` 整条推送失败。此前这里只停主进程，
+# 目录，里面有 moodflow_setting[_dev].exe，而运行中的 exe 在 Windows 上**不可覆盖** ⇒ scp 直接
+# 报 `dest open "...moodflow_setting_dev.exe": Failure` 整条推送失败。此前这里只停主进程，
 # 于是「在设置页配完按键、接着部署」这条最常见的路径必然撞上（2026-09-18 实测撞到）。
 #
-# ⛔ **wind_portable.exe 不在此列，别加**：它是两个变体**同名**的唯一产物（无 _dev 后缀，
+# ⛔ **moodflow_portable.exe 不在此列，别加**：它是两个变体**同名**的唯一产物（无 _dev 后缀，
 # 见 build/ 与 build_dev/ 各一份）。`taskkill /IM` 按映像名匹配，杀它会连带结束**正式版**
 # 的便携版进程 —— 而 dev 变体存在的全部意义就是「重部署不打断正在用的正式版」
 # （见 scripts/deploy.local 开头那段）。它开着时仍会让 scp 失败，那种情况由下方 scp 的
 # 错误提示点名，交给人去关。
 #
 # ★ 与 `dev.ps1` 的 `Stop-ProcessForFile` **有意不同**，不是这边漏了：那边逐个文件按映像名
-#   杀，**包括** wind_portable。差异的理由是部署位置不同 —— ps1 是**本机**部署（人就坐在那台
+#   杀，**包括** moodflow_portable。差异的理由是部署位置不同 —— ps1 是**本机**部署（人就坐在那台
 #   机器前，杀错了当场看得见），dev.sh 推的是**远程靶机**（人在另一台机器上，静默杀掉他正在
 #   用的便携版，他只会看到输入法突然没了）。远程侧该更保守。
 #   ⚠️ 设置端那一条则是这边**真的落后了**：ps1 侧一直杀（它的注释明确点了
-#   「独立打开的设置程序 wind_setting[_dev].exe ... 覆盖前需先按名杀掉」），dev.sh 直到
+#   「独立打开的设置程序 moodflow_setting[_dev].exe ... 覆盖前需先按名杀掉」），dev.sh 直到
 #   2026-09-18 才补上。两处同构实现漂移，本仓反复吃亏的形态，改任一侧时请对着另一侧看一眼。
 remote_taskkill() {
     local profile="$1" mod="${2:-}" sfx=""
     [ "$profile" = dev ] && sfx="_dev"
     local procs=()
     case "$mod" in
-        core)    procs=("xinqing_core${sfx}.exe") ;;
-        tsf)     procs=("xinqing_core${sfx}.exe") ;;  # 改 DLL 也需停宿主
-        "")      procs=("xinqing_core${sfx}.exe" "wind_setting${sfx}.exe") ;;
+        core)    procs=("moodflow_core${sfx}.exe") ;;
+        tsf)     procs=("moodflow_core${sfx}.exe") ;;  # 改 DLL 也需停宿主
+        "")      procs=("moodflow_core${sfx}.exe" "moodflow_setting${sfx}.exe") ;;
     esac
     local p
     for p in "${procs[@]}"; do
         # taskkill 的退出码可用：杀成功为 0，进程不存在为非 0。据此只在**真的停了**
         # 某个进程时才出一行 —— 尤其设置端，静默关掉会让人以为自己忘了点保存。
-        if ssh "$WIND_REMOTE" "taskkill /F /IM $p" >/dev/null 2>&1; then
+        if ssh "$MOODFLOW_REMOTE" "taskkill /F /IM $p" >/dev/null 2>&1; then
             case "$p" in
-                wind_setting*) say "  已关闭设置端 $p（它占着自己的 exe，不关则推送失败；未保存的设置会丢失）" ;;
+                moodflow_setting*) say "  已关闭设置端 $p（它占着自己的 exe，不关则推送失败；未保存的设置会丢失）" ;;
                 *)             say "  已停止 $p" ;;
             esac
         fi
@@ -798,8 +798,8 @@ remote_rename_aside() {
 foreach(\$n in @($arr)){ \$p=Join-Path \$d \$n; if(Test-Path \$p){ Rename-Item \$p (\$n+'.old_'+(Get-Random)) -Force } }" >/dev/null 2>&1 || true
 }
 
-# 部署期闸门：HKLM\Software\WindInput[Dev] 的 InstallerRunning="1" 时，宿主里的 TSF DLL
-# 连不上管道也不自行拉起服务（wind_tsf/src/IPCClient.cpp 的 _StartService → _InstallerGuardBlocks）。
+# 部署期闸门：HKLM\Software\Moodflow[Dev] 的 InstallerRunning="1" 时，宿主里的 TSF DLL
+# 连不上管道也不自行拉起服务（moodflow_tsf/src/IPCClient.cpp 的 _StartService → _InstallerGuardBlocks）。
 #
 # ★ 为什么必须有：dev.sh 此前从不写它（dev.ps1 早有 Set-InstallerRunning，又一处两侧漂移）。
 #   taskkill 之后、改名让路之前的那一两秒里，靶机上任一宿主敲键/切焦点，DLL 就按**原路径**
@@ -807,8 +807,8 @@ foreach(\$n in @($arr)){ \$p=Join-Path \$d \$n; if(Test-Path \$p){ Rename-Item \
 #   脚本末尾的计划任务启动被单例挡掉 —— 而旧的存活检查按映像名 tasklist，照样报「存活」。
 #   2026-09-24 实测：服务日志 23:15:44 起的是 build 14:39Z，新 exe mtime 23:15:47。
 #
-# ⚠️ 键按变体分：DLL 读的是 "Software\\" WIND_APP_NAME（dev 为 WindInputDev，见
-#   wind_tsf/include/Globals.h），写错变体就是一道不生效的闸门。
+# ⚠️ 键按变体分：DLL 读的是 "Software\\" MOODFLOW_APP_NAME（dev 为 MoodflowDev，见
+#   moodflow_tsf/include/Globals.h），写错变体就是一道不生效的闸门。
 # ⚠️ 开启时顺手删掉 InstallerRunningOwner：若残留一个已死安装器的 owner，DLL 走身份校验
 #   判「主人已死 → 遗物」而放行，闸门静默失效。无 owner 时走 10 分钟年龄兜底 —— 脚本中途
 #   被打断没来得及清，最多挡 10 分钟，不会永久卡死。
@@ -817,8 +817,8 @@ foreach(\$n in @($arr)){ \$p=Join-Path \$d \$n; if(Test-Path \$p){ Rename-Item \
 # ⚠️ 键写入需要管理员 SSH 会话（同步 TSF 系统副本本来就需要）；失败只告警不中断，
 #   靠 remote_start_main 的「新版本存活」校验兜底。
 remote_deploy_guard() {
-    local profile="$1" on="$2" app="WindInput"
-    [ "$profile" = dev ] && app="WindInputDev"
+    local profile="$1" on="$2" app="Moodflow"
+    [ "$profile" = dev ] && app="MoodflowDev"
     local k="HKLM:\\Software\\$app"
     if [ "$on" = on ]; then
         remote_ps "\$ErrorActionPreference='Stop'; if(-not (Test-Path '$k')){ New-Item -Path '$k' -Force | Out-Null }; \
@@ -856,7 +856,7 @@ deploy_guard_close() {
 # （症状：部署后看不到进程）。改用计划任务(schtasks)在用户交互会话拉起，脱离 SSH 生命周期。
 #
 # ★ 判据是「运行中进程映像 = 安装目录里那份 exe」（MD5 相同且映像路径不是 .old_*），
-#   不是「有个叫 xinqing_core*.exe 的进程」：后者在推送途中被拉起的旧进程（映像已被改名成
+#   不是「有个叫 moodflow_core*.exe 的进程」：后者在推送途中被拉起的旧进程（映像已被改名成
 #   .old_*）面前恒真，见 remote_deploy_guard。
 #   期望值取**远端**安装目录里的 exe，不取本地产物：只推 tsf（pm1/pdm1）时远端 exe 本就
 #   不是本地这份，拿本地比会把好好的进程当旧版本杀掉；全量/core 推送后远端那份即新文件。
@@ -866,7 +866,7 @@ deploy_guard_close() {
 #   映像路径读不到（权限不足时 Path 为 null）的进程无从比对，单独报出、不当版本不符去杀。
 remote_start_main() {
     local profile="$1" sfx=""; [ "$profile" = dev ] && sfx="_dev"
-    local name="xinqing_core${sfx}" exe="$REMOTE_DIR/xinqing_core${sfx}.exe"
+    local name="moodflow_core${sfx}" exe="$REMOTE_DIR/moodflow_core${sfx}.exe"
     local want; want="$(remote_ps "(Get-FileHash -Algorithm MD5 -LiteralPath '$exe' -EA Stop).Hash" 2>/dev/null | tr -d '\r' | tail -1)"
     [[ "$want" =~ ^[0-9A-F]{32}$ ]] || { err "读不到远端 $exe 的 MD5，无法校验运行中的版本"; return 1; }
     if [ -n "${2:-}" ]; then
@@ -883,9 +883,9 @@ remote_start_main() {
         remote_ps "\$ErrorActionPreference='SilentlyContinue'; \
 \$exe='$exe'.Replace('/','\\'); \$wd='$REMOTE_DIR'.Replace('/','\\'); \
 \$a=New-ScheduledTaskAction -Execute \$exe -WorkingDirectory \$wd; \
-Register-ScheduledTask -TaskName 'WindInputDeployBoot' -Action \$a -Force | Out-Null; \
-Start-ScheduledTask -TaskName 'WindInputDeployBoot'; Start-Sleep -Seconds 2; \
-Unregister-ScheduledTask -TaskName 'WindInputDeployBoot' -Confirm:\$false" >/dev/null 2>&1 || true
+Register-ScheduledTask -TaskName 'MoodflowDeployBoot' -Action \$a -Force | Out-Null; \
+Start-ScheduledTask -TaskName 'MoodflowDeployBoot'; Start-Sleep -Seconds 2; \
+Unregister-ScheduledTask -TaskName 'MoodflowDeployBoot' -Confirm:\$false" >/dev/null 2>&1 || true
         sleep 2
         # 每行: pid|映像MD5|映像路径。映像已被改名让路的旧进程，Path 指向 .old_*，MD5 对不上。
         out="$(remote_ps "Get-Process -Name '$name' -EA SilentlyContinue | ForEach-Object { \
@@ -907,7 +907,7 @@ Unregister-ScheduledTask -TaskName 'WindInputDeployBoot' -Confirm:\$false" >/dev
         else
             warn "  未检测到 $name 进程。"
         fi
-        ssh "$WIND_REMOTE" "taskkill /F /IM $name.exe" >/dev/null 2>&1 || true
+        ssh "$MOODFLOW_REMOTE" "taskkill /F /IM $name.exe" >/dev/null 2>&1 || true
         sleep 1
     done
     err "3 轮后远端运行的仍不是安装目录里那份 exe（期望 MD5 $want）—— 部署未生效，别按新版本测。"
@@ -922,12 +922,12 @@ Unregister-ScheduledTask -TaskName 'WindInputDeployBoot' -Confirm:\$false" >/dev
 #   那份旧 DLL，**且全程没有任何报错**：scp 成功、进程重启成功、MD5 与本地一致 ——
 #   一致的是没人加载的那份。2026-09-15 靶机实测因此空转了四轮，判据全落在 Program Files
 #   那份上，而 Notepad 里跑的是三天前的 DLL（真凭据是 TSF 日志首行的 build=<日期>，
-#   以及 Get-Process 的 Modules 里 xinqing_tsf*.dll 的 FileName）。
+#   以及 Get-Process 的 Modules 里 moodflow_tsf*.dll 的 FileName）。
 #
 # 源取远端安装目录里刚推上去的那份（不二次 scp）；改名让路后覆盖，再回校 hash。
 remote_sync_tsf_system_copy() {
-    local profile="$1" sfx="" app="WindInput"
-    [ "$profile" = dev ] && { sfx="_dev"; app="WindInputDev"; }
+    local profile="$1" sfx="" app="Moodflow"
+    [ "$profile" = dev ] && { sfx="_dev"; app="MoodflowDev"; }
     say "同步 TSF 系统副本 → %SystemRoot%\\{System32,SysWOW64}\\IME\\$app\\ ..."
     # ⚠ 必须在 64 位 PowerShell 里跑：32 位进程访问 System32 会被 WOW64 文件系统重定向
     # 静默改写到 SysWOW64 —— x64 DLL 装错地方，而下面的 Get-FileHash 比的是**重定向后的
@@ -938,8 +938,8 @@ remote_sync_tsf_system_copy() {
 if(-not [Environment]::Is64BitProcess){ throw '需要 64 位 PowerShell（32 位进程访问 System32 会被 WOW64 重定向到 SysWOW64）' }; \
 \$stamp=Get-Date -Format 'yyyyMMddHHmmss'; \
 \$pairs=@( \
- @{src=Join-Path '$REMOTE_DIR' 'xinqing_tsf${sfx}.dll'; dst=Join-Path \$env:SystemRoot 'System32\\IME\\$app\\xinqing_tsf${sfx}.dll'; required=\$true}, \
- @{src=Join-Path '$REMOTE_DIR' 'xinqing_tsf_x86${sfx}.dll'; dst=Join-Path \$env:SystemRoot 'SysWOW64\\IME\\$app\\xinqing_tsf_x86${sfx}.dll'; required=\$false} ); \
+ @{src=Join-Path '$REMOTE_DIR' 'moodflow_tsf${sfx}.dll'; dst=Join-Path \$env:SystemRoot 'System32\\IME\\$app\\moodflow_tsf${sfx}.dll'; required=\$true}, \
+ @{src=Join-Path '$REMOTE_DIR' 'moodflow_tsf_x86${sfx}.dll'; dst=Join-Path \$env:SystemRoot 'SysWOW64\\IME\\$app\\moodflow_tsf_x86${sfx}.dll'; required=\$false} ); \
 \$fail=0; \
 foreach(\$p in \$pairs){ try { \
  if(-not (Test-Path \$p.src)){ \
@@ -998,26 +998,26 @@ _push_full_body() {
     local profile="$1" outdir="$2"
     say "\n停止远端进程（$profile）..."
     remote_taskkill "$profile"
-    ssh "$WIND_REMOTE" "if not exist \"${REMOTE_DIR//\//\\}\" mkdir \"${REMOTE_DIR//\//\\}\"" >/dev/null 2>&1 || true
+    ssh "$MOODFLOW_REMOTE" "if not exist \"${REMOTE_DIR//\//\\}\" mkdir \"${REMOTE_DIR//\//\\}\"" >/dev/null 2>&1 || true
     local bins; mapfile -t bins < <(bins_for "$profile")
     say "改名让路（加载中的 DLL/EXE）..."
     remote_rename_aside "${bins[@]}"
     # 产物可能是编译机回传的、或本机旧组装留下的，推送前再剥一次，不依赖组装那一步。
     strip_tool_state "$outdir"
-    say "全量推送 $outdir/ → $WIND_REMOTE:$REMOTE_DIR/"
-    if scp -r "$outdir"/* "$WIND_REMOTE:$REMOTE_DIR/"; then
+    say "全量推送 $outdir/ → $MOODFLOW_REMOTE:$REMOTE_DIR/"
+    if scp -r "$outdir"/* "$MOODFLOW_REMOTE:$REMOTE_DIR/"; then
         # ★ 与 do_push_module 同理：不同步系统副本，新 TSF DLL 不会被任何宿主加载。
         remote_sync_tsf_system_copy "$profile" || return 1
         local sfx=""; [ "$profile" = dev ] && sfx="_dev"
-        remote_start_main "$profile" "$outdir/xinqing_core${sfx}.exe" || return 1
+        remote_start_main "$profile" "$outdir/moodflow_core${sfx}.exe" || return 1
         remote_cleanup_old
         remote_cleanup_tool_state
         say "已全量部署并启动（$profile）。"
     else
-        err "scp 失败：检查 $([ "$profile" = dev ] && echo WIND_REMOTE_DIR_DEV || echo WIND_REMOTE_DIR_RELEASE) 路径(正斜杠)、SSH、磁盘。"
+        err "scp 失败：检查 $([ "$profile" = dev ] && echo MOODFLOW_REMOTE_DIR_DEV || echo MOODFLOW_REMOTE_DIR_RELEASE) 路径(正斜杠)、SSH、磁盘。"
         # 报 dest open "...xxx.exe": Failure 基本就是被占用。主程序与设置端上面已经停了，
         # 剩下最可能的是便携版——它两个变体同名，脚本刻意不杀（见 remote_taskkill 的 ⛔）。
-        err "  若报 dest open \"...exe\": Failure，是该文件正被占用：wind_portable.exe 请手动关闭"
+        err "  若报 dest open \"...exe\": Failure，是该文件正被占用：moodflow_portable.exe 请手动关闭"
         err "  （主程序与设置端脚本已自动停止；便携版两个变体同名，杀它会连带结束正式版，故不自动处理）"
         return 1
     fi
@@ -1034,12 +1034,12 @@ do_push_module() {
     local files=()
     case "$mod" in
         # ★ 名字取自 bins_for 而不是在这里再拼一遍 —— 这两处曾各写一份拼写规则, x86 的
-        #   后缀顺序在此处写反过(xinqing_tsf_dev_x86 ≠ 真产物 xinqing_tsf_x86_dev), 修 bins_for
+        #   后缀顺序在此处写反过(moodflow_tsf_dev_x86 ≠ 真产物 moodflow_tsf_x86_dev), 修 bins_for
         #   时又漏掉了这一份。同一个事实只留一个出处。
         tsf)     local b; mapfile -t b < <(bins_for "$profile")
                  files=("${b[1]}" "${b[2]}") ;;                    # [0]=exe [1]=x64 dll [2]=x86 dll
-        core)    files=("xinqing_core${sfx}.exe")
-                 [ -f "$outdir/wind_cli.bat" ] && files+=("wind_cli.bat") ;;  # CLI 包装器随核心
+        core)    files=("moodflow_core${sfx}.exe")
+                 [ -f "$outdir/moodflow_cli.bat" ] && files+=("moodflow_cli.bat") ;;  # CLI 包装器随核心
         *)       err "未知模块: $mod（tsf|core）"; return 1 ;;
     esac
     local f
@@ -1063,7 +1063,7 @@ _push_module_body() {
     local ok=1
     for f in "${files[@]}"; do
         say "推送 $f → $REMOTE_DIR/"
-        scp "$outdir/$f" "$WIND_REMOTE:$REMOTE_DIR/$f" || { err "scp $f 失败"; ok=0; }
+        scp "$outdir/$f" "$MOODFLOW_REMOTE:$REMOTE_DIR/$f" || { err "scp $f 失败"; ok=0; }
     done
     if [ "$ok" = 1 ]; then
         # ★ TSF 必须同步系统副本：宿主按注册表 InprocServer32 加载的是那一份，
@@ -1094,10 +1094,10 @@ do_pull_data() {
     require_remote || return 1
     resolve_remote_dir "${1:-release}" || return 1
     local dst="$CACHE_DIR/pulled-data"
-    say "\n拉取 data/ ← $WIND_REMOTE:$REMOTE_DIR/data  →  $dst"
+    say "\n拉取 data/ ← $MOODFLOW_REMOTE:$REMOTE_DIR/data  →  $dst"
     rm -rf "$dst"
     mkdir -p "$CACHE_DIR"
-    if scp -r "$WIND_REMOTE:$REMOTE_DIR/data" "$dst"; then
+    if scp -r "$MOODFLOW_REMOTE:$REMOTE_DIR/data" "$dst"; then
         say "已拉取 → $dst"
         say "提示: REPL 会自动使用此词库，或用 './dev.sh repl $dst' 显式指定"
     else
@@ -1107,10 +1107,10 @@ do_pull_data() {
 
 require_remote_dirs() {
     require_remote || return 1
-    if [ -z "$WIND_DATA_DIR" ] || [ -z "$WIND_LOCAL_DIR" ]; then
-        err "未配置远程目录：请在 $SCRIPT_DIR/deploy.local 设置 WIND_DATA_DIR 与 WIND_LOCAL_DIR"
-        echo "  示例: WIND_DATA_DIR='C:/Users/me/AppData/Roaming/WindInputDev'"
-        echo "        WIND_LOCAL_DIR='C:/Users/me/AppData/Local/WindInputDev'"
+    if [ -z "$MOODFLOW_DATA_DIR" ] || [ -z "$MOODFLOW_LOCAL_DIR" ]; then
+        err "未配置远程目录：请在 $SCRIPT_DIR/deploy.local 设置 MOODFLOW_DATA_DIR 与 MOODFLOW_LOCAL_DIR"
+        echo "  示例: MOODFLOW_DATA_DIR='C:/Users/me/AppData/Roaming/MoodflowDev'"
+        echo "        MOODFLOW_LOCAL_DIR='C:/Users/me/AppData/Local/MoodflowDev'"
         return 1
     fi
 }
@@ -1119,11 +1119,11 @@ do_pull_config() {
     require_remote_dirs || return 1
     mkdir -p "$REMOTE_PULL_DIR"
     local dst="$REMOTE_PULL_DIR/config.toml"
-    say "\n拉取 config.toml ← $WIND_REMOTE:$WIND_DATA_DIR/config.toml"
-    if scp "$WIND_REMOTE:$WIND_DATA_DIR/config.toml" "$dst"; then
+    say "\n拉取 config.toml ← $MOODFLOW_REMOTE:$MOODFLOW_DATA_DIR/config.toml"
+    if scp "$MOODFLOW_REMOTE:$MOODFLOW_DATA_DIR/config.toml" "$dst"; then
         say "已拉取 → $dst"
     else
-        err "scp 失败（检查 WIND_DATA_DIR 路径/SSH；config.toml 可能尚未生成）"
+        err "scp 失败（检查 MOODFLOW_DATA_DIR 路径/SSH；config.toml 可能尚未生成）"
     fi
 }
 
@@ -1132,26 +1132,26 @@ do_pull_log() {
     mkdir -p "$REMOTE_PULL_DIR/logs"
     local mode="${1:-}"
     if [ "$mode" = "all" ]; then
-        say "\n拉取全部日志 ← $WIND_REMOTE:$WIND_LOCAL_DIR/logs/"
-        if scp -r "$WIND_REMOTE:$WIND_LOCAL_DIR/logs" "$REMOTE_PULL_DIR/"; then
+        say "\n拉取全部日志 ← $MOODFLOW_REMOTE:$MOODFLOW_LOCAL_DIR/logs/"
+        if scp -r "$MOODFLOW_REMOTE:$MOODFLOW_LOCAL_DIR/logs" "$REMOTE_PULL_DIR/"; then
             say "已拉取 → $REMOTE_PULL_DIR/logs/"
         else
-            err "scp 失败（检查 WIND_LOCAL_DIR 路径/SSH）"
+            err "scp 失败（检查 MOODFLOW_LOCAL_DIR 路径/SSH）"
         fi
         return
     fi
-    say "\n查询远程最新日志 ← $WIND_REMOTE:$WIND_LOCAL_DIR/logs/"
+    say "\n查询远程最新日志 ← $MOODFLOW_REMOTE:$MOODFLOW_LOCAL_DIR/logs/"
     local latest
     # 走 remote_ps 而不是自己拼 ssh+powershell：那样绕开了 $ProgressPreference 与
     # -OutputFormat Text，5.1 会把 CLIXML 混进来，$latest 就变成一串 XML 而不是文件名。
-    latest="$(remote_ps "Get-ChildItem -Path '$WIND_LOCAL_DIR/logs' -Filter 'wind_input*.log*' | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty Name" 2>/dev/null | tr -d '\r' | tail -1)"
+    latest="$(remote_ps "Get-ChildItem -Path '$MOODFLOW_LOCAL_DIR/logs' -Filter 'moodflow_input*.log*' | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty Name" 2>/dev/null | tr -d '\r' | tail -1)"
     if [ -z "$latest" ]; then
         err "未找到日志文件（或用 'pull-log all' 整目录拉取）"
         return 1
     fi
     local dst="$REMOTE_PULL_DIR/logs/$latest"
     say "拉取最新日志 $latest"
-    if scp "$WIND_REMOTE:$WIND_LOCAL_DIR/logs/$latest" "$dst"; then
+    if scp "$MOODFLOW_REMOTE:$MOODFLOW_LOCAL_DIR/logs/$latest" "$dst"; then
         say "已拉取 → $dst"
     else
         err "scp 失败"
@@ -1266,12 +1266,12 @@ sync_version_stamp() {
     else say "\n[version] 首次记录版本 $VERSION, 清理关键产物确保版本号写入..."; fi
 
     # Rust: 仅清最终二进制包 (依赖库保留); build.rs 随之重跑注入新版本资源。
-    ( cd "$PRODUCT_ROOT/wind_input" && cargo clean -p wind_service >/dev/null 2>&1 ) || true
+    ( cd "$PRODUCT_ROOT/moodflow_input" && cargo clean -p moodflow_service >/dev/null 2>&1 ) || true
     if [ -d "$SETTING_DIR" ]; then
-        ( cd "$SETTING_DIR" && cargo clean -p wind_setting >/dev/null 2>&1 ) || true
+        ( cd "$SETTING_DIR" && cargo clean -p moodflow_setting >/dev/null 2>&1 ) || true
     fi
     if [ -d "$PORTABLE_DIR" ]; then
-        ( cd "$PORTABLE_DIR" && cargo clean -p wind_portable >/dev/null 2>&1 ) || true
+        ( cd "$PORTABLE_DIR" && cargo clean -p moodflow_portable >/dev/null 2>&1 ) || true
     fi
     # TSF: 删交叉编译对象目录, 强制重新生成含新版本的资源。
     rm -rf "$CACHE_DIR/tsf-obj"
@@ -1285,10 +1285,10 @@ do_full() {
     say "\n========== 全构建 ($profile) → $outdir =========="
     sync_version_stamp   # 版本号变化则强制重建关键产物 (确定性保险)
     rm -rf "$outdir"; mkdir -p "$outdir"
-    build_core    "$profile" "$outdir" || return 1   # xinqing_core[_dev].exe
-    build_tsf_all "$profile" "$outdir" || return 1   # xinqing_tsf[_x86][_dev].dll
-    build_setting "$profile" "$outdir" || return 1   # wind_setting[_dev].exe (可选)
-    build_portable "$profile" "$outdir" || return 1  # wind_portable.exe (可选)
+    build_core    "$profile" "$outdir" || return 1   # moodflow_core[_dev].exe
+    build_tsf_all "$profile" "$outdir" || return 1   # moodflow_tsf[_x86][_dev].dll
+    build_setting "$profile" "$outdir" || return 1   # moodflow_setting[_dev].exe (可选)
+    build_portable "$profile" "$outdir" || return 1  # moodflow_portable.exe (可选)
     do_gen_data   "$outdir"            || return 1   # data/(下载词库 + unigram/pinyin + opencc)
     verify_dist_data "$outdir"         || return 1   # 硬门禁:词库/模型完整
     say "\n========== 全构建完成 ($profile) → $outdir =========="
@@ -1303,7 +1303,7 @@ do_installer() {
     local skip="${1:-}"
     if [ "$skip" = "skip" ]; then
         say "\n跳过构建，直接打包现有 $BUILD_DIR/"
-        [ -f "$BUILD_DIR/xinqing_core.exe" ] || {
+        [ -f "$BUILD_DIR/moodflow_core.exe" ] || {
             err "build/ 无产物；请先运行 'dev.sh installer'（不带 skip）或 'dev.sh 1'。"; return 1; }
     else
         do_full release || return 1
@@ -1312,17 +1312,17 @@ do_installer() {
     "$SCRIPT_DIR/pack-installer.sh" --version "$VERSION" || return 1
 }
 
-# 便携版压缩包: build/ → dist/WindInput-Portable-<版本>.zip
+# 便携版压缩包: build/ → dist/Moodflow-Portable-<版本>.zip
 # 内容依据 dev.ps1 的 Deploy-Portable(便携部署的权威定义): 程序文件 + data/ + 便携标记。
 # 【不含 userdata/】—— 那是便携版的用户数据目录(配置/词频/用户词库), 打进包等于把打包机
 # 的个人数据分发给所有人。
-# 缺 wind_setting.exe / wind_portable.exe 时照常出包: build_setting/build_portable 在伴生仓
+# 缺 moodflow_setting.exe / moodflow_portable.exe 时照常出包: build_setting/build_portable 在伴生仓
 # 缺失时自行跳过(见其函数首行), 此处不二次判定 —— 这也让没有私有伴生仓的环境能出便携包。
 do_portable_zip() {
     local skip="${1:-}"
     if [ "$skip" = "skip" ]; then
         say "\n跳过构建，直接打包现有 $BUILD_DIR/"
-        [ -f "$BUILD_DIR/xinqing_core.exe" ] || {
+        [ -f "$BUILD_DIR/moodflow_core.exe" ] || {
             err "build/ 无产物；请先运行 'dev.sh portable-zip'（不带 skip）或 'dev.sh 1'。"; return 1; }
     else
         do_full release || return 1
@@ -1330,8 +1330,8 @@ do_portable_zip() {
     command -v zip >/dev/null 2>&1 || { err "需要 zip 命令（Debian/Ubuntu: apt install zip）"; return 1; }
 
     local dist="$PRODUCT_ROOT/dist"
-    local name="WindInput-$VERSION"                       # zip 内顶层目录, 避免解压散落
-    local zipfile="$dist/WindInput-Portable-$VERSION.zip"
+    local name="Moodflow-$VERSION"                       # zip 内顶层目录, 避免解压散落
+    local zipfile="$dist/Moodflow-Portable-$VERSION.zip"
     local stage="$dist/.portable-stage"
 
     say "\n=== 打包便携版 → $zipfile ==="
@@ -1340,26 +1340,26 @@ do_portable_zip() {
     rm -rf "$stage/$name/userdata"        # 用户数据目录, 绝不入包
     rm -f  "$stage/$name"/*.old*          # 部署残留
 
-    # 便携标记: 内容与 wind-portable 的 ensure_portable_layout 一致(同 dev.ps1 Write-PortableMarker)。
-    # 有它 xinqing_core.exe 才把 userdata 落在自身目录; 缺了会退化成安装版行为写 %APPDATA%,
+    # 便携标记: 内容与 moodflow-portable 的 ensure_portable_layout 一致(同 dev.ps1 Write-PortableMarker)。
+    # 有它 moodflow_core.exe 才把 userdata 落在自身目录; 缺了会退化成安装版行为写 %APPDATA%,
     # 那样"便携"就名不副实了。
-    # 文件名与安装器清单 [app] portable_marker 及 wind-config PORTABLE_MARKER_NAME 统一为
-    # portable_mode (旧名 wind_portable_mode 仅保留读取兼容, 新包不再写)。
-    printf 'wind_portable=1\n' > "$stage/$name/portable_mode"
+    # 文件名与安装器清单 [app] portable_marker 及 moodflow-config PORTABLE_MARKER_NAME 统一为
+    # portable_mode (旧名 moodflow_portable_mode 仅保留读取兼容, 新包不再写)。
+    printf 'moodflow_portable=1\n' > "$stage/$name/portable_mode"
 
     rm -f "$zipfile" "$zipfile.sha256"
     ( cd "$stage" && zip -qr "$zipfile" "$name" ) || { err "zip 打包失败"; return 1; }
     ( cd "$dist" && sha256sum "$(basename "$zipfile")" > "$(basename "$zipfile").sha256" )
 
     local has_launcher=0
-    [ -f "$stage/$name/wind_portable.exe" ] && has_launcher=1
+    [ -f "$stage/$name/moodflow_portable.exe" ] && has_launcher=1
     rm -rf "$stage"
     say "便携版打包完成: $zipfile ($(fsize "$zipfile"))"
     if [ "$has_launcher" = 1 ]; then
-        gray "使用: 解压后运行 wind_portable.exe（注册组件并拉起服务）"
+        gray "使用: 解压后运行 moodflow_portable.exe（注册组件并拉起服务）"
     else
-        gray "使用: 包内无便携启动器 —— 需管理员 regsvr32 注册 xinqing_tsf.dll"
-        gray "      (x86 版用 %SystemRoot%\\SysWOW64\\regsvr32.exe)，再手动运行 xinqing_core.exe"
+        gray "使用: 包内无便携启动器 —— 需管理员 regsvr32 注册 moodflow_tsf.dll"
+        gray "      (x86 版用 %SystemRoot%\\SysWOW64\\regsvr32.exe)，再手动运行 moodflow_core.exe"
     fi
 }
 
@@ -1375,7 +1375,7 @@ do_portable_zip() {
 #
 # 包内结构必须与 Do-Stage 一致, 否则本机 unstage 的版本硬校验直接拦下:
 #   build/      全构建产物; 内容 == 安装内容, 是安装包与便携包的共同上游
-#   installer/  wind-installer 的 stub / packer / uninstaller
+#   installer/  moodflow-installer 的 stub / packer / uninstaller
 #   stage.json  版本号等清单, unstage 时硬校验
 # 带上 installer/ 是为了让本机【一行代码都不编译】—— Do-Installer 见三件套已在, 会给
 # pack.ps1 透传 -SkipBuild; 少了它们本机仍会 cargo build 一遍安装器。
@@ -1388,13 +1388,13 @@ STAGE_MANIFEST_NAME="stage.json"
 #
 # 落点是 .cache/installer-bins/ —— 由 `dev.sh instbins` 从【编译机】取回的原生 MSVC 版。
 # ★ 为什么不能在 Linux 上交叉编它们, 以及为什么落点不放在 cargo 的 target 里, 见
-#   do_instbins 头部那段。简言之: wind-installer.exe 是 Setup.exe 的外壳、
-#   wind-uninstaller.exe 装到用户机器上, 两者都进最终产物, 受 6dbc8595 约束必须原生
+#   do_instbins 头部那段。简言之: moodflow-installer.exe 是 Setup.exe 的外壳、
+#   moodflow-uninstaller.exe 装到用户机器上, 两者都进最终产物, 受 6dbc8595 约束必须原生
 #   MSVC; 而放进 target/ 会被下一次本地 cargo xwin build 悄悄覆盖成交叉编版本。
 installer_binaries() {
-    printf '%s\n' "wind-installer.exe|$INSTALLER_BIN_DIR/wind-installer.exe" \
-                  "wind-packer.exe|$INSTALLER_BIN_DIR/wind-packer.exe" \
-                  "wind-uninstaller.exe|$INSTALLER_BIN_DIR/wind-uninstaller.exe"
+    printf '%s\n' "moodflow-installer.exe|$INSTALLER_BIN_DIR/moodflow-installer.exe" \
+                  "moodflow-packer.exe|$INSTALLER_BIN_DIR/moodflow-packer.exe" \
+                  "moodflow-uninstaller.exe|$INSTALLER_BIN_DIR/moodflow-uninstaller.exe"
 }
 
 # 单个 PE 是不是【原生 MSVC】链接器产出的。
@@ -1417,7 +1417,7 @@ pe_is_native_msvc() {
 
 # ★ 发版产物必须是原生 MSVC 编的 —— stage 的消费侧硬闸门。
 #
-# 原委 (6dbc8595): 交叉编译(clang+lld-link)的 xinqing_tsf.dll 在部分启用进程级缓解策略的
+# 原委 (6dbc8595): 交叉编译(clang+lld-link)的 moodflow_tsf.dll 在部分启用进程级缓解策略的
 # 宿主中 COM 激活失败。实测两份 DLL 的 PE 安全元数据(DllCharacteristics/SafeSEH)【逐位
 # 相同】, 差异落在【工具链代码生成层】(clang vs cl.exe) —— 换 cargo-xwin 的用法或版本
 # 都解决不了, 也不是 32 位专有(SafeSEH 那条线当时查过, 被排除了)。故 release.yml 的整个
@@ -1448,7 +1448,7 @@ check_native_msvc() {
             1) cross+=("$(rel_for_gate "$f" "$outdir")") ;;
             # ⚠️ fail-closed: find 只挑 *.exe/*.dll, 一个「读不出 PE 头的 .dll」本身就是可疑
             #    对象。一道拦发版坏包的闸门在自己解析失败时放行, 与它存在的理由相反。
-            #    逃生口已经有了(WIND_STAGE_ALLOW_CROSS=1), 不需要在这里再留一个。
+            #    逃生口已经有了(MOODFLOW_STAGE_ALLOW_CROSS=1), 不需要在这里再留一个。
             2) unknown+=("$(rel_for_gate "$f" "$outdir")") ;;
         esac
     done < <( { find "$outdir" -type f \( -name '*.exe' -o -name '*.dll' \) | sort
@@ -1457,7 +1457,7 @@ check_native_msvc() {
     if [ "${#unknown[@]}" -gt 0 ]; then
         err "有 ${#unknown[@]} 个 PE 读不出文件头, 无法判定工具链, 拒绝出中转包:"
         for f in "${unknown[@]}"; do err "    $f"; done
-        gray "  逃生口(明知此包不用于发版时): WIND_STAGE_ALLOW_CROSS=1 ./scripts/dev.sh stage"
+        gray "  逃生口(明知此包不用于发版时): MOODFLOW_STAGE_ALLOW_CROSS=1 ./scripts/dev.sh stage"
         return 1
     fi
     [ "${#cross[@]}" -eq 0 ] && return 0
@@ -1465,11 +1465,11 @@ check_native_msvc() {
     err "发版产物不是原生 MSVC 编的, 拒绝出中转包。交叉编译产物 ${#cross[@]} 个:"
     for f in "${cross[@]}"; do err "    $f"; done
     err "  判据: PE 无 Rich header ⇒ lld-link 链接(cargo-xwin / clang), 不是 cl.exe。"
-    err "  原委: 6dbc8595 —— 交叉编的 xinqing_tsf.dll 在加固宿主 COM 激活失败, 根因在工具链"
+    err "  原委: 6dbc8595 —— 交叉编的 moodflow_tsf.dll 在加固宿主 COM 激活失败, 根因在工具链"
     err "        代码生成层; 签名不改变代码生成, unstage 也验不出来, 故在此拦死。"
     err "  出路: build/ 下的 → 须来自编译机 (dev.sh 1/d1); 本机 dev.sh 1 的产物只能自测。"
     err "        installer-bins/ 下的 → dev.sh instbins 重取 (那条路就是去编译机原生编的)。"
-    gray "  逃生口(明知此包不用于发版时): WIND_STAGE_ALLOW_CROSS=1 ./scripts/dev.sh stage"
+    gray "  逃生口(明知此包不用于发版时): MOODFLOW_STAGE_ALLOW_CROSS=1 ./scripts/dev.sh stage"
     return 1
 }
 
@@ -1479,21 +1479,21 @@ do_stage() {
     outdir="$(out_for "$profile")"
     [ "$profile" = dev ] && { suffix="_dev"; full_cmd="d1"; }
 
-    if [ ! -f "$outdir/xinqing_core$suffix.exe" ]; then
+    if [ ! -f "$outdir/moodflow_core$suffix.exe" ]; then
         err "无 $outdir 产物; 先跑全构建 ('$full_cmd')。"
         return 1
     fi
     command -v zip >/dev/null 2>&1 || { err "需要 zip 命令（Debian/Ubuntu: apt install zip）"; return 1; }
 
     # 闸门放在打印标题之前: 早失败, 不先报「正在打包 → xxx.zip」再翻脸。
-    if [ "${WIND_STAGE_ALLOW_CROSS:-}" = 1 ]; then
-        warn "WIND_STAGE_ALLOW_CROSS=1: 跳过原生 MSVC 闸门 —— 此包【不可用于发版】。"
+    if [ "${MOODFLOW_STAGE_ALLOW_CROSS:-}" = 1 ]; then
+        warn "MOODFLOW_STAGE_ALLOW_CROSS=1: 跳过原生 MSVC 闸门 —— 此包【不可用于发版】。"
     else
         check_native_msvc "$outdir" || return 1
     fi
 
-    local base="WindInput"
-    [ "$profile" = dev ] && base="WindInputDev"
+    local base="Moodflow"
+    [ "$profile" = dev ] && base="MoodflowDev"
     local zipfile="$DIST_DIR/$base-Stage-$VERSION.zip"
     local stage="$DIST_DIR/.stage-pack"
 
@@ -1517,7 +1517,7 @@ do_stage() {
         has_installer=true
         gray "  安装器: 3 个二进制"
     else
-        warn "wind-installer 二进制不全 (缺: ${missing[*]}), 中转包不含安装器"
+        warn "moodflow-installer 二进制不全 (缺: ${missing[*]}), 中转包不含安装器"
         warn "  → 本机还原后 pack.ps1 会自行编译安装器, 不再是零编译"
         gray "  → 要凑齐: dev.sh instbins (在编译机上原生编好再回传, 约 1~2 分钟)"
     fi
@@ -1555,9 +1555,9 @@ ps_quote() { printf "%s" "${1//\'/\'\'}"; }
 
 # 未配 deploy.local 时这组命令没有意义, 提前说清楚而不是让 ssh 报一句空主机名。
 require_diag_remote() {
-    [ -n "$WIND_REMOTE" ] && return 0
-    err "未配置 WIND_REMOTE（scripts/deploy.local）—— 远程诊断命令需要靶机地址。"
-    err "  cp scripts/deploy.local.example scripts/deploy.local 然后填 WIND_REMOTE"
+    [ -n "$MOODFLOW_REMOTE" ] && return 0
+    err "未配置 MOODFLOW_REMOTE（scripts/deploy.local）—— 远程诊断命令需要靶机地址。"
+    err "  cp scripts/deploy.local.example scripts/deploy.local 然后填 MOODFLOW_REMOTE"
     return 1
 }
 
@@ -1565,7 +1565,7 @@ require_diag_remote() {
 diag_need_path() {
     [ -n "$1" ] && return 0
     err "用法: dev.sh $2 <靶机路径>"
-    gray "  例: dev.sh $2 'C:/Users/me/AppData/Local/WindInputDev/logs/wind_input.log'"
+    gray "  例: dev.sh $2 'C:/Users/me/AppData/Local/MoodflowDev/logs/moodflow_input.log'"
     gray "  常用位置见 'dev.sh rwhere'"
     return 1
 }
@@ -1612,8 +1612,8 @@ do_rgrep() {
         gray "  改条数:   N=200 dev.sh rgrep panic"
         return 1
     fi
-    [ -n "$path" ] || path="${WIND_LOCAL_DIR:+$WIND_LOCAL_DIR/logs}"
-    [ -n "$path" ] || { err "未配置 WIND_LOCAL_DIR（deploy.local）且未给 P=<路径>"; return 1; }
+    [ -n "$path" ] || path="${MOODFLOW_LOCAL_DIR:+$MOODFLOW_LOCAL_DIR/logs}"
+    [ -n "$path" ] || { err "未配置 MOODFLOW_LOCAL_DIR（deploy.local）且未给 P=<路径>"; return 1; }
     local n="${N:-80}"
     say "\n在 $path 搜 '$pat' (最多 $n 条)"
     remote_ps "if (-not (Test-Path '$(ps_quote "$path")')) { [Console]::Error.WriteLine('路径不存在: $(ps_quote "$path")'); exit 1 }; \
@@ -1623,7 +1623,7 @@ Select-String -Pattern '$(ps_quote "$pat")' -Encoding UTF8 -EA SilentlyContinue 
 Select-Object -First $n | ForEach-Object { '{0}:{1}: {2}' -f \$_.Filename, \$_.LineNumber, \$_.Line.Trim() }"
 }
 
-# rproc  靶机上 WindInput 相关进程 + 两个变体的部署时间戳。
+# rproc  靶机上 Moodflow 相关进程 + 两个变体的部署时间戳。
 # ★ 判「部署到底生效没有」看的是 exe 的 LastWriteTime 与进程启动时间, 不是 push 那句
 #   "已推送" —— 二进制被占用时改名让路会失败, 而 scp 仍然报成功。
 do_rproc() {
@@ -1634,7 +1634,7 @@ do_rproc() {
 if (\$p) { \$p | ForEach-Object { '  {0,-22} pid={1,-7} 启动={2}' -f \$_.ProcessName, \$_.Id, \$_.StartTime.ToString('MM-dd HH:mm:ss') } }
 else { '  (无 wind* 进程)' }
 '--- 部署产物时间戳 ---'
-foreach (\$d in @('$(ps_quote "${WIND_REMOTE_DIR_RELEASE:-}")','$(ps_quote "${WIND_REMOTE_DIR_DEV:-}")')) {
+foreach (\$d in @('$(ps_quote "${MOODFLOW_REMOTE_DIR_RELEASE:-}")','$(ps_quote "${MOODFLOW_REMOTE_DIR_DEV:-}")')) {
   if (\$d -and (Test-Path \$d)) {
     \"  \$d\"
     Get-ChildItem -LiteralPath \$d -Filter '*.exe' -EA SilentlyContinue |
@@ -1648,35 +1648,35 @@ foreach (\$d in @('$(ps_quote "${WIND_REMOTE_DIR_RELEASE:-}")','$(ps_quote "${WI
 # rwhere  打印靶机上的常用路径 (存在性已核过), 省得每次问"日志到底在哪"。
 do_rwhere() {
     require_diag_remote || return 1
-    say "\n靶机 $WIND_REMOTE 上的常用位置"
+    say "\n靶机 $MOODFLOW_REMOTE 上的常用位置"
     remote_ps "
 foreach (\$x in @(
-  @('release 安装目录','$(ps_quote "${WIND_REMOTE_DIR_RELEASE:-}")'),
-  @('dev 安装目录    ','$(ps_quote "${WIND_REMOTE_DIR_DEV:-}")'),
-  @('配置 (当前 profile)','$(ps_quote "${WIND_DATA_DIR:-}")'),
-  @('日志 (当前 profile)','$(ps_quote "${WIND_LOCAL_DIR:-}")/logs')
+  @('release 安装目录','$(ps_quote "${MOODFLOW_REMOTE_DIR_RELEASE:-}")'),
+  @('dev 安装目录    ','$(ps_quote "${MOODFLOW_REMOTE_DIR_DEV:-}")'),
+  @('配置 (当前 profile)','$(ps_quote "${MOODFLOW_DATA_DIR:-}")'),
+  @('日志 (当前 profile)','$(ps_quote "${MOODFLOW_LOCAL_DIR:-}")/logs')
 )) {
   if (\$x[1] -and \$x[1] -ne '/logs') {
     \$mark = if (Test-Path \$x[1]) { '✓' } else { '✗' }
     '  {0} {1}  {2}' -f \$mark, \$x[0], \$x[1]
   }
 }
-'--- %APPDATA% / %LOCALAPPDATA% 下的全部 WindInput* ---'
-Get-ChildItem \$env:APPDATA,\$env:LOCALAPPDATA -Filter 'WindInput*' -Directory -EA SilentlyContinue |
+'--- %APPDATA% / %LOCALAPPDATA% 下的全部 Moodflow* ---'
+Get-ChildItem \$env:APPDATA,\$env:LOCALAPPDATA -Filter 'Moodflow*' -Directory -EA SilentlyContinue |
   ForEach-Object { '    ' + \$_.FullName }"
 }
 
 
 # ---------- 安装器三件套: 从编译机取原生 MSVC 版 ----------
-# stage 包要带上 wind-installer 的三件套, 好让本机 unstage 后【一行代码都不编译】。
+# stage 包要带上 moodflow-installer 的三件套, 好让本机 unstage 后【一行代码都不编译】。
 #
 # ★★ 为什么必须从编译机取, 而不是在 Linux 上交叉编:
 #    本机 unstage 后 `sign 8s` 会给 pack.ps1 透传 -SkipBuild, 直接拿这三个 exe 打包 ——
-#    其中 wind-installer.exe 就是【Setup.exe 的外壳】, wind-uninstaller.exe 会【装到用户
-#    机器上】。两者都进最终产物、都要签名、都被杀软扫, 因此和 xinqing_tsf.dll 一样受
+#    其中 moodflow-installer.exe 就是【Setup.exe 的外壳】, moodflow-uninstaller.exe 会【装到用户
+#    机器上】。两者都进最终产物、都要签名、都被杀软扫, 因此和 moodflow_tsf.dll 一样受
 #    6dbc8595 约束: 必须原生 MSVC。交叉编它们等于把已判死的工具链重新放回发版链,
 #    而 check_native_msvc 闸门正会在出口拦下 —— 那时「三件套齐了」反而变成出不了包。
-#    (三个里只有 wind-packer.exe 是纯打包工具、不进产物, 但既然另外两个必须从编译机来,
+#    (三个里只有 moodflow-packer.exe 是纯打包工具、不进产物, 但既然另外两个必须从编译机来,
 #     顺手一起取最省事, 也免得三个文件来路不一。)
 #
 # 落点刻意【不是】cargo 的 target 目录: 放进去的话, 下一次本地 `cargo xwin build` 会把
@@ -1688,32 +1688,32 @@ do_instbins() {
     command -v scp >/dev/null 2>&1 || { err "需要 scp"; return 1; }
 
     local sibRoot rdir
-    sibRoot="$(dirname "$WIND_BUILD_ROOT")"
-    rdir="$sibRoot/wind-installer"
+    sibRoot="$(dirname "$MOODFLOW_BUILD_ROOT")"
+    rdir="$sibRoot/moodflow-installer"
 
-    say "\n========== 取安装器三件套 @ $WIND_BUILD_REMOTE =========="
+    say "\n========== 取安装器三件套 @ $MOODFLOW_BUILD_REMOTE =========="
     rbuild_trap_on
     rbuild_lock || { rbuild_trap_off; return 1; }
 
-    gray "[1/3] 同步 wind-installer → $rdir"
-    rbuild_sync_tree "$INSTALLER_DIR" "$rdir" "wind-installer" \
+    gray "[1/3] 同步 moodflow-installer → $rdir"
+    rbuild_sync_tree "$INSTALLER_DIR" "$rdir" "moodflow-installer" \
         || { rbuild_cleanup; rbuild_trap_off; return 1; }
 
     # 原生编 (不带 --target): 与 pack.ps1 的 -SkipBuild 判据同一落点 <target>/release/。
     # packer 要 --features packer (editpe 写 EXE 图标), 另外两个不要 —— 照搬 pack.ps1。
     gray "[2/3] 编译 (原生 MSVC)"
-    rbuild_ps "\$env:WIND_NO_REMOTE='1'; \$LASTEXITCODE=0
+    rbuild_ps "\$env:MOODFLOW_NO_REMOTE='1'; \$LASTEXITCODE=0
 Set-Location -LiteralPath '$rdir' -EA Stop
 \$env:RUSTFLAGS='-C target-feature=+crt-static'
-cargo build --release --bin wind-installer --bin wind-uninstaller
+cargo build --release --bin moodflow-installer --bin moodflow-uninstaller
 if (\$LASTEXITCODE -ne 0) { exit \$LASTEXITCODE }
-cargo build --release --bin wind-packer --features packer
+cargo build --release --bin moodflow-packer --features packer
 if (\$LASTEXITCODE -ne 0) { exit \$LASTEXITCODE }
 # 产物目录向 cargo 自己要 —— 编译机若设了共享 target-dir, 硬拼出来的路径是个空壳。
 \$j = cargo metadata --format-version 1 --no-deps 2>\$null | ConvertFrom-Json
 \$t = if (\$j) { \$j.target_directory } else { Join-Path '$rdir' 'target' }
 \$t = Join-Path \$t 'release'
-foreach (\$n in @('wind-installer.exe','wind-packer.exe','wind-uninstaller.exe')) {
+foreach (\$n in @('moodflow-installer.exe','moodflow-packer.exe','moodflow-uninstaller.exe')) {
   if (-not (Test-Path (Join-Path \$t \$n))) { [Console]::Error.WriteLine('编出来了但找不到: ' + \$n); exit 4 }
 }
 \$t" || { err "编译机上编安装器失败"; rbuild_cleanup; rbuild_trap_off; return 1; }
@@ -1727,30 +1727,30 @@ if (\$j) { Join-Path \$j.target_directory 'release' } else { '$rdir/target/relea
     gray "[3/3] 回传 → $INSTALLER_BIN_DIR"
     mkdir -p "$INSTALLER_BIN_DIR"
     local n ok=1
-    for n in wind-installer.exe wind-packer.exe wind-uninstaller.exe; do
-        rbuild_scp "$WIND_BUILD_REMOTE:${rt//\\//}/$n" "$INSTALLER_BIN_DIR/$n" "回传 $n" || { err "回传 $n 失败"; ok=0; }
+    for n in moodflow-installer.exe moodflow-packer.exe moodflow-uninstaller.exe; do
+        rbuild_scp "$MOODFLOW_BUILD_REMOTE:${rt//\\//}/$n" "$INSTALLER_BIN_DIR/$n" "回传 $n" || { err "回传 $n 失败"; ok=0; }
     done
     rbuild_cleanup; rbuild_trap_off
     [ "$ok" = 1 ] || return 1
 
     say "\n三件套已就位:"
-    for n in wind-installer.exe wind-packer.exe wind-uninstaller.exe; do
+    for n in moodflow-installer.exe moodflow-packer.exe moodflow-uninstaller.exe; do
         gray "  $n  $(fsize "$INSTALLER_BIN_DIR/$n")"
     done
     gray "  下一步: dev.sh stage —— 中转包这次会带上 installer/, 本机 unstage 后零编译"
 }
 # ---------- GUI 验证: 设置界面离屏截图 ----------
-# 设置程序在 Linux 【编都编不过】(wind-ui-rust 的 platform/mod.rs 有 compile_error!),
+# 设置程序在 Linux 【编都编不过】(moodflow-ui-rust 的 platform/mod.rs 有 compile_error!),
 # 于是 UI 改动在这台机器上没有任何自查手段 —— 只能编好推过去、人眼去看。
 #
-# windui 自带的截图通路补上了这个缺口, 而且不止是出图: --click/--rclick/--drag/--hover/
+# moodflowui 自带的截图通路补上了这个缺口, 而且不止是出图: --click/--rclick/--drag/--hover/
 # --type/--key 可重复且【按出现顺序混合回放】, --size 还会把 min_size 的下限一并放开
 # (要测的正是下限处的布局)。
 # ★★ 这些是【进程内合成事件】, 不走 SendInput —— 所以在 SSH 会话里可用。靶机的 SSH 会话
 #    拿不到交互桌面, SendInput 那条路是死的([[project_e2e_realmachine_test]]), 而离屏渲染
 #    实测可行(Start-Process -Wait, exit=0, 出图 1100x760)。
 #
-# WIND_RPC_MOCK=1 让设置程序自带假数据, 不需要 core 在跑 —— 因此 VM 上也能截, 不必先部署。
+# MOODFLOW_RPC_MOCK=1 让设置程序自带假数据, 不需要 core 在跑 —— 因此 VM 上也能截, 不必先部署。
 #
 # 落点二选一 (SHOT_ON):
 #   target  靶机上【已部署】的那份 (默认): 真实配置、真实 DPI/字体/主题
@@ -1763,15 +1763,15 @@ do_shot() {
         target)
             require_diag_remote || return 1
             resolve_remote_dir "$prof" || return 1
-            exe="$REMOTE_DIR/wind_setting${sfx}.exe"; rhost="$WIND_REMOTE" ;;
+            exe="$REMOTE_DIR/moodflow_setting${sfx}.exe"; rhost="$MOODFLOW_REMOTE" ;;
         vm)
             rbuild_require_ready shot || return 1
             local od; od="$([ "$prof" = dev ] && echo build_dev || echo build)"
-            exe="$WIND_BUILD_ROOT/$od/wind_setting${sfx}.exe"; rhost="$WIND_BUILD_REMOTE" ;;
+            exe="$MOODFLOW_BUILD_ROOT/$od/moodflow_setting${sfx}.exe"; rhost="$MOODFLOW_BUILD_REMOTE" ;;
         *)  err "SHOT_ON 只能是 target 或 vm (给的是 '$on')"; return 1 ;;
     esac
 
-    # 参数直通 wind_setting。按空格拆 —— dispatch 已把它们合成一个串, 原始引号边界没了,
+    # 参数直通 moodflow_setting。按空格拆 —— dispatch 已把它们合成一个串, 原始引号边界没了,
     # 故 --type 的文本别带空格(要打空格用 --key Space)。
     local extra=() a
     for a in $1; do extra+=("$a"); done
@@ -1789,7 +1789,7 @@ do_shot() {
 \$exe='$(ps_quote "$exe")'
 if (-not (Test-Path \$exe)) { [Console]::Error.WriteLine('设置程序不存在: ' + \$exe); exit 2 }
 Remove-Item '$rtmp' -Force -EA SilentlyContinue
-\$env:WIND_RPC_MOCK='1'
+\$env:MOODFLOW_RPC_MOCK='1'
 \$p = Start-Process -FilePath \$exe -ArgumentList @('--screenshot','$rtmp',$(ps_list "${extra[@]}")) -Wait -PassThru -NoNewWindow
 if (-not (Test-Path '$rtmp')) { [Console]::Error.WriteLine('没有产出截图 (设置程序退出码 ' + \$p.ExitCode + ')'); exit 3 }
 'ok ' + (Get-Item '$rtmp').Length"
@@ -1806,27 +1806,27 @@ if (-not (Test-Path '$rtmp')) { [Console]::Error.WriteLine('没有产出截图 (
 show_menu() {
     clear 2>/dev/null || true
     printf '%b============================================%b\n' "$C_CYAN" "$C_RESET"
-    printf '%b  WindInput 开发菜单  v%s  (Linux→Win, MSVC)%b\n' "$C_CYAN" "$VERSION" "$C_RESET"
+    printf '%b  Moodflow 开发菜单  v%s  (Linux→Win, MSVC)%b\n' "$C_CYAN" "$VERSION" "$C_RESET"
     printf '%b============================================%b\n\n' "$C_CYAN" "$C_RESET"
-    printf '%b  构建 → %s (原生 MSVC; 产物回传本机)%b\n' "$C_GRAY" "${WIND_BUILD_REMOTE:-未配置 build.local}" "$C_RESET"
+    printf '%b  构建 → %s (原生 MSVC; 产物回传本机)%b\n' "$C_GRAY" "${MOODFLOW_BUILD_REMOTE:-未配置 build.local}" "$C_RESET"
     printf '\n'
     printf '%b  全构建 (→ 项目根 build/，内容 == 安装到 Program Files):%b\n' "$C_YELLOW" "$C_RESET"
-    echo  "    1    Release 全构建: wind_input + tsf(x64/x86) + setting + portable + 词库数据"
+    echo  "    1    Release 全构建: moodflow_input + tsf(x64/x86) + setting + portable + 词库数据"
     echo  "    d1   Debug 全构建 (→ build_dev/)"
     printf '\n%b  单模块构建 (前缀 d = dev):%b\n' "$C_YELLOW" "$C_RESET"
     echo  "    m1   仅 tsf (x64+x86)        dm1"
-    echo  "    m2   仅 wind_input (核心)     dm2"
-    echo  "    m3   仅 wind_setting (../wind-setting)    dm3"
-    echo  "    m4   仅 wind_portable (../wind-portable)  dm4"
+    echo  "    m2   仅 moodflow_input (核心)     dm2"
+    echo  "    m3   仅 moodflow_setting (../moodflow-setting)    dm3"
+    echo  "    m4   仅 moodflow_portable (../moodflow-portable)  dm4"
     printf '\n%b  安装包:%b\n' "$C_YELLOW" "$C_RESET"
     echo  "    8    生成安装包 (= 1 + 打包 → Setup.exe + sha256)"
     echo  "    8s   跳过编译, 直接打包现有 build/"
-    echo  "    9    生成便携包 (= 1 + 打包 → dist/WindInput-Portable-<版本>.zip + sha256)"
+    echo  "    9    生成便携包 (= 1 + 打包 → dist/Moodflow-Portable-<版本>.zip + sha256)"
     echo  "    9s   跳过编译, 直接打包现有 build/"
     printf '\n%b  发布中转 (→ 本机签名打包):%b\n' "$C_YELLOW" "$C_RESET"
-    echo  "    stage   打中转产物 → dist/WindInput-Stage-<版本>.zip   dstage (dev)"
+    echo  "    stage   打中转产物 → dist/Moodflow-Stage-<版本>.zip   dstage (dev)"
     echo  "    instbins  从编译机取安装器三件套(原生 MSVC), 让中转包零编译"
-    printf '\n%b  部署 → Windows (deploy.local 配 RELEASE/DEV 路径; SSH → %s):%b\n' "$C_YELLOW" "${WIND_REMOTE:-未配置}" "$C_RESET"
+    printf '\n%b  部署 → Windows (deploy.local 配 RELEASE/DEV 路径; SSH → %s):%b\n' "$C_YELLOW" "${MOODFLOW_REMOTE:-未配置}" "$C_RESET"
     echo  "    p1   push 全部 (release)        pd1   push 全部 (dev)"
     echo  "    pm1/pm2  push 模块(tsf/核心)    pdm1/pdm2 (dev)"
     printf '\n%b  代码质量:%b\n' "$C_YELLOW" "$C_RESET"
@@ -1843,7 +1843,7 @@ show_menu() {
     echo  "    SHOT_ON=vm shot             截编译机上刚编的那份 (不用先部署)"
     printf '\n%b  杂项:%b\n' "$C_YELLOW" "$C_RESET"
     echo  "    gd=gen-data  clean  q=退出"
-    echo  "    sk/st/sg  邻仓 wind-setting: 检查 / 测试 / 重生成检入产物 (st,sg 经 wine)"
+    echo  "    sk/st/sg  邻仓 moodflow-setting: 检查 / 测试 / 重生成检入产物 (st,sg 经 wine)"
     printf '%b============================================%b\n' "$C_CYAN" "$C_RESET"
 }
 
@@ -1883,7 +1883,7 @@ dispatch() {
         pdm2)             do_push_module dev core ;;
         k|check)          do_check ;;
         l|clippy)         do_clippy ;;
-        clippy-deny)      do_clippy deny ;;   # 心晴：CI 分步调用（dev.sh ci 的第二步）
+        clippy-deny)      do_clippy deny ;;   # Moodflow：CI 分步调用（dev.sh ci 的第二步）
         t|test)           do_test ;;
         sk|setting-check) do_setting_check ;;
         st|setting-test)  do_setting_test ;;

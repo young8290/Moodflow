@@ -86,16 +86,16 @@ freq_score  = (base_scale * log2(count + 1) + recency_peak) * decay
 3. dict：composite 去掉查询时 FreqBoost，只合并层。
 4. config：CodeTableSpec 排序改两层 `base_sort(weight|natural) + user_frequency:bool + freq_strategy(top|step)`；FreqSpec 改衰减参数。
 
-> 受影响差分均已加指针指向本文。每步 `wind_input/scripts/dev.sh ci` 把关。
+> 受影响差分均已加指针指向本文。每步 `moodflow_input/scripts/dev.sh ci` 把关。
 
 ## 8. 落地状态（2026-06-18）
 - **F1 码表策略 + F3 配置（码表部分）**：已完成并部署。
   - `EngineManager::freq_settings()` 按活跃方案解析并缓存 `{enabled, strategy(top/step)}`（`learning.freq.enabled` + `engine.codetable.freq_strategy`），避免每键读盘。
   - shipped schema（wubi86 / wubi86_pinyin）设 `[learning.freq] enabled = true`，`engine.codetable.freq_strategy = "step"`（默认）。
-- **词频重排下沉 engine 排序层（§5/§7）**：重排纯函数移入 `wind-engine::freq_rerank`（`rerank_codetable_usedfirst` / `rerank_pinyin_decay` + `freq_tier`），coordinator 的 `apply_freq_rerank` 只负责取词频记录、按 `is_pinyin()` 分流调用。两路均有原生单测（wind-engine `freq_rerank::tests`，6 例）。
+- **词频重排下沉 engine 排序层（§5/§7）**：重排纯函数移入 `moodflow-engine::freq_rerank`（`rerank_codetable_usedfirst` / `rerank_pinyin_decay` + `freq_tier`），coordinator 的 `apply_freq_rerank` 只负责取词频记录、按 `is_pinyin()` 分流调用。两路均有原生单测（moodflow-engine `freq_rerank::tests`，6 例）。
 - **F2 拼音衰减**：已完成。`rerank_pinyin_decay` 按 §4 实现 —— ① 整句/短语豁免（`weight ≥ PINYIN_SENTENCE_FLOOR=20M` 锚定顶部，介于词权重上限~19M 与整句基准 30M 之间）；② 非整句按 `FreqProfile::pinyin_score`（半衰期衰减）软置前；③ 阈值褪色（衰减分 `< PINYIN_FREQ_EPSILON=10.0` → 落回引擎权重序）。`now` 由 coordinator 注入便于测试。
 - **recency_peak 近用峰值加成**：已完成。`FreqProfile` 新增 `recency_peak: f64`（默认 0.0），`pinyin_score` 公式改为 `(base_scale * log2(count+1) + recency_peak) * decay`；`EngineManager::pinyin_freq_profile()` 从配置 `frequency.recency_peak` 读取（非负截断）。`=0` 时完全向后兼容。
-- **L 造词显现**：已完成。`PinyinEngine` 新增可选 `store_layers`（`with_store_layers`），`EngineManager::build_engine` 拼音分支在有 Store 时挂 `StoreUserLayer/StoreTempLayer`（按 schema 隔离）。convert 第 6 步按相同码（整串精确 + 各前缀子码 + 前缀补全）并入用户/临时造词，dedup by text、source=Pinyin、consumed_length 据前缀标注（部分消费分段上屏）。原生单测见 wind-engine `pinyin::tests`（3 例）。
+- **L 造词显现**：已完成。`PinyinEngine` 新增可选 `store_layers`（`with_store_layers`），`EngineManager::build_engine` 拼音分支在有 Store 时挂 `StoreUserLayer/StoreTempLayer`（按 schema 隔离）。convert 第 6 步按相同码（整串精确 + 各前缀子码 + 前缀补全）并入用户/临时造词，dedup by text、source=Pinyin、consumed_length 据前缀标注（部分消费分段上屏）。原生单测见 moodflow-engine `pinyin::tests`（3 例）。
   - 注：混输的 pinyin 子引擎按 secondary schema id 挂层；混输造词键于 mixed schema id，故混输 L 不在此生效（无回归，待混输专项）。
 - **protect_top_n**：呈现层前 N 位保护，已实现。语义定稿：重排**前**记录引擎基础序（base_sort 输出）的前 N 个候选，重排**后**按原相对序回填到前 N 位；其余候选相对序不变。优先级高于词频——即使某候选词频极高，只要它不在保护集内，就不能占据前 N 位。默认 `0` = 空保护集，行为与不启用完全一致（零回归）。不修改任何候选 weight；引擎层 auto_commit 决策在词频重排之前完成，天然不受影响（无 Go 版 ProtectTopN 致顶码与 UI 不一致的隐患）。与 `top`/`step` 策略正交——两种策略均在保护回填之前完成排序。仅码表/混输路径（`rerank_codetable_usedfirst`）生效，拼音路径固定为 `ProtectPolicy::NONE`。
 - **protect 按输入码长分级**（后续增强，设计见 `docs/design/codetable-freq-short-code-protection.md`）：单一标量表达不了「简码位要护、全码位要放」这对相反诉求——取 1 则全码位首选永久锁死、调频只对第 2 位以后有效；取 0 则五笔一简二简当场失守（一简 25 个码每个都是二选一，词库靠 9999/9998 表达的钦定次序在本模块**完全失效**，因为比较链不含 weight）。现改为 `ProtectPolicy { by_len: [1,1,0], fallback: 0 }`，配置键 `protect_top_n_len{1,2,3}` + `protect_top_n`（兜底）。同时保护名额**只在精确档内取**（`is_exact_code`），修掉「名额多于精确候选时把前缀补全词钉死」的旧缺陷。

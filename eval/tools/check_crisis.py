@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""心晴 · 危机词表离线评测（E-CRISIS 本地通道，FR-SAF-01）
+"""Moodflow · 危机词表离线评测（E-CRISIS 本地通道，FR-SAF-01）
 
 用法：python3 check_crisis.py [--golden 输出路径] [词表路径] [数据集路径]
 --golden：把每条样本的得分和判定写成 JSON，供 Rust safety 模块单元测试对拍。

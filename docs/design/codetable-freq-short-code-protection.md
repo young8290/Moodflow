@@ -14,7 +14,7 @@
 
 ### 2.1 简码的"钦定地位"建在权重轴上
 
-词库生成阶段（`wind-tools/gen_dict/shortcode.rs`，参数见 `gen_dict.toml:51-58`）做了简码分层：
+词库生成阶段（`moodflow-tools/gen_dict/shortcode.rs`，参数见 `gen_dict.toml:51-58`）做了简码分层：
 
 | 层级 | 判据 | 权重 |
 |---|---|---|
@@ -28,7 +28,7 @@
 
 ### 2.2 运行时调频绕过权重轴
 
-`wind-engine/src/freq_rerank.rs` 的 `rerank_codetable_usedfirst` 比较链：
+`moodflow-engine/src/freq_rerank.rs` 的 `rerank_codetable_usedfirst` 比较链：
 
 ```
 freq_tier(来源档位) → 有无词频记录（有 > 无） → strategy（count / last_used）
@@ -109,7 +109,7 @@ CLI 帮助），并且**设置仓要新增一种控件形态**——现有 manif
 
 ## 5. 实现设计
 
-### 5.1 策略结构（放在 `wind-engine/src/freq_rerank.rs`）
+### 5.1 策略结构（放在 `moodflow-engine/src/freq_rerank.rs`）
 
 ```rust
 /// 按**输入码长**分级的首选保护策略。
@@ -176,14 +176,14 @@ let protected: Vec<String> = candidates
 
 | # | 文件 | 改动 |
 |---|---|---|
-| 1 | `wind-config/src/config.rs:376` | `CodetableFrequency` 加 3 个 `usize` 字段 + 默认值 `1/1/0`；`protect_top_n` 默认保持 0（结构体默认本就是 0） |
-| 2 | `wind-config/src/config_schema.rs:77` | 注册 3 个 `Int` 键 |
+| 1 | `moodflow-config/src/config.rs:376` | `CodetableFrequency` 加 3 个 `usize` 字段 + 默认值 `1/1/0`；`protect_top_n` 默认保持 0（结构体默认本就是 0） |
+| 2 | `moodflow-config/src/config_schema.rs:77` | 注册 3 个 `Int` 键 |
 | 3 | `data/config.toml` | `protect_top_n` 1 → 0，写入 3 个新键与注释 |
-| 4 | `wind-engine/src/freq_rerank.rs` | 新增 `ProtectPolicy`；`rerank_codetable_usedfirst` 末参 `protect_top_n: usize` → `policy: ProtectPolicy`；`protected` 加精确档过滤 |
-| 5 | `wind-engine/src/manager.rs:44` | `FreqSettings.protect_top_n` → `protect: ProtectPolicy`；`freq_settings()` 组装（拼音分支给 `ProtectPolicy { by_len: [0;3], fallback: 0 }`） |
-| 6 | `wind-coordinator/src/handle_candidate.rs:257` | 传 `settings.protect` |
-| 7 | `wind-setting` 仓 | 3 个 `number` 行；现有 `protect_top_n` 的 label/hint 改成"全码位"口径；过五道守门测试（快照/mockdata 勿手改，按测试给出的命令重生成） |
-| 8 | 文档 | `frequency.md` §8 追加分级语义；`candidate-sorting-rules.md` §7.3 的 `protect_top_n` 行改写；文档站 `../WindInputDocs` 的 config 参考页 + 用法页两处 |
+| 4 | `moodflow-engine/src/freq_rerank.rs` | 新增 `ProtectPolicy`；`rerank_codetable_usedfirst` 末参 `protect_top_n: usize` → `policy: ProtectPolicy`；`protected` 加精确档过滤 |
+| 5 | `moodflow-engine/src/manager.rs:44` | `FreqSettings.protect_top_n` → `protect: ProtectPolicy`；`freq_settings()` 组装（拼音分支给 `ProtectPolicy { by_len: [0;3], fallback: 0 }`） |
+| 6 | `moodflow-coordinator/src/handle_candidate.rs:257` | 传 `settings.protect` |
+| 7 | `moodflow-setting` 仓 | 3 个 `number` 行；现有 `protect_top_n` 的 label/hint 改成"全码位"口径；过五道守门测试（快照/mockdata 勿手改，按测试给出的命令重生成） |
+| 8 | 文档 | `frequency.md` §8 追加分级语义；`candidate-sorting-rules.md` §7.3 的 `protect_top_n` 行改写；文档站 `../MoodflowDocs` 的 config 参考页 + 用法页两处 |
 
 ### 5.5 实施顺序（红 → 绿）
 
@@ -210,7 +210,7 @@ let protected: Vec<String> = candidates
 **对照组是必需的**：只有主用例会在"全局硬保护"这种错误实现下同样变绿，
 证明不了分级真的分了。
 
-### 6.2 端到端（`wind-coordinator/tests/codetable_short_code_protect.rs`）
+### 6.2 端到端（`moodflow-coordinator/tests/codetable_short_code_protect.rs`）
 
 真实五笔词库 + 真实 redb 词频，三条：
 
@@ -266,10 +266,10 @@ schema/code 域写错、调频开关没开、词频记录没进重排，任一�
 - `ProtectPolicy` + 分级 `resolve` + 保护名额只在精确档内取（`freq_rerank.rs`）
 - 配置三处：结构体字段 / 注册表 / `data/config.toml`（`protect_top_n` 出厂 1 → 0）
 - `FreqSettings` 与协调器接线
-- 单测 8 条 + 端到端 3 条；`wind-engine` / `wind-config` / `wind-candidate` /
-  `wind-coordinator` 全量绿，clippy 无新增警告，fmt clean
+- 单测 8 条 + 端到端 3 条；`moodflow-engine` / `moodflow-config` / `moodflow-candidate` /
+  `moodflow-coordinator` 全量绿，clippy 无新增警告，fmt clean
 
-**设置页**（`wind-setting` 仓 `4fc1735`）
+**设置页**（`moodflow-setting` 仓 `4fc1735`）
 
 - 原「保护前 N 个词条」一项拆成一简/二简/三简/全码四项，口径写进 hint
 - `capabilities.snapshot.json` 与 `mockdata/config.json` 由 regenerate 命令重生成
@@ -280,14 +280,14 @@ schema/code 域写错、调频开关没开、词频记录没进重排，任一�
 1. **真机验证**：打 `a` / `aa` 反复选次选字后确认首选不变；`aaaa` 位确认调频仍生效。
    需先 `scripts/dev.ps1` 的 `dm1`/`dm2` 编译 + `pdm1`/`pdm2` 部署（`m1` ≠ `dm1`，
    产物不同名不同目录）。
-2. 文档站 `../WindInputDocs`：config 参考页 + 用法页两处。
+2. 文档站 `../MoodflowDocs`：config 参考页 + 用法页两处。
 
 ### ⚠️ 两条对以后同类改动仍成立的约束
 
 **① 设置页只能在主仓改动合并进 main 之后做。** 设置仓通过 path 依赖直接编译主仓**工作区**
-的 `wind-config`/`wind-rpc`，而 capability 快照的 `default` 取自
+的 `moodflow-config`/`moodflow-rpc`，而 capability 快照的 `default` 取自
 `Config::system_preset_value(data_dir)` ＝ **REGISTRY 与 `data/config.toml` 两者**，
-`data_dir` 又硬编码 `../WindInput/data`——**两处都是主仓工作区，不是你的分支**。
+`data_dir` 又硬编码 `../Moodflow/data`——**两处都是主仓工作区，不是你的分支**。
 在 worktree 或未合并分支上跑重生成命令，快照里根本不会有新键，而守门测试的报错
 （「清单 key 不在 capability 快照中」）指向 manifest，看不出真因是「core 那边还没这个键」。
 
@@ -298,5 +298,5 @@ cargo test regenerate_capabilities_snapshot -- --ignored
 cargo test regenerate_mock_config -- --ignored
 ```
 
-**② 跑 `cargo test -p wind-coordinator` 会真写 `%APPDATA%/WindInput/config.toml` 的
+**② 跑 `cargo test -p moodflow-coordinator` 会真写 `%APPDATA%/Moodflow/config.toml` 的
 `schema.active`**（实测被改成 `pinyin`）。本次两轮测试均先备份后恢复，后续同样要防。

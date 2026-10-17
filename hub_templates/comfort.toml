@@ -1,4 +1,4 @@
-# 心晴 · 本地暖心话模板（FR-CMF-03、FR-CHT-10、FR-STA-10）
+# Moodflow · 本地暖心话模板（FR-CMF-03、FR-CHT-10、FR-STA-10）
 # 结构：[[<风格>.<组>]]，风格 gentle（温柔，默认）/ lively（元气）；“简洁”风格从 gentle 中选取 ≤ 15 字的句子。
 # 组：hesitant 犹豫 / low 低落 / agitated 烦躁 / tired 疲劳 / late_night 深夜 / cheer 平常的鼓励
 # 要求：每组 ≥ 15 句；6–30 个汉字；通过 banned_words.toml 校验；不提“打字”“观察”“检测”；

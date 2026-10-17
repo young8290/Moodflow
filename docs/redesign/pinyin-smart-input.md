@@ -57,4 +57,4 @@
 3. bigram LM 接入 + scorer 升级（unigram+bigram 插值 + 归一化 + iq + 词频衰减）。
 4. Viterbi/beam top-K 整句 + 备选；模糊音（fst Levenshtein 或音节层模糊扩展）。
 5. 简拼 abbrev trie。
-> 每步 `wind_input/scripts/dev.sh ci` 把关。
+> 每步 `moodflow_input/scripts/dev.sh ci` 把关。

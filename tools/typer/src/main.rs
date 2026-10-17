@@ -19,7 +19,7 @@ use clap::{Parser, Subcommand};
 use script::Step;
 
 #[derive(Parser, Debug)]
-#[command(name = "typer", about = "心晴节奏打字脚本")]
+#[command(name = "typer", about = "Moodflow 节奏打字脚本")]
 struct Args {
     #[command(subcommand)]
     cmd: Cmd,
@@ -208,7 +208,7 @@ fn run(steps: &[Step], speed: f64, countdown: u32, log: Option<&Path>) -> Result
     use std::time::{Duration, Instant};
 
     for n in (1..=countdown).rev() {
-        eprintln!("{n} 秒后开始，请切到目标窗口并打开心晴输入法……");
+        eprintln!("{n} 秒后开始，请切到目标窗口并打开 Moodflow 输入法……");
         std::thread::sleep(Duration::from_secs(1));
     }
     let _timer = send::HighResTimer::new();

@@ -1,6 +1,6 @@
 # 模式 / 方案统一 —— 设计差分（评审稿）
 
-> 目标态设计，供评审。证据取自 Rust 现状（`wind-coordinator` / `wind-engine`）与 Go decider 模型。
+> 目标态设计，供评审。证据取自 Rust 现状（`moodflow-coordinator` / `moodflow-engine`）与 Go decider 模型。
 > 上游：[key-pipeline.md]（S0–S4 已完成的按键管线）。本篇是阶段 C 的核心：把"临时拼音 / 特殊
 > 模式"等瞬态模式的**引擎来源**统一到方案（scheme）注册表，并为"临时 mix 复合"铺路。
 > 决策已与用户对齐方向（对话 2026-06-17），本稿细化为可评审的边界 + 增量路径。

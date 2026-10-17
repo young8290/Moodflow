@@ -1,0 +1,11 @@
+[package]
+name = "moodflow-transform"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+moodflow-config = { path = "../moodflow-config" }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

@@ -4,10 +4,10 @@
 
 ## 背景：两种实现方案
 
-`input.symbol.smart_method` 枚举（`wind-config/src/config.rs`）：
+`input.symbol.smart_method` 枚举（`moodflow-config/src/config.rs`）：
 
 - `HoldComposition`（默认）：press1 把中文符号放进 TSF 组合态（预上屏），press2 直接替换组合提交英文；超时无 press2 则自动提交中文。整个过程只用 TSF 组合态 API，不发送任何合成按键。
-- `DeleteReplace`：press1 直接提交中文符号（正常上屏），press2 时删除光标前 N 个字符、替换为英文。实现在 `wind_tsf/src/TextService.cpp` 的 `CTextService::ReplacePrecedingChars`。
+- `DeleteReplace`：press1 直接提交中文符号（正常上屏），press2 时删除光标前 N 个字符、替换为英文。实现在 `moodflow_tsf/src/TextService.cpp` 的 `CTextService::ReplacePrecedingChars`。
 
 下面「已修复的问题」到「遗留问题（本次搁置）」几节，讲的是 `DeleteReplace` 方案在 `ReplacePrecedingChars` 里暴露的一系列宿主兼容性问题；最后的「HoldComposition 方案」一节讲默认方案自己的问题族，两者互不相干。
 
@@ -27,7 +27,7 @@
 
 ### 3. 微信 / Windows Terminal 下智能符号完全不触发
 
-真正的阻塞点，比替换执行细节更靠前：`prev_char`（`TextService.cpp` 的 `OnEndEdit` 现读文档得到，光标前一字符）在这类宿主里经常读取失败，恒为 0。服务端（`wind-coordinator/src/handle_punct.rs`）判定 press2 的条件要求 `prev_char` 与武装串末位字符相等，`prev_char=0` 时永远不匹配，于是永远判定"不是 press2"，把第二次按键当全新 press1 处理——服务端根本没有下发过 `ReplaceBackward`。
+真正的阻塞点，比替换执行细节更靠前：`prev_char`（`TextService.cpp` 的 `OnEndEdit` 现读文档得到，光标前一字符）在这类宿主里经常读取失败，恒为 0。服务端（`moodflow-coordinator/src/handle_punct.rs`）判定 press2 的条件要求 `prev_char` 与武装串末位字符相等，`prev_char=0` 时永远不匹配，于是永远判定"不是 press2"，把第二次按键当全新 press1 处理——服务端根本没有下发过 `ReplaceBackward`。
 
 **修复**：`prev_char == 0` 视为"宿主读不回文档"而非"确定不匹配"，退回只信服务端自己的武装状态（armed + key + timeout，与文档内容无关）判定 press2。改了 `handle_punct.rs` 里 `DeleteReplace` 和 `HoldComposition→fallback` 两个分支。
 
@@ -79,7 +79,7 @@
 - DLL 侧只上报**事实**——「光标前一个字符是什么」。消费判据放宽成「这一键是不是标点键」
   （`ClassifyInputKey(...) == HotkeyType::Punctuation`，比 `IsPunctuationKey` 多覆盖
   Shift+主键盘数字产出的 `!` `@` `?` 等）。
-- 服务端 `wind-punct::is_smart_punct_after_digit` 持有全部**策略**：`smart_after_digit`
+- 服务端 `moodflow-punct::is_smart_punct_after_digit` 持有全部**策略**：`smart_after_digit`
   总开关 + `smart_list` 成员判定 + `0x30..=0x39` 数字判定。多报一个不在 `smart_list` 里的
   标点键的 `prevChar` 没有副作用，服务端自己判 false。
 
@@ -93,7 +93,7 @@
 
 **验证锚点**：备用通路命中时打 `smart_punct_digit_fallback`（DEBUG）。主路径能读回时该行
 不出现——两条通路症状相同、成因不同，只有这条日志分得开。它同时是「新 DLL 是否真的编进/
-部署上」的自证串（`tr -d '\000' < wind_tsf_dev.dll | grep -ao smart_punct_digit_fallback`）。
+部署上」的自证串（`tr -d '\000' < moodflow_tsf_dev.dll | grep -ao smart_punct_digit_fallback`）。
 
 ### 5. macOS 上数字后智能标点从未生效（`prevChar` 恒 0）
 
@@ -107,7 +107,7 @@ macOS 侧 `KeyHandler.encodeKeyEvent` 一直写死 `prevChar: 0`（注释 "M2.1 
 「我们自己送进文档的东西」换来的是**所有 app 里行为一致**，代价是光标被外部移动（鼠标点击、
 ⌘V）时会漂——判据因此一律取保守侧：拿不准就清零，回落「按中文标点出」。
 
-实现：`SmartPunctDigitTracker`（`wind_macos/Sources/WindInputKit/IPC/`），语义逐条对齐 Windows
+实现：`SmartPunctDigitTracker`（`moodflow_macos/Sources/MoodflowKit/IPC/`），语义逐条对齐 Windows
 的 `_DigitCharFromVk` / `_TrackCommittedTextForSmartPunct`，含本文第 4、4b 两条的教训（小键盘
 VK 必须认；消费点不许抄 `smart_list` 白名单）。三个记录点，缺一不可：
 
@@ -278,17 +278,17 @@ if (holdActiveBeforeResponse && !(*pfEaten)
 
 ## 相关代码位置
 
-- `wind_macos/Sources/WindInputKit/IPC/SmartPunctDigitTracker.swift`：macOS 侧 `prevChar` 记账（无主路径，见第 5 条）；喂食点在 `BridgeResponseRouter.insertCommitted` / `applyMarkedText` 与 `InputController.passThroughToHost`。
-- `wind_input/crates/wind-coordinator/src/handle_punct.rs`：`try_smart_symbol_replace`（press1 武装 + press2 分发）、`smart_symbol_press2`（press2 状态机、`prev_char` 判定、方向分歧点）、`smart_symbol_arm_str`（中文输入模式的两种上下文 + 方向判定）、`english_mode_smart_symbol`（英文输入模式通路）、`arm_smart_symbol_after_commit`（模式进入键武装）、`press1_committed_str`（武装串的唯一真相源）
-- `wind_input/crates/wind-coordinator/src/handle_lifecycle.rs`：`try_activate_mode` 开头的 press2 拦截、`is_any_mode_trigger`
-- `wind_input/crates/wind-coordinator/src/coordinator.rs`：`ConfigBundle::build`（吃键集合并）、`push_custom_en_punct_config`（推送时机：配置热重载广播 + 新客户端连接）
-- `wind_input/crates/wind-punct/src/lib.rs`：`english_participates`（按源字符判定的理由）、`english_smart_source_chars`
-- `wind_input/crates/wind-coordinator/tests/smart_symbol.rs`：四条通路的端到端锁
-- `wind_tsf/src/TextService.cpp`：`CommitText`、`ReplacePrecedingChars`（含 `kTryTsfRangeReplace` 开关）、`CReplaceBackwardEditSession`（含诊断用 readback 日志）
-- `wind_tsf/src/KeyEventSink.cpp` / `include/KeyEventSink.h`：`MarkSyntheticKey`、`_PushSkipKey`/`_TryConsumeSkipKey`、`_SimulatePairKey`（Shift 合成按键相关历史教训）
+- `moodflow_macos/Sources/MoodflowKit/IPC/SmartPunctDigitTracker.swift`：macOS 侧 `prevChar` 记账（无主路径，见第 5 条）；喂食点在 `BridgeResponseRouter.insertCommitted` / `applyMarkedText` 与 `InputController.passThroughToHost`。
+- `moodflow_input/crates/moodflow-coordinator/src/handle_punct.rs`：`try_smart_symbol_replace`（press1 武装 + press2 分发）、`smart_symbol_press2`（press2 状态机、`prev_char` 判定、方向分歧点）、`smart_symbol_arm_str`（中文输入模式的两种上下文 + 方向判定）、`english_mode_smart_symbol`（英文输入模式通路）、`arm_smart_symbol_after_commit`（模式进入键武装）、`press1_committed_str`（武装串的唯一真相源）
+- `moodflow_input/crates/moodflow-coordinator/src/handle_lifecycle.rs`：`try_activate_mode` 开头的 press2 拦截、`is_any_mode_trigger`
+- `moodflow_input/crates/moodflow-coordinator/src/coordinator.rs`：`ConfigBundle::build`（吃键集合并）、`push_custom_en_punct_config`（推送时机：配置热重载广播 + 新客户端连接）
+- `moodflow_input/crates/moodflow-punct/src/lib.rs`：`english_participates`（按源字符判定的理由）、`english_smart_source_chars`
+- `moodflow_input/crates/moodflow-coordinator/tests/smart_symbol.rs`：四条通路的端到端锁
+- `moodflow_tsf/src/TextService.cpp`：`CommitText`、`ReplacePrecedingChars`（含 `kTryTsfRangeReplace` 开关）、`CReplaceBackwardEditSession`（含诊断用 readback 日志）
+- `moodflow_tsf/src/KeyEventSink.cpp` / `include/KeyEventSink.h`：`MarkSyntheticKey`、`_PushSkipKey`/`_TryConsumeSkipKey`、`_SimulatePairKey`（Shift 合成按键相关历史教训）
 
 HoldComposition 方案：
 
-- `wind_tsf/src/TextService.cpp`：`HoldComposition`、`AbsorbHeldIntoPrefix`（并入语义）、`CancelHoldTimer`（丢弃语义）、`OnHoldTimerExpired`、`FlushHoldCompositionIfActive`
-- `wind_tsf/src/KeyEventSink.cpp` / `include/KeyEventSink.h`：`_HasInputSession`（吃键总闸）、`_IsHoldReplayKey`、`_ReplayKeyToHost`，以及 `OnKeyDown` 里 `holdActiveBeforeResponse` 的采样点与重放分支
-- `COMMIT_FLAG_REPLACING_HELD`：`wind_tsf/include/BinaryProtocol.h`、`wind_input/crates/wind-ipc/src/protocol.rs`、`codec.rs` 的 `encode_commit_text_replacing_held`
+- `moodflow_tsf/src/TextService.cpp`：`HoldComposition`、`AbsorbHeldIntoPrefix`（并入语义）、`CancelHoldTimer`（丢弃语义）、`OnHoldTimerExpired`、`FlushHoldCompositionIfActive`
+- `moodflow_tsf/src/KeyEventSink.cpp` / `include/KeyEventSink.h`：`_HasInputSession`（吃键总闸）、`_IsHoldReplayKey`、`_ReplayKeyToHost`，以及 `OnKeyDown` 里 `holdActiveBeforeResponse` 的采样点与重放分支
+- `COMMIT_FLAG_REPLACING_HELD`：`moodflow_tsf/include/BinaryProtocol.h`、`moodflow_input/crates/moodflow-ipc/src/protocol.rs`、`codec.rs` 的 `encode_commit_text_replacing_held`

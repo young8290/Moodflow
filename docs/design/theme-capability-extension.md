@@ -1,6 +1,6 @@
 # 主题能力扩展方案（强调条比例 / 窗口偏移 / 盒模型补齐 / 工具栏圆角 / Toast 边框预览）
 
-跨仓：主仓 `WindInput` + 主题编辑器 `WindInputThemeEditor`。
+跨仓：主仓 `Moodflow` + 主题编辑器 `MoodflowThemeEditor`。
 
 ## 实施状态：全部完成（待真机核对）
 
@@ -12,7 +12,7 @@
 | 3 四节点盒模型补齐 | `0419e5e` | `1a02850` |
 | 2 候选窗位置偏移 | `2430942` | `a4f08cb` |
 
-自动化验证：主仓 `wind-theme` 32 项 + `wind-ui` 95 项全绿，新增用例 9 个；
+自动化验证：主仓 `moodflow-theme` 32 项 + `moodflow-ui` 95 项全绿，新增用例 9 个；
 编辑器 365 项全绿（新增 3 个），`pnpm build`（含 `vue-tsc`）通过；
 `place_window` 的 too-many-arguments clippy 告警已通过元组参数消除。
 
@@ -31,7 +31,7 @@
 
 | # | 需求 | 现状 | 根因位置 | 性质 |
 |---|---|---|---|---|
-| 1 | 强调条高度比可配 | schema/resolve 齐备，渲染硬编码 `0.6` | `wind-ui/src/view.rs:548` | 死字段，接线 |
+| 1 | 强调条高度比可配 | schema/resolve 齐备，渲染硬编码 `0.6` | `moodflow-ui/src/view.rs:548` | 死字段，接线 |
 | 2 | 候选窗位置偏移 | 无此字段 | `candidate_window.rs::place_window:1159` | 新增能力 |
 | 3 | 组件圆角补齐 | preedit_bar/mode_label 借用 `item.border_radius`；footer_bar/candidate_list 连背景边框都没接 | `candidate_window.rs:1477 / 1517 / 1654` | 借用 + 缺失 |
 | 4 | 工具栏整条圆角不生效 | 主题 `[toolbar] border.radius` 未提取到 `RvViews`，渲染硬编码 `高度 × 0.30` | `resolve.rs:480-491`、`toolbar.rs:347` | 死字段，接线 |
@@ -115,7 +115,7 @@ position_offset = { x = 0, y = 4 }   # dp，随 DPI 缩放；默认 0,0 = 与现
 `ViewPoint` 类型已存在（`schema.rs:145-149`，x/y 各支持 `Dim`），直接复用。
 
 > 不复用 `ViewNode.offset`——那是 `accent_bar` 专用单值 `Dim`，语义已占。
-> 不放 `[behavior]`——behavior 是"用户可覆盖白名单"，而偏移是主题美术的一部分，用户不该在设置页调；放那儿还会牵动 `wind-setting` 仓的五道守门测试。
+> 不放 `[behavior]`——behavior 是"用户可覆盖白名单"，而偏移是主题美术的一部分，用户不该在设置页调；放那儿还会牵动 `moodflow-setting` 仓的五道守门测试。
 
 ### 数据通路
 
@@ -239,7 +239,7 @@ if let Some((bc, bw, br)) = eff_border(&v.mode_label, false, false) {
 
 ### 零回归判据
 
-四处改动**全部是 `Option` 新增消费点**，未配置时走原有默认值。回归网建议：对 `default` / `msime` / `_qingfeng` 三个内置主题跑几何+颜色指纹，断言改动前后完全一致。
+四处改动**全部是 `Option` 新增消费点**，未配置时走原有默认值。回归网建议：对 `default` / `msime` / `_moodflow` 三个内置主题跑几何+颜色指纹，断言改动前后完全一致。
 
 ---
 
@@ -323,21 +323,21 @@ const borderWidth = s.borderWidth > 0 ? s.borderWidth : 2;
 
 ## 6. 跨仓改动清单
 
-### 主仓 `WindInput`
+### 主仓 `Moodflow`
 
 | 文件 | 改动 |
 |---|---|
-| `crates/wind-theme/src/schema.rs` | `ViewNode` 加 `position_offset: Option<ViewPoint>` |
-| `crates/wind-theme/src/rvnode.rs` | `RvViews` 加 `window_offset_x/y`、`toolbar_border_radius/width` |
-| `crates/wind-theme/src/resolve.rs` | 提取上述四项；`height_ratio` 加值域钳制 |
-| `crates/wind-theme/src/normalize.rs` | （可选）`position_offset` 数组写法归一 |
-| `crates/wind-ui/src/view.rs` | `left_bar` 四元组 |
-| `crates/wind-ui/src/candidate_window.rs` | 强调条构造/消费；`place_window` 偏移；preedit_bar/mode_label/footer_bar/candidate_list 盒模型 |
-| `crates/wind-ui/src/toolbar.rs` | 整条圆角 + 边框宽读主题 |
+| `crates/moodflow-theme/src/schema.rs` | `ViewNode` 加 `position_offset: Option<ViewPoint>` |
+| `crates/moodflow-theme/src/rvnode.rs` | `RvViews` 加 `window_offset_x/y`、`toolbar_border_radius/width` |
+| `crates/moodflow-theme/src/resolve.rs` | 提取上述四项；`height_ratio` 加值域钳制 |
+| `crates/moodflow-theme/src/normalize.rs` | （可选）`position_offset` 数组写法归一 |
+| `crates/moodflow-ui/src/view.rs` | `left_bar` 四元组 |
+| `crates/moodflow-ui/src/candidate_window.rs` | 强调条构造/消费；`place_window` 偏移；preedit_bar/mode_label/footer_bar/candidate_list 盒模型 |
+| `crates/moodflow-ui/src/toolbar.rs` | 整条圆角 + 边框宽读主题 |
 | `data/themes/_base/*.toml` | 新字段的默认值（保持与现有硬编码一致） |
-| `crates/wind-theme/AGENTS.md`、`crates/wind-ui/AGENTS.md` | 同步字段表 |
+| `crates/moodflow-theme/AGENTS.md`、`crates/moodflow-ui/AGENTS.md` | 同步字段表 |
 
-### 编辑器 `WindInputThemeEditor`
+### 编辑器 `MoodflowThemeEditor`
 
 | 文件 | 改动 |
 |---|---|
@@ -358,7 +358,7 @@ const borderWidth = s.borderWidth > 0 ? s.borderWidth : 2;
 
 | 项 | 手段 |
 |---|---|
-| 零回归 | `default`/`msime`/`_qingfeng`/`amber`/`jade`/`violet` 六个内置主题跑几何+颜色指纹，断言改动前后一致 |
+| 零回归 | `default`/`msime`/`_moodflow`/`amber`/`jade`/`violet` 六个内置主题跑几何+颜色指纹，断言改动前后一致 |
 | 强调条 | 单测：`ratio=0.0`（未配）→ 0.6；`ratio=1.0` → 满高；`offset=4dp` → 右移 |
 | 窗口偏移 | 纯函数测 `place_window`：下方 `+off_y`、上方 `-off_y`、偏移后越界仍被钳回工作区 |
 | 盒模型 | 四节点各配一次背景/边框/圆角，指纹断言生效；未配时与旧指纹相同 |
@@ -373,7 +373,7 @@ const borderWidth = s.borderWidth > 0 ? s.borderWidth : 2;
 1. **`left_bar` 签名变更**扩散到所有构造点，编译器会全部指出，低风险。
 2. **`height_ratio` 零值陷阱**（§1 边界）——最容易翻车的一处，未显式判零会让所有未配主题的强调条消失。
 3. **mode_label 两处通路**（§3b）——只改一处会导致横排生效、竖排不生效。
-4. **主仓 schema 加字段无编译期跨仓约束**，编辑器不同步就会丢字段（`reference_windinput_tools_repo` 记的同型契约）。本方案的编辑器改动清单即是补偿。
+4. **主仓 schema 加字段无编译期跨仓约束**，编辑器不同步就会丢字段（`reference_moodflow_tools_repo` 记的同型契约）。本方案的编辑器改动清单即是补偿。
 5. **偏移与首帧闸门**：偏移是纯几何叠加，不改变 `coords_ready` 判据，但真机需确认首帧不会因偏移落到屏幕外触发钳制抖动。
 
 ## 9. 建议实施顺序

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# WindInput macOS 开发一站式脚本 (原生构建, 命令面对齐 Windows 的 scripts/dev.ps1)。
+# Moodflow macOS 开发一站式脚本 (原生构建, 命令面对齐 Windows 的 scripts/dev.ps1)。
 #
-# 与 Windows 的映射: Windows 的「C++ TSF DLL (m1)」在 macOS 上对应「app 层 (WindInput.app,
-# Swift/IMKit)」, 「核心 exe (m2)」对应「Rust 服务 (wind_service → wind_input 二进制)」。
+# 与 Windows 的映射: Windows 的「C++ TSF DLL (m1)」在 macOS 上对应「app 层 (Moodflow.app,
+# Swift/IMKit)」, 「核心 exe (m2)」对应「Rust 服务 (moodflow_service → moodflow_input 二进制)」。
 # 服务才是渲染/定位/上屏的真身; app 只是 IMKit 壳。本脚本把「编译 + 生成数据 + 部署」串成
 # 一套命令, 一律先编再装, 杜绝装上旧二进制。
 #
@@ -14,10 +14,10 @@
 #
 # 命令 (菜单与命令行直调同一套; 前缀 d=dev, p=部署, m=单模块):
 #   1  / release      Release 全构建: service + app + gen-data 组装 + 数据校验
-#   d1 / dev          Dev 全构建 (WIND_VARIANT=dev 身份)
-#   m1 / dm1          仅构建 app   (WindInput.app / WindInputDev.app)  release/dev  [= Win m1 tsf]
-#   m2 / dm2          仅构建 service (cargo build -p wind_service)     release/dev  [= Win m2 core]
-#   m3 / dm3          仅构建 wind_setting.app (../wind-setting, 不存在则跳过) release/dev
+#   d1 / dev          Dev 全构建 (MOODFLOW_VARIANT=dev 身份)
+#   m1 / dm1          仅构建 app   (Moodflow.app / MoodflowDev.app)  release/dev  [= Win m1 tsf]
+#   m2 / dm2          仅构建 service (cargo build -p moodflow_service)     release/dev  [= Win m2 core]
+#   m3 / dm3          仅构建 moodflow_setting.app (../moodflow-setting, 不存在则跳过) release/dev
 #   p1 / pd1          系统安装全部 (service LaunchAgent + IME app + 设置 app)
 #   pm1 / pdm1        仅装 app 模块   pm2 / pdm2  仅装 service   pm3 / pdm3  仅装 设置 app
 #   u/u1 / ud/ud1     系统卸载 release / dev (撤销 app+service+设置+LaunchAgent, 保留用户数据)
@@ -27,33 +27,33 @@
 #   hooks             激活 .githooks/pre-commit (提交前自动 cargo fmt --check)
 #   clean
 #   gd=gen-data       下载词库 + 生成 unigram/pinyin_map + 组装 data/ → build_mac/data + 校验
-#   r=repl            候选 REPL (cargo run -p wind-repl -- <data>; data 默认 build_mac/data)
+#   r=repl            候选 REPL (cargo run -p moodflow-repl -- <data>; data 默认 build_mac/data)
 #
 # macOS 专属便利命令:
 #   run               重启 service (launchctl kickstart, 不重编)
 #   logs              跟踪 service + IME 日志
 #   status            诊断: service pid / socket / 签名 / 进程
 #   data              把当前已装的 data/ 快照到 build_mac/data
-#   sign-setup        命令行建自签证书 "WindInput Dev" (子命令: create|check|grant|remove)
+#   sign-setup        命令行建自签证书 "Moodflow Dev" (子命令: create|check|grant|remove)
 #   pkg               = 8 (release .pkg); 透传 --build 等参数
 #
 # 全局选项:
 #   --data <dir>      指定词库数据源目录 (覆盖 build_mac/data 自动解析)。
 #
 # 环境变量:
-#   WIND_MAC_UNIVERSAL=1   产通用二进制 (arm64 + x86_64)。app / service / 设置 app 三者
+#   MOODFLOW_MAC_UNIVERSAL=1   产通用二进制 (arm64 + x86_64)。app / service / 设置 app 三者
 #                          统一由它控制, 打包 (8) 时还会在 pkgbuild 前硬校验架构齐全。
 #                          **分发包必须开**; 本地开发默认关 (单架构, 快一倍)。
 #                          需 rustup 装好 x86_64-apple-darwin target (homebrew 版 rust 无 rustup)。
 #   SIGN_IDENTITY="…"      指定签名身份; 显式设为空串则走 ad-hoc (CI 无证书时用)。
-#                          不设则自动挑: 优先 Apple 签发的带 Team ID 证书, 回落自签 "WindInput Dev"。
+#                          不设则自动挑: 优先 Apple 签发的带 Team ID 证书, 回落自签 "Moodflow Dev"。
 #
 # 变体身份 (跨 Rust/Swift 对齐, 错了 dev 变体就连不通):
-#   release: app=WindInput.app  bundleID=to.feng.inputmethod.WindInput
-#            数据目录=~/Library/Application Support/WindInput  LaunchAgent=to.feng.windinput.service
-#   dev    : app=WindInputDev.app  bundleID=to.feng.inputmethod.WindInputDev (以 "Dev" 结尾)
-#            数据目录=~/Library/Application Support/WindInputDev  LaunchAgent=to.feng.windinput.service.dev
-#            LaunchAgent plist 注入 WIND_VARIANT=dev (Rust 服务据此选 WindInputDev 数据目录;
+#   release: app=Moodflow.app  bundleID=app.moodflow.inputmethod.Moodflow
+#            数据目录=~/Library/Application Support/Moodflow  LaunchAgent=app.moodflow.service
+#   dev    : app=MoodflowDev.app  bundleID=app.moodflow.inputmethod.MoodflowDev (以 "Dev" 结尾)
+#            数据目录=~/Library/Application Support/MoodflowDev  LaunchAgent=app.moodflow.service.dev
+#            LaunchAgent plist 注入 MOODFLOW_VARIANT=dev (Rust 服务据此选 MoodflowDev 数据目录;
 #            服务二进制用中文显示名, 文件名不以 _dev 结尾, 故必须靠环境变量声明 dev 身份)。
 #
 # 数据目录说明:
@@ -64,20 +64,20 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-RUST_DIR="$REPO_DIR/wind_input"
-MACOS_DIR="$REPO_DIR/wind_macos"
+RUST_DIR="$REPO_DIR/moodflow_input"
+MACOS_DIR="$REPO_DIR/moodflow_macos"
 DATA_SRC="$REPO_DIR/data"               # 源文件 (入库), 组装数据的基底
 CACHE_DIR="$REPO_DIR/.cache"            # 外部下载/生成 (gitignore)
 DATA_SNAPSHOT="$REPO_DIR/build_mac/data"  # 组装后的运行时 data/ (gitignore); 安装数据源
-SETTING_DIR="$REPO_DIR/../wind-setting"   # 设置程序 (独立项目, 不存在则跳过)
+SETTING_DIR="$REPO_DIR/../moodflow-setting"   # 设置程序 (独立项目, 不存在则跳过)
 
 # 变体派生 (由 apply_variant 按 release/dev 设置)。
 VARIANT="release"
 CARGO_BUILD_ARGS=(--release)      # release → --release; dev → --profile dev-variant
 PROFILE_SUBDIR="release"          # cargo target/ 下的 profile 目录名 (release / dev-variant)
 APP_VARIANT_FLAG=()               # release → (); dev → (--dev)
-APP_SUPPORT="$HOME/Library/Application Support/WindInput"
-LABEL="to.feng.windinput.service"
+APP_SUPPORT="$HOME/Library/Application Support/Moodflow"
+LABEL="app.moodflow.service"
 INSTALLED_DATA="$APP_SUPPORT/service/data"
 DATA_OVERRIDE=""
 
@@ -85,7 +85,7 @@ DATA_OVERRIDE=""
 # 但 IMK 不拉起控制器 → 无法输入。
 #
 # **优先选带 Team ID 的 Apple 签发证书 (Apple Development / Developer ID Application),
-# 没有才回落自签的 "WindInput Dev"。** 差别不在能不能签, 而在 TCC 怎么记「辅助功能」授权:
+# 没有才回落自签的 "Moodflow Dev"。** 差别不在能不能签, 而在 TCC 怎么记「辅助功能」授权:
 #
 #   带 Team ID  → TCC 存 `anchor apple generic` + subject.OU=<TeamID> 的要求, **与具体
 #                 构建无关**, 重新部署后授权继续有效。
@@ -103,7 +103,7 @@ pick_sign_identity() {
         printf '%s' "$line" | sed -n 's/.*"\(.*\)".*/\1/p'
         return 0
     fi
-    printf 'WindInput Dev'
+    printf 'Moodflow Dev'
 }
 export SIGN_IDENTITY="${SIGN_IDENTITY-$(pick_sign_identity)}"
 
@@ -113,7 +113,7 @@ warn() { printf "\033[33m  %s\033[0m\n" "$*"; }
 err()  { printf "\033[31m[错误] %s\033[0m\n" "$*" >&2; }
 
 # 按变体设置全局派生量。dev 服务二进制文件名不带 _dev (中文显示名), 身份靠 plist 里
-# WIND_VARIANT=dev 声明; release/dev 数据目录/LaunchAgent label 均隔离, 可共存。
+# MOODFLOW_VARIANT=dev 声明; release/dev 数据目录/LaunchAgent label 均隔离, 可共存。
 apply_variant() {
     local p="${1:-release}"
     if [[ "$p" == dev ]]; then
@@ -121,21 +121,21 @@ apply_variant() {
         CARGO_BUILD_ARGS=(--profile dev-variant)   # 对齐 Windows Build-Core 的 dev-variant profile
         PROFILE_SUBDIR="dev-variant"
         APP_VARIANT_FLAG=(--dev)
-        APP_SUPPORT="$HOME/Library/Application Support/WindInputDev"
-        LABEL="to.feng.windinput.service.dev"
+        APP_SUPPORT="$HOME/Library/Application Support/MoodflowDev"
+        LABEL="app.moodflow.service.dev"
     else
         VARIANT="release"
         CARGO_BUILD_ARGS=(--release)
         PROFILE_SUBDIR="release"
         APP_VARIANT_FLAG=()
-        APP_SUPPORT="$HOME/Library/Application Support/WindInput"
-        LABEL="to.feng.windinput.service"
+        APP_SUPPORT="$HOME/Library/Application Support/Moodflow"
+        LABEL="app.moodflow.service"
     fi
     INSTALLED_DATA="$APP_SUPPORT/service/data"
 }
 
-# 变体对应的 .app 目录名 (WindInput / WindInputDev)。
-app_name_for_variant() { [[ "$VARIANT" == dev ]] && echo "WindInputDev" || echo "WindInput"; }
+# 变体对应的 .app 目录名 (Moodflow / MoodflowDev)。
+app_name_for_variant() { [[ "$VARIANT" == dev ]] && echo "MoodflowDev" || echo "Moodflow"; }
 
 # 服务(重)启后踢掉本变体的 IME app 控制器进程，让 IMK 按需重拉新实例并重连到刚起的服务。
 # 背景: 服务重启会断开 app 侧的请求 socket; app 不会自动重连该通道 (仅 push 通道靠
@@ -146,7 +146,7 @@ app_name_for_variant() { [[ "$VARIANT" == dev ]] && echo "WindInputDev" || echo 
 kick_ime_app() {
     local appname pids pid args killed=0
     appname="$(app_name_for_variant)"
-    pids=$(pgrep -f "$appname.app/Contents/MacOS/WindInput" 2>/dev/null) || return 0
+    pids=$(pgrep -f "$appname.app/Contents/MacOS/Moodflow" 2>/dev/null) || return 0
     for pid in $pids; do
         args=$(ps -o args= -p "$pid" 2>/dev/null || true)
         case "$args" in
@@ -161,9 +161,9 @@ kick_ime_app() {
 # ───────────────────────── 子步骤: 编译 ─────────────────────────
 
 # 通用二进制 (arm64 + x86_64) 总开关。**分发包必须开**, 本地开发默认关 (单架构快一倍)。
-# app_build 自己读同一个环境变量, 故这里的全局只服务 Rust 侧 (service / wind_setting);
-# 三处读同一个 WIND_MAC_UNIVERSAL, CI 在 job 级设一次即可全线贯通。
-UNIVERSAL="${WIND_MAC_UNIVERSAL:-0}"
+# app_build 自己读同一个环境变量, 故这里的全局只服务 Rust 侧 (service / moodflow_setting);
+# 三处读同一个 MOODFLOW_MAC_UNIVERSAL, CI 在 job 级设一次即可全线贯通。
+UNIVERSAL="${MOODFLOW_MAC_UNIVERSAL:-0}"
 
 # Rust 通用二进制的落点: <项目>/target/universal/<profile>/<bin>。
 #
@@ -203,7 +203,7 @@ cargo_target_dir() {
 }
 
 # 仓库根 docs/VERSION (CI 由 tag 写入) 的规范化读取: 去 BOM 与空白, 读不到则输出空串。
-# 版本真源只此一处, IME 壳 / 设置壳 / pkg / wind-setting 的 build.rs 都从这里取同一个值。
+# 版本真源只此一处, IME 壳 / 设置壳 / pkg / moodflow-setting 的 build.rs 都从这里取同一个值。
 repo_version() {
     local f="$REPO_DIR/docs/VERSION"
     [[ -f "$f" ]] || return 0
@@ -240,11 +240,11 @@ cargo_build_universal() {
 build_service() {
     if [[ $UNIVERSAL -eq 1 ]]; then
         bold "==> 编译 Rust service ($VARIANT, universal)"
-        cargo_build_universal "$RUST_DIR" "$PROFILE_SUBDIR" wind_input \
-            "${CARGO_BUILD_ARGS[@]}" -p wind_service || return 1
+        cargo_build_universal "$RUST_DIR" "$PROFILE_SUBDIR" moodflow_input \
+            "${CARGO_BUILD_ARGS[@]}" -p moodflow_service || return 1
     else
         bold "==> 编译 Rust service ($VARIANT)"
-        ( cd "$RUST_DIR" && cargo build "${CARGO_BUILD_ARGS[@]}" -p wind_service ) || return 1
+        ( cd "$RUST_DIR" && cargo build "${CARGO_BUILD_ARGS[@]}" -p moodflow_service ) || return 1
     fi
     return 0
 }
@@ -253,40 +253,40 @@ build_service() {
 service_bin_path() {
     local tdir; tdir="$(cargo_target_dir "$RUST_DIR")"
     if [[ $UNIVERSAL -eq 1 ]]; then
-        echo "$tdir/$UNIVERSAL_SUBDIR/$PROFILE_SUBDIR/wind_input"
+        echo "$tdir/$UNIVERSAL_SUBDIR/$PROFILE_SUBDIR/moodflow_input"
     else
-        echo "$tdir/$PROFILE_SUBDIR/wind_input"
+        echo "$tdir/$PROFILE_SUBDIR/moodflow_input"
     fi
 }
 
-# ───────────── app_build (拼装 WindInput[Dev].app bundle) ─────────────
+# ───────────── app_build (拼装 Moodflow[Dev].app bundle) ─────────────
 # SwiftPM 不直接产 .app, 这里:
-#   1. swift build --product wind-input-app  (release/debug, arm64)
+#   1. swift build --product moodflow-input-app  (release/debug, arm64)
 #   2. 按标准 macOS .app 结构拼 Contents/{MacOS, Resources, Info.plist}
 #   3. codesign (自签证书或 ad-hoc, 让本机能加载)
-# 输出: wind_macos/build/WindInput[Dev].app
+# 输出: moodflow_macos/build/Moodflow[Dev].app
 #
 # 用法:
 #   app_build                  # release build + 签名
-#   app_build --dev            # dev build (swift build -c debug + WindInputDev 身份)
+#   app_build --dev            # dev build (swift build -c debug + MoodflowDev 身份)
 #   app_build --no-sign        # 不 codesign (调试用)
 #   app_build --universal      # arm64+x86_64 通用二进制 (分发/CI 用)
-#   WIND_MAC_UNIVERSAL=1 ...    # 同上 (CI 走环境变量统一开关)
+#   MOODFLOW_MAC_UNIVERSAL=1 ...    # 同上 (CI 走环境变量统一开关)
 app_build() {
-    # 变体: release → APP_NAME=WindInput; dev → APP_NAME=WindInputDev (--dev)。
-    # .app 目录名/bundleID 按变体区分以支持共存; 可执行名 EXE_NAME 恒为 WindInput
+    # 变体: release → APP_NAME=Moodflow; dev → APP_NAME=MoodflowDev (--dev)。
+    # .app 目录名/bundleID 按变体区分以支持共存; 可执行名 EXE_NAME 恒为 Moodflow
     # (= CFBundleExecutable, 两变体同名, 仅所在 .app 路径不同)。
-    local APP_BASE="WindInput"
+    local APP_BASE="Moodflow"
     local VARIANT_SUFFIX=""        # dev 时 "Dev"
     local EXE_NAME="$APP_BASE"
 
     local SWIFT_CONFIG="release"
     local DO_SIGN=1
-    # universal: arm64+x86_64 通用二进制. 环境变量 WIND_MAC_UNIVERSAL=1 或 --universal 开启.
+    # universal: arm64+x86_64 通用二进制. 环境变量 MOODFLOW_MAC_UNIVERSAL=1 或 --universal 开启.
     # 默认本机单架构 (本地/VM 快). CI 在 job 级设环境变量, 统一继承同一开关.
-    local UNIVERSAL="${WIND_MAC_UNIVERSAL:-0}"
+    local UNIVERSAL="${MOODFLOW_MAC_UNIVERSAL:-0}"
     # 默认 ad-hoc (-). 真实证书:
-    #   SIGN_IDENTITY="WindInput Dev" scripts/mac/dev.sh build
+    #   SIGN_IDENTITY="Moodflow Dev" scripts/mac/dev.sh build
     # 自签证书的创建方法见 scripts/mac/dev.sh sign-setup.
     # macOS 26 (Tahoe) 对 IME 强制要求 codesign 有真实 Authority, adhoc 被 TIS
     # 静默拒绝注册 — 本地开发期请用自签证书签名.
@@ -301,20 +301,20 @@ app_build() {
         esac
     done
 
-    # 变体派生: APP_NAME = .app 目录名 + bundleID 后缀 (WindInput / WindInputDev)。
+    # 变体派生: APP_NAME = .app 目录名 + bundleID 后缀 (Moodflow / MoodflowDev)。
     local APP_NAME="${APP_BASE}${VARIANT_SUFFIX}"
     local APP_BUNDLE="$MACOS_DIR/build/$APP_NAME.app"
 
     command -v swift    >/dev/null || { err "swift 未安装 (装 Xcode CLT)"; exit 1; }
     command -v codesign >/dev/null || { err "codesign 未安装 (装 Xcode CLT)"; exit 1; }
 
-    bold "==> Build wind-input-app ($SWIFT_CONFIG$([[ $UNIVERSAL -eq 1 ]] && echo ", universal"))"
+    bold "==> Build moodflow-input-app ($SWIFT_CONFIG$([[ $UNIVERSAL -eq 1 ]] && echo ", universal"))"
     cd "$MACOS_DIR"
     local BIN_PATH PROD_SUBDIR
     if [[ $UNIVERSAL -eq 1 ]]; then
         # 多架构: SwiftPM 直接产 universal 二进制, 但落点变为 .build/apple/Products/<config>/
         # (与单架构的 .build/<config>/ 不同), 需相应取路径.
-        swift build -c "$SWIFT_CONFIG" --product wind-input-app --arch arm64 --arch x86_64
+        swift build -c "$SWIFT_CONFIG" --product moodflow-input-app --arch arm64 --arch x86_64
         # 多架构产物落在 .build/apple/Products/<Config>/ (首字母大写). 显式映射避免 ${x^}
         # 这种 bash 4+ 语法 (macOS 自带 /bin/bash 仍是 3.2, 会报错).
         case "$SWIFT_CONFIG" in
@@ -322,11 +322,11 @@ app_build() {
             debug)   PROD_SUBDIR="Debug" ;;
             *)       PROD_SUBDIR="Release" ;;
         esac
-        BIN_PATH="$MACOS_DIR/.build/apple/Products/$PROD_SUBDIR/wind-input-app"
+        BIN_PATH="$MACOS_DIR/.build/apple/Products/$PROD_SUBDIR/moodflow-input-app"
     else
-        swift build -c "$SWIFT_CONFIG" --product wind-input-app
-        # SwiftPM 把二进制放在 .build/<config>/wind-input-app
-        BIN_PATH="$MACOS_DIR/.build/$SWIFT_CONFIG/wind-input-app"
+        swift build -c "$SWIFT_CONFIG" --product moodflow-input-app
+        # SwiftPM 把二进制放在 .build/<config>/moodflow-input-app
+        BIN_PATH="$MACOS_DIR/.build/$SWIFT_CONFIG/moodflow-input-app"
     fi
     [[ -x "$BIN_PATH" ]] || { err "二进制未找到: $BIN_PATH"; exit 1; }
     info "binary: $BIN_PATH ($(stat -f%z "$BIN_PATH") bytes)"
@@ -336,24 +336,24 @@ app_build() {
     rm -rf "$APP_BUNDLE"
     mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
 
-    # 二进制 → Contents/MacOS/WindInput (与 Info.plist 的 CFBundleExecutable 对齐;
+    # 二进制 → Contents/MacOS/Moodflow (与 Info.plist 的 CFBundleExecutable 对齐;
     # 两变体可执行同名, 仅 .app 路径不同)
     cp "$BIN_PATH" "$APP_BUNDLE/Contents/MacOS/$EXE_NAME"
     chmod +x "$APP_BUNDLE/Contents/MacOS/$EXE_NAME"
 
     # Info.plist
-    cp "$MACOS_DIR/Sources/WindInputApp/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
+    cp "$MACOS_DIR/Sources/MoodflowApp/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 
     # 变体注入 (dev): 全局把 bundleID 串换成 dev 变体 —— 一并改写 CFBundleIdentifier /
     # InputMethodConnectionName / ComponentInputModeDict 的 mode-id (作 dict key + TISInputSourceID
     # 值 + 有序数组项)。再把显示名 (CFBundleName/DisplayName/TISIconLabels) 加「开发版」。
     # 这样 dev .app 注册为独立输入源, 与 release 共存; 且 bundleID 以 "Dev" 结尾, Swift 的
-    # BridgeEndpoints.variantSuffix 返回 "Dev" → runtimeDir=WindInputDev, 与 Rust 数据目录对齐。
+    # BridgeEndpoints.variantSuffix 返回 "Dev" → runtimeDir=MoodflowDev, 与 Rust 数据目录对齐。
     if [[ -n "$VARIANT_SUFFIX" ]]; then
         bold "==> 变体注入 (dev): bundleID/mode/连接名/显示名 → $APP_NAME"
         sed -i '' \
-            -e 's/to\.feng\.inputmethod\.WindInput/to.feng.inputmethod.WindInputDev/g' \
-            -e 's/清风输入法/清风输入法开发版/g' \
+            -e 's/to\.feng\.inputmethod\.Moodflow/app.moodflow.inputmethod.MoodflowDev/g' \
+            -e 's/Moodflow 输入法/Moodflow 输入法开发版/g' \
             "$APP_BUNDLE/Contents/Info.plist"
     fi
 
@@ -374,7 +374,7 @@ app_build() {
     # 本地化字符串 (输入法菜单名 / 应用显示名).
     # Resources/{zh-Hans,en}.lproj/InfoPlist.strings → Contents/Resources/<lang>.lproj/InfoPlist.strings
     local lproj lang
-    for lproj in "$MACOS_DIR/Sources/WindInputApp/Resources"/*.lproj; do
+    for lproj in "$MACOS_DIR/Sources/MoodflowApp/Resources"/*.lproj; do
         [[ -d "$lproj" ]] || continue
         lang=$(basename "$lproj")
         mkdir -p "$APP_BUNDLE/Contents/Resources/$lang"
@@ -382,19 +382,19 @@ app_build() {
         # 变体注入 (dev): mode-id 键对齐 + 本地化显示名加「开发版」/「Dev」。
         if [[ -n "$VARIANT_SUFFIX" && -f "$APP_BUNDLE/Contents/Resources/$lang/InfoPlist.strings" ]]; then
             sed -i '' \
-                -e 's/to\.feng\.inputmethod\.WindInput/to.feng.inputmethod.WindInputDev/g' \
-                -e 's/"清风输入法"/"清风输入法开发版"/g' \
-                -e 's/"WindInput"/"WindInputDev"/g' \
+                -e 's/to\.feng\.inputmethod\.Moodflow/app.moodflow.inputmethod.MoodflowDev/g' \
+                -e 's/"Moodflow 输入法"/"Moodflow 输入法开发版"/g' \
+                -e 's/"Moodflow"/"MoodflowDev"/g' \
                 "$APP_BUNDLE/Contents/Resources/$lang/InfoPlist.strings"
         fi
         info "lproj: $lang"
     done
 
     # 菜单栏图标 (单色 PDF 模板). plist 引用 menu_icon.pdf, 另带 _15 / _26 应对 Retina.
-    # 源 SVG 在 Resources/wind-{15,26}.svg, 重新生成: rsvg-convert -f pdf -o menu_icon_15.pdf wind-15.svg
+    # 源 SVG 在 Resources/wind-{15,26}.svg, 重新生成: rsvg-convert -f pdf -o menu_icon_15.pdf moodflow-15.svg
     local icon src
     for icon in menu_icon.pdf menu_icon_15.pdf menu_icon_26.pdf; do
-        src="$MACOS_DIR/Sources/WindInputApp/Resources/$icon"
+        src="$MACOS_DIR/Sources/MoodflowApp/Resources/$icon"
         if [[ -f "$src" ]]; then
             cp "$src" "$APP_BUNDLE/Contents/Resources/$icon"
             info "icon: $icon"
@@ -405,12 +405,12 @@ app_build() {
     done
 
     # 应用图标 (.icns, Finder/安装器/关于面板). plist 经 CFBundleIconFile=AppIcon 引用.
-    # 源 wind_setting/build/appicon.png (1024²), 重新生成 Resources/AppIcon.icns:
+    # 源 moodflow_setting/build/appicon.png (1024²), 重新生成 Resources/AppIcon.icns:
     #   ICONSET=$(mktemp -d)/AppIcon.iconset; mkdir -p "$ICONSET"
     #   for s in 16 32 128 256 512; do sips -z $s $s appicon.png --out "$ICONSET/icon_${s}x${s}.png"; \
     #     sips -z $((s*2)) $((s*2)) appicon.png --out "$ICONSET/icon_${s}x${s}@2x.png"; done
-    #   iconutil -c icns "$ICONSET" -o wind_macos/Sources/WindInputApp/Resources/AppIcon.icns
-    local APPICON="$MACOS_DIR/Sources/WindInputApp/Resources/AppIcon.icns"
+    #   iconutil -c icns "$ICONSET" -o moodflow_macos/Sources/MoodflowApp/Resources/AppIcon.icns
+    local APPICON="$MACOS_DIR/Sources/MoodflowApp/Resources/AppIcon.icns"
     if [[ -f "$APPICON" ]]; then
         cp "$APPICON" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
         info "icon: AppIcon.icns"
@@ -432,7 +432,7 @@ app_build() {
     # (flags=0x10000 含 runtime) 与我们裸 ad-hoc (flags=0x2) 的 codesign 差异验证.
     # --options runtime 与 --sign - (ad-hoc) 可共存, 不需要 Developer ID 证书.
     if [[ $DO_SIGN -eq 1 ]]; then
-        local ENTS="$MACOS_DIR/Sources/WindInputApp/Resources/WindInput.entitlements"
+        local ENTS="$MACOS_DIR/Sources/MoodflowApp/Resources/Moodflow.entitlements"
         local SIGN_ARGS
         if [[ -n "$SIGN_IDENTITY" ]]; then
             bold "==> codesign with identity \"$SIGN_IDENTITY\" + hardened runtime"
@@ -482,70 +482,70 @@ build_app() {
     app_build ${APP_VARIANT_FLAG[@]+"${APP_VARIANT_FLAG[@]}"}
 }
 
-# ───────────── build_setting (拼装 清风输入法设置[开发版].app) ─────────────
-# wind_setting 是独立 Rust 项目 (../wind-setting, windui GUI 框架); 原生 cargo build 产 bare
+# ───────────── build_setting (拼装 Moodflow 输入法设置[开发版].app) ─────────────
+# moodflow_setting 是独立 Rust 项目 (../moodflow-setting, moodflowui GUI 框架); 原生 cargo build 产 bare
 # 二进制, 这里按标准 macOS .app 结构拼壳 (Info.plist + AppIcon.icns + codesign)。所有资源
 # (品牌图标/manifest/svg/png) 已在二进制内 include_bytes! 嵌入, 故壳内只需 二进制 + plist + icns。
 #
 # IME 经 LaunchServices 按 bundleID 拉起设置 app (见 Swift ModeStatusController.openSettings):
-#   release IME → com.wails.wind_setting        release 设置 app
-#   dev     IME → com.wails.wind_setting_debug  dev 设置 app  (Swift 判 bundleID 以 "Dev" 结尾)
+#   release IME → com.wails.moodflow_setting        release 设置 app
+#   dev     IME → com.wails.moodflow_setting_debug  dev 设置 app  (Swift 判 bundleID 以 "Dev" 结尾)
 # 故壳的 CFBundleIdentifier 必须与之对齐, 否则 IME 的'设置…'找不到程序。
 #
-# 变体身份 (连对服务): dev 壳的 CFBundleExecutable/二进制名带 _dev 后缀 → wind_setting 的
-#   mode::detect 规则3 (exe 名 _dev) 命中 → 连 WindInputDev 服务 (无需注入 WIND_VARIANT);
-#   与 Windows 的 wind_setting_dev.exe 模型一致。release 壳用 wind_setting → 连正式服务。
+# 变体身份 (连对服务): dev 壳的 CFBundleExecutable/二进制名带 _dev 后缀 → moodflow_setting 的
+#   mode::detect 规则3 (exe 名 _dev) 命中 → 连 MoodflowDev 服务 (无需注入 MOODFLOW_VARIANT);
+#   与 Windows 的 moodflow_setting_dev.exe 模型一致。release 壳用 moodflow_setting → 连正式服务。
 #   两变体 bundleID/文件名/壳名均隔离, 可共存。
 #
 # 独立仓库不存在 → 告警跳过 (返回 0, 对齐 dev.ps1 Build-Setting 的 skip-if-absent);
 # cargo 构建失败 → 返回 1 (显式 m3/dm3 报错; do_full/install_all 以 best-effort 包裹不中断)。
-# 输出: wind_macos/build/<APP_NAME>.app  (APP_NAME = 清风输入法设置 / 清风输入法设置开发版)
+# 输出: moodflow_macos/build/<APP_NAME>.app  (APP_NAME = Moodflow 输入法设置 / Moodflow 输入法设置开发版)
 build_setting() {
     if [[ ! -d "$SETTING_DIR" ]]; then
-        warn "wind_setting: ../wind-setting 不存在, 跳过 (对齐 dev.ps1 skip-if-absent)"
+        warn "moodflow_setting: ../moodflow-setting 不存在, 跳过 (对齐 dev.ps1 skip-if-absent)"
         return 0
     fi
     command -v codesign >/dev/null || { err "codesign 未安装 (装 Xcode CLT)"; return 1; }
 
-    # 版本注入: docs/VERSION → wind-setting 的 build.rs (对齐 Windows 侧 dev.ps1 的
-    # $env:WIND_APP_VERSION)。缺了这一步, build.rs 会回落到 git_version() —— 而那是在
-    # wind-setting 自己的仓库里 describe, CI 的浅 checkout 无 tag, 结果就是界面上显示
+    # 版本注入: docs/VERSION → moodflow-setting 的 build.rs (对齐 Windows 侧 dev.ps1 的
+    # $env:MOODFLOW_APP_VERSION)。缺了这一步, build.rs 会回落到 git_version() —— 而那是在
+    # moodflow-setting 自己的仓库里 describe, CI 的浅 checkout 无 tag, 结果就是界面上显示
     # 一串裸短 hash, 与本仓 tag 完全无关。
     local ver; ver="$(repo_version)"
     if [[ -n "$ver" ]]; then
-        export WIND_APP_VERSION="$ver"
-        info "version: $ver (注入 wind_setting build.rs)"
+        export MOODFLOW_APP_VERSION="$ver"
+        info "version: $ver (注入 moodflow_setting build.rs)"
     fi
 
     # 变体派生。
     local disp exe_name bid cargo_sub
     local cargo_flags=()
     if [[ "$VARIANT" == dev ]]; then
-        disp="清风输入法设置开发版"; exe_name="wind_setting_dev"
-        bid="com.wails.wind_setting_debug"; cargo_sub="debug"; cargo_flags=()
+        disp="Moodflow 输入法设置开发版"; exe_name="moodflow_setting_dev"
+        bid="com.wails.moodflow_setting_debug"; cargo_sub="debug"; cargo_flags=()
     else
-        disp="清风输入法设置"; exe_name="wind_setting"
-        bid="com.wails.wind_setting"; cargo_sub="release"; cargo_flags=(--release)
+        disp="Moodflow 输入法设置"; exe_name="moodflow_setting"
+        bid="com.wails.moodflow_setting"; cargo_sub="release"; cargo_flags=(--release)
     fi
     local APP_BUNDLE="$MACOS_DIR/build/$disp.app"
 
-    # 1. cargo build (wind_setting package → target/[universal/]<sub>/wind_setting)。
+    # 1. cargo build (moodflow_setting package → target/[universal/]<sub>/moodflow_setting)。
     local BIN_PATH
     if [[ $UNIVERSAL -eq 1 ]]; then
-        bold "==> 编译 wind_setting ($VARIANT, universal)"
-        cargo_build_universal "$SETTING_DIR" "$cargo_sub" wind_setting \
+        bold "==> 编译 moodflow_setting ($VARIANT, universal)"
+        cargo_build_universal "$SETTING_DIR" "$cargo_sub" moodflow_setting \
             ${cargo_flags[@]+"${cargo_flags[@]}"} || {
-            err "wind_setting 通用构建失败 (见上; 非致命, 设置 app 将缺失)"; return 1
+            err "moodflow_setting 通用构建失败 (见上; 非致命, 设置 app 将缺失)"; return 1
         }
-        BIN_PATH="$(cargo_target_dir "$SETTING_DIR")/$UNIVERSAL_SUBDIR/$cargo_sub/wind_setting"
+        BIN_PATH="$(cargo_target_dir "$SETTING_DIR")/$UNIVERSAL_SUBDIR/$cargo_sub/moodflow_setting"
     else
-        bold "==> 编译 wind_setting ($VARIANT, native)"
+        bold "==> 编译 moodflow_setting ($VARIANT, native)"
         ( cd "$SETTING_DIR" && cargo build ${cargo_flags[@]+"${cargo_flags[@]}"} ) || {
-            err "wind_setting 构建失败 (见上; 非致命, 设置 app 将缺失)"; return 1
+            err "moodflow_setting 构建失败 (见上; 非致命, 设置 app 将缺失)"; return 1
         }
-        BIN_PATH="$(cargo_target_dir "$SETTING_DIR")/$cargo_sub/wind_setting"
+        BIN_PATH="$(cargo_target_dir "$SETTING_DIR")/$cargo_sub/moodflow_setting"
     fi
-    [[ -x "$BIN_PATH" ]] || { err "未找到 wind_setting 二进制: $BIN_PATH"; return 1; }
+    [[ -x "$BIN_PATH" ]] || { err "未找到 moodflow_setting 二进制: $BIN_PATH"; return 1; }
     info "binary: $BIN_PATH ($(stat -f%z "$BIN_PATH") bytes)"
 
     # 2. 组 .app 壳。
@@ -589,11 +589,11 @@ build_setting() {
     <true/>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
-    <!-- windinput:// 协议(主题/方案/词库一键导入)。Windows 靠注册表把 URL 塞进 argv,
-         macOS 靠这段声明 + windui 的 GURL Apple Event 处理器(platform/macos/url_scheme.rs)
+    <!-- moodflow:// 协议(主题/方案/词库一键导入)。Windows 靠注册表把 URL 塞进 argv,
+         macOS 靠这段声明 + moodflowui 的 GURL Apple Event 处理器(platform/macos/url_scheme.rs)
          —— 两者缺一不可: 只声明不接事件, 点链接毫无反应(URL 不进 argv)。
          两变体共用同一 scheme, 与 Windows 一样是"谁最后注册谁接管"; 单机同时装两版时
-         链接可能打到非预期变体上(见 wind-setting docs/online-update-plan.md 同一记述)。 -->
+         链接可能打到非预期变体上(见 moodflow-setting docs/online-update-plan.md 同一记述)。 -->
     <key>CFBundleURLTypes</key>
     <array>
         <dict>
@@ -603,7 +603,7 @@ build_setting() {
             <string>Viewer</string>
             <key>CFBundleURLSchemes</key>
             <array>
-                <string>windinput</string>
+                <string>moodflow</string>
             </array>
         </dict>
     </array>
@@ -613,8 +613,8 @@ PLIST_EOF
     plutil -lint "$APP_BUNDLE/Contents/Info.plist" >/dev/null
     printf "APPL????" > "$APP_BUNDLE/Contents/PkgInfo"
 
-    # 3. AppIcon.icns (从 res/wind_setting_icon.png 256² 生成; 缺 png/工具则跳过图标, 非致命)。
-    local ICON_PNG="$SETTING_DIR/res/wind_setting_icon.png"
+    # 3. AppIcon.icns (从 res/moodflow_setting_icon.png 256² 生成; 缺 png/工具则跳过图标, 非致命)。
+    local ICON_PNG="$SETTING_DIR/res/moodflow_setting_icon.png"
     if [[ -f "$ICON_PNG" ]] && command -v iconutil >/dev/null; then
         local ICONSET_ROOT; ICONSET_ROOT="$(mktemp -d)"
         local ICONSET="$ICONSET_ROOT/AppIcon.iconset"; mkdir -p "$ICONSET"
@@ -626,7 +626,7 @@ PLIST_EOF
             fi
         done
         if iconutil -c icns "$ICONSET" -o "$APP_BUNDLE/Contents/Resources/AppIcon.icns" 2>/dev/null; then
-            info "icon: AppIcon.icns (源 res/wind_setting_icon.png)"
+            info "icon: AppIcon.icns (源 res/moodflow_setting_icon.png)"
         else
             warn "AppIcon.icns 生成失败 (无图标, 非致命)"
         fi
@@ -656,7 +656,7 @@ PLIST_EOF
 #
 # 参数:
 #   (无)          装 release 设置 app
-#   --dev         装 dev 设置 app (清风输入法设置开发版.app)
+#   --dev         装 dev 设置 app (Moodflow 输入法设置开发版.app)
 #   --uninstall   卸载
 #   --from <dir>  从指定目录装 (内含 <APP_NAME>.app), 供 .pkg postinstall 场景
 setting_install() {
@@ -673,9 +673,9 @@ setting_install() {
 
     local disp exe_name bid
     if [[ $dev -eq 1 ]]; then
-        disp="清风输入法设置开发版"; exe_name="wind_setting_dev"; bid="com.wails.wind_setting_debug"
+        disp="Moodflow 输入法设置开发版"; exe_name="moodflow_setting_dev"; bid="com.wails.moodflow_setting_debug"
     else
-        disp="清风输入法设置"; exe_name="wind_setting"; bid="com.wails.wind_setting"
+        disp="Moodflow 输入法设置"; exe_name="moodflow_setting"; bid="com.wails.moodflow_setting"
     fi
     local APP_NAME="$disp.app"
     local INSTALL_DIR="$HOME/Applications"
@@ -704,7 +704,7 @@ setting_install() {
 
     # -------- install --------
     if [[ ! -d "$SRC" ]]; then
-        warn "未找到设置 app: $SRC (wind_setting 仓缺失或未构建), 跳过设置安装 (非致命)"
+        warn "未找到设置 app: $SRC (moodflow_setting 仓缺失或未构建), 跳过设置安装 (非致命)"
         return 0
     fi
     bold "==> Install $SRC -> $DST"
@@ -736,13 +736,13 @@ setting_install() {
 
 # 组合: 编 + 装 设置 app (best-effort: 构建失败/仓缺失不中断上层安装)。
 install_setting() {
-    build_setting || warn "wind_setting 构建失败/跳过 (设置 app 可能缺失)"
+    build_setting || warn "moodflow_setting 构建失败/跳过 (设置 app 可能缺失)"
     bold "==> 安装 设置 app ($VARIANT)"
     setting_install ${APP_VARIANT_FLAG[@]+"${APP_VARIANT_FLAG[@]}"}
     # 防复发: 清 build/ 里的设置壳并注销其 LS 登记 (与 install_app 同策略)。它与 ~/Applications
     # 里的真身同 bundleID, 留着会被 LaunchServices 重复登记; 若日后 build/ 被清则成幽灵路径。
     # 真身已装到 ~/Applications, build/ 仅中间产物 (pkg 打包会即时重建), 可删。
-    local disp="清风输入法设置"; [[ "$VARIANT" == dev ]] && disp="清风输入法设置开发版"
+    local disp="Moodflow 输入法设置"; [[ "$VARIANT" == dev ]] && disp="Moodflow 输入法设置开发版"
     local built="$MACOS_DIR/build/$disp.app"
     if [[ -d "$built" ]]; then
         local lsreg="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
@@ -842,7 +842,7 @@ assemble_data() {
     bash "$REPO_DIR/scripts/lib/gen-compat.sh" macos "$DATA_SRC/compat.toml" "$data/compat.toml" \
         || { err "生成 macOS 版 compat.toml 失败"; return 1; }
 
-    # 1b. 合并 wind_input/data/settings/ (manifest.toml 等 RPC 元数据; 存在才合并)。
+    # 1b. 合并 moodflow_input/data/settings/ (manifest.toml 等 RPC 元数据; 存在才合并)。
     if [[ -d "$RUST_DIR/data/settings" ]]; then
         mkdir -p "$data/settings"
         cp -R "$RUST_DIR/data/settings/." "$data/settings/"
@@ -866,7 +866,7 @@ assemble_data() {
     done
 
     # 4. (unigram.txt 不再随 data/ 分发: 引擎侧的读取链已移除, 词图打分改用词条自身的
-    #    词典权重, 见 wind-engine/pinyin/lattice.rs::score_node_inner。
+    #    词典权重, 见 moodflow-engine/pinyin/lattice.rs::score_node_inner。
     #    .cache 里的 unigram.txt 仍由 gd 生成 —— gen_dict 用它给五笔扩展词库赋权。)
 
     # 4b. 汉字拼音反查表。
@@ -877,7 +877,7 @@ assemble_data() {
     mkdir -p "$data/opencc"
     if ls "$CACHE_DIR/opencc/dictionaries"/*.txt >/dev/null 2>&1; then
         info "编译 OpenCC → .octrie ..."
-        ( cd "$RUST_DIR" && cargo run -q -p wind-tools --bin gen_opencc -- --src "$CACHE_DIR/opencc/dictionaries" --out "$data/opencc" ) \
+        ( cd "$RUST_DIR" && cargo run -q -p moodflow-tools --bin gen_opencc -- --src "$CACHE_DIR/opencc/dictionaries" --out "$data/opencc" ) \
             || warn "OpenCC 编译失败 (简繁转换不可用)"
     else
         warn "缺 .cache/opencc/, OpenCC 不可用 (先跑 gd 下载)"
@@ -892,7 +892,7 @@ assemble_data() {
         info "生成五笔词库 (gen_dict) ..."
         mkdir -p "$wubi_out"
         # district 由 gen_dict 的 passthrough 一并处理 (原样透传 + 清洗头部)
-        ( cd "$RUST_DIR" && cargo run -q -p wind-tools --bin gen_dict -- \
+        ( cd "$RUST_DIR" && cargo run -q -p moodflow-tools --bin gen_dict -- \
             --cache "$CACHE_DIR" --out "$wubi_out" --report "$wubi" ) \
             || warn "五笔词库生成失败 (五笔方案不可用)"
     else
@@ -908,7 +908,7 @@ assemble_data() {
     if [[ -f "$CACHE_DIR/aux-code/stroke.dict.yaml" ]]; then
         info "生成辅助码表 + 笔画方案词库 (gen_aux_code) ..."
         mkdir -p "$data/schemas/aux_code"
-        ( cd "$RUST_DIR" && cargo run -q -p wind-tools --bin gen_aux_code -- \
+        ( cd "$RUST_DIR" && cargo run -q -p moodflow-tools --bin gen_aux_code -- \
             --cache "$CACHE_DIR" --out "$data/schemas/aux_code" --schema-out "$data/schemas" ) \
             || warn "辅助码表生成失败 (辅助码功能与笔画方案不可用)"
     else
@@ -930,7 +930,7 @@ do_gendata() {
     mkdir -p "$(dirname "$unigram")"
     if [[ ! -f "$unigram" ]]; then
         bold "==> 生成 unigram 词频表"
-        ( cd "$RUST_DIR" && cargo run -q -p wind-tools --bin gen_unigram -- --rime "$CACHE_DIR/rime-frost/cn_dicts" --out "$unigram" ) \
+        ( cd "$RUST_DIR" && cargo run -q -p moodflow-tools --bin gen_unigram -- --rime "$CACHE_DIR/rime-frost/cn_dicts" --out "$unigram" ) \
             || warn "unigram 生成失败 (gen_dict 五笔赋权将随之失败)"
     else
         info "unigram 已缓存"
@@ -940,7 +940,7 @@ do_gendata() {
     local pmap="$CACHE_DIR/pinyin-data/pinyin_map.txt"
     if [[ -f "$CACHE_DIR/pinyin-data/pinyin.txt" ]]; then
         bold "==> 生成汉字拼音反查表"
-        ( cd "$RUST_DIR" && cargo run -q -p wind-tools --bin gen_pinyin -- --src "$CACHE_DIR/pinyin-data" --out "$pmap" ) \
+        ( cd "$RUST_DIR" && cargo run -q -p moodflow-tools --bin gen_pinyin -- --src "$CACHE_DIR/pinyin-data" --out "$pmap" ) \
             || warn "拼音反查表生成失败 (候选拼音提示不可用)"
     else
         warn "缺 .cache/pinyin-data/pinyin.txt, 拼音反查表不可用"
@@ -1003,21 +1003,21 @@ resolve_data() {
 }
 
 # ───────────── app_install (装 .app 到 ~/Library/Input Methods/) ─────────────
-# 用户域安装 (不需 sudo). 装完后系统设置 → 键盘 → 文本输入 → 编辑 → + → 简体中文 → 选 WindInput[开发版]。
+# 用户域安装 (不需 sudo). 装完后系统设置 → 键盘 → 文本输入 → 编辑 → + → 简体中文 → 选 Moodflow[开发版]。
 #
 # 参数:
 #   (无)            装 release build
-#   --dev           装 dev build (WindInputDev.app)
+#   --dev           装 dev build (MoodflowDev.app)
 #   --build         先 build 再装
 #   --uninstall     卸载
 #   --from <dir>    从指定目录装 (内含 <APP_NAME>.app), 供 .pkg postinstall 等离仓库场景.
 app_install() {
-    # 变体: release → WindInput; dev → WindInputDev (--dev)。两变体可作为独立输入法共存。
-    # EXE_NAME 恒为 WindInput (= CFBundleExecutable): 两变体进程同名, 必须按 .app 路径定位进程,
+    # 变体: release → Moodflow; dev → MoodflowDev (--dev)。两变体可作为独立输入法共存。
+    # EXE_NAME 恒为 Moodflow (= CFBundleExecutable): 两变体进程同名, 必须按 .app 路径定位进程,
     # 否则装/卸 dev 会误杀正在使用的 release (反之亦然)。
-    local APP_NAME="WindInput"
-    local EXE_NAME="WindInput"
-    local BUNDLE_ID="to.feng.inputmethod.WindInput"
+    local APP_NAME="Moodflow"
+    local EXE_NAME="Moodflow"
+    local BUNDLE_ID="app.moodflow.inputmethod.Moodflow"
     local INSTALL_DIR="$HOME/Library/Input Methods"
     local SRC_DIR=""
 
@@ -1027,7 +1027,7 @@ app_install() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --build) DO_BUILD=1 ;;
-            --dev) BUILD_ARGS+=("--dev"); APP_NAME="WindInputDev"; BUNDLE_ID="to.feng.inputmethod.WindInputDev" ;;
+            --dev) BUILD_ARGS+=("--dev"); APP_NAME="MoodflowDev"; BUNDLE_ID="app.moodflow.inputmethod.MoodflowDev" ;;
             --uninstall) DO_UNINSTALL=1 ;;
             # --from <dir>: 从指定目录装 (内含 <APP_NAME>.app), 供 .pkg postinstall 等离仓库场景.
             --from) shift; SRC_DIR="${1:-}"; [[ -n "$SRC_DIR" ]] || { echo "[错误] --from 缺目录参数" >&2; exit 1; } ;;
@@ -1054,10 +1054,10 @@ app_install() {
         bold "==> Uninstall $APP_NAME (full purge)"
 
         # 1. 杀本变体的 IME 进程 (含 --register-input-source 后台守护)。按 .app 路径定位,
-        #    两变体进程同名 WindInput, 不能用进程名匹配 (会误杀另一变体)。
+        #    两变体进程同名 Moodflow, 不能用进程名匹配 (会误杀另一变体)。
         info "kill $APP_NAME processes"
         pkill -9 -f "$APP_NAME.app/Contents/MacOS/$EXE_NAME" 2>/dev/null || true
-        rm -f /tmp/wind_register.log
+        rm -f /tmp/moodflow_register.log
 
         # 2. 删 .app (用户域旧路径 + 历史可能装过的系统域 /Library 都尝试清)
         local app
@@ -1098,13 +1098,13 @@ else:
     print("    (no HIToolbox entries matched)")
 PY
 
-        # 4. 清缓存 / state (变体目录: dev 用 Caches/WindInputDev + App Support/WindInputDev,
+        # 4. 清缓存 / state (变体目录: dev 用 Caches/MoodflowDev + App Support/MoodflowDev,
         #    与 Rust variant::app_dir_name() 对齐; release 用不带后缀的)。
         local PURGE_DIRS d
-        if [[ "$APP_NAME" == "WindInputDev" ]]; then
-            PURGE_DIRS=("$HOME/Library/Caches/WindInputDev" "$HOME/Library/Application Support/WindInputDev")
+        if [[ "$APP_NAME" == "MoodflowDev" ]]; then
+            PURGE_DIRS=("$HOME/Library/Caches/MoodflowDev" "$HOME/Library/Application Support/MoodflowDev")
         else
-            PURGE_DIRS=("$HOME/Library/Caches/WindInput" "$HOME/Library/Application Support/WindInput")
+            PURGE_DIRS=("$HOME/Library/Caches/Moodflow" "$HOME/Library/Application Support/Moodflow")
         fi
         for d in "${PURGE_DIRS[@]}"; do
             if [[ -d "$d" ]]; then
@@ -1148,7 +1148,7 @@ PY
     bold "==> Install $APP_BUNDLE -> $INSTALL_APP"
 
     # 1. 关掉本变体的旧实例 (IMKit 进程通常常驻; 不杀的话 cp 会被持锁)。
-    #    按 .app 路径定位: 两变体进程同名 WindInput, 进程名匹配会误杀另一变体。
+    #    按 .app 路径定位: 两变体进程同名 Moodflow, 进程名匹配会误杀另一变体。
     if pgrep -f "$APP_NAME.app/Contents/MacOS/$EXE_NAME" >/dev/null; then
         info "停止旧 $APP_NAME 进程"
         pkill -9 -f "$APP_NAME.app/Contents/MacOS/$EXE_NAME" 2>/dev/null || true
@@ -1227,17 +1227,17 @@ PY
     # 4d. 调本 .app 自身 binary 的 --register-input-source 立即注册 (免重启即可在 picker 出现).
     #     macOS Tahoe (26) 起 TIS 仅接受来自 IME 自身进程的 TISRegisterInputSource 调用
     #     (校验 codesign identity 匹配 bundleID), 外部 swift CLI 调 silently no-op.
-    local APP_EXEC="$INSTALL_APP/Contents/MacOS/WindInput"
+    local APP_EXEC="$INSTALL_APP/Contents/MacOS/Moodflow"
     local REGISTER_PID
     if [[ -x "$APP_EXEC" ]]; then
         # 重要: register 进程保持运行以维持 TIS 注册 (踩过的坑: register 完立刻 exit 后
         # mode 可能被系统在几秒内清掉). 后台 fork, 主流程不阻塞.
         info "$APP_EXEC --register-input-source (后台常驻维持注册)"
-        "$APP_EXEC" --register-input-source > /tmp/wind_register.log 2>&1 &
+        "$APP_EXEC" --register-input-source > /tmp/moodflow_register.log 2>&1 &
         REGISTER_PID=$!
         sleep 1  # 等 TIS DB 写完
         info "    PID=$REGISTER_PID (要停止后台 register: kill $REGISTER_PID)"
-        head -2 /tmp/wind_register.log 2>/dev/null | sed 's/^/    /'
+        head -2 /tmp/moodflow_register.log 2>/dev/null | sed 's/^/    /'
     fi
 
     # .app 刚被整包替换, 但此刻可能还有一个**旧** bundle 的控制器进程在跑 (p1 的顺序是
@@ -1262,33 +1262,33 @@ PY
          d) 注销重登一次系统 (最暴力但有效, 让 TextInputSources 全量重扫)
     2. 切到 $APP_NAME (Ctrl+Space 或菜单栏 IME 切换)
     3. 在任意文本框敲一个字母键, 然后:
-         log stream --predicate 'process == "WindInput"' --info --debug
+         log stream --predicate 'process == "Moodflow"' --info --debug
 
-  卸载:    scripts/mac/dev.sh $([[ "$APP_NAME" == WindInputDev ]] && echo ud || echo u)
+  卸载:    scripts/mac/dev.sh $([[ "$APP_NAME" == MoodflowDev ]] && echo ud || echo u)
 
 EOF
 }
 
 # ───────────── service_install (装 Rust 服务 + LaunchAgent) ─────────────
-# 把 Rust 服务 (wind_input + data/) 装到 per-user 目录, 以 LaunchAgent 形式注册为开机自启常驻进程。
+# 把 Rust 服务 (moodflow_input + data/) 装到 per-user 目录, 以 LaunchAgent 形式注册为开机自启常驻进程。
 #
-# 服务定位词库用 exeDir/data (wind-config Config::data_dir = current_exe()/data),
+# 服务定位词库用 exeDir/data (moodflow-config Config::data_dir = current_exe()/data),
 # 所以二进制和 data/ 必须同目录 (本函数装到 INSTALL_ROOT 与 INSTALL_ROOT/data)。
 # 用户数据 (config.toml / userdata.redb / socket) 走运行时目录
-# (~/Library/Application Support/WindInput{Dev}), 与 service/ 子目录互不干扰。
+# (~/Library/Application Support/Moodflow{Dev}), 与 service/ 子目录互不干扰。
 #
 # 以普通用户运行 (LaunchAgent 是 per-user gui domain, 不要 sudo)。
 #
 # 参数:
 #   (无)            装 release 产物 (target/release)
-#   --dev           装 dev 产物 (target/dev-variant); plist 注入 WIND_VARIANT=dev
+#   --dev           装 dev 产物 (target/dev-variant); plist 注入 MOODFLOW_VARIANT=dev
 #   --data <dir>    指定 data/ 源目录 (默认 SRC_DIR/data 或 build_mac/data)
-#   --from <dir>    从指定目录装 (内含 wind_input + data), 供 .pkg postinstall 等场景
+#   --from <dir>    从指定目录装 (内含 moodflow_input + data), 供 .pkg postinstall 等场景
 #   --uninstall     卸载服务 (保留用户数据)
 #
 # 变体身份 (务必对齐 Rust): dev 服务二进制用中文显示名 (文件名不带 _dev), 故 Rust 的
-# variant::is_dev() 无法从 exe 文件名判定 → 必须靠 plist 里 WIND_VARIANT=dev 声明,
-# Rust 才会用 WindInputDev 数据目录 + _dev 管道后缀, 与 dev .app (bundleID …Dev) 连通。
+# variant::is_dev() 无法从 exe 文件名判定 → 必须靠 plist 里 MOODFLOW_VARIANT=dev 声明,
+# Rust 才会用 MoodflowDev 数据目录 + _dev 管道后缀, 与 dev .app (bundleID …Dev) 连通。
 service_install() {
     local RUST_TARGET; RUST_TARGET="$(cargo_target_dir "$RUST_DIR")"
     local LOG_DIR="$HOME/Library/Logs"
@@ -1298,7 +1298,7 @@ service_install() {
     local DO_UNINSTALL=0
     local SRC_DIR=""
     local DATA_DIR=""
-    local EXE_NAME="wind_input"
+    local EXE_NAME="moodflow_input"
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --dev)       DEV_VARIANT=1 ;;
@@ -1310,26 +1310,26 @@ service_install() {
         shift
     done
 
-    # 变体派生: dev 用独立 LaunchAgent label + 运行时目录 (WindInputDev, 与 Rust
+    # 变体派生: dev 用独立 LaunchAgent label + 运行时目录 (MoodflowDev, 与 Rust
     # variant::app_dir_name() 对齐), 让 dev/release 两套服务共存, 各连各自的 .app socket。
     # 安装后可执行名装为中文名: macOS 后台列表 (BTM) 对无 Developer ID 的 legacy agent
     # 直接显示可执行文件名 (AssociatedBundleIdentifiers 被忽略)。二进制改名不影响功能。
     local LABEL APP_SUPPORT SVC_EXE_NAME ASSOC_BUNDLE LOG_TAG ENV_BLOCK
     ENV_BLOCK=""
     if [[ $DEV_VARIANT -eq 1 ]]; then
-        LABEL="to.feng.windinput.service.dev"
-        APP_SUPPORT="$HOME/Library/Application Support/WindInputDev"
-        SVC_EXE_NAME="清风输入法服务开发版"
-        ASSOC_BUNDLE="to.feng.inputmethod.WindInputDev"
-        LOG_TAG="windinput_dev"
-        # dev 服务二进制文件名不带 _dev, 靠此环境变量向 Rust 声明 dev 身份 (选 WindInputDev 数据目录)。
-        ENV_BLOCK=$'    <key>EnvironmentVariables</key>\n    <dict>\n        <key>WIND_VARIANT</key>\n        <string>dev</string>\n    </dict>\n'
+        LABEL="app.moodflow.service.dev"
+        APP_SUPPORT="$HOME/Library/Application Support/MoodflowDev"
+        SVC_EXE_NAME="Moodflow 输入法服务开发版"
+        ASSOC_BUNDLE="app.moodflow.inputmethod.MoodflowDev"
+        LOG_TAG="moodflow_dev"
+        # dev 服务二进制文件名不带 _dev, 靠此环境变量向 Rust 声明 dev 身份 (选 MoodflowDev 数据目录)。
+        ENV_BLOCK=$'    <key>EnvironmentVariables</key>\n    <dict>\n        <key>MOODFLOW_VARIANT</key>\n        <string>dev</string>\n    </dict>\n'
     else
-        LABEL="to.feng.windinput.service"
-        APP_SUPPORT="$HOME/Library/Application Support/WindInput"
-        SVC_EXE_NAME="清风输入法服务"
-        ASSOC_BUNDLE="to.feng.inputmethod.WindInput"
-        LOG_TAG="windinput"
+        LABEL="app.moodflow.service"
+        APP_SUPPORT="$HOME/Library/Application Support/Moodflow"
+        SVC_EXE_NAME="Moodflow 输入法服务"
+        ASSOC_BUNDLE="app.moodflow.inputmethod.Moodflow"
+        LOG_TAG="moodflow"
     fi
     local INSTALL_ROOT="$APP_SUPPORT/service"
     local INSTALL_EXE="$INSTALL_ROOT/$SVC_EXE_NAME"
@@ -1360,12 +1360,12 @@ service_install() {
     fi
 
     # -------- 解析源目录 --------
-    # WIND_MAC_UNIVERSAL=1 时 build_service 的产物落在 target/universal/<profile>/,
+    # MOODFLOW_MAC_UNIVERSAL=1 时 build_service 的产物落在 target/universal/<profile>/,
     # 原生路径下留着的是上一次单架构构建的**旧**二进制 —— 不认这个开关就会装错一个,
     # 且两者外观一致, 只有跑起来才发现不是刚编的那个。
     if [[ -z "$SRC_DIR" ]]; then
         local prof="release"; [[ $DEV_VARIANT -eq 1 ]] && prof="dev-variant"
-        if [[ "${WIND_MAC_UNIVERSAL:-0}" == 1 ]]; then
+        if [[ "${MOODFLOW_MAC_UNIVERSAL:-0}" == 1 ]]; then
             SRC_DIR="$RUST_TARGET/$UNIVERSAL_SUBDIR/$prof"
         else
             SRC_DIR="$RUST_TARGET/$prof"
@@ -1388,14 +1388,14 @@ service_install() {
         info "停止旧服务实例"
         launchctl bootout "$GUI_DOMAIN/$LABEL" 2>/dev/null || true
     fi
-    # 清理孤儿进程 (前台跑过或上次 bootout 漏网的旧 wind_input 会占着 socket)。
+    # 清理孤儿进程 (前台跑过或上次 bootout 漏网的旧 moodflow_input 会占着 socket)。
     # 按 service 目录精确匹配, 不误杀同名其它进程。
     if pgrep -f "$INSTALL_ROOT/" >/dev/null 2>&1; then
         info "清理残留的旧服务进程"
         pkill -f "$INSTALL_ROOT/" 2>/dev/null || true
         sleep 1
     fi
-    rm -f "$INSTALL_ROOT/wind_input"  # 删旧文件名残留 (升级到中文名时)
+    rm -f "$INSTALL_ROOT/moodflow_input"  # 删旧文件名残留 (升级到中文名时)
 
     # 2. 复制二进制 + 词库 (data/ 用 rsync --delete 与源一致)。
     mkdir -p "$INSTALL_ROOT" "$LOG_DIR" "$HOME/Library/LaunchAgents"
@@ -1424,7 +1424,7 @@ service_install() {
     fi
     info "已复制 服务二进制 + data/ ($(find "$INSTALL_ROOT/data" -type f | wc -l | tr -d ' ') 个数据文件)"
 
-    # 3. 写 LaunchAgent plist (RunAtLoad 开机自启 + KeepAlive 崩溃自拉起; dev 注入 WIND_VARIANT=dev)。
+    # 3. 写 LaunchAgent plist (RunAtLoad 开机自启 + KeepAlive 崩溃自拉起; dev 注入 MOODFLOW_VARIANT=dev)。
     cat > "$PLIST" <<PLIST_EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -1451,7 +1451,7 @@ ${ENV_BLOCK}    <key>StandardOutPath</key>
 </dict>
 </plist>
 PLIST_EOF
-    info "已写 $PLIST$([[ $DEV_VARIANT -eq 1 ]] && echo ' (含 WIND_VARIANT=dev)')"
+    info "已写 $PLIST$([[ $DEV_VARIANT -eq 1 ]] && echo ' (含 MOODFLOW_VARIANT=dev)')"
 
     # 4. 加载 + 启用 + 启动。
     launchctl bootstrap "$GUI_DOMAIN" "$PLIST" 2>/dev/null || {
@@ -1586,23 +1586,23 @@ do_full() {
     # 「某步失败了却一路跑到『全构建完成』」——正是 codesign 失败仍报成功的老形态。
     build_service || { err "service 构建失败, 中止全构建"; return 1; }
     build_app     || { err ".app 构建失败, 中止全构建"; return 1; }
-    # wind_setting 是独立仓库, 允许缺席; 但失败与否要如实反映在下方产物清单里。
+    # moodflow_setting 是独立仓库, 允许缺席; 但失败与否要如实反映在下方产物清单里。
     local setting_ok=1
-    build_setting || { setting_ok=0; warn "wind_setting 构建跳过/失败 (非致命, 设置 app 缺失)"; }
+    build_setting || { setting_ok=0; warn "moodflow_setting 构建跳过/失败 (非致命, 设置 app 缺失)"; }
     do_gendata        || { err "gen-data 失败, 中止全构建"; return 1; }
     verify_dist_data  || { err "发布数据校验失败, 中止全构建"; return 1; }
 
     bold "========== 全构建完成 ($VARIANT) =========="
-    local setting_disp="清风输入法设置"; [[ $VARIANT == dev ]] && setting_disp="清风输入法设置开发版"
+    local setting_disp="Moodflow 输入法设置"; [[ $VARIANT == dev ]] && setting_disp="Moodflow 输入法设置开发版"
     local prof; prof=$([[ $VARIANT == dev ]] && echo dev-variant || echo release)
     info "产物:"
-    info "  service = target/$prof/wind_input"
+    info "  service = target/$prof/moodflow_input"
     info "  app     = $MACOS_DIR/build/$(app_name_for_variant).app"
     # 只报真的在那儿的东西 —— 此前无条件打印设置 app 路径, 构建失败时也照报, 等于骗人。
     if (( setting_ok )) && [[ -d "$MACOS_DIR/build/$setting_disp.app" ]]; then
         info "  setting = $MACOS_DIR/build/$setting_disp.app"
     else
-        warn "  setting = (缺失: wind_setting 未构建成功; 装出来的系统里没有设置程序)"
+        warn "  setting = (缺失: moodflow_setting 未构建成功; 装出来的系统里没有设置程序)"
     fi
     info "  data    = $DATA_SNAPSHOT"
     info "下一步: scripts/mac/dev.sh $([[ $VARIANT == dev ]] && echo pd1 || echo p1)  (系统安装)"
@@ -1616,7 +1616,7 @@ do_run() {
 }
 
 do_logs() {
-    local tag="windinput"; [[ "$VARIANT" == dev ]] && tag="windinput_dev"
+    local tag="moodflow"; [[ "$VARIANT" == dev ]] && tag="moodflow_dev"
     local pn; pn="$(app_name_for_variant)"
     bold "==> 跟踪日志 ($VARIANT, Ctrl-C 退出)"
     info "service: ~/Library/Logs/$tag.out.log | IME: log stream process==$pn"
@@ -1656,24 +1656,24 @@ do_repl() {
     [[ -z "$data" ]] && data="$DATA_SNAPSHOT"
     [[ -d "$data" ]] || warn "词库数据不存在 ($data); 先跑 gd 生成"
     bold "==> 启动候选 REPL (data=$data)"
-    ( cd "$RUST_DIR" && WIND_DATA="$data" cargo run --release -p wind-repl -- "$data" )
+    ( cd "$RUST_DIR" && MOODFLOW_DATA="$data" cargo run --release -p moodflow-repl -- "$data" )
 }
 
 # ───────────── sign_setup (命令行建自签证书) ─────────────
-# 用 openssl + security cli, 完全跳过 Keychain Access GUI. 输出可用于 codesign 的本机证书 "WindInput Dev".
+# 用 openssl + security cli, 完全跳过 Keychain Access GUI. 输出可用于 codesign 的本机证书 "Moodflow Dev".
 # 用法: scripts/mac/dev.sh sign-setup [create|check|grant|remove]
 sign_setup() {
     # 原逻辑用 `set -uo pipefail` (无 errexit): 多处依赖命令失败继续 (find/delete 探测、清理循环)。
     # 这里在函数内关掉 errexit 以原样保留其控制流。
     set +e
 
-    local CERT_NAME="WindInput Dev"
-    local WORK_DIR="${TMPDIR:-/tmp}/wind_input_cert"
+    local CERT_NAME="Moodflow Dev"
+    local WORK_DIR="${TMPDIR:-/tmp}/moodflow_input_cert"
     local CFG_FILE="$WORK_DIR/openssl.cnf"
     local KEY_FILE="$WORK_DIR/cert.key"
     local CRT_FILE="$WORK_DIR/cert.crt"
     local P12_FILE="$WORK_DIR/cert.p12"
-    local P12_PASS="windinput-dev"
+    local P12_PASS="moodflow-dev"
 
     # purge_cert — 删除所有同名证书, 带次数上限防死循环。login + System (sudo) 都试, 20 次封顶。
     purge_cert() {
@@ -1748,7 +1748,7 @@ x509_extensions    = v3_self
 
 [ req_distinguished_name ]
 CN = $CERT_NAME
-O  = WindInput Local
+O  = Moodflow Local
 C  = CN
 
 [ v3_self ]
@@ -1810,16 +1810,16 @@ EOF
 }
 
 # ───────────── pkg_build (打 .pkg 安装器) ─────────────
-# 把 IME (.app) + Rust 服务 (wind_input + data) [+ 可选 设置 app] 打成单个 .pkg 安装器。
+# 把 IME (.app) + Rust 服务 (moodflow_input + data) [+ 可选 设置 app] 打成单个 .pkg 安装器。
 # postinstall 复用 payload 内 install_*.sh 薄包装 (re-exec dev.sh __app_install / __service_install)。
 #
-# 产物: wind_macos/dist/WindInput[Dev]-<版本>-macOS.pkg
+# 产物: moodflow_macos/dist/Moodflow[Dev]-<版本>-macOS.pkg
 #
 # 用法:
 #   pkg_build [release|dev]            # 用现有构建产物打包 (缺 .app 自动转构建)
 #   pkg_build [release|dev] --build    # 先构建 (cargo + gen-data + app_build) 再打包
 #
-# 通用二进制: WIND_MAC_UNIVERSAL=1 → 三个二进制都按 arm64+x86_64 构建, hostArchitectures
+# 通用二进制: MOODFLOW_MAC_UNIVERSAL=1 → 三个二进制都按 arm64+x86_64 构建, hostArchitectures
 # 一并放开, 且在 pkgbuild 前逐个 lipo -archs 校验 (缺架构即拒绝出包)。
 #
 # 公证 (预留): 配齐则 productbuild 后自动 productsign + notarytool + staple:
@@ -1831,19 +1831,19 @@ pkg_build() {
 
     local DEPLOY_DIR="$SCRIPT_DIR"   # 安装脚本/postinstall 资源与本脚本同目录 (scripts/mac)
     local SUFFIX=""; [[ "$PROFILE" == dev ]] && SUFFIX="Dev"
-    local APP_NAME="WindInput$SUFFIX"
+    local APP_NAME="Moodflow$SUFFIX"
     local APP_BUNDLE="$MACOS_DIR/build/$APP_NAME.app"
     local SERVICE_BIN; SERVICE_BIN="$(service_bin_path)"                    # 随 universal 开关变
     local SERVICE_DATA="$DATA_SNAPSHOT"                                     # gd 产物 (变体无关)
     # 设置 app: build_setting 组装的壳 (变体名不同); 可选 (设置仓缺失则跳过)。
-    local SETTING_DISP="清风输入法设置"; [[ "$PROFILE" == dev ]] && SETTING_DISP="清风输入法设置开发版"
-    local SETTING_EXE="wind_setting"; [[ "$PROFILE" == dev ]] && SETTING_EXE="wind_setting_dev"
+    local SETTING_DISP="Moodflow 输入法设置"; [[ "$PROFILE" == dev ]] && SETTING_DISP="Moodflow 输入法设置开发版"
+    local SETTING_EXE="moodflow_setting"; [[ "$PROFILE" == dev ]] && SETTING_EXE="moodflow_setting_dev"
     local SETTING_APP="$MACOS_DIR/build/$SETTING_DISP.app"
 
     local DIST_DIR="$MACOS_DIR/dist"
-    local PKG_ID="to.feng.windinput.installer$([[ "$PROFILE" == dev ]] && echo .dev)"
-    # postinstall 硬编码 STAGE=…/WindInputInstaller, 故两变体共用同一暂存名 (装机时一次一个, 装完即清)。
-    local STAGE_REL="Library/Application Support/WindInputInstaller"
+    local PKG_ID="app.moodflow.installer$([[ "$PROFILE" == dev ]] && echo .dev)"
+    # postinstall 硬编码 STAGE=…/MoodflowInstaller, 故两变体共用同一暂存名 (装机时一次一个, 装完即清)。
+    local STAGE_REL="Library/Application Support/MoodflowInstaller"
     # dev 变体: 生成的 install_*.sh 包装脚本注入 --dev, 让 service/app 装成 dev 身份。
     local WRAP_VFLAG=""; [[ "$PROFILE" == dev ]] && WRAP_VFLAG=" --dev"
 
@@ -1874,11 +1874,11 @@ pkg_build() {
         app_build ${APP_VARIANT_FLAG[@]+"${APP_VARIANT_FLAG[@]}"}   # IME .app
         # 构建失败即中止打包 —— **不再降级成 warn**。build_setting 已经把两种情形分开了:
         # 设置仓不在场返回 0(fork/精简检出的正当跳过), 真正的编译失败返回 1。此前调用点
-        # 把两者一起 warn 掉, 于是 wind_setting 编译报错也只是日志里一行黄字, .pkg 照出、
+        # 把两者一起 warn 掉, 于是 moodflow_setting 编译报错也只是日志里一行黄字, .pkg 照出、
         # workflow 照报 success, 发布出去的包里没有设置 app —— v0.121.0 就是这么发的
         # (issue #125: 装完打不开设置, 因为压根没装上)。同本函数下方 universal 硬校验的
         # 立场: 宁可在这里出不了包, 也不能把它发出去。
-        build_setting || { err "wind_setting 构建失败, 中止打包 (见上)"; exit 1; }
+        build_setting || { err "moodflow_setting 构建失败, 中止打包 (见上)"; exit 1; }
     fi
 
     # -------- 校验必备产物 (设置 app 可选) --------
@@ -1917,12 +1917,12 @@ pkg_build() {
     local DEST="$PKGROOT/$STAGE_REL"
     mkdir -p "$DEST/service"
     cp -R "$APP_BUNDLE"   "$DEST/"
-    cp    "$SERVICE_BIN"  "$DEST/service/wind_input"
+    cp    "$SERVICE_BIN"  "$DEST/service/moodflow_input"
     cp -R "$SERVICE_DATA" "$DEST/service/data"
     # 安装脚本: 把 dev.sh 本身放进 payload, 再生成两个薄包装脚本 (postinstall 仍按
     # install_app.sh / install_service.sh 这两个名字调用)。包装脚本 re-exec dev.sh 的内部入口
     # __app_install / __service_install, 绕过面向交互的 flag 解析, 保留原 install_* 行为。
-    # dev 变体在包装里注入 --dev (让服务/IME 装成 dev 身份, plist 含 WIND_VARIANT=dev)。
+    # dev 变体在包装里注入 --dev (让服务/IME 装成 dev 身份, plist 含 MOODFLOW_VARIANT=dev)。
     # SIGN_IDENTITY 默认设空 (终端用户机无自签证书 → 走 ad-hoc; 打包方显式设了则照常继承)。
     cp "$DEPLOY_DIR/dev.sh" "$DEST/dev.sh"
     cat > "$DEST/install_service.sh" <<WRAP
@@ -1945,22 +1945,22 @@ export SIGN_IDENTITY="\${SIGN_IDENTITY-}"
 exec "\$(cd "\$(dirname "\$0")" && pwd)/dev.sh" __setting_install${WRAP_VFLAG} "\$@"
 WRAP
     fi
-    chmod +x "$DEST"/*.sh "$DEST/service/wind_input"
-    info "payload: $APP_NAME.app + service(wind_input+data)$([[ $HAVE_SETTING -eq 1 ]] && echo ' + wind_setting.app') + 安装脚本"
+    chmod +x "$DEST"/*.sh "$DEST/service/moodflow_input"
+    info "payload: $APP_NAME.app + service(moodflow_input+data)$([[ $HAVE_SETTING -eq 1 ]] && echo ' + moodflow_setting.app') + 安装脚本"
 
     # -------- universal 硬校验 --------
     # 要了通用二进制却少一个架构 = "名义通用、实则单架构"。这种包在 Intel Mac 上**装得上**
     # (pkg 只是拷文件), 只在真正拉起进程时才失败, 且失败面是"输入法装了但没反应"这类难查的
     # 表现。宁可在这里出不了包, 也不能把它发出去。
     if [[ $UNIVERSAL -eq 1 ]]; then
-        local to_check=("$DEST/service/wind_input" "$DEST/$APP_NAME.app/Contents/MacOS/WindInput")
+        local to_check=("$DEST/service/moodflow_input" "$DEST/$APP_NAME.app/Contents/MacOS/Moodflow")
         [[ $HAVE_SETTING -eq 1 ]] && to_check+=("$DEST/$SETTING_DISP.app/Contents/MacOS/$SETTING_EXE")
         local b archs
         for b in "${to_check[@]}"; do
             archs="$(lipo -archs "$b" 2>/dev/null || echo '<读不出>')"
             if [[ "$archs" != *arm64* || "$archs" != *x86_64* ]]; then
                 err "架构不全 [$archs]: $b"
-                err "已指定通用二进制 (WIND_MAC_UNIVERSAL=1) 却缺架构, 拒绝出包。"
+                err "已指定通用二进制 (MOODFLOW_MAC_UNIVERSAL=1) 却缺架构, 拒绝出包。"
                 exit 1
             fi
             info "  ✓ [$archs] $(basename "$b")"
@@ -2005,7 +2005,7 @@ PY
         --install-location "/" \
         "$COMPONENT_PKG"
 
-    local TITLE="清风输入法$([[ "$PROFILE" == dev ]] && echo '开发版') $VERSION"
+    local TITLE="Moodflow 输入法$([[ "$PROFILE" == dev ]] && echo '开发版') $VERSION"
     local DIST_XML="$SCRIPTS/distribution.xml"
     cat > "$DIST_XML" <<XML
 <?xml version="1.0" encoding="utf-8"?>
@@ -2062,14 +2062,14 @@ XML
 # ───────────────────────── 菜单 ─────────────────────────
 show_menu() {
     printf "\033[36m============================================\033[0m\n"
-    printf "\033[36m  WindInput 开发菜单 (macOS 原生)\033[0m\n"
+    printf "\033[36m  Moodflow 开发菜单 (macOS 原生)\033[0m\n"
     printf "\033[36m============================================\033[0m\n"
     printf "\033[33m  全构建 (service + app + gen-data + 校验):\033[0m\n"
     echo   "    1    Release 全构建            d1   Dev 全构建"
     printf "\033[33m  单模块构建 (前缀 d = dev):\033[0m\n"
-    echo   "    m1   仅 app  (WindInput.app)    dm1"
-    echo   "    m2   仅 service (wind_service)  dm2"
-    echo   "    m3   仅 设置 app (wind_setting) dm3"
+    echo   "    m1   仅 app  (Moodflow.app)    dm1"
+    echo   "    m2   仅 service (moodflow_service)  dm2"
+    echo   "    m3   仅 设置 app (moodflow_setting) dm3"
     printf "\033[33m  系统安装 / 卸载:\033[0m\n"
     echo   "    p1   安装全部 (release)         pd1   安装全部 (dev)"
     echo   "    pm1/pm2/pm3  装模块(app/svc/设置)  pdm1/pdm2/pdm3 (dev)"

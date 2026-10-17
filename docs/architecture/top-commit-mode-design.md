@@ -44,12 +44,12 @@ keyup(同一键)                            ← +70~100ms（= keydown→keyup �
 
 **非目标（本期不做）**
 - 智能标点顶屏（`CommitAndHold` 路径，即 WPS 清空那条）——留作后续，复用本期的「commit + keyup 延迟重开」原语。
-- 设置界面 UI（wind-setting 独立仓）——本期只落 TOML + 接线。
+- 设置界面 UI（moodflow-setting 独立仓）——本期只落 TOML + 接线。
 - per-app 自动分流——只在 `TopCommitMode` 定义处留注释说明后续可接，本期只做全局默认。
 
 ## 3. 配置设计
 
-`wind-config/src/config.rs`：
+`moodflow-config/src/config.rs`：
 
 ```rust
 /// 顶码/顶屏的宿主上屏策略。影响顶码上屏时「已确认文字」如何落到宿主：
@@ -97,15 +97,15 @@ pub struct InputConfig {
 ```
 
 新增：
-- `KeyAction::CommitThenDeferComposition { commit_text: String, deferred_composition: String, timeout_ms: u32 }`（wind-coordinator）。
-- 对应 IPC 响应类型 + 编解码（`wind-bridge/src/server.rs` 的 `encode_key_action`、`wind-ipc` codec、C++ `IPCClient.cpp` 解析、`ResponseType`）。
+- `KeyAction::CommitThenDeferComposition { commit_text: String, deferred_composition: String, timeout_ms: u32 }`（moodflow-coordinator）。
+- 对应 IPC 响应类型 + 编解码（`moodflow-bridge/src/server.rs` 的 `encode_key_action`、`moodflow-ipc` codec、C++ `IPCClient.cpp` 解析、`ResponseType`）。
 - `timeout_ms` = 兜底定时器时长（见 §5）。用**独立常量** `kDeferredCompositionFallbackMs = 150`（与 smart symbol 的 `smart_timeout_ms` 语义无关，不复用）；服务端把该常量随动作下发，C++ 直接用。
 
 余码为空（顶码后无剩余码）时不发本动作，退化为普通 `CommitText`（无需重开组合）。
 
 ## 5. C++ 执行机制（keyup 延迟重开）
 
-`wind_tsf`：
+`moodflow_tsf`：
 
 1. **收到 `CommitThenDeferComposition`**（在触发键的 keydown 处理链内）：
    - 立即 `CommitText(commit_text)`：`CCommitTextEditSession` 对当前组合 SetText(commit_text)+EndComposition，文档落定顶出文本（对齐 probe 的 compositionend@keydown）。此时 `_pendingCommitPrefix` 在 direct_commit 全程为空，`full == commit_text`。
@@ -130,7 +130,7 @@ pub struct InputConfig {
 
 ## 7. 测试计划
 
-- **Rust 单测**（wind-coordinator）：
+- **Rust 单测**（moodflow-coordinator）：
   - `top_commit_mode=direct_commit` 时顶码返回 `CommitThenDeferComposition{commit_text, deferred_composition=余码}`。
   - `top_commit_mode=pre_confirm` 时顶码维持 `InsertText{has_new_composition}`。
   - 余码为空时退化为普通 CommitText。

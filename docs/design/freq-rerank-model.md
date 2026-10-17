@@ -380,7 +380,7 @@ schema.pinyin.frequency.{base_scale,recency_peak}
       → 无生产调用者（仅其自身单测）
 ```
 
-**保留而非删除**：删配置项要跨仓改 `wind-setting` 的五道守门测试，且将来若恢复打分模型
+**保留而非删除**：删配置项要跨仓改 `moodflow-setting` 的五道守门测试，且将来若恢复打分模型
 可直接复用。已在 `data/config.toml` 与 `pinyin_score` 的文档注释上标注「当前模型不使用」，
 避免用户误以为调了有效。
 

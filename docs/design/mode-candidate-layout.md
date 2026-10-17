@@ -22,7 +22,7 @@
 
 | 项 | 位置 |
 |---|---|
-| `schema.quick_input.force_vertical`（bool） | `wind-config/src/config.rs:604-606`、manifest `config_schema.rs:122`、预置 `data/config.toml:156` |
+| `schema.quick_input.force_vertical`（bool） | `moodflow-config/src/config.rs:604-606`、manifest `config_schema.rs:122`、预置 `data/config.toml:156` |
 
 判定在 `handle_mode.rs:163`：
 
@@ -45,7 +45,7 @@ if self.mix_has_quick_input(idx) && self.rt().config.schema.quick_input.force_ve
 
 `ModeKind::{TempPinyin, TempEnglish, Url, Special(idx), Mix(idx)}`，加上不在 `state.active` 里的 `add_word_active`。
 
-`state.active` 在 `wind-coordinator/src` 内共 **8 处写 `Some(..)`、8 处写 `None`**，分布在 6 个文件（`handle_lifecycle.rs` / `handle_mode.rs` / `handle_special.rs` / `handle_temp.rs` / `handle_url.rs` / `handle_candidate.rs`）。
+`state.active` 在 `moodflow-coordinator/src` 内共 **8 处写 `Some(..)`、8 处写 `None`**，分布在 6 个文件（`handle_lifecycle.rs` / `handle_mode.rs` / `handle_special.rs` / `handle_temp.rs` / `handle_url.rs` / `handle_candidate.rs`）。
 
 ### 布局的运行时真相源
 
@@ -168,7 +168,7 @@ mix / special 走每实例是灵活性的关键：快符表要竖排、生僻字
 
 不存快照，只在每次要显示候选前重算一次。「恢复」不再是一个需要被执行的动作，而是模式退出后重算的自然结果。
 
-### 5.2 两个纯函数（新建 `wind-coordinator/src/layout.rs`）
+### 5.2 两个纯函数（新建 `moodflow-coordinator/src/layout.rs`）
 
 ```rust
 /// 当前生效的布局意图。**唯一一处**把「模式 → 布局」映射写死的地方——
@@ -311,20 +311,20 @@ add_word_active  >  state.active 对应模式  >  Follow（回落全局基线）
 
 | 文件 | 改动 |
 |---|---|
-| `wind-config/src/config.rs` | 新增 `LayoutIntent`；6 处挂载 + 新建 `AddWordConfig`；删 `QuickInputConfig::force_vertical` |
-| `wind-config/src/config.rs`（加载期） | `migrate_force_vertical_value`（**反序列化前**，同 `migrate_enable_english_value`） |
-| `wind-config/src/lib.rs` | re-export `LayoutIntent` |
-| `wind-config/src/config_schema.rs` | 删 `force_vertical`；加 4 个单例键 + `LAYOUT_INTENT_VALUES` 常量 |
+| `moodflow-config/src/config.rs` | 新增 `LayoutIntent`；6 处挂载 + 新建 `AddWordConfig`；删 `QuickInputConfig::force_vertical` |
+| `moodflow-config/src/config.rs`（加载期） | `migrate_force_vertical_value`（**反序列化前**，同 `migrate_enable_english_value`） |
+| `moodflow-config/src/lib.rs` | re-export `LayoutIntent` |
+| `moodflow-config/src/config_schema.rs` | 删 `force_vertical`；加 4 个单例键 + `LAYOUT_INTENT_VALUES` 常量 |
 | `data/config.toml` | 新键补齐（含 `[input.add_word]` 新段），删 `force_vertical`；**不写 `mix_modes`** |
-| `wind-coordinator/src/layout.rs`（新建） | 纯函数 `intent_for` / `vertical_for` + `impl` 包装 + 单测 |
-| `wind-coordinator/src/coordinator.rs` | `notify_ui_update` 接入；`apply_ui_config` / `cmd_toggle_layout` 改走重算（§5.4）；新增 `candidate_layout_sent`，`candidate_vertical` 提为 `pub(crate)` |
-| `wind-coordinator/src/handle_addword.rs` | `show_add_word_preview` 接入（第二个收口点，§5.3）；删 saved/restore |
+| `moodflow-coordinator/src/layout.rs`（新建） | 纯函数 `intent_for` / `vertical_for` + `impl` 包装 + 单测 |
+| `moodflow-coordinator/src/coordinator.rs` | `notify_ui_update` 接入；`apply_ui_config` / `cmd_toggle_layout` 改走重算（§5.4）；新增 `candidate_layout_sent`，`candidate_vertical` 提为 `pub(crate)` |
+| `moodflow-coordinator/src/handle_addword.rs` | `show_add_word_preview` 接入（第二个收口点，§5.3）；删 saved/restore |
 | `handle_mode.rs` / `handle_lifecycle.rs` | 删除全部 saved/restore 代码与两个 state 字段 |
 | `tests/mode_layout.rs`（新建） | 接线端到端 + 自愈 |
 
 净效果：删掉 2 个 state 字段与 6 处保存/恢复代码，新增 5 个模式的支持。
 
-### wind-setting（独立仓 `D:\Develop\workspace\windinput\wind-setting`）
+### moodflow-setting（独立仓 `D:\Develop\workspace\moodflow\moodflow-setting`）
 
 状态：✅ 已完成（设置仓 `d49dd29`，321 项测试全绿）。
 
@@ -336,8 +336,8 @@ add_word_active  >  state.active 对应模式  >  Follow（回落全局基线）
 4. 设置仓 `rpc::tests::mock_config_matches_core_system_preset` → `cargo test regenerate_mock_config -- --ignored`
 5. 设置仓 `uncovered_capability_keys_match_allowlist` → 不进 GUI 的键须具名登记 `UNCOVERED_BY_DESIGN`
 
-⚠️ 3/4 两条的快照与 mockdata 从主仓 `wind-config` + `data` **现算**，不要手改。
-⚠️ 设置仓靠 `path = "../WindInput/..."` 依赖**主工作区**，所以在 feature worktree 里
+⚠️ 3/4 两条的快照与 mockdata 从主仓 `moodflow-config` + `data` **现算**，不要手改。
+⚠️ 设置仓靠 `path = "../Moodflow/..."` 依赖**主工作区**，所以在 feature worktree 里
 它是绿的——**合并进 main 后才会红**。同类改动要把设置仓的收尾算进「合并后」而非「分支内」。
 
 ### 实际落点
@@ -391,7 +391,7 @@ add_word_active  >  state.active 对应模式  >  Follow（回落全局基线）
 
 ### 已实施的用例
 
-`wind-coordinator/src/layout.rs`（决策矩阵，纯函数，不构造协调器）：
+`moodflow-coordinator/src/layout.rs`（决策矩阵，纯函数，不构造协调器）：
 
 | 用例 | 守什么 |
 |---|---|
@@ -403,7 +403,7 @@ add_word_active  >  state.active 对应模式  >  Follow（回落全局基线）
 | `builtin_quick_mix_defaults_to_vertical` | 出厂值只能落在 `default_mix_modes()`，被改回 Follow 会让全局横排的用户突然变横排 |
 | `add_word_defaults_to_vertical` | 加词从硬编码迁成配置项后行为不变 |
 
-`wind-coordinator/tests/mode_layout.rs`（接线端到端）：
+`moodflow-coordinator/tests/mode_layout.rs`（接线端到端）：
 
 | 用例 | 守什么 |
 |---|---|
@@ -411,7 +411,7 @@ add_word_active  >  state.active 对应模式  >  Follow（回落全局基线）
 | `layout_self_heals_when_mode_cleared_without_its_exit_path` | 自愈：失焦复位后无需显式恢复 |
 | `follow_intent_leaves_baseline_untouched` | Follow ≠ Horizontal |
 
-`wind-config/src/config.rs`：`force_vertical_migrates_into_quick_mix_candidate_layout`、
+`moodflow-config/src/config.rs`：`force_vertical_migrates_into_quick_mix_candidate_layout`、
 `absent_force_vertical_keeps_factory_vertical`（迁移三分支，见 §7）。
 
 ⚠️ 端到端刻意选**临时英文**：Shift+字母进入，不依赖任何方案/词典，因此不需要 `build_dev/data`，
@@ -425,7 +425,7 @@ add_word_active  >  state.active 对应模式  >  Follow（回落全局基线）
   逻辑本身（基线变化 → 结果跟随）已由 `vertical_for` 的矩阵覆盖，缺的只是「接线」这一层。
 - **真机手测**：候选窗方向切换的视觉表现、是否有闪烁，需在真实宿主里确认。
 
-⚠️ `runtime_mirror_state_config_sync` 记过：`cargo test -p wind-coordinator` 会真写
+⚠️ `runtime_mirror_state_config_sync` 记过：`cargo test -p moodflow-coordinator` 会真写
 `%APPDATA%` 的 `schema.active`。本设计新增的测试不触及配置写回，但同族测试仍有此副作用。
 
 ---

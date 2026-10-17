@@ -19,7 +19,7 @@
   - [x] #10 `trigger_keys`(符号键进临英 + 前缀显示)：State 加 `temp_english_prefix`；preedit 拼前缀；空缓冲回车上屏触发键字符；`is_temp_english_trigger` + lifecycle 第7层新分支（优先级：Shift+字母 > 符号触发键 > TempPinyin）。
   - [x] #10 临英 3 项已提交 81b15e7。
   - [ ] #9 临拼 **z 混合仲裁**：曾实现(z_trigger_configured/code_has_prefix/enter_temp_pinyin_from_z + A-Z 臂渐进回退,对齐 Go decideEngineDefaultZFallback)，**用户实测仍不正常已回退**(commit 81b15e7 注释)。待后续与用户**完整重新设计** z 的处理逻辑(zzbd 码表前缀 / z键重复首候选 / 「拼」提示 / 渐进回退临拼的交互)再做。
-    - 经验:本地 build_debug/data 在项目根，测试找 wind_input/build_debug/data(差一级)平时 skip；临时符号链接 wind_input/build_debug→../build_debug 可让集成测试真实跑(注意该路径未 gitignore，用后即删)。
+    - 经验:本地 build_debug/data 在项目根，测试找 moodflow_input/build_debug/data(差一级)平时 skip；临时符号链接 moodflow_input/build_debug→../build_debug 可让集成测试真实跑(注意该路径未 gitignore，用后即删)。
     - Go 参考:`handle_temp_pinyin.go getTempPinyinTriggerKey`(首z仲裁)、`decideEngineDefaultZFallback`(续打回退)、`enterTempPinyinFromZBuffer`(residual=buffer[1:]+key)。
 - [x] **批7 网址输入 (#11)**：已提交 c71730f。徽标(网址输入/网址)+候选窗保留显示(notify_ui_update+preedit,退出补 notify_ui_hide)+无候选时透明等高占位行(网址/临拼/临英进入与正常候选窗等高)。集成测试 `test_url_mode_enter_and_commit` 真实数据跑通,Windows 实测通过。
   - 注:Go 的 accent_color 高亮(SetModeAccentColor)Rust 暂未套用 url_input.accent_color——徽标已是提示,accent 留作 UI 增强后续。
@@ -28,7 +28,7 @@
   - [x] **select_key 越界 overflow**（次/三选键 `;`/`'`）：`handle_overflow_select_key`，依 `input.overflow.select_key` 三策(ignore/commit/commit_and_input)，镜像 number_key，对齐 Go handleOverflowSelectKey；缓冲分发链把 overflow 延后到模式触发之后(选词<进模式<overflow)。已提交 a79e6bd。
   - [x] **修「有候选时按 ; 进错模式打不了拼音」**：缓冲分发漏 mix 触发(只查残留纯 quick_input)，新增 `commit_and_enter_mix_mode`(顶字+进融合)，有无候选都进同一融合「快捷」。已提交 a79e6bd。
   - [x] **残留清理：移除独立 QuickInput 模式**（ModeKind::QuickInput/handle_quick.rs/State 字段/config.trigger_keys）—— 快捷输入统一为 mix 融合。已提交 f54d4c6。
-  - [x] **以词定字 (select_char_keys)**：成对标点键(comma_period/minus_equal/brackets)逐字选当前高亮词。新增 `select_char_vks`(wind-config/hotkey.rs)、`select_char_index`/`handle_select_char`(None=空/词长不足/组候选)/`handle_select_char_with_overflow`(三策同构 select_key)；分发拦截置于 `apply_nav_key` 之前(对齐 Go select_char 优先于翻页)，仅缓冲非空或有候选时拦截(空缓冲放行作普通标点)。默认 `select_char_keys` 空=禁用零回归。词频学习记单字(非整词)。5 集成测试(取第1/2字、默认禁用、overflow ignore/commit/commit_and_input)+全 58 测试绿，Windows 交叉编译过。
+  - [x] **以词定字 (select_char_keys)**：成对标点键(comma_period/minus_equal/brackets)逐字选当前高亮词。新增 `select_char_vks`(moodflow-config/hotkey.rs)、`select_char_index`/`handle_select_char`(None=空/词长不足/组候选)/`handle_select_char_with_overflow`(三策同构 select_key)；分发拦截置于 `apply_nav_key` 之前(对齐 Go select_char 优先于翻页)，仅缓冲非空或有候选时拦截(空缓冲放行作普通标点)。默认 `select_char_keys` 空=禁用零回归。词频学习记单字(非整词)。5 集成测试(取第1/2字、默认禁用、overflow ignore/commit/commit_and_input)+全 58 测试绿，Windows 交叉编译过。
 - [x] **批10 快捷加词 (#12)**：候选窗快捷加词状态机(对齐 Go handle_addword.go)。
   - State 加字段:add_word_active/add_word_chars(Vec<char>)/add_word_len/add_word_code/add_word_saved_vertical。
   - 入口:add_word 热键(默认 ctrl+=,已注册)→ enter_add_word_mode(从 recent_commits 还原最近字符池,默认词长 2,强制竖排,占位 composition)。在 handle_key_event 热键块特判返回 UpdateComposition(dispatch_hotkey bool 契约只能回 StatusUpdate,故不走它)。

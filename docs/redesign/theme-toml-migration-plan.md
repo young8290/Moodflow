@@ -1,17 +1,17 @@
 # 主题格式 YAML → TOML 迁移计划
 
-> 真相源：本文件。配套分析见会话；编辑器 schema 见 WindInputThemeEditor `docs/superpowers/specs/2026-06-21-toml-theme-schema-design.md`。
+> 真相源：本文件。配套分析见会话；编辑器 schema 见 MoodflowThemeEditor `docs/superpowers/specs/2026-06-21-toml-theme-schema-design.md`。
 > 约束：硬切换，不做 YAML 向后兼容（与项目「不做向后兼容」一致 + 设计文档明示「全新项目」）。
 
 ## 已确认决策
 1. 颜色派生**固化**：引擎只读最终色，不重算（与现状一致，palette 本就不派生）。`[colors.derive]` 仅供编辑器，引擎忽略。✅
-2. 引擎**补 `border.style`**（solid/dashed/dotted）。✅ schema 解析 + rvnode/resolve 数据通路已就绪；⚠️ **wind-ui 虚线/点线光栅绘制待补**（当前按 solid 渲染）。
-3. 编辑器侧硬伤补全（**另一仓库 WindInputThemeEditor**，本计划不含）：prev_image/next_image、shadow.spread_offset、叶子 passthrough。待办。
+2. 引擎**补 `border.style`**（solid/dashed/dotted）。✅ schema 解析 + rvnode/resolve 数据通路已就绪；⚠️ **moodflow-ui 虚线/点线光栅绘制待补**（当前按 solid 渲染）。
+3. 编辑器侧硬伤补全（**另一仓库 MoodflowThemeEditor**，本计划不含）：prev_image/next_image、shadow.spread_offset、叶子 passthrough。待办。
 
 ## 状态：引擎迁移完成（分支 feat/theme-toml-format，未提交）
-全部 6 阶段完成；wind-theme 22 测试全绿，workspace 编译通过，受影响 crate fmt 干净。
+全部 6 阶段完成；moodflow-theme 22 测试全绿，workspace 编译通过，受影响 crate fmt 干净。
 data/themes + testdata + build/build_debug 暂存均已转 TOML（删除 yaml）。
-**遗留**：border.style 虚线光栅（wind-ui）+ 编辑器侧硬伤补全（另一仓库）+ Windows 实机视觉验证。
+**遗留**：border.style 虚线光栅（moodflow-ui）+ 编辑器侧硬伤补全（另一仓库）+ Windows 实机视觉验证。
 
 ## 核心策略：写入形态 ≠ 内存形态
 TOML 文件是**扁平/简写**的人写形态；引擎加一层 `toml::Value` 归一化，产出与**现有 typed `Theme`（嵌套）完全一致**的规范形态，再 `try_into::<Theme>()`。
@@ -48,7 +48,7 @@ TOML 文件是**扁平/简写**的人写形态；引擎加一层 `toml::Value` �
 **Status**: Complete
 
 ### Stage 4: 主题文件转换 yaml → toml
-**Goal**: data/themes/{_base,default,msime,jidian-classic} + wind-theme/testdata/themes/* 转 TOML。
+**Goal**: data/themes/{_base,default,msime,jidian-classic} + moodflow-theme/testdata/themes/* 转 TOML。
 **交付**: 转换脚本或手转；验证渲染等价。
 **Status**: Complete
 

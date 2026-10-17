@@ -46,7 +46,7 @@
 # 知道指纹只能指定「用哪张证书」, 不能拿它签任何东西。放心写进本文件、放心写进 CI 变量。
 # 真正的秘密是签名服务的账号口令与二次验证的 TOTP 种子 —— 那两样【绝不】出现在
 # 任何文件里, 本脚本也不接受它们。
-$WIND_SIGN_THUMBPRINT = "0000000000000000000000000000000000000000"
+$MOODFLOW_SIGN_THUMBPRINT = "0000000000000000000000000000000000000000"
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -55,7 +55,7 @@ $WIND_SIGN_THUMBPRINT = "0000000000000000000000000000000000000000"
 
 # 会话不可用时打印的排障提示。默认是一句中性文案; 填上你那家服务商的具体步骤
 # (客户端叫什么、在哪启动、会话怎么开), 排障时能省一次翻文档。
-# $WIND_SIGN_SESSION_HINT = "打开 <客户端名称> → 用 <二次验证方式> 登录"
+# $MOODFLOW_SIGN_SESSION_HINT = "打开 <客户端名称> → 用 <二次验证方式> 登录"
 
 # RFC3161 时间戳服务器。默认是一个通用公共服务。
 #
@@ -64,14 +64,14 @@ $WIND_SIGN_THUMBPRINT = "0000000000000000000000000000000000000000"
 #
 # 时间戳与签名证书的来源无关 (RFC3161 是通用协议), 默认值一般够用。你的 CA 若指定了
 # 自家 TSA, 或默认这家不稳, 在此覆盖:
-# $WIND_SIGN_TIMESTAMP_URL = "http://timestamp.sectigo.com"
+# $MOODFLOW_SIGN_TIMESTAMP_URL = "http://timestamp.sectigo.com"
 
 # 单个文件的签名尝试上限 (含首次)。覆盖两类瞬时故障: 时间戳服务器抽风, 以及打包器刚
 # 写完文件、句柄尚未释放时的占用 (实测会间歇性报 "file is being used by another process")。
-# $WIND_SIGN_RETRY = 3
+# $MOODFLOW_SIGN_RETRY = 3
 
 # 指定 signtool.exe。默认自动挑 Windows SDK 里版本号最大的 x64 版。
-# $env:WIND_SIGNTOOL = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe"
+# $env:MOODFLOW_SIGNTOOL = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe"
 
 
 # ══════════════════════════════════════════════════════════════════════════

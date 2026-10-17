@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""wind_linux 端到端测试的「应用」一侧：经 DBus 扮演一个文本框，对真实 fcitx5 打字。
+"""moodflow_linux 端到端测试的「应用」一侧：经 DBus 扮演一个文本框，对真实 fcitx5 打字。
 
 由 scripts/linux/e2e.sh 在 dbus-run-session 里调用（那边已起好 Rust 服务与 fcitx5）。
 每条用例输出一行 `PASS <名字>` 或 `FAIL <名字>: <原因>`，有任何 FAIL 则退出码非 0。
@@ -127,9 +127,9 @@ def sh(*args):
     return subprocess.run(args, capture_output=True, text=True).stdout
 
 
-def candidate_window(classname="wind-candidate"):
-    """按 WM_CLASS 实例名找窗（候选窗 wind-candidate；浮层 wind-status / wind-toast /
-    wind-tooltip），返回 (id, x, y, w, h, 是否可见)；没建过返回 None。"""
+def candidate_window(classname="moodflow-candidate"):
+    """按 WM_CLASS 实例名找窗（候选窗 moodflow-candidate；浮层 moodflow-status / moodflow-toast /
+    moodflow-tooltip），返回 (id, x, y, w, h, 是否可见)；没建过返回 None。"""
     ids = sh("xdotool", "search", "--classname", classname).split()
     if not ids:
         return None
@@ -180,7 +180,7 @@ def xwd_to_png(xwd_bytes, png_path):
 def screenshot(name, wid=None):
     """截全屏（wid=None）或只截候选窗本身。后者取的是窗口自己的像素（不经合成器），
     用来确认贴上去的位图没错；前者看它在屏幕上摆在哪。"""
-    shots = os.environ.get("WIND_E2E_SHOTS", "")
+    shots = os.environ.get("MOODFLOW_E2E_SHOTS", "")
     target = ["-id", wid] if wid else ["-root"]
     xwd = subprocess.run(["xwd", *target, "-silent"], capture_output=True).stdout
     path = os.path.join(shots, name + ".png")
@@ -315,7 +315,7 @@ async def overlay_cases(bus, im):
 
     # a) Shift 单击切中英：光标下方弹状态气泡，几秒后自己消失（计时在 addon）。
     await c.tap_shift()
-    win = await wait_window("wind-status", True)
+    win = await wait_window("moodflow-status", True)
     check("浮层：Shift 切中英后状态气泡出现", win is not None and win[5], f"window={win}")
     if win and win[5]:
         _, x, y, w, h, _ = win
@@ -325,16 +325,16 @@ async def overlay_cases(bus, im):
         path, n = window_has_content(win[0], "status_toggle_en")
         check("浮层：状态气泡有绘制（不是单色）", n > 1, f"{n} 种颜色，截图 {path}")
         print(f"  状态气泡截图：{path}", flush=True)
-        win = await wait_window("wind-status", False, timeout=8.0)
+        win = await wait_window("moodflow-status", False, timeout=8.0)
         check("浮层：状态气泡到点自动消失", win is not None and not win[5], f"window={win}")
     await c.tap_shift()  # 切回中文
-    await wait_window("wind-status", True)
+    await wait_window("moodflow-status", True)
 
     # b) Ctrl+Shift+E 切方案：气泡文字换成方案名（字形看截图）。
     await c.ic.call_process_key_event(0x45, 26, STATE_CTRL | STATE_SHIFT, False, 0)
     await c.ic.call_process_key_event(0x45, 26, STATE_CTRL | STATE_SHIFT, True, 0)
     await asyncio.sleep(0.3)
-    win = await wait_window("wind-status", True)
+    win = await wait_window("moodflow-status", True)
     ok = win is not None and win[5]
     check("浮层：Ctrl+Shift+E 切方案后状态气泡出现", ok, f"window={win}")
     if ok:
@@ -347,12 +347,12 @@ async def overlay_cases(bus, im):
     await c.ic.call_process_key_event(0x45, 26, STATE_CTRL | STATE_SHIFT, True, 0)
     await asyncio.sleep(0.3)
 
-    # c) Toast：`wind_input ui toast` 经 RPC 让在线服务弹一条（右上角，1.5 秒）。
-    svc = os.path.join(os.environ.get("W", ""), "svc", "wind_input")
+    # c) Toast：`moodflow_input ui toast` 经 RPC 让在线服务弹一条（右上角，1.5 秒）。
+    svc = os.path.join(os.environ.get("W", ""), "svc", "moodflow_input")
     r = await asyncio.to_thread(subprocess.run,
                                 [svc, "ui", "toast", "输入法已就绪", "--pos", "top_right",
                                  "--ms", "1500"], capture_output=True, text=True)
-    win = await wait_window("wind-toast", True)
+    win = await wait_window("moodflow-toast", True)
     ok = win is not None and win[5]
     check("浮层：ui toast 后 Toast 出现", ok,
           f"window={win} cli rc={r.returncode} {r.stderr.strip()[:200]}")
@@ -363,7 +363,7 @@ async def overlay_cases(bus, im):
         path, n = window_has_content(win[0], "toast_top_right")
         check("浮层：Toast 有绘制", n > 1, f"{n} 种颜色，截图 {path}")
         print(f"  Toast 截图：{path}", flush=True)
-        win = await wait_window("wind-toast", False, timeout=6.0)
+        win = await wait_window("moodflow-toast", False, timeout=6.0)
         check("浮层：Toast 到点自动消失", win is not None and not win[5], f"window={win}")
 
     # d) 悬停提示：鼠标停在候选上 → 候选窗旁出现 tooltip；Esc 收掉候选窗时一起藏。
@@ -375,7 +375,7 @@ async def overlay_cases(bus, im):
         _, x, y, w, h, _ = cand
         for dx in range(6, w, 10):
             sh("xdotool", "mousemove", str(x + dx), str(y + h // 2))
-            tip = await wait_window("wind-tooltip", True, timeout=0.6)
+            tip = await wait_window("moodflow-tooltip", True, timeout=0.6)
             if tip and tip[5]:
                 break
     ok = tip is not None and tip[5]
@@ -391,7 +391,7 @@ async def overlay_cases(bus, im):
         full, _ = screenshot("tooltip_hover_screen")
         print(f"  全屏截图：{full}", flush=True)
     await c.key("Escape")
-    tip = await wait_window("wind-tooltip", False, timeout=2.0)
+    tip = await wait_window("moodflow-tooltip", False, timeout=2.0)
     check("浮层：候选窗收起时 tooltip 一起隐藏", tip is None or not tip[5], f"tooltip={tip}")
     sh("xdotool", "mousemove", "5", "5")
     await c.ic.call_focus_out()
@@ -399,14 +399,14 @@ async def overlay_cases(bus, im):
 
 
 # ── 自绘菜单（X11）─────────────────────────────────────────────────────
-# 菜单由服务光栅化（复用 Windows 的 popup_menu），每级一个窗口 wind-menu-<级>；addon 在菜单
+# 菜单由服务光栅化（复用 Windows 的 popup_menu），每级一个窗口 moodflow-menu-<级>；addon 在菜单
 # 打开期间抓住指针把原始事件报回服务。行高与内边距取默认主题：条目 27px、上下留白约 4px，
 # 分隔线 7px——下面按它估算行位置，点错了效果断言会红，不会静默通过。
 MENU_ROW = 27
 
 
 def menu_win(level=0):
-    return candidate_window(f"wind-menu-{level}")
+    return candidate_window(f"moodflow-menu-{level}")
 
 
 def xwd_raw(wid):
@@ -452,7 +452,7 @@ async def hover_candidate_point(c):
     _, x, y, w, h, _ = cand
     for dx in range(6, w, 10):
         sh("xdotool", "mousemove", str(x + dx), str(y + h // 2))
-        tip = await wait_window("wind-tooltip", True, timeout=0.6)
+        tip = await wait_window("moodflow-tooltip", True, timeout=0.6)
         if tip and tip[5]:
             return (x + dx, y + h // 2)
     return None
@@ -466,7 +466,7 @@ async def open_candidate_menu(c):
     if not pt:
         return None, None
     sh("xdotool", "mousemove", str(pt[0]), str(pt[1]), "click", "3")
-    return await wait_window("wind-menu-0", True), pt
+    return await wait_window("moodflow-menu-0", True), pt
 
 
 _IMPANEL = None
@@ -483,7 +483,7 @@ async def impanel(bus):
 
 async def open_main_menu(c, tries=1):
     """功能主菜单的鼠标入口只剩组字时的候选窗：右键候选 → 候选菜单末行「更多…」→ 主菜单
-    （空闲时的状态区入口是「清风输入法设置」，不再开菜单）。返回主菜单窗口或 None。
+    （空闲时的状态区入口是「Moodflow 输入法设置」，不再开菜单）。返回主菜单窗口或 None。
     组字（nihao）在菜单关掉后仍挂着，调用方用 end_composition 收掉再验打字。
 
     tries > 1：服务刚重启时 socket 先于整个服务就绪，menu.open 可能被当「未就绪」丢掉，重试。"""
@@ -494,7 +494,7 @@ async def open_main_menu(c, tries=1):
             if last is not None:
                 sh("xdotool", "mousemove", str(menu[1] + menu[3] // 3), str(last), "click", "1")
                 await asyncio.sleep(0.5)
-                main = await wait_window("wind-menu-0", True)
+                main = await wait_window("moodflow-menu-0", True)
                 if main and main[5] and main[4] > menu[4]:
                     return main
         await c.key("Escape")  # 候选菜单若还开着，这一下收菜单；下面那下收组字
@@ -511,9 +511,9 @@ async def end_composition(c):
 
 
 def tray_icon(tag, label):
-    """服务端运行时渲染的托盘图标名（与 wind_ui::tray_icon::icon_name / addon 的
-    dynamicIconName 同一规则）：windinput-lbl-<zh|en|caps>-<主字 UTF-8 十六进制>。"""
-    return f"windinput-lbl-{tag}-{label.encode().hex()}"
+    """服务端运行时渲染的托盘图标名（与 moodflow_ui::tray_icon::icon_name / addon 的
+    dynamicIconName 同一规则）：moodflow-lbl-<zh|en|caps>-<主字 UTF-8 十六进制>。"""
+    return f"moodflow-lbl-{tag}-{label.encode().hex()}"
 
 
 ICON_PIN = tray_icon("zh", "拼")
@@ -582,7 +582,7 @@ async def kimpanel_watch(bus):
 
 class Impanel:
     """扮演 KDE / GNOME 的 kimpanel 面板：Fcitx5 kimpanel 模块据此把状态区动作挂出来，
-    面板点动作时发 `TriggerProperty("/Fcitx/<动作名>")`——就是用户点「清风输入法设置」。"""
+    面板点动作时发 `TriggerProperty("/Fcitx/<动作名>")`——就是用户点「Moodflow 输入法设置」。"""
 
     def __init__(self, bus):
         from dbus_next.service import ServiceInterface, signal
@@ -662,7 +662,7 @@ async def menu_cases(bus, im):
         if last is not None:
             sh("xdotool", "mousemove", str(menu[1] + menu[3] // 3), str(last), "click", "1")
             await asyncio.sleep(0.5)
-            main = await wait_window("wind-menu-0", True)
+            main = await wait_window("moodflow-menu-0", True)
     ok = main is not None and main[5] and main[4] > (menu[4] if menu else 0)
     check("菜单：候选菜单「更多…」→ 功能主菜单", ok, f"候选菜单={menu} 主菜单={main}")
     if ok:
@@ -672,7 +672,7 @@ async def menu_cases(bus, im):
         print(f"  主菜单：{mw}x{mh} @ ({mx},{my})，截图 {path}", flush=True)
         # e) 子菜单：悬停第 0 行「输入方案 ▸」→ 第 1 级出现在右侧。
         await probe_row(main)
-        sub = await wait_window("wind-menu-1", True)
+        sub = await wait_window("moodflow-menu-1", True)
         ok = sub is not None and sub[5] and sub[1] >= mx + mw - 10
         check("菜单：悬停「输入方案」→ 子菜单在右侧展开", ok, f"sub={sub} main=({mx},{my},{mw})")
         if ok:
@@ -694,7 +694,7 @@ async def menu_cases(bus, im):
                   f"im={watch.im()!r}")
     await c.key("Escape")
     c.take()
-    # 空闲时没有主菜单入口了（状态区入口改成了「清风输入法设置」），主菜单都从组字时的
+    # 空闲时没有主菜单入口了（状态区入口改成了「Moodflow 输入法设置」），主菜单都从组字时的
     # 「更多…」进——英文态组不了字，先用 Shift 切回中文（顺带验按键这条来源的托盘图标）。
     await c.tap_shift()
     zh = await wait_until(lambda: watch.icon() == ICON_PIN, 2)
@@ -707,7 +707,7 @@ async def menu_cases(bus, im):
     check("菜单：组字中经「更多…」再开主菜单", ok, f"menu={main}")
     if ok:
         await probe_row(main)
-        sub = await wait_window("wind-menu-1", True)
+        sub = await wait_window("moodflow-menu-1", True)
         r0 = await probe_row(sub) if sub and sub[5] else None
         if r0 is not None:
             # 「英文」之后隔一条分隔线（7px）才是「全拼」。
@@ -739,9 +739,9 @@ async def menu_cases(bus, im):
     await open_main_menu(c)
     await c.key("Down")
     await c.key("Right")
-    sub = await wait_window("wind-menu-1", True)
+    sub = await wait_window("moodflow-menu-1", True)
     await c.key("Left")
-    back = await wait_window("wind-menu-1", False)
+    back = await wait_window("moodflow-menu-1", False)
     check("菜单：→ 展开子菜单、← 收回", sub is not None and sub[5] and back is not None
           and not back[5], f"→ {sub} ← {back}")
 
@@ -797,8 +797,8 @@ async def menu_cases(bus, im):
     c.preedits.clear()
     await typing_works(c, "组合终止")
 
-    # 7) 空闲超时（e2e 把 addon 的超时调到 WIND_MENU_IDLE_TIMEOUT_MS）
-    idle_ms = int(os.environ.get("WIND_MENU_IDLE_TIMEOUT_MS", "0") or 0)
+    # 7) 空闲超时（e2e 把 addon 的超时调到 MOODFLOW_MENU_IDLE_TIMEOUT_MS）
+    idle_ms = int(os.environ.get("MOODFLOW_MENU_IDLE_TIMEOUT_MS", "0") or 0)
     if idle_ms:
         await open_main_menu(c)
         gone = await wait_until(menus_gone, idle_ms / 1000 + 3)
@@ -878,7 +878,7 @@ async def menu_stall_cases(bus, im):
 async def menu_idle_ignores_motion_cases(bus, im):
     """指针移动不续空闲计时：在菜单外来回动（服务端没有新菜单帧），到点照样收起。曾经每批移动
     都续计时，服务卡死时只要鼠标在动，菜单就永远收不掉、指针一直被抓着。"""
-    idle_ms = int(os.environ.get("WIND_MENU_IDLE_TIMEOUT_MS", "60000"))
+    idle_ms = int(os.environ.get("MOODFLOW_MENU_IDLE_TIMEOUT_MS", "60000"))
     c = await new_ctx(bus, im, "e2e-menu-motion")
     await c.ic.call_set_cursor_rect(300, 400, 2, 20)
     menu = await open_main_menu(c, tries=3)
@@ -903,9 +903,9 @@ async def menu_idle_ignores_motion_cases(bus, im):
 
 async def menu_max_grab_cases(bus, im):
     """抓指针的绝对上限：一直有键盘活动（空闲计时一直被续）也不能无限抓着。e2e 把上限调到
-    WIND_MENU_MAX_GRAB_MS（出厂 120 秒）。"""
-    max_ms = int(os.environ.get("WIND_MENU_MAX_GRAB_MS", "0") or 0)
-    idle_ms = int(os.environ.get("WIND_MENU_IDLE_TIMEOUT_MS", "60000"))
+    MOODFLOW_MENU_MAX_GRAB_MS（出厂 120 秒）。"""
+    max_ms = int(os.environ.get("MOODFLOW_MENU_MAX_GRAB_MS", "0") or 0)
+    idle_ms = int(os.environ.get("MOODFLOW_MENU_IDLE_TIMEOUT_MS", "60000"))
     c = await new_ctx(bus, im, "e2e-menu-maxgrab")
     await c.ic.call_set_cursor_rect(300, 400, 2, 20)
     menu = await open_main_menu(c, tries=3)
@@ -935,7 +935,7 @@ async def menu_compositor_toggle_cases(bus, im):
     await c.ic.call_set_cursor_rect(300, 400, 2, 20)
     menu = await open_main_menu(c, tries=3)
     grabbed = menu is not None and not pointer_grab_free()
-    comp_pid = os.environ.get("WIND_E2E_COMP_PID", "")
+    comp_pid = os.environ.get("MOODFLOW_E2E_COMP_PID", "")
     ours = None
     if comp_pid:
         subprocess.run(["kill", comp_pid])
@@ -950,7 +950,7 @@ async def menu_compositor_toggle_cases(bus, im):
     # 合成器状态还原（被我们杀掉的那个换一个新的接着跑，随 Xvfb 退出）。
     if comp_pid:
         new = subprocess.Popen(["xcompmgr"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        os.environ["WIND_E2E_COMP_PID"] = str(new.pid)
+        os.environ["MOODFLOW_E2E_COMP_PID"] = str(new.pid)
     else:
         ours.terminate()
         ours.wait()
@@ -978,11 +978,11 @@ async def x_conn_lost_cases(bus, im):
         r = subprocess.run(["xkill", "-id", menu[0]], capture_output=True, text=True)
         killed = r.returncode == 0
         print(f"  xkill -id {menu[0]} rc={r.returncode} {r.stderr.strip()}", flush=True)
-    idle_ms = int(os.environ.get("WIND_MENU_IDLE_TIMEOUT_MS", "60000"))
+    idle_ms = int(os.environ.get("MOODFLOW_MENU_IDLE_TIMEOUT_MS", "60000"))
     await asyncio.sleep(idle_ms / 1000 + 1.5)  # 等空闲计时器到点（它在断掉的连接上收菜单）
     await end_composition(c)
     await c.type("nihao")
-    cand = await wait_window("wind-candidate", True)
+    cand = await wait_window("moodflow-candidate", True)
     await c.key(" ")
     got = c.take()
     check("X 连接被断（xkill）且菜单开着：空闲超时收菜单后 fcitx5 存活、照常上屏",
@@ -1024,7 +1024,7 @@ async def menu_restart_cases(bus, im, restart):
     return c
 
 # ── 浮层交互（X11）：状态气泡 / 悬停提示 / Toast 的鼠标交互与右键菜单 ─────────────────
-# 规则对位 Windows（wind_linux/include/OverlayInput.h）：悬停 / 拖动 / 菜单开着时不自动消失；
+# 规则对位 Windows（moodflow_linux/include/OverlayInput.h）：悬停 / 拖动 / 菜单开着时不自动消失；
 # 提示在指针移进它时保持、右键弹提示菜单；气泡可拖（松手报 pos.status_tip，落不落盘看定位
 # 方式）、右键弹气泡菜单；Toast 点一下就关。e2e.sh 把气泡时长调成 2 秒、放了假 xclip。
 
@@ -1037,7 +1037,7 @@ def read_text(path):
 
 
 def user_config():
-    return read_text(os.path.join(os.environ["XDG_CONFIG_HOME"], "WindInput", "config.toml"))
+    return read_text(os.path.join(os.environ["XDG_CONFIG_HOME"], "Moodflow", "config.toml"))
 
 
 def config_int(text, key):
@@ -1057,7 +1057,7 @@ def fcitx_log_lines():
 
 
 def drag_reports():
-    """addon 上报 pos.status_tip 的次数（WIND_DEBUG「状态气泡拖动松手」）。"""
+    """addon 上报 pos.status_tip 的次数（MOODFLOW_DEBUG「状态气泡拖动松手」）。"""
     return sum("状态气泡拖动松手" in l for l in fcitx_log_lines())
 
 
@@ -1073,7 +1073,7 @@ async def pop_status(c):
     """中英各切一次（输入状态不变），等状态气泡出现。"""
     await c.tap_shift()
     await c.tap_shift()
-    return await wait_window("wind-status", True)
+    return await wait_window("moodflow-status", True)
 
 
 async def drag(x0, y0, dx, dy, steps=6):
@@ -1094,14 +1094,14 @@ async def open_tooltip_menu(c):
     await asyncio.sleep(0.4)
     if not await hover_candidate_point(c):
         return None, None
-    tip = candidate_window("wind-tooltip")
+    tip = candidate_window("moodflow-tooltip")
     if not (tip and tip[5]):
         return None, tip
     tx, ty = center(tip)
     sh("xdotool", "mousemove", str(tx), str(ty))
     await asyncio.sleep(0.4)
     sh("xdotool", "click", "3")
-    return await wait_window("wind-menu-0", True), tip
+    return await wait_window("moodflow-menu-0", True), tip
 
 
 async def overlay_interaction_cases(bus, im):
@@ -1118,13 +1118,13 @@ async def overlay_interaction_cases(bus, im):
         cx, cy = center(st)
         sh("xdotool", "mousemove", str(cx), str(cy))
         await asyncio.sleep(3.0)
-        held = candidate_window("wind-status")
+        held = candidate_window("moodflow-status")
         check("气泡交互：指针悬停其上时超过时长也不消失", held is not None and held[5],
               f"window={held}")
         # b) 拖动（出厂跟随光标）：窗口跟手平移；松手上报 pos.status_tip；这一模式不落盘。
         before = drag_reports()
         await drag(cx, cy, 120, 60)
-        moved = candidate_window("wind-status")
+        moved = candidate_window("moodflow-status")
         ok = moved is not None and moved[5] and (moved[1] - st[1], moved[2] - st[2]) == (120, 60)
         check("气泡交互：左键拖动跟手（窗口平移 = 指针位移）", ok, f"拖前={st} 拖后={moved}")
         check("气泡交互：松手上报 pos.status_tip", drag_reports() == before + 1,
@@ -1137,7 +1137,7 @@ async def overlay_interaction_cases(bus, im):
         print(f"  拖动后全屏截图：{full}", flush=True)
         # c) 离开后照常消失（悬停结束重新给满一份时长）。
         sh("xdotool", "mousemove", "5", "5")
-        gone = await wait_window("wind-status", False, timeout=5.0)
+        gone = await wait_window("moodflow-status", False, timeout=5.0)
         check("气泡交互：指针离开后按时长自动消失", gone is not None and not gone[5],
               f"window={gone}")
 
@@ -1148,7 +1148,7 @@ async def overlay_interaction_cases(bus, im):
     if st and st[5]:
         cx, cy = center(st)
         sh("xdotool", "mousemove", str(cx), str(cy), "click", "3")
-        menu = await wait_window("wind-menu-0", True)
+        menu = await wait_window("moodflow-menu-0", True)
     ok = menu is not None and menu[5]
     check("气泡菜单：右键状态气泡弹出菜单", ok, f"menu={menu} 气泡={st}")
     if ok:
@@ -1158,7 +1158,7 @@ async def overlay_interaction_cases(bus, im):
         full, _ = screenshot("menu_status_screen")
         print(f"  全屏截图：{full}", flush=True)
         await asyncio.sleep(2.6)
-        still = candidate_window("wind-status")
+        still = candidate_window("moodflow-status")
         check("气泡菜单：菜单开着时气泡超过时长也不消失", still is not None and still[5],
               f"window={still}")
         row0 = await probe_row(menu)
@@ -1197,7 +1197,7 @@ async def overlay_interaction_cases(bus, im):
         if st and st[5]:
             cx, cy = center(st)
             sh("xdotool", "mousemove", str(cx), str(cy), "click", "3")
-            menu = await wait_window("wind-menu-0", True)
+            menu = await wait_window("moodflow-menu-0", True)
             row0 = await probe_row(menu) if menu and menu[5] else None
             if row0 is not None:
                 sh("xdotool", "mousemove", str(menu[1] + menu[3] // 3),
@@ -1211,7 +1211,7 @@ async def overlay_interaction_cases(bus, im):
         check("气泡菜单：点「恢复默认位置」→ 回到跟随光标", back,
               f"position_mode={config_str(cfg, 'position_mode')} custom_x={config_int(cfg, 'custom_x')}")
     sh("xdotool", "mousemove", "5", "5")
-    await wait_window("wind-status", False, timeout=5.0)
+    await wait_window("moodflow-status", False, timeout=5.0)
     await typing_works(c, "气泡菜单用完")
 
     # ── 悬停提示 ──
@@ -1219,18 +1219,18 @@ async def overlay_interaction_cases(bus, im):
     await c.type("nihao")
     await asyncio.sleep(0.4)
     pt = await hover_candidate_point(c)
-    tip = candidate_window("wind-tooltip")
+    tip = candidate_window("moodflow-tooltip")
     kept = None
     if pt and tip and tip[5]:
         tx, ty = center(tip)
         sh("xdotool", "mousemove", str(tx), str(ty))
         await asyncio.sleep(1.2)
-        kept = candidate_window("wind-tooltip")
+        kept = candidate_window("moodflow-tooltip")
     check("提示交互：指针从候选挪进提示后提示保持显示", kept is not None and kept[5],
           f"提示={tip} 1.2 秒后={kept}")
     # h) 离开提示到别处：宽限后收起。
     sh("xdotool", "mousemove", "5", "5")
-    gone = await wait_window("wind-tooltip", False, timeout=2.0)
+    gone = await wait_window("moodflow-tooltip", False, timeout=2.0)
     check("提示交互：指针离开提示后提示收起", gone is not None and not gone[5], f"提示={gone}")
     await c.key("Escape")
     c.take()
@@ -1247,7 +1247,7 @@ async def overlay_interaction_cases(bus, im):
         full, _ = screenshot("menu_tooltip_screen")
         print(f"  全屏截图：{full}", flush=True)
         await asyncio.sleep(0.6)
-        t2 = candidate_window("wind-tooltip")
+        t2 = candidate_window("moodflow-tooltip")
         check("提示菜单：菜单开着时提示不消失", t2 is not None and t2[5], f"提示={t2}")
         clip0 = len(clipboard_log())
         row0 = await probe_row(menu)
@@ -1260,7 +1260,7 @@ async def overlay_interaction_cases(bus, im):
         check("提示菜单：点「复制…」→ 剪贴板里是提示内容", gone and copied and text != "",
               f"菜单消失={gone} 剪贴板新增={got!r}")
         print(f"  复制到剪贴板：{text!r}", flush=True)
-        toast = await wait_window("wind-toast", True, timeout=2.0)
+        toast = await wait_window("moodflow-toast", True, timeout=2.0)
         check("提示菜单：复制后弹 Toast 反馈", toast is not None and toast[5], f"toast={toast}")
         if toast and toast[5]:
             path, _ = window_has_content(toast[0], "toast_tooltip_copied")
@@ -1271,24 +1271,24 @@ async def overlay_interaction_cases(bus, im):
     await typing_works(c, "提示菜单用完")
 
     # ── Toast ──
-    svc = os.path.join(os.environ.get("W", ""), "svc", "wind_input")
+    svc = os.path.join(os.environ.get("W", ""), "svc", "moodflow_input")
 
     async def toast(text, ms):
         await asyncio.to_thread(subprocess.run, [svc, "ui", "toast", text, "--pos", "top_right",
                                                  "--ms", str(ms)], capture_output=True)
-        return await wait_window("wind-toast", True)
+        return await wait_window("moodflow-toast", True)
 
-    await wait_window("wind-toast", False, timeout=5.0)
+    await wait_window("moodflow-toast", False, timeout=5.0)
     # j) 悬停暂停：指针停在 Toast 上时过了时长仍在；离开后照常消失。
     t = await toast("悬停不消失", 1500)
     if t and t[5]:
         tx, ty = center(t)
         sh("xdotool", "mousemove", str(tx), str(ty))
         await asyncio.sleep(2.5)
-        held = candidate_window("wind-toast")
+        held = candidate_window("moodflow-toast")
         check("Toast：指针悬停其上时超过时长也不消失", held is not None and held[5], f"toast={held}")
         sh("xdotool", "mousemove", "5", "5")
-        gone = await wait_window("wind-toast", False, timeout=4.0)
+        gone = await wait_window("moodflow-toast", False, timeout=4.0)
         check("Toast：指针离开后照常消失", gone is not None and not gone[5], f"toast={gone}")
     else:
         check("Toast：ui toast 后出现", False, f"toast={t}")
@@ -1297,7 +1297,7 @@ async def overlay_interaction_cases(bus, im):
     if t and t[5]:
         tx, ty = center(t)
         sh("xdotool", "mousemove", str(tx), str(ty), "click", "1")
-        gone = await wait_window("wind-toast", False, timeout=1.0)
+        gone = await wait_window("moodflow-toast", False, timeout=1.0)
         check("Toast：点击后立即关闭（不等 10 秒）", gone is not None and not gone[5],
               f"toast={gone}")
     else:
@@ -1336,13 +1336,13 @@ async def overlay_interaction_cases(bus, im):
     if st and st[5]:
         cx, cy = center(st)
         sh("xdotool", "mousemove", str(cx), str(cy), "click", "3")
-        menu = await wait_window("wind-menu-0", True)
+        menu = await wait_window("moodflow-menu-0", True)
     ok = menu is not None and menu[5]
     await asyncio.sleep(0.3)
     await c.ic.call_focus_out()
     closed = await wait_menus_gone()
     sh("xdotool", "mousemove", "5", "5")
-    gone = await wait_window("wind-status", False, timeout=5.0)
+    gone = await wait_window("moodflow-status", False, timeout=5.0)
     check("气泡菜单关闭：失焦（菜单收起、气泡随后按时长消失）",
           ok and closed and gone is not None and not gone[5], f"开={ok} 菜单关={closed} 气泡={gone}")
     await c.ic.call_focus_in()
@@ -1359,7 +1359,7 @@ async def overlay_interaction_cases(bus, im):
         sh("xdotool", "mousedown", "1")
         sh("xdotool", "mousemove", str(cx + 40), str(cy + 20))
         await c.ic.call_focus_out()
-        gone = await wait_window("wind-status", False, timeout=2.0)
+        gone = await wait_window("moodflow-status", False, timeout=2.0)
         sh("xdotool", "mousemove", str(cx + 80), str(cy + 40))
         sh("xdotool", "mouseup", "1")
         await asyncio.sleep(0.3)
@@ -1378,7 +1378,7 @@ async def overlay_interaction_cases(bus, im):
         check("气泡拖动中失焦：气泡出现", False, f"window={st}")
     sh("xdotool", "mousemove", "5", "5")
     await typing_works(c, "拖动中失焦")
-    await wait_window("wind-status", False, timeout=5.0)
+    await wait_window("moodflow-status", False, timeout=5.0)
     await c.ic.call_focus_out()
     await asyncio.sleep(0.2)
 
@@ -1390,9 +1390,9 @@ async def wait_push(c, timeout=10.0):
     deadline = asyncio.get_running_loop().time() + timeout
     while True:
         await c.key("a")
-        shown = await wait_window("wind-candidate", True, timeout=1.0)
+        shown = await wait_window("moodflow-candidate", True, timeout=1.0)
         await c.key("Escape")
-        hidden = await wait_window("wind-candidate", False, timeout=1.0)
+        hidden = await wait_window("moodflow-candidate", False, timeout=1.0)
         c.take()
         c.preedits.clear()
         if shown and shown[5] and hidden is not None and not hidden[5]:
@@ -1422,7 +1422,7 @@ async def overlay_restart_cases(bus, im, restart):
         sh("xdotool", "mousedown", "1")
         sh("xdotool", "mousemove", str(cx + 30), str(cy + 15))
         rc = await asyncio.to_thread(subprocess.run, [restart])
-        gone = await wait_window("wind-status", False, timeout=5.0)
+        gone = await wait_window("moodflow-status", False, timeout=5.0)
         sh("xdotool", "mousemove", str(cx + 60), str(cy + 30))
         sh("xdotool", "mouseup", "1")
         await asyncio.sleep(0.3)
@@ -1440,7 +1440,7 @@ async def overlay_restart_cases(bus, im, restart):
         cx, cy = center(st)
         before = drag_reports()
         await drag(cx, cy, 50, 20)
-        moved = candidate_window("wind-status")
+        moved = candidate_window("moodflow-status")
         check("气泡拖动中服务重启：之后还能再拖（上报一次、跟手）",
               drag_reports() == before + 1 and moved and (moved[1] - st[1], moved[2] - st[2]) == (50, 20),
               f"上报 {drag_reports() - before} 次 拖前={st} 拖后={moved}")
@@ -1470,7 +1470,7 @@ async def overlay_restart_cases(bus, im, restart):
         sh("xdotool", "mousemove", str(cx + 60), str(cy + 30))
         sh("xdotool", "mouseup", "1")
         sh("xdotool", "mousemove", "5", "5")
-        gone = await wait_window("wind-status", False, timeout=5.0)
+        gone = await wait_window("moodflow-status", False, timeout=5.0)
         check("气泡拖动中服务被杀：松手不卡、气泡按时长消失", gone is not None and not gone[5],
               f"气泡={gone}")
     else:
@@ -1484,9 +1484,9 @@ async def overlay_restart_cases(bus, im, restart):
 
 
 def settings_windows():
-    """设置程序的顶层窗口（WM_CLASS 实例名 = 可执行文件名 wind_setting.bin，见 windui
+    """设置程序的顶层窗口（WM_CLASS 实例名 = 可执行文件名 moodflow_setting.bin，见 moodflowui
     `x11.rs::wm_class`；e2e 里经包装脚本启动，真程序是那个软链）。"""
-    ids = sh("xdotool", "search", "--classname", "wind_setting").split()
+    ids = sh("xdotool", "search", "--classname", "moodflow_setting").split()
     return [i for i in ids if "IsViewable" in sh("xwininfo", "-id", i)]
 
 
@@ -1509,12 +1509,12 @@ async def wait_until(pred, timeout):
 
 async def settings_cases(bus, im):
     """「从输入法打开设置」整条链：Ctrl+Shift+]（keys.open_settings 出厂值）→ addon 按键转发
-    → 服务热键分派 open_settings → 下行扩展信封 settings.open → addon 拉起 WIND_INPUT_SETTING
+    → 服务热键分派 open_settings → 下行扩展信封 settings.open → addon 拉起 MOODFLOW_INPUT_SETTING
     （e2e.sh 的包装脚本记下 argv 再换成真设置程序）→ 设置程序经控制 socket 连上服务。"""
     w = os.environ["W"]
     argv_log = os.path.join(w, "setting.argv")
-    setting_log = os.path.join(os.environ["XDG_DATA_HOME"], "WindInput", "logs",
-                               "wind_setting.1.log")
+    setting_log = os.path.join(os.environ["XDG_DATA_HOME"], "Moodflow", "logs",
+                               "moodflow_setting.1.log")
     c = await new_ctx(bus, im, "e2e-settings")
 
     async def open_settings_hotkey():
@@ -1549,7 +1549,7 @@ async def settings_cases(bus, im):
     check("设置：设置程序经控制 socket 连上服务", connected,
           f"{setting_log} 里没有 connected=true")
 
-    # 已开着时再按一次：新进程只把 argv 转给首实例（windui 单实例），窗口不重复。
+    # 已开着时再按一次：新进程只把 argv 转给首实例（moodflowui 单实例），窗口不重复。
     await open_settings_hotkey()
     again = await wait_until(lambda: len(read_lines(argv_log)) >= 2, 10)
     forwarded = await wait_until(
@@ -1559,7 +1559,7 @@ async def settings_cases(bus, im):
           again and forwarded and len(settings_windows()) == 1,
           f"再次启动={again} 转交={forwarded} windows={settings_windows()}")
 
-    subprocess.run(["pkill", "-f", "--", "^" + os.path.join(w, "svc", "wind_setting")])
+    subprocess.run(["pkill", "-f", "--", "^" + os.path.join(w, "svc", "moodflow_setting")])
     closed = await wait_until(lambda: not settings_windows(), 5)
     check("设置：设置程序退出后窗口消失", closed, f"windows={settings_windows()}")
 
@@ -1570,30 +1570,30 @@ async def settings_cases(bus, im):
         mapped = await wait_until(lambda: len(settings_windows()) == 1, 20)
         check(f"设置：{label} → 拉起设置程序（默认页）", ok and args[:1] == [""] and mapped,
               f"拉起={ok} argv={args} 窗口={settings_windows()}")
-        subprocess.run(["pkill", "-f", "--", "^" + os.path.join(w, "svc", "wind_setting")])
+        subprocess.run(["pkill", "-f", "--", "^" + os.path.join(w, "svc", "moodflow_setting")])
         await wait_until(lambda: not settings_windows(), 5)
 
-    # 空闲入口：Fcitx5 状态区动作「清风输入法设置」（托盘菜单 / kimpanel 面板里那一项）。
+    # 空闲入口：Fcitx5 状态区动作「Moodflow 输入法设置」（托盘菜单 / kimpanel 面板里那一项）。
     panel = await impanel(bus)
     watch = await kimpanel_watch(bus)
     await c.ic.call_focus_out()
     await c.ic.call_focus_in()  # 聚焦时 kimpanel 重报一遍状态区动作
     await asyncio.sleep(0.3)
     regs = [p for ps in watch.registered for p in ps]
-    listed = any(p.startswith("/Fcitx/windinput-settings:清风输入法设置:") for p in regs)
-    check("设置：状态区列出「清风输入法设置」、不再有「清风输入法菜单」",
-          listed and not any("windinput-menu" in p for p in regs), f"属性={regs[-6:]}")
+    listed = any(p.startswith("/Fcitx/moodflow-settings:Moodflow 输入法设置:") for p in regs)
+    check("设置：状态区列出「Moodflow 输入法设置」、不再有「Moodflow 输入法菜单」",
+          listed and not any("moodflow-menu" in p for p in regs), f"属性={regs[-6:]}")
     before = len(read_lines(argv_log))
-    panel.trigger("/Fcitx/windinput-settings")
-    await launched_again("状态区点「清风输入法设置」", before)
+    panel.trigger("/Fcitx/moodflow-settings")
+    await launched_again("状态区点「Moodflow 输入法设置」", before)
 
-    # 系统输入法配置里点清风的「配置」：配置工具经 Controller1.GetConfig 取描述。整页只有一个
+    # 系统输入法配置里点 Moodflow 的「配置」：配置工具经 Controller1.GetConfig 取描述。整页只有一个
     # External 项时 fcitx5-configtool（5.1.6+）直接启动它，而不是弹一张空白配置页。
     intro = await bus.introspect(SERVICE, "/controller")
     ctl = bus.get_proxy_object(SERVICE, "/controller", intro).get_interface(
         "org.fcitx.Fcitx.Controller1")
     external = ""
-    for uri in ("fcitx://config/inputmethod/windinput", "fcitx://config/addon/windinput"):
+    for uri in ("fcitx://config/inputmethod/moodflow", "fcitx://config/addon/moodflow"):
         try:
             _, desc = await ctl.call_get_config(uri)
         except Exception as e:  # noqa: BLE001 — 失败原因原样进断言信息
@@ -1605,7 +1605,7 @@ async def settings_cases(bus, im):
         external = only[4]["External"].value if only and "External" in only[4] else ""
         check(f"配置：{uri} 是唯一一项 External、指向设置程序",
               only is not None and only[1] == "External"
-              and external == os.environ.get("WIND_INPUT_SETTING"),
+              and external == os.environ.get("MOODFLOW_INPUT_SETTING"),
               f"desc={desc} {err}")
     # 照配置工具的做法把 External 当命令启动（QProcess::startDetached），确认它真能拉起来。
     if external:
@@ -1712,8 +1712,8 @@ async def mode_icon_cases(bus, im):
     await asyncio.sleep(0.2)
 
 async def set_config(key, value):
-    """经 `wind_input config set` 改在线服务的配置（RPC 热重载，不重启服务）。"""
-    svc = os.path.join(os.environ["W"], "svc", "wind_input")
+    """经 `moodflow_input config set` 改在线服务的配置（RPC 热重载，不重启服务）。"""
+    svc = os.path.join(os.environ["W"], "svc", "moodflow_input")
     r = await asyncio.to_thread(subprocess.run, [svc, "config", "set", key, value],
                                 capture_output=True, text=True)
     await asyncio.sleep(0.3)
@@ -2144,7 +2144,7 @@ async def main():
         await asyncio.sleep(0.2)
 
     # 9. 服务重启：addon 的请求连接变成死连接，必须自愈（重连 + 重试当前键），无需重启 fcitx5
-    restart = os.environ.get("WIND_E2E_RESTART")
+    restart = os.environ.get("MOODFLOW_E2E_RESTART")
     if restart:
         rc = await asyncio.to_thread(subprocess.run, [restart])
         check("重启服务", rc.returncode == 0, f"restart 退出码 {rc.returncode}")

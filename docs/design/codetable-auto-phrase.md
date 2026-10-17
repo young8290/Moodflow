@@ -31,10 +31,10 @@
 两字间隔 > idle_timeout → 先 flush 旧序列再起新序列
 ```
 
-- 状态机：`wind-coordinator/src/auto_phrase.rs`（**纯逻辑、零 IO**，打断语义全部单测覆盖）
-- 编码器：`wind-engine/src/encoder.rs`（**纯函数**，公式求值 + 规则匹配）
-- 单字全码表：`wind-dict/src/cached.rs::build_single_char_full_codes`，
-  落盘格式 `wind-dict/src/charcodes.rs`（`.wscc`）
+- 状态机：`moodflow-coordinator/src/auto_phrase.rs`（**纯逻辑、零 IO**，打断语义全部单测覆盖）
+- 编码器：`moodflow-engine/src/encoder.rs`（**纯函数**，公式求值 + 规则匹配）
+- 单字全码表：`moodflow-dict/src/cached.rs::build_single_char_full_codes`，
+  落盘格式 `moodflow-dict/src/charcodes.rs`（`.wscc`）
 
   这张表与反查索引同源（同一批词库、同一次全表扫描），**造词的就绪闸是两者的与**
   （`EngineManager::single_char_codes_ready` ∧ `reverse_index_if_ready`）。它此前是唯一
@@ -43,7 +43,7 @@
   但**不做 mmap**：只收单字条目、不随词条数增长，wubi86 实测 185 KB）该窗口大幅缩短。
   ⚠️ 它的指纹比 `.wridx` 多一项 `max_code_length`——这张表拿它当闸筛超长码，
   而反查索引与之无关；漏了这一项，用户改了码长而词库未动时会永久复用旧表。
-- 接线与 IO：`wind-coordinator/src/handle_addword.rs`
+- 接线与 IO：`moodflow-coordinator/src/handle_addword.rs`
 
 ### flush 流程
 
@@ -85,7 +85,7 @@
 
 手动造词（快捷加词 / 设置端 `dict.encode`）与自动造词**共用** `EngineManager::encode_word`。
 
-原 `wind_reverse::wubi_word_code` 已弃用：码源是**拆字表**、规则是**硬编码的五笔 86 三分支**。
+原 `moodflow_reverse::wubi_word_code` 已弃用：码源是**拆字表**、规则是**硬编码的五笔 86 三分支**。
 问题有三——拆字表是可选资源（全仓 5 个方案只有 `wubi86` 配了，未配的第三方方案取码恒空、
 手动加词直接失败）；硬编码规则对非五笔码表方案静默出错；拆字表与词库解耦，用户换词库或加扩展库后
 可能造出**打不出来**的码。
@@ -183,7 +183,7 @@ Enter/Escape 仅在有 composition 或 input session 时才拦截）。`Selectio
 
 ### 6.2 `CodetableGlobal::resolved()` 未折叠 `auto_phrase` / `frequency`
 
-`wind-config/src/config.rs` 的 `resolved()` 折叠了 9 个行为字段，**独缺 `auto_phrase` 与
+`moodflow-config/src/config.rs` 的 `resolved()` 折叠了 9 个行为字段，**独缺 `auto_phrase` 与
 `frequency`** —— 方案 `.schema.toml` 的 `[engine.codetable]` 无法覆盖这两项，它们是全局唯一的。
 
 **本轮不补**。两项同时缺席不像遗漏，更像有意：造词与调频属「用户偏好」而非「方案特性」，
@@ -191,8 +191,8 @@ Enter/Escape 仅在有 composition 或 input session 时才拦截）。`Selectio
 
 ## 7. 验证
 
-- 单测：`wind-engine/src/encoder.rs`（12）、`wind-dict/src/cached.rs` 全码判据（4）、
-  `wind-coordinator/src/auto_phrase.rs` 打断语义（10）
-- 端到端：`wind-coordinator/tests/input_flow.rs::test_codetable_auto_phrase_*`（4），
+- 单测：`moodflow-engine/src/encoder.rs`（12）、`moodflow-dict/src/cached.rs` 全码判据（4）、
+  `moodflow-coordinator/src/auto_phrase.rs` 打断语义（10）
+- 端到端：`moodflow-coordinator/tests/input_flow.rs::test_codetable_auto_phrase_*`（4），
   用**真实 wubi86 方案与词库**验证取码、终止时机、开关闸门、单字不成词
 - **待真机**：`SELF_COMMIT_GRACE` 实测校准（见 §3）；混输下拼音单字入缓冲；晋升与淘汰

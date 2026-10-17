@@ -1,0 +1,109 @@
+/* 各窗口共用的基础样式。只引用令牌，不写色值。 */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--mf-bg);
+  color: var(--mf-text-1);
+  font-family: var(--mf-font);
+  font-size: var(--mf-fs-md);
+  line-height: var(--mf-lh-md);
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  height: 100%;
+}
+
+h1 {
+  margin: 0 0 var(--mf-sp-4);
+  font-size: var(--mf-fs-xl);
+  line-height: var(--mf-lh-xl);
+  font-weight: 600;
+}
+
+h2 {
+  margin: 0 0 var(--mf-sp-3);
+  font-size: var(--mf-fs-lg);
+  line-height: var(--mf-lh-lg);
+  font-weight: 500;
+}
+
+p {
+  margin: 0 0 var(--mf-sp-3);
+}
+
+a {
+  color: var(--mf-link);
+}
+
+button {
+  min-width: 32px;
+  min-height: 32px; /* DS-A11Y-03 点击目标 ≥ 32 × 32 */
+  padding: 0 var(--mf-sp-4);
+  border: 1px solid var(--mf-border);
+  border-radius: var(--mf-radius-sm);
+  background: var(--mf-surface);
+  color: var(--mf-text-1);
+  font: inherit;
+  cursor: pointer;
+  transition: background var(--mf-dur-micro) var(--mf-ease);
+}
+
+button.primary {
+  border-color: transparent;
+  background: var(--mf-primary);
+  color: var(--mf-on-primary);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* DS-A11Y-01：键盘焦点环清晰可见，2 px */
+:focus-visible {
+  outline: 2px solid var(--mf-focus);
+  outline-offset: 2px;
+}
+
+.muted {
+  color: var(--mf-text-2);
+}
+
+/* 只给读屏的文字（窗口没有可见标题时的 h1 等） */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* DS-MOTION-03：尊重系统“显示动画”设置 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0s !important;
+  }
+}
+
+/* DS-MOTION-05：窗口不可见时暂停全部动画，省 CPU（NFR-RES-02）。data-hidden 由 mount.ts 维护 */
+:root[data-hidden] *,
+:root[data-hidden] *::before,
+:root[data-hidden] *::after {
+  animation-play-state: paused !important;
+}

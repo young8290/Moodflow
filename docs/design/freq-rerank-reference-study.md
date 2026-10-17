@@ -14,7 +14,7 @@
 
 ## 1. 我们的现状（问题基线）
 
-`wind-engine/src/freq_rerank.rs::rerank_pinyin_decay` 的比较链：
+`moodflow-engine/src/freq_rerank.rs::rerank_pinyin_decay` 的比较链：
 
 ```
 ① 整句 / 精确码短语        → 锚定顶部

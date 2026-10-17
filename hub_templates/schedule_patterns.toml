@@ -1,4 +1,4 @@
-# 心晴 · 日程与待办本地初筛规则（FR-SCH-01、FR-SCH-04、FR-SCH-12，V1.2）
+# Moodflow · 日程与待办本地初筛规则（FR-SCH-01、FR-SCH-04、FR-SCH-12，V1.2）
 # 正则使用 Rust regex 语法；Rust regex 不支持后顾断言，(?<!…) 一类条件由代码在匹配后检查，
 # 这里用 not_preceded_by / not_followed_by 字段表达。
 # 版本：v1（初稿，2026-10-04），状态：待评审；修改后重跑 E-PLAN、E-TODO 评测

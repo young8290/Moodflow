@@ -1,7 +1,7 @@
 # 重设计差分：config / schema（配置与方案系统）
 
 > 阶段 A 产物（最后一份）。Go 侧 3 个只读 agent 提取、关键论断 grep 抽验 file:line 属实；Rust 侧本人通读。
-> 体量：Go `pkg/config` ≈ 3647 行 + `internal/schema` ≈ 3034 行；Rust `wind-config` ≈ 1260 行。
+> 体量：Go `pkg/config` ≈ 3647 行 + `internal/schema` ≈ 3034 行；Rust `moodflow-config` ≈ 1260 行。
 > **schema 是 engine/dict/store 所有质量特性的配置面**——它们的 spec 字段是那些特性的开关，本差分把配置面锁定。
 
 ---
@@ -9,8 +9,8 @@
 ## 1. 核心现状
 
 ### Schema：两套表示 + 简陋（已 grep 确认死代码）
-- `wind-config/schema.rs` 的 `Schema`（70 行）**仅在 lib.rs 导出，无任何跨 crate 使用 = 死脚手架**。`RuntimeState`/`AppCompat` 同样无人用。
-- 实际驱动引擎的是 `wind-engine/manager.rs` 的 `SchemaFile`（我在 engine 差分读过），字段极简：engine.type / codetable.{max_code_length,temp_pinyin} / pinyin.scheme / mixed.{primary,secondary,min_pinyin,boost} / dictionaries.{path,type,default,default_enabled} / learning.unigram_path。
+- `moodflow-config/schema.rs` 的 `Schema`（70 行）**仅在 lib.rs 导出，无任何跨 crate 使用 = 死脚手架**。`RuntimeState`/`AppCompat` 同样无人用。
+- 实际驱动引擎的是 `moodflow-engine/manager.rs` 的 `SchemaFile`（我在 engine 差分读过），字段极简：engine.type / codetable.{max_code_length,temp_pinyin} / pinyin.scheme / mixed.{primary,secondary,min_pinyin,boost} / dictionaries.{path,type,default,default_enabled} / learning.unigram_path。
 - Go 有专门 `internal/schema`：丰富 Spec（CodeTableSpec ~22 字段 / PinyinSpec+Fuzzy 12 标志+Shuangpin / MixedSpec 10 字段 / DictSpec+WeightSpec+Role / EncoderSpec / LearningSpec(AutoLearn/AutoPhrase/Freq)）+ `factory.go`(1694, CreateEngineFromSchema) + SchemaManager + loader(三层合并+override) + learning。
 
 ### Config：合并不完整（现状 bug）
@@ -27,8 +27,8 @@
 
 ## 2. 决策：统一为一套丰富 Schema 驱动引擎
 
-1. **删死脚手架** `wind-config/schema.rs` 现 Schema；建**一套丰富 Schema**（放 `wind-config` 或新 `wind-schema` crate），字段对齐 Go 的 Spec 体系。
-2. `wind-engine` 的 `SchemaFile` 与 `build_engine` 改为消费这套 Schema——**schema 定义与引擎构建解耦**（Go 的 factory 在 schema 包，引擎是被构建对象）。
+1. **删死脚手架** `moodflow-config/schema.rs` 现 Schema；建**一套丰富 Schema**（放 `moodflow-config` 或新 `moodflow-schema` crate），字段对齐 Go 的 Spec 体系。
+2. `moodflow-engine` 的 `SchemaFile` 与 `build_engine` 改为消费这套 Schema——**schema 定义与引擎构建解耦**（Go 的 factory 在 schema 包，引擎是被构建对象）。
 3. tri-state 字段一律 `Option<bool>`（修 Go 的 plain bool / *bool 混用坏设计）。
 4. EngineBundle 的 `interface{}` → Rust **enum**（Pinyin/CodeTable/Mixed）。
 5. **合理精简字段**：不照搬 Go 全部 spec 字段——剔除仅为**临时功能兼容**的遗留（如 `auto_commit_unique` 已被 `auto_commit_at_full` 取代）与可能过度设计的架构字段，**只支持实际有意义的**。每个保留字段须对应一个真实特性。
@@ -135,4 +135,4 @@ Rust 目标：`SchemaManager`（扫描/合并/激活）+ `build_engine` 消费�
 4. **compat/runtime_state/schema_overrides**（§6）：阶段 C，配合 coordinator pipeline。
 5. **便携/datadir/校验**（§7）：阶段 D。
 
-> 与 engine/dict/store/coordinator 四份差分共同构成阶段 A 全图：schema 是配置面、engine/dict/store 是质量核心、coordinator 是交互统一。每步 `wind_input/scripts/dev.sh ci` 把关。
+> 与 engine/dict/store/coordinator 四份差分共同构成阶段 A 全图：schema 是配置面、engine/dict/store 是质量核心、coordinator 是交互统一。每步 `moodflow_input/scripts/dev.sh ci` 把关。

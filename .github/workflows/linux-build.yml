@@ -16,9 +16,9 @@ name: Linux Build (reusable)
 # 独立应用——Flatpak/AppImage 在这里都不成立。Debian/Ubuntu/Deepin 是当前验证过的目标;
 # rpm(Fedora/openSUSE)与 Arch(PKGBUILD)需要各自发行版上的实测,尚未做。
 #
-# 设置程序 wind-setting 仍是私有仓:没配 WIND_REPOS_TOKEN(fork 等)时整个 Linux 构建跳过并告警
+# 设置程序 moodflow-setting 仍是私有仓:没配 MOODFLOW_REPOS_TOKEN(fork 等)时整个 Linux 构建跳过并告警
 # (Linux 包的设置入口、.desktop、协议/文件关联都依赖它,不出残缺包)。产物 artifact:
-# dist-linux-amd64 / dist-linux-arm64(内含 WindInput-<版本>-linux-<架构>.deb + .sha256)。
+# dist-linux-amd64 / dist-linux-arm64(内含 Moodflow-<版本>-linux-<架构>.deb + .sha256)。
 on:
   workflow_call:
     inputs:
@@ -27,22 +27,22 @@ on:
         required: true
         type: string
       ref:
-        description: "WindInput 源码的检出 ref(留空 = 触发本次运行的提交)"
+        description: "Moodflow 源码的检出 ref(留空 = 触发本次运行的提交)"
         required: false
         type: string
         default: ""
       setting_ref:
-        description: "wind-setting 检出的分支/标签(留空 = 默认分支)"
+        description: "moodflow-setting 检出的分支/标签(留空 = 默认分支)"
         required: false
         type: string
         default: ""
     secrets:
-      WIND_REPOS_TOKEN:
-        description: "wind-setting 私有仓的读取 token;缺省则跳过 Linux 构建"
+      MOODFLOW_REPOS_TOKEN:
+        description: "moodflow-setting 私有仓的读取 token;缺省则跳过 Linux 构建"
         required: false
     outputs:
       built:
-        description: "是否实际构建了(没配 WIND_REPOS_TOKEN 时为 false)"
+        description: "是否实际构建了(没配 MOODFLOW_REPOS_TOKEN 时为 false)"
         value: ${{ jobs.prep.outputs.can_build }}
 
 permissions:
@@ -57,7 +57,7 @@ jobs:
       deb_version: ${{ steps.v.outputs.deb_version }}   # Debian 版本,预发布后缀用 ~ 以便排在正式版之前
       can_build: ${{ steps.gate.outputs.can_build }}
     env:
-      HAS_SETTING_TOKEN: ${{ secrets.WIND_REPOS_TOKEN != '' && 'true' || 'false' }}
+      HAS_SETTING_TOKEN: ${{ secrets.MOODFLOW_REPOS_TOKEN != '' && 'true' || 'false' }}
       VERSION: ${{ inputs.version }}
     steps:
       - id: v
@@ -73,7 +73,7 @@ jobs:
             echo "can_build=true" >> "$GITHUB_OUTPUT"
           else
             echo "can_build=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::未配置 secrets.WIND_REPOS_TOKEN,跳过 Linux 构建(设置程序是私有仓,Linux 包不出缺设置程序的残缺版)。"
+            echo "::warning::未配置 secrets.MOODFLOW_REPOS_TOKEN,跳过 Linux 构建(设置程序是私有仓,Linux 包不出缺设置程序的残缺版)。"
           fi
 
   # ───────────────────────── 词库数据(架构无关,只做一次) ─────────────────────────
@@ -90,13 +90,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: wind_input
+          workspaces: moodflow_input
       # dev.sh 的 gd 在 Linux 上默认转发到 Windows 编译机(build.local);CI 没有那台机器,
-      # WIND_BUILD_LOCAL=1 就地跑——词库数据与架构/平台无关,不受「本机产物不可发版」的限制
+      # MOODFLOW_BUILD_LOCAL=1 就地跑——词库数据与架构/平台无关,不受「本机产物不可发版」的限制
       # (那条限制针对 cargo-xwin 交叉编的 exe/dll)。产物在 build_dev/data。
       - name: 下载并组装词库
         env:
-          WIND_BUILD_LOCAL: "1"
+          MOODFLOW_BUILD_LOCAL: "1"
         run: ./scripts/dev.sh gd
       - name: 打包数据目录
         run: tar -C build_dev -czf "$RUNNER_TEMP/linux-data.tar.gz" data
@@ -126,24 +126,24 @@ jobs:
       VERSION: ${{ inputs.version }}
       DEB_VERSION: ${{ needs.prep.outputs.deb_version }}
     steps:
-      # 目录布局同其他平台:wind-setting 以 path 依赖引用 ../wind-ui-rust 与 ../WindInput。
-      - name: 检出 WindInput
+      # 目录布局同其他平台:moodflow-setting 以 path 依赖引用 ../moodflow-ui-rust 与 ../Moodflow。
+      - name: 检出 Moodflow
         uses: actions/checkout@v7
         with:
-          path: WindInput
+          path: Moodflow
           ref: ${{ inputs.ref || github.sha }}
-      - name: 检出 wind-ui-rust (wind-setting 的 path 依赖)
+      - name: 检出 moodflow-ui-rust (moodflow-setting 的 path 依赖)
         uses: actions/checkout@v7
         with:
           repository: huanfeng/wind-ui-rust
-          path: wind-ui-rust
-      - name: 检出 wind-setting (私有仓,需 WIND_REPOS_TOKEN)
+          path: moodflow-ui-rust
+      - name: 检出 moodflow-setting (私有仓,需 MOODFLOW_REPOS_TOKEN)
         uses: actions/checkout@v7
         with:
           repository: huanfeng/wind-setting
-          path: wind-setting
+          path: moodflow-setting
           ref: ${{ inputs.setting_ref }}
-          token: ${{ secrets.WIND_REPOS_TOKEN }}
+          token: ${{ secrets.MOODFLOW_REPOS_TOKEN }}
           # token 不留在 .git/config：后面 cargo build 会执行全部依赖的 build.rs，不该让它们读得到
           persist-credentials: false
 
@@ -160,12 +160,12 @@ jobs:
         with:
           # 与 build-deb.sh 的 SERVICE_TARGET / SETTING_TARGET 对应(默认 target/ 位置),缓存才命中
           workspaces: |
-            WindInput/wind_input
-            wind-ui-rust
-            wind-setting
+            Moodflow/moodflow_input
+            moodflow-ui-rust
+            moodflow-setting
 
       - name: 写入 docs/VERSION
-        working-directory: WindInput
+        working-directory: Moodflow
         run: printf '%s' "$VERSION" > docs/VERSION
 
       - uses: actions/download-artifact@v8
@@ -180,45 +180,45 @@ jobs:
       - name: 构建 .deb
         env:
           APP_VERSION: ${{ inputs.version }}
-          SRC_DIR: ${{ github.workspace }}/WindInput
-          SETTING_DIR: ${{ github.workspace }}/wind-setting
+          SRC_DIR: ${{ github.workspace }}/Moodflow
+          SETTING_DIR: ${{ github.workspace }}/moodflow-setting
           DATA_DIR: ${{ runner.temp }}/data-out/data
           WORK_DIR: ${{ runner.temp }}/deb-work
           OUT_DIR: ${{ runner.temp }}/deb-out
-          SERVICE_TARGET: ${{ github.workspace }}/WindInput/wind_input/target
-          SETTING_TARGET: ${{ github.workspace }}/wind-setting/target
-        run: bash WindInput/scripts/linux/build-deb.sh
+          SERVICE_TARGET: ${{ github.workspace }}/Moodflow/moodflow_input/target
+          SETTING_TARGET: ${{ github.workspace }}/moodflow-setting/target
+        run: bash Moodflow/scripts/linux/build-deb.sh
 
       - name: 核对 .deb(架构 / ELF / glibc / 文件齐全 / 权限)
         run: |
           shopt -s failglob
-          bash WindInput/scripts/linux/verify-deb.sh "$RUNNER_TEMP"/deb-out/windinput_*.deb "${{ matrix.arch }}"
+          bash Moodflow/scripts/linux/verify-deb.sh "$RUNNER_TEMP"/deb-out/moodflow_*.deb "${{ matrix.arch }}"
 
       # 在 22.04 上真装一次:apt 解析 Depends(arm64 与 amd64 的包名可用性不同,只有真装才知道),
       # 并确认三个 ELF 没有缺的动态库——「装得上、一加载就找不到 so」是这类包最常见的静默坏法。
       - name: 安装冒烟(依赖可解析 / 无缺失动态库 / 能卸载)
         run: |
           shopt -s failglob
-          sudo apt-get install -y "$RUNNER_TEMP"/deb-out/windinput_*.deb
+          sudo apt-get install -y "$RUNNER_TEMP"/deb-out/moodflow_*.deb
           rc=0
-          for f in /usr/lib/windinput/wind_input /usr/lib/windinput/wind_setting \
-                   /usr/lib/*/fcitx5/libwindinput.so; do
+          for f in /usr/lib/moodflow/moodflow_input /usr/lib/moodflow/moodflow_setting \
+                   /usr/lib/*/fcitx5/libmoodflow.so; do
             if ldd "$f" | grep 'not found'; then echo "::error::$f 有缺失的动态库"; rc=1; fi
           done
           [ "$rc" = 0 ] || exit 1
-          bash -n /usr/bin/windinput-setup
-          sudo apt-get remove -y windinput
-          [ ! -e /usr/lib/windinput/wind_input ] || { echo "::error::卸载后文件残留"; exit 1; }
+          bash -n /usr/bin/moodflow-setup
+          sudo apt-get remove -y moodflow
+          [ ! -e /usr/lib/moodflow/moodflow_input ] || { echo "::error::卸载后文件残留"; exit 1; }
 
-      # 发布资产名与其他平台同口径:WindInput-<版本>-<平台>.<扩展名> + 同名 .sha256 sidecar
+      # 发布资产名与其他平台同口径:Moodflow-<版本>-<平台>.<扩展名> + 同名 .sha256 sidecar
       # (格式对齐 sha256sum,下游校验脚本按第一列取值)。
       - name: 重命名为发布资产名并生成 sha256
         run: |
           shopt -s failglob
           mkdir -p dist
-          cp "$RUNNER_TEMP"/deb-out/windinput_*.deb "dist/WindInput-${VERSION}-linux-${{ matrix.arch }}.deb"
+          cp "$RUNNER_TEMP"/deb-out/moodflow_*.deb "dist/Moodflow-${VERSION}-linux-${{ matrix.arch }}.deb"
           cd dist
-          sha256sum "WindInput-${VERSION}-linux-${{ matrix.arch }}.deb" > "WindInput-${VERSION}-linux-${{ matrix.arch }}.deb.sha256"
+          sha256sum "Moodflow-${VERSION}-linux-${{ matrix.arch }}.deb" > "Moodflow-${VERSION}-linux-${{ matrix.arch }}.deb.sha256"
           cat ./*.sha256
           ls -lh
 

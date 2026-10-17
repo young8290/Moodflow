@@ -95,5 +95,5 @@ P1 完成后：用户能在界面上开辅助码、绑触发键。码表仍依�
 ## 5. 相关
 
 - `docs/design/schema-key-actions.md` — 方案级 `[key_actions]` 的动词值域
-- `wind-setting/src/dialogs/schema_codetable.rs` 头部注释 — 方案级覆盖 UI 的既定模式与权衡
-- `wind-setting/src/capabilities.rs` ㉒ 条 — manifest 候选草稿与出处
+- `moodflow-setting/src/dialogs/schema_codetable.rs` 头部注释 — 方案级覆盖 UI 的既定模式与权衡
+- `moodflow-setting/src/capabilities.rs` ㉒ 条 — manifest 候选草稿与出处

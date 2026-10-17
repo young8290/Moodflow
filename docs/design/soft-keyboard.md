@@ -82,7 +82,7 @@ keys = { q = "√", "shift+q" = "∛" }     # 单键补丁，压在画布之上
 两个写入者对同一份整表各写各的。将来若做键盘编辑器，它只能往补丁层写单键，
 **绝不允许把展开后的内存表倒灌回 `rows`**——那就是「整体替换 ⊕ 稀疏 diff」的数据丢失。
 
-P0 阶段该文件**只读**：出厂一份，用户可整份拷到 `%APPDATA%\WindInput\` 修改，
+P0 阶段该文件**只读**：出厂一份，用户可整份拷到 `%APPDATA%\Moodflow\` 修改，
 GUI 不回写（同 `system.quick.toml`）。将来真要编辑器，按 `SideCommitter` 接
 （本仓已定：非 config.toml 落点一律登记 SideCommitter，禁止再加独立保存按钮）。
 
@@ -145,7 +145,7 @@ GUI 不回写（同 `system.quick.toml`）。将来真要编辑器，按 `SideCo
 **不接受映射。** 放开可配会带来一族判据（映射了的退格还能不能长按连删？映射了的回车
 还换不换行？），而它买到的灵活性没人要。这条一开始就关死，比事后收窄便宜。
 
-★ 封闭集的**定义来源直接取** `wind-keys/src/key_inject.rs` 的 `parse_key` 键名表：
+★ 封闭集的**定义来源直接取** `moodflow-keys/src/key_inject.rs` 的 `parse_key` 键名表：
 `enter / tab / esc / space / backspace / del / ins / home / end / pgup / pgdn / 方向键`。
 它正好覆盖软键盘需要的全部特殊键，拿它当唯一来源就不会漂移。
 
@@ -268,7 +268,7 @@ C++ 侧必须知道当前处于软键盘态，否则症状是「改了没生效�
 ### 6.1 ★★★ 焦点契约：面板永远不拿焦点
 
 窗口样式沿用现有浮层那一组——`WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_LAYERED |
-WS_EX_TOPMOST`（候选窗与工具栏已在用，`wind-ui/src/window.rs`）。
+WS_EX_TOPMOST`（候选窗与工具栏已在用，`moodflow-ui/src/window.rs`）。
 `WM_MOUSEACTIVATE` 必须回 `MA_NOACTIVATE`。点击照样收得到 `WM_LBUTTONDOWN`，
 交互不受影响，只是窗口不被激活、宿主焦点原地不动。
 
@@ -405,7 +405,7 @@ v0.120.0 报障：用户在设置页取消这条快捷键，保存后仍然生�
 
 本仓「勿用按键模拟实现 `type()`」的禁令**不适用**——那条禁的是把待上屏文本降级成按键序列
 （会绕开 CR 规范化与跟打统计）。功能键点击走的是 `key.tap` 那条正路，实现现成：
-`wind-keys/src/key_inject.rs` 的 `SysKeys`（`KeyInjector` trait，wind-cmdbar 在用）。
+`moodflow-keys/src/key_inject.rs` 的 `SysKeys`（`KeyInjector` trait，moodflow-cmdbar 在用）。
 
 ## 8. 呈现
 
@@ -431,7 +431,7 @@ v0.120.0 报障：用户在设置页取消这条快捷键，保存后仍然生�
 ### 8.3 绘制成本：实测够用，**没有**做单键重绘
 
 设计阶段判断「面板内容几乎恒定，应当底板烘焙 + 单键重绘」。实施时发现前提变了：
-`wind-ui` 已有 View 树 + flex 布局，且 `TextRenderer` 有文本测量缓存（2026-08-13 加的）。
+`moodflow-ui` 已有 View 树 + flex 布局，且 `TextRenderer` 有文本测量缓存（2026-08-13 加的）。
 47 个键帽全是 `fixed_w`/`fixed_h`，重排只是算矩形，真正贵的字形测量走缓存。
 
 ⇒ 当前实现是**每次重建整棵 View 树再整块重绘**，没有底板烘焙。
@@ -683,7 +683,7 @@ UI 事件那条不在按键路径上，没有 RAII guard 兜底，得自己推�
 键盘面那条若混进 caps：Caps 开时合成的 `shift+q` 在真实键盘上恰好出小写，
 表现为「Caps 开着点字母，出来的正好是反的」。
 
-判据抽成 `wind-ui-types::slot_layer` 并单测覆盖——**它住在 types crate 而不是面板里，
+判据抽成 `moodflow-ui-types::slot_layer` 并单测覆盖——**它住在 types crate 而不是面板里，
 因为协调器的物理键取档必须用同一份**。各写一份的症状是「面板画着 A，敲下去出 a」。
 
 ### 10.12 ★ 标签行：`View` 补上 clip 之后才谈得上「滚动」
@@ -726,7 +726,7 @@ UI 事件那条不在按键路径上，没有 RAII guard 兜底，得自己推�
 `${var}` 引用主色，派生主题只覆盖 primary/accent 系就能让键盘跟着变。
 
 ⇒ 取色链改为 `softkb_*`（专用覆盖，留口子）→ **键盘域语义色** → 候选窗同类色 → 兜底。
-`_qingfeng` 里那句「桌面没有这些控件」同步改掉——它已经不成立了。
+`_moodflow` 里那句「桌面没有这些控件」同步改掉——它已经不成立了。
 
 分工不变：**布局（键位）在 `system.softkeyboard.toml`，外观在主题**，两者不需要联动。
 
@@ -885,7 +885,7 @@ Windows 那个关闭按钮贴的是标题栏的物理边框，而这块面板是
 
 macOS 侧的通例是**服务进程只光栅化，窗口一律归 `.app`**：候选窗的像素在服务进程画好，
 经 POSIX SHM 推给 `.app` 的 NSPanel 呈现。软键盘**不走这条路**，它的窗口就开在服务
-进程里（`wind-ui/src/mac_panel.rs` 的 `MacPanel`）。
+进程里（`moodflow-ui/src/mac_panel.rs` 的 `MacPanel`）。
 
 理由不是「Windows 那边是自绘的所以照抄」，而是那条管线的前提在这里不成立：
 
@@ -939,7 +939,7 @@ macOS 侧的通例是**服务进程只光栅化，窗口一律归 `.app`**：候
 （`global_hotkey_macos` 模块头列了三个同型的）。判据要取**窗口服务器自己的说法**：
 
 ```
-cargo run -p wind-ui --example mac_panel_smoke
+cargo run -p moodflow-ui --example mac_panel_smoke
 ```
 
 它走**与服务 `main.rs` 完全同构**的那条路，跑四项判定：窗口在不在屏、鼠标事件到不到得了
@@ -1008,7 +1008,7 @@ Windows 上它直接 `SysKeys.tap`（`SendInput`）。**macOS 上不能这么做
 
 1. 起初 `#[cfg(windows)]` 一刀切，非 Windows 分支是 `let _ = combo;` ⇒ macOS 上**静默
    丢弃**，功能键与键盘面全哑。
-2. 修第一遍时看到「`wind-keys` 有现成的 macOS CGEvent 后端」就把 cfg 放行到 macOS ⇒
+2. 修第一遍时看到「`moodflow-keys` 有现成的 macOS CGEvent 后端」就把 cfg 放行到 macOS ⇒
    **看起来**能跑（有后端、不报错），实际仍然全哑，只是这次哑在授权上。
    *「有这个 API」不等于「本进程调得动这个 API」。*
 

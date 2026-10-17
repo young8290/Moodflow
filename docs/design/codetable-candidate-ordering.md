@@ -19,7 +19,7 @@
 
 ### 2.1 运行期排序链路（权威路径）
 
-码表方案的运行期引擎是 `CodeTableEngine`（`wind-engine/src/codetable/engine.rs`），持有 `Arc<DictManager>`。
+码表方案的运行期引擎是 `CodeTableEngine`（`moodflow-engine/src/codetable/engine.rs`），持有 `Arc<DictManager>`。
 `codetable/` 模块仅含 `mod.rs` + `engine.rs`——排序权威就是 `candidate::better` 与 `convert()` 里的 `sort_by`。
 
 ```
@@ -44,7 +44,7 @@ CodeTableEngine::convert（engine.rs:98）
 
 ### 2.2 排序权威 = `better()` 比较器
 
-`wind-candidate/src/candidate.rs:131`：
+`moodflow-candidate/src/candidate.rs:131`：
 
 ```rust
 pub fn better(a: &Candidate, b: &Candidate) -> Ordering {
@@ -62,7 +62,7 @@ pub fn better(a: &Candidate, b: &Candidate) -> Ordering {
 
 ### 2.3 `natural_order` 的来源 = 叶内序号（局部，非全局）
 
-DAT 格式（`wind-dict/src/datformat.rs`）每条记录仅 10 字节 `{text_off u32, text_len u16, weight i32}`，**不存全局顺序**（datformat.rs:9）。
+DAT 格式（`moodflow-dict/src/datformat.rs`）每条记录仅 10 字节 `{text_off u32, text_len u16, weight i32}`，**不存全局顺序**（datformat.rs:9）。
 文档明言（datformat.rs:20-25）："叶内候选顺序 = 写入顺序，查询回调 order = 叶内序号 i，**不额外存储 order 字段**"。
 读取时 `read_leaf_entries` 回调 `order = i`（叶内下标，每个 code 从 0 重新计）（datformat.rs:644），该值填入 `Candidate.natural_order`。
 
@@ -71,7 +71,7 @@ DAT 格式（`wind-dict/src/datformat.rs`）每条记录仅 10 字节 `{text_off
 - **live 查询**：`load_codetable_layers` 每库独立成层（manager.rs:1593），CompositeDict 查询期合并去重。
 - **combined.wdat 合并**（manager.rs:1748 `load_merged_dicts`，现仅供反查索引）：按 code 聚合，写入前 `entries.sort_by(|a,b| b.1.cmp(&a.1))`（仅 weight 降序，manager.rs:1799），**丢弃 order**，`WdatWriter::add(code, Vec<(text,weight)>)` 不接收 order（datformat.rs:243）。
 
-### 2.5 相关配置现状（`wind-config/src/schema.rs`）
+### 2.5 相关配置现状（`moodflow-config/src/schema.rs`）
 
 ```rust
 pub struct CodeTableSpec {          // [engine.codetable]
@@ -98,7 +98,7 @@ pub struct DictSpec {               // [[dictionaries]]
 > `wubi86_xzqy` 无 weight 列，改配 `default_weight` 表达。
 >
 > 「库内按文件顺序」这一诉求的现行表达是 **`default_weight`（整库同权 ⟹ 比较器退化到 `natural_order`）**，
-> 见 `wind-dict/src/manager.rs:144` 的覆盖语义与 `manager.rs:238` 的验证测试。
+> 见 `moodflow-dict/src/manager.rs:144` 的覆盖语义与 `manager.rs:238` 的验证测试。
 
 ## 3. 根因
 
@@ -247,13 +247,13 @@ default_weight = 500        # 该库无真实权重：整库定档 500，库内�
 - `datformat.rs`：wdat `VERSION 2→3`，`ENTRY_SIZE 10→14`，EntryRecord 增 `order: u32`；`build_section`/`write` 收发 order；`read_leaf_entries` 读盘 order（替代叶内序号 `i`）；`WdatWriter` 新增 `add_with_order`（`add`/`add_abbrev` 内部按 code 内序号补 order，向后兼容旧调用方）；`open()` 校验 version 不符即 bail → 调用方回退重建（防旧 v2 缓存按 14B 步长误读）。
 - `codetable.rs`：`export_to_wdat` 改用 `add_with_order`，透传 `CodetableEntry.order`（全局文件行序）。
 - 回归测试 `datformat::tests::prefix_no_weight_sorts_by_global_order_not_code`：构造 order 与字母序相反、同权，断言前缀查询按出现序（Z,M,A）而非字母序（A,M,Z）。
-- 验证：wind-dict 28+2、wind-engine 119+17 测试全绿；整 workspace 编译通过。
+- 验证：moodflow-dict 28+2、moodflow-engine 119+17 测试全绿；整 workspace 编译通过。
 
 ### 阶段二：`base_sort` 接线（G4「基础排序」）— ✅ 已完成
 - **发现**：`base_sort` 原为**死配置**（schema.rs 定义、全代码零消费），`base_sort="natural"` 从未生效。
-- `wind-candidate/candidate.rs`：新增 `by_natural` 比较器——纯按 `natural_order`（出现序）升序、**忽略权重**，code/text 兜底（区别于 `better_natural` 的"精确优先+权重兜底"）。
+- `moodflow-candidate/candidate.rs`：新增 `by_natural` 比较器——纯按 `natural_order`（出现序）升序、**忽略权重**，code/text 兜底（区别于 `better_natural` 的"精确优先+权重兜底"）。
 - `codetable/engine.rs`：新增 `BaseSort { Weight(默认) | Natural }` 枚举（`parse` 解析配置串）+ `CommitOptions.base_sort`；`convert()` 的三处 `sort_by` 改用 `base_sort.cmp()` 选择的比较器。
-- `wind-engine/manager.rs`：`CommitOptions` 构造处从 `schema.engine.codetable.base_sort` 解析注入。
+- `moodflow-engine/manager.rs`：`CommitOptions` 构造处从 `schema.engine.codetable.base_sort` 解析注入。
 - 测试 `base_sort_natural_ignores_weight_uses_appearance_order` / `base_sort_parse_maps_strings`。
 - 语义：`weight`（默认，零回归）= 现 `better()`；`natural` = 纯出现序、忽略权重（"设计者按文件顺序排"）。
 

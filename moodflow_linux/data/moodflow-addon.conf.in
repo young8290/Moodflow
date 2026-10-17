@@ -1,0 +1,9 @@
+[Addon]
+Name=Moodflow
+Name[zh_CN]=Moodflow 输入法
+Category=InputMethod
+Version=@PROJECT_VERSION@
+Library=libmoodflow
+Type=SharedLibrary
+OnDemand=True
+Configurable=True

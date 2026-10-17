@@ -250,7 +250,7 @@ w≤0 的 -10 惩罚。
 
 ## 6. 验证基线
 
-- 全量 **1070 passed / 0 failed**（wind-engine + wind-coordinator + wind-candidate）
+- 全量 **1070 passed / 0 failed**（moodflow-engine + moodflow-coordinator + moodflow-candidate）
 - 31 输入 survey（常用词 / 整句 / 残码 / 短输入 / 易错 / 长词），逐条对比首选
 - 词频场景：`pinyin_sentence_flag.rs` 的 3 条（含锚定与位置提升）
 - ⚠️ `pinyin_eval` 走 `EngineManager`（引擎级），**测不到协调器排序**，不能作为本改动的

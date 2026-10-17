@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""心晴 · 窗口切分、特征计算与个人基线的 Python 参考实现（FR-STA-01～03），用于与 Rust 对拍。
+"""Moodflow · 窗口切分、特征计算与个人基线的 Python 参考实现（FR-STA-01～03），用于与 Rust 对拍。
 
 按产品书 04 FR-STA-01～03 与 ADR 0008 的解释独立实现，不调用 Hub 代码。对拍内容：
-1. 窗口特征：回放 tools/xq-sim/scripts 的合成脚本，以及本文件 `cases()` 中的 11 组固定事件序列
+1. 窗口特征：回放 tools/mf-sim/scripts 的合成脚本，以及本文件 `cases()` 中的 11 组固定事件序列
    （FR-STA-02 验收：“对 10 组固定事件序列，特征计算结果与手算值误差 < 1%”）；
 2. 个人基线：确定性生成 7 天的窗口特征样本，按白天 / 夜间分桶算中位数与 MAD
    （FR-STA-03 验收：“注入 7 天模拟数据后，基线与离线 Python 脚本计算结果一致”）。
@@ -11,7 +11,7 @@
   python3 eval/tools/features_ref.py --write        # 重新生成下面三个文件
   python3 eval/tools/features_ref.py --out DIR      # 写到 DIR（CI 用来与仓库里的文件比较）
 生成：eval/datasets/e_features_cases.jsonl、e_features.golden.json、e_baseline.golden.json
-Rust 对拍：xinqing_hub/core/tests/features_parity.rs
+Rust 对拍：moodflow_hub/core/tests/features_parity.rs
 """
 import argparse
 import json
@@ -587,7 +587,7 @@ def build():
     defaults = load_defaults()
     golden = {}
     for name in SCRIPTS:
-        lines = (ROOT / "tools" / "xq-sim" / "scripts" / f"{name}.jsonl").read_text(encoding="utf-8").splitlines()
+        lines = (ROOT / "tools" / "mf-sim" / "scripts" / f"{name}.jsonl").read_text(encoding="utf-8").splitlines()
         events = [json.loads(l) for l in lines if l.strip()]
         golden[name] = {"start_min": DEFAULT_START_MIN, "windows": replay(events, Baseline(defaults), DEFAULT_START_MIN)}
     case_lines = []

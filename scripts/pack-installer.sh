@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # ============================================================================
-# pack-installer.sh — 把 WindInput 构建产物打包成自解压安装程序
+# pack-installer.sh — 把 Moodflow 构建产物打包成自解压安装程序
 # ----------------------------------------------------------------------------
-# 全 Linux 流水线:交叉编译 wind-installer stub(x86_64-pc-windows-msvc)+ 原生
-# 构建 wind-packer(纯 IO,无需 wine),再 pack→bundle 出单文件 Setup.exe。
-# 输出名 WindInput-Setup-<版本>.exe,与 dev.ps1 本地打包口径一致。
+# 全 Linux 流水线:交叉编译 moodflow-installer stub(x86_64-pc-windows-msvc)+ 原生
+# 构建 moodflow-packer(纯 IO,无需 wine),再 pack→bundle 出单文件 Setup.exe。
+# 输出名 Moodflow-Setup-<版本>.exe,与 dev.ps1 本地打包口径一致。
 #
-# 前置:BUILD_DIR 内已含 xinqing_core.exe / xinqing_tsf.dll / xinqing_tsf_x86.dll / data/。
-#      Release workflow 还要求 wind_setting.exe / wind_portable.exe。
+# 前置:BUILD_DIR 内已含 moodflow_core.exe / moodflow_tsf.dll / moodflow_tsf_x86.dll / data/。
+#      Release workflow 还要求 moodflow_setting.exe / moodflow_portable.exe。
 #      (由 dev.sh release + build_tsf + assemble_data 产出)。
 #
 # 用法:
@@ -16,21 +16,21 @@
 #                             [--output FILE]
 #
 # 环境变量(等价覆盖,命令行参数优先):
-#   WIND_VERSION / WIND_COMPRESSION / WIND_BUILD_DIR / WIND_INSTALLER_DIR
-#   WIND_REQUIRE_COMPANIONS=1 时强制要求 wind_setting.exe / wind_portable.exe
+#   MOODFLOW_VERSION / MOODFLOW_COMPRESSION / MOODFLOW_BUILD_DIR / MOODFLOW_INSTALLER_DIR
+#   MOODFLOW_REQUIRE_COMPANIONS=1 时强制要求 moodflow_setting.exe / moodflow_portable.exe
 # ============================================================================
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PRODUCT_ROOT="$(dirname "$SCRIPT_DIR")"            # WindInput/
+PRODUCT_ROOT="$(dirname "$SCRIPT_DIR")"            # Moodflow/
 TARGET="x86_64-pc-windows-msvc"   # cargo-xwin 交叉编译 stub/uninstaller;packer 原生编
 
 # ---- 默认值 ----
-VERSION="${WIND_VERSION:-}"
-COMPRESSION="${WIND_COMPRESSION:-lzma}"
-BUILD_DIR="${WIND_BUILD_DIR:-$PRODUCT_ROOT/build}"
-INSTALLER_DIR="${WIND_INSTALLER_DIR:-$PRODUCT_ROOT/../wind-installer}"
-REQUIRE_COMPANIONS="${WIND_REQUIRE_COMPANIONS:-0}"
+VERSION="${MOODFLOW_VERSION:-}"
+COMPRESSION="${MOODFLOW_COMPRESSION:-lzma}"
+BUILD_DIR="${MOODFLOW_BUILD_DIR:-$PRODUCT_ROOT/build}"
+INSTALLER_DIR="${MOODFLOW_INSTALLER_DIR:-$PRODUCT_ROOT/../moodflow-installer}"
+REQUIRE_COMPANIONS="${MOODFLOW_REQUIRE_COMPANIONS:-0}"
 OUTPUT=""
 
 # ---- 解析参数 ----
@@ -56,10 +56,10 @@ fi
 
 DIST_DIR="$INSTALLER_DIR/dist"
 APP_CONFIG="$PRODUCT_ROOT/config/app.toml"
-[[ -z "$OUTPUT" ]] && OUTPUT="$DIST_DIR/WindInput-Setup-${VERSION}.exe"
+[[ -z "$OUTPUT" ]] && OUTPUT="$DIST_DIR/Moodflow-Setup-${VERSION}.exe"
 
 echo "================================================"
-echo "  WindInput 安装程序打包"
+echo "  Moodflow 安装程序打包"
 echo "  版本:     $VERSION"
 echo "  压缩:     $COMPRESSION"
 echo "  产物目录: $BUILD_DIR"
@@ -68,8 +68,8 @@ echo "  输出:     $OUTPUT"
 echo "================================================"
 
 # ---- 校验构建产物 ----
-required=(xinqing_core.exe xinqing_tsf.dll xinqing_tsf_x86.dll)
-companions=(wind_setting.exe wind_portable.exe)
+required=(moodflow_core.exe moodflow_tsf.dll moodflow_tsf_x86.dll)
+companions=(moodflow_setting.exe moodflow_portable.exe)
 if [[ "$REQUIRE_COMPANIONS" == "1" || "$REQUIRE_COMPANIONS" == "true" ]]; then
   required+=("${companions[@]}")
 fi
@@ -83,10 +83,10 @@ if [[ ${#missing[@]} -gt 0 ]]; then
   echo "        请先运行 ./scripts/dev.sh release 生成完整发布目录" >&2
   exit 1
 fi
-[[ -d "$INSTALLER_DIR" ]] || { echo "[ERROR] 找不到 wind-installer: $INSTALLER_DIR" >&2; exit 1; }
+[[ -d "$INSTALLER_DIR" ]] || { echo "[ERROR] 找不到 moodflow-installer: $INSTALLER_DIR" >&2; exit 1; }
 
 # ---- 编译安装器 stub(cargo-xwin/MSVC 交叉)+ packer(原生)----
-echo ">>> 交叉编译 wind-installer stub (cargo-xwin/MSVC) + 原生 wind-packer ..."
+echo ">>> 交叉编译 moodflow-installer stub (cargo-xwin/MSVC) + 原生 moodflow-packer ..."
 # 工具链软链桥与 dev.sh 共用同一份实现 —— 两者写同一个 $XWIN_BIN 目录，各自维护一份
 # 必然互相覆盖。此处曾把 llvm-lib 等一律软链到 clang，覆盖掉 dev.sh 建立的正确映射，
 # 导致 zstd-sys 拿 clang 当归档器而长期发版失败（原委见 lib/xwin-env.sh 头部）。
@@ -96,13 +96,13 @@ setup_xwin_env || exit 1
   cd "$INSTALLER_DIR"
   # stub/uninstaller 交叉编 MSVC(+crt-static 自包含);packer 原生编(纯 IO,跑在主机)
   RUSTFLAGS="-C target-feature=+crt-static" \
-    cargo xwin build --release --target "$TARGET" --bin wind-installer --bin wind-uninstaller
-  cargo build --release --bin wind-packer --features packer
+    cargo xwin build --release --target "$TARGET" --bin moodflow-installer --bin moodflow-uninstaller
+  cargo build --release --bin moodflow-packer --features packer
 )
 
-STUB="$INSTALLER_DIR/target/$TARGET/release/wind-installer.exe"
-UNINSTALLER="$INSTALLER_DIR/target/$TARGET/release/wind-uninstaller.exe"
-PACKER="$INSTALLER_DIR/target/release/wind-packer"
+STUB="$INSTALLER_DIR/target/$TARGET/release/moodflow-installer.exe"
+UNINSTALLER="$INSTALLER_DIR/target/$TARGET/release/moodflow-uninstaller.exe"
+PACKER="$INSTALLER_DIR/target/release/moodflow-packer"
 for b in "$STUB" "$UNINSTALLER" "$PACKER"; do
   [[ -f "$b" ]] || { echo "[ERROR] 缺少编译产物: $b" >&2; exit 1; }
 done
@@ -115,13 +115,13 @@ rm -rf "$STAGE"; mkdir -p "$STAGE"
 cleanup() { rm -rf "$STAGE"; }
 trap cleanup EXIT
 
-cp -f  "$BUILD_DIR/xinqing_core.exe"   "$STAGE/"
-cp -f  "$BUILD_DIR/xinqing_tsf.dll"     "$STAGE/"
-cp -f  "$BUILD_DIR/xinqing_tsf_x86.dll" "$STAGE/"
+cp -f  "$BUILD_DIR/moodflow_core.exe"   "$STAGE/"
+cp -f  "$BUILD_DIR/moodflow_tsf.dll"     "$STAGE/"
+cp -f  "$BUILD_DIR/moodflow_tsf_x86.dll" "$STAGE/"
 cp -rf "$BUILD_DIR/data"             "$STAGE/"
 # CLI 包装器随核心分发(与 dev.sh Build-Core / dev.ps1 整目录打包口径一致)。
 # Build-Core 里是"存在才复制", 故此处也守卫存在性。
-[[ -f "$BUILD_DIR/wind_cli.bat" ]] && cp -f "$BUILD_DIR/wind_cli.bat" "$STAGE/"
+[[ -f "$BUILD_DIR/moodflow_cli.bat" ]] && cp -f "$BUILD_DIR/moodflow_cli.bat" "$STAGE/"
 for f in "${companions[@]}"; do
   [[ -f "$BUILD_DIR/$f" ]] && cp -f "$BUILD_DIR/$f" "$STAGE/"
 done
@@ -141,8 +141,8 @@ cp -f "$PRODUCT_ROOT/LICENSE"   "$STAGE/licenses/LICENSE"    # 本项目自身 (
 cp -f "$PRODUCT_ROOT/NOTICE.md" "$STAGE/licenses/NOTICE.md"
 # rime-emoji 的 LGPL-3.0 全文随数据一同分发, 紧贴 data/emoji/ (assemble_data 复制)。
 
-# ---- 打包:wind-packer build（pack + bundle 一步）----
-# config/app.toml 由 WindInput 持有；version/source-dir/compression 通过 CLI 注入，
+# ---- 打包:moodflow-packer build（pack + bundle 一步）----
+# config/app.toml 由 Moodflow 持有；version/source-dir/compression 通过 CLI 注入，
 # 不修改任何文件。
 echo ">>> 打包安装程序 (算法 $COMPRESSION)..."
 "$PACKER" build \

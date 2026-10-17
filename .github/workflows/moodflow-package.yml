@@ -1,0 +1,94 @@
+# Moodflow 安装包（A-10，产品书 11 FR-OPS-01/02）：在 Windows 上出一个可安装的 Moodflow-Setup-<版本>.exe，
+# 上传为 Actions 产物，供组员下载到真机上试装。只出 Windows 安装包，不发 Release、不签名、不传 CDN。
+#
+# 上游的 release.yml 仍是 Moodflow 的三平台发版流程（macOS / Linux / R2 上传，产物名 Moodflow-*），Moodflow 不用它。
+# 打包本身复用 scripts/dev.ps1 的 8 号命令：全构建（核心、TSF、Moodflow Hub、词库数据）+ moodflow-installer 打包，
+# 清单是 config/app.toml。设置程序 moodflow-setting 是上游私有仓，这里不检出，安装包里没有设置程序。
+name: Moodflow Package
+on:
+  workflow_dispatch:
+    inputs:
+      installer_ref:
+        description: "moodflow-installer（young8290 的 fork）的分支或提交，用来试还没合进 main 的安装器改动"
+        required: false
+        default: main
+  pull_request:
+    branches: [main]
+    paths:
+      - "config/app.toml"
+      - "scripts/dev.ps1"
+      - ".github/workflows/moodflow-package.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows 安装包
+    # 同 release.yml：dev.ps1 的 CMake 生成器写死 "Visual Studio 17 2022"，windows-latest 已换成 VS2026
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      # 缺了 pnpm 就让 Build-Hub 失败，不出缺 Hub 的安装包
+      MF_REQUIRE_HUB: "1"
+    steps:
+      # dev.ps1 按同级目录找 ../moodflow-installer、../moodflow-portable
+      - name: 检出 Moodflow
+        uses: actions/checkout@v4
+        with:
+          path: Moodflow
+      # 用 Moodflow 自己的 fork：上游缺 WebView2 检测、快捷方式通知标识、完成页说明、清应用自启值
+      # 这几项，Moodflow 在 fork 里补（A-10，见 docs/moodflow/handover/A-输入法.md）。fork 是公开仓，
+      # 检出不需要令牌。PR 触发时 inputs 为空，回落到 main。
+      - name: 检出 moodflow-installer
+        uses: actions/checkout@v4
+        with:
+          repository: young8290/wind-installer
+          ref: ${{ inputs.installer_ref || 'main' }}
+          path: moodflow-installer
+      - name: 检出 moodflow-portable
+        uses: actions/checkout@v4
+        with:
+          repository: huanfeng/wind-portable
+          path: moodflow-portable
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            Moodflow/moodflow_input
+            Moodflow
+            moodflow-installer
+            moodflow-portable
+      - uses: pnpm/action-setup@v4
+        with: { package_json_file: Moodflow/moodflow_hub/package.json }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: Moodflow/moodflow_hub/pnpm-lock.yaml }
+
+      # 试装用的开发占位版本：docs/VERSION 加上提交号，和 release.yml 手动触发时的口径一致
+      - name: 写入版本号
+        shell: bash
+        working-directory: Moodflow
+        run: |
+          V="$(tr -d '[:space:]' < docs/VERSION)-dev.${GITHUB_SHA:0:8}"
+          printf '%s' "$V" > docs/VERSION
+          echo "version = $V"
+
+      - name: 构建并打包安装程序
+        shell: pwsh
+        working-directory: Moodflow
+        run: .\scripts\dev.ps1 8
+
+      - name: 上传安装包
+        uses: actions/upload-artifact@v4
+        with:
+          name: Moodflow-Setup
+          path: |
+            Moodflow/dist/Moodflow-Setup-*.exe
+            Moodflow/dist/Moodflow-Setup-*.exe.sha256
+          if-no-files-found: error
+          retention-days: 14

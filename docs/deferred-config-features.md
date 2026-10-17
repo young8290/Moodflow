@@ -2,7 +2,7 @@
 
 Stage 1（config_schema 注册表）从 `data/config.toml` 删除了 33 个**孤立键**——它们在 `Config` 结构体里无对应字段，被 serde 静默丢弃，写了不生效。其中部分是 **Go 旧版已有、后续计划在 Rust 重新实现**的功能。此处登记，便于日后正经恢复。
 
-恢复某项的正确三步：① 在 `wind-config/src/config.rs` 给对应结构体加字段（含 `#[serde(default)]` 与 Default）；② 在 `wind-config/src/config_schema.rs` 的 `REGISTRY` 登记键+类型（注册表测试会强制要求）；③ 在 `data/config.toml` 写回系统预置值。
+恢复某项的正确三步：① 在 `moodflow-config/src/config.rs` 给对应结构体加字段（含 `#[serde(default)]` 与 Default）；② 在 `moodflow-config/src/config_schema.rs` 的 `REGISTRY` 登记键+类型（注册表测试会强制要求）；③ 在 `data/config.toml` 写回系统预置值。
 
 > 注：纯样式类（"跟随主题"）与主题层重复的键，不应简单恢复到 config，详见各项备注。
 
@@ -31,7 +31,7 @@ Stage 1（config_schema 注册表）从 `data/config.toml` 删除了 33 个**孤
 | `ui.theme.editor_auto_start` | 主题编辑器随启动自启 | 配合 Web 主题编辑服务（计划中延后项） |
 
 ### 候选窗与主题层重复的键（**不要直接恢复**）
-`ui.candidate.always_show_pager(_follow_theme)` / `show_page_number(_follow_theme)` / `vertical_max_width(_follow_theme)` —— 这些概念真正的真相源在 **theme.yaml（wind-theme）**。config 层若要提供覆盖，应统一走已有的 `pager_bar_display` / `page_number_display` 字符串覆盖机制，**不要**恢复 `bool + *_follow_theme` 的双写设计。`vertical_max_width` 若需 config 覆盖，新增一个明确的覆盖字段即可。
+`ui.candidate.always_show_pager(_follow_theme)` / `show_page_number(_follow_theme)` / `vertical_max_width(_follow_theme)` —— 这些概念真正的真相源在 **theme.yaml（moodflow-theme）**。config 层若要提供覆盖，应统一走已有的 `pager_bar_display` / `page_number_display` 字符串覆盖机制，**不要**恢复 `bool + *_follow_theme` 的双写设计。`vertical_max_width` 若需 config 覆盖，新增一个明确的覆盖字段即可。
 
 ## 4. 状态提示（ui.status_indicator）
 | 键 | 含义 | 备注 |

@@ -1,0 +1,12 @@
+[package]
+name = "moodflow-aux-code"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+moodflow-candidate = { path = "../moodflow-candidate" }
+tracing = { workspace = true }
+moodflow-utils = { path = "../moodflow-utils" }
+
+[lints]
+workspace = true

@@ -5,9 +5,9 @@
 > 起因：第三方作者二次定制（换虎码/小鹤音形等）时直接改发布包的 `data/` 目录，
 > 每次版本更新都要手工与内置文件 diff，冲突处理极其痛苦。
 > 关联：`docs/redesign/config-schema.md`（配置总览）、`docs/redesign/schema-config-layering.md`
-> （方案配置分层）、`wind-config/src/{config,config_schema,app_compat}.rs`、
-> `wind-engine/src/manager.rs`、`wind-coordinator/src/{coordinator,handle_mode}.rs`、
-> 跨仓 `wind-installer`。
+> （方案配置分层）、`moodflow-config/src/{config,config_schema,app_compat}.rs`、
+> `moodflow-engine/src/manager.rs`、`moodflow-coordinator/src/{coordinator,handle_mode}.rs`、
+> 跨仓 `moodflow-installer`。
 
 ## 0. 目标与非目标
 
@@ -15,7 +15,7 @@
 不碰 `data/` 一个字节，从而使主程序升级对定制版**零冲突**。
 
 **非目标**：不做「用户自己在 GUI 里做定制版」；不替代已有的用户层
-（`%APPDATA%\WindInput\`），后者仍是终端用户的个人覆盖层。
+（`%APPDATA%\Moodflow\`），后者仍是终端用户的个人覆盖层。
 
 ## 1. 已定的设计契约
 
@@ -79,7 +79,7 @@ manifest 只负责「减法」与「身份」。
 
 **问题**：`Config::load` 是多层合并后**一次性** `try_into`，任何一层里一个类型
 不匹配的键都让整份 `Config` 返回 `Err`，而调用方几乎都是 `unwrap_or_default()`
-（`construct.rs:33`、`apps/repl`、`wind-mobile`）⇒ **用户方案/词库/按键/主题一起
+（`construct.rs:33`、`apps/repl`、`moodflow-mobile`）⇒ **用户方案/词库/按键/主题一起
 回落出厂值**，只留一行日志。
 
 加了 `data_custom` 之后风险被放大：**定制者的一个陈旧键会把终端用户的全部配置
@@ -119,7 +119,7 @@ try_into(merged) 失败
 `preset_for_pruning` 取不到就退化为不清理同构。⚠️ 段名是**点分路径**（见下），
 判前缀而非精确相等。
 
-| `patch::writes`（wind-config，经 `config.applyPatch`） | Map 键（`custom_mappings` / `key_actions` 等）以**当前生效配置为种子**拼整表再覆盖用户层。降级时种子是出厂空表 ⇒ 用户真实的自定义标点映射被整表抹掉。P1 之后这条**可由第三方触发**：定制者在 `data_custom/config.toml` 把该键写成错类型，该定制版每个用户每次 load 都降级 |
+| `patch::writes`（moodflow-config，经 `config.applyPatch`） | Map 键（`custom_mappings` / `key_actions` 等）以**当前生效配置为种子**拼整表再覆盖用户层。降级时种子是出厂空表 ⇒ 用户真实的自定义标点映射被整表抹掉。P1 之后这条**可由第三方触发**：定制者在 `data_custom/config.toml` 把该键写成错类型，该定制版每个用户每次 load 都降级 |
 
 ★ **这是同一形状的第三条**（P0 只找到前两条）。判据要固化成规矩而不是逐条打地鼠：
 **凡是「拿 `Config::load()` 的结果当种子、再整表写回用户层或导出给用户」的路径，
@@ -127,7 +127,7 @@ try_into(merged) 失败
 
 未加闸但已确认安全的：`prune_user_config` / `set_user_value`（`system_preset_value`
 走生 `toml::Value`，根本不反序列化，不变量 1 不破）；`keys_overview`
-（wind-webdata）只影响显示、不写盘，留待 P3 一并处理。
+（moodflow-webdata）只影响显示、不写盘，留待 P3 一并处理。
 
 ### 定制层里不建议声明 `[keys] key_actions`（P3 的 CLI 要检出）
 
@@ -149,7 +149,7 @@ stats/mobile/debug 各 3。只按顶层段降级的话，`ui.font.scripts` 一�
 （无限递归收益递减且复杂度上升）。坏值直接落在该段标量键上时退回整段降级。
 `degradation.sections` 因此是点分路径（如 `ui.font`）。
 
-**守门测试**（`wind-config`）：
+**守门测试**（`moodflow-config`）：
 
 - 构造一份含类型不匹配键的用户层 → `load()` 成功，坏段回落默认，**其余段的用户值保留**
 - 幂等：连续 load 两次结果一致
@@ -166,7 +166,7 @@ stats/mobile/debug 各 3。只按顶层段降级的话，`ui.font.scripts` 一�
 
 #### P1a 层解析收口
 
-新增 `wind-config`：
+新增 `moodflow-config`：
 
 - `custom_manifest() -> Option<CustomManifest>`（OnceLock 缓存，判据 = `custom.toml` 可解析）
 - `custom_data_dir() -> Option<PathBuf>`（manifest 在场时才返回 Some）
@@ -176,7 +176,7 @@ stats/mobile/debug 各 3。只按顶层段降级的话，`ui.font.scripts` 一�
 `resolve_data_file` / `resolve_schema_resource` 是它的两个薄包装，自动继承。
 
 > ⚠️ **原文曾把 `resolve_schema_file` 也列进「自动继承」，这是错的**（P1 实施时证伪）。
-> 它在 `wind-engine/src/manager.rs`，是**另一份独立的两层实现**，自己拼
+> 它在 `moodflow-engine/src/manager.rs`，是**另一份独立的两层实现**，自己拼
 > `user_config_dir()/schemas/` 再回落 `data_dir/schemas/`，不经过 `resolve_overridable`。
 > 详见 P1d。
 
@@ -222,14 +222,14 @@ stats/mobile/debug 各 3。只按顶层段降级的话，`ui.font.scripts` 一�
 | `webdata/lib.rs:3035` `theme_dirs` | 设置页主题列表（与上一条**是两份**） |
 | `coordinator.rs:1737` `join("opencc")` | 简繁数据目录（实施时改为**按名逐文件**解析，见下） |
 | `coordinator.rs:1807` `join("themes")` | 主题根 |
-| `wind-mobile/lib.rs:528` `read_dir(join("schemas"))` | 移动端方案枚举 |
+| `moodflow-mobile/lib.rs:528` `read_dir(join("schemas"))` | 移动端方案枚举 |
 
 **守门测试**：一条 grep 式测试钉住「除 `resource_layers()` 外不得新增裸
 `join("schemas")` / `join("themes")`」，否则下一个功能又会漏接一处。
 
 #### ★ P1 实施时发现的两处独立实现（不在上表里，且都不会自动继承）
 
-**(a) `resolve_schema_file`（`wind-engine/src/manager.rs`）——最要紧的一处**
+**(a) `resolve_schema_file`（`moodflow-engine/src/manager.rs`）——最要紧的一处**
 
 方案文件的**唯一入口**：`read_schema`（`{id}.schema.toml`）与双拼布局
 （`shuangpin/{id}.toml`）都走它。它自己拼两层路径，不经过 `resolve_overridable`。
@@ -242,7 +242,7 @@ stats/mobile/debug 各 3。只按顶层段降级的话，`ui.font.scripts` 一�
 前者返回 `PathBuf`（找不到时返回安装目录路径，由调用方报加载失败），后者返回
 `Option<PathBuf>`。换过去会改变「找不到时返回什么」。
 
-**(b) 词库路径解析（`wind-engine/src/manager.rs`）——不能套单趟循环**
+**(b) 词库路径解析（`moodflow-engine/src/manager.rs`）——不能套单趟循环**
 
 它不是「逐层找同一个文件」，而是**两趟**：第 1 趟在各层找 `.yaml`，第 2 趟才在各层
 找「有同名 `.wdat` 兄弟」的。遮蔽判定也不同（安装侧只投 wdat 时，用户的 yaml
@@ -277,7 +277,7 @@ stats/mobile/debug 各 3。只按顶层段降级的话，`ui.font.scripts` 一�
 |---|---|
 | `manager.rs` `load_sentence_freq_dict` | 直接 `schemas_dir.join("pinyin/rime_frost.dict.yaml")`。定制版换了拼音词库，码表整句的**词频来源**仍读 data 层，现象只是「排序有点不对」，无日志 |
 | `handle_mode.rs` `list_themes_full` 的「程序目录」扫描 | 只扫 data 层 ⇒ 定制版主题进得了搜索链却**不进设置页/右键列表**，现象是「主题在包里，界面上没有」 |
-| `wind-webdata` `system_schemas_dir()` → **`system_schemas_dirs()`** | 它喂给 `wind_transfer::scheme::{export_package, delete_package}` 当「系统目录」。只传 data 层时，只存在于 `data_custom` 的方案被 `locate` 判成 `Missing` ⇒ 导出成功但包是空的/全进 missing，**用户拿它装不回去**。改为传「非 user 的每一层」：定制层与出厂层同类——导出一并打包（自包含），删除永不触碰（判成 `User` 就等于允许程序删 `data_custom`，破不变量 3）。`scheme.rs` 的 `system_dir: Option<&Path>` 随之改为 `system_dirs: &[PathBuf]` |
+| `moodflow-webdata` `system_schemas_dir()` → **`system_schemas_dirs()`** | 它喂给 `moodflow_transfer::scheme::{export_package, delete_package}` 当「系统目录」。只传 data 层时，只存在于 `data_custom` 的方案被 `locate` 判成 `Missing` ⇒ 导出成功但包是空的/全进 missing，**用户拿它装不回去**。改为传「非 user 的每一层」：定制层与出厂层同类——导出一并打包（自包含），删除永不触碰（判成 `User` 就等于允许程序删 `data_custom`，破不变量 3）。`scheme.rs` 的 `system_dir: Option<&Path>` 随之改为 `system_dirs: &[PathBuf]` |
 | `apps/service/src/dict_cli.rs` `cmd_weight_check` | 单目录 `read_dir` + `schemas_dir.join(词库)` ⇒ `dict weight-check` 看不见定制层自带的方案，而它恰恰是给定制者查权重用的工具。**带 `--data` 时仍只看指定目录**（那个标志的语义是「体检这个目录」，混进 `%APPDATA%`/`data_custom` 会让结果对不上用户所指的那份数据） |
 
 **★ 软键盘：rebase 之后补上的第五处（`coordinator.rs`，`system.softkeyboard.toml`）**
@@ -302,13 +302,13 @@ stats/mobile/debug 各 3。只按顶层段降级的话，`ui.font.scripts` 一�
 `join("schemas")` / `join("themes")` / `join("opencc")` 三个字面量，换个文件名就绕过了。
 
 守门测试两个二进制（`custom_manifest()` 是 OnceLock，一个进程只能有一种层状态）：
-`wind-coordinator/tests/custom_layer_softkeyboard.rs`（三层齐全的合并与覆盖顺序、
+`moodflow-coordinator/tests/custom_layer_softkeyboard.rs`（三层齐全的合并与覆盖顺序、
 无用户层时定制层生效、定制层解析失败只跳过它）与 `custom_layer_softkeyboard_no_custom.rs`
 （无清单时与加层前逐字节同构，兼钉契约 2）。层序方向由「同一个键三层各写一个值」与
 「面的出现序」各钉一次——只断言「定制层生效了」是不够的：顺序反了时定制层同样生效，
 只是把用户的覆盖盖掉了。
 
-顺带把 `wind-webdata` 的 `theme_dirs()` 改为直接复用 `theme_search_dirs()`——那两份
+顺带把 `moodflow-webdata` 的 `theme_dirs()` 改为直接复用 `theme_search_dirs()`——那两份
 本就逐字重复，留着就是下一次分叉的种子。`WebDataHost::themes_dir()` 随之删除
 （它唯一的用途就是让人再拼一份两层链）。
 
@@ -322,7 +322,7 @@ stats/mobile/debug 各 3。只按顶层段降级的话，`ui.font.scripts` 一�
 > 「简体字转换测试」**一个字都不转**。机理是 `load_variant` 的组内判据只要求「至少一本
 > 加载成功」（`if !group.is_empty()`），于是残链被当成胜利，日志只有一行「命中定制层」，
 > 看不出链是残的；`STVariants.octrie`（以词定字的繁体变体）也随之整份消失。而且那一版
-> **把风险新引入了用户层**——改动前 opencc 只看 data 层，整份胜出之后 `%APPDATA%\WindInput\opencc\`
+> **把风险新引入了用户层**——改动前 opencc 只看 data 层，整份胜出之后 `%APPDATA%\Moodflow\opencc\`
 > 里一个残留目录就能顶掉出厂链。
 >
 > 每本 `.octrie` 由 `gen_opencc` 各自独立生成，`Converter` 的组合方式（组内最长匹配、
@@ -330,21 +330,21 @@ stats/mobile/debug 各 3。只按顶层段降级的话，`ui.font.scripts` 一�
 > 「整份胜出 + 完整性闸门（缺一本就跳过该层并 WARN）」是治标：定制者放半套时仍然不
 > 工作，只是多一行 WARN——而按名覆盖下，放半套本来就该正常工作。
 >
-> 守门：`wind-transform` 的 `resolved_chain_falls_back_per_file_not_per_directory`
+> 守门：`moodflow-transform` 的 `resolved_chain_falls_back_per_file_not_per_directory`
 > 用自造的 octrie 夹具（不依赖 `build_dev`）复现这个组合，并对照断言「只看定制层的残链
 > 一个字都不转」。
 >
 > ⚠️ 顺带修掉一个**长期静默跳过**：`s2t.rs` 测试模块的 `opencc_dir()` 写的是**两级**
-> `../../build_dev/...`（= 不存在的 `wind_input/build_dev/`），于是那几个依赖真实 opencc
+> `../../build_dev/...`（= 不存在的 `moodflow_input/build_dev/`），于是那几个依赖真实 opencc
 > 数据的用例一直走「跳过」分支、计数照常绿。改成三级（仓库根）后它们真的在跑了——
-> 同款坑 `wind-engine/tests/engine_manager.rs` 早已修正并在注释里记过，这里是漏网的一处。
+> 同款坑 `moodflow-engine/tests/engine_manager.rs` 早已修正并在注释里记过，这里是漏网的一处。
 
 **词库两趟结构**（(b) 那条）已按「每趟内部各自遍历层序」实现，并配了直接的行为测试
 （`resolve_dict_file_three_layers_keeps_two_pass_semantics`），钉住那个反例组合。
 `resolve_dict_file` 的 data 层取调用方传进来的 `schemas_dir`，user/custom 走
 `resource_layers_named_with(None)`，**没有从 `schemas_dir` 反推数据根**。
 
-**守门测试**：`wind-config/tests/resource_layer_gates.rs` 用「文件 → 出现次数 + 判定
+**守门测试**：`moodflow-config/tests/resource_layer_gates.rs` 用「文件 → 出现次数 + 判定
 理由」的清单钉住 `join("schemas")` / `join("themes")` / `join("opencc")`（opencc 的清单
 **刻意为空**：改按名解析后全仓不该再有把 opencc 当目录拼的写法）。它钉不住的：只认这
 三个字面量（换成常量或 `push` 即绕过）；不看调用上下文；跳过测试模块的判据是精确字面量
@@ -358,7 +358,7 @@ stats/mobile/debug 各 3。只按顶层段降级的话，`ui.font.scripts` 一�
 
 ### P2 — 减法（hide）
 
-**主拦截点：`read_schema`（`wind-engine/src/manager.rs`）对被 hide 的方案直接返回 `None`。**
+**主拦截点：`read_schema`（`moodflow-engine/src/manager.rs`）对被 hide 的方案直接返回 `None`。**
 釜底抽薪——`schema_supported`、`build_engine`、mix members 解析、special_modes
 全部自动失效，不必逐处补过滤。
 
@@ -380,7 +380,7 @@ stats/mobile/debug 各 3。只按顶层段降级的话，`ui.font.scripts` 一�
 #### ★ P2 实施结论
 
 **hide 是绝对的：被 hide 的 id 在任何层都不存在**，包括用户自己在
-`%APPDATA%\WindInput\schemas\`（`themes\`）里放的同名文件。判据落在 `id` 上，
+`%APPDATA%\Moodflow\schemas\`（`themes\`）里放的同名文件。判据落在 `id` 上，
 与「命中的是哪一层」无关（`Config::custom_hides_schema` / `custom_hides_theme`）。
 
 理由是契约 5 的措辞「这个方案在本定制版里不存在」：若 hide 只对安装层生效，用户层放一个
@@ -397,7 +397,7 @@ stats/mobile/debug 各 3。只按顶层段降级的话，`ui.font.scripts` 一�
 | `manager.rs` `available_schemas` | 双保险。**唯一独立生效的场合**是「构造/reload 的 `retain` 无条件保留活跃方案」那条旁路 —— 降级也找不到可用方案时，被 hide 的 active 会留在内部列表里 |
 | `manager.rs` `installed_schemas` → `scan_layer_schema_ids` | **不是**正确性闸门（`schema_supported` 已经拦住了），作用是**降噪**：不过滤的话每个被删的方案都会在目录扫描时触发一次 `warn_hidden_schema_once`，把「定制者配错了」的告警变成「定制版正常工作」的噪音 |
 | `manager.rs` `resolve_active_schema_id` | 活跃方案降级（构造与 `reload_from_config` 同源），只在内存里。★ 落点的挑法见下 |
-| `wind-mobile` `scan_installed_schemas` | 移动端方案列表，与桌面同判据 |
+| `moodflow-mobile` `scan_installed_schemas` | 移动端方案列表，与桌面同判据 |
 | `handle_mode.rs` `list_themes_full` | 主题列表（随包分发那一段 + 用户层独有那一段，**两段各滤一次**） |
 | `handle_mode.rs` `theme_id_honoring_hide` | 主题解析侧的统一裁决，被 `load_theme_with_fallback`（桌面 `push_theme`）与 `theme_query.rs` 的 `theme_palette`（移动端拉取面）共用 |
 | `manager.rs` `overlay_index_of` | **只补 WARN，不改行为**。特殊模式是唯一不把 id 喂给 `read_schema` 的引用路径（注册表建自 `installed_schemas`，扫描侧已滤掉），于是分发点零日志。行为本身已经对：`BoundAction::Special` 拿到 `None` 后**不吞键、落普通输入**（引导键多是 `;` `/`，按下去就正常出符号），缺的只是一行能归因的日志 |
@@ -436,7 +436,7 @@ stats/mobile/debug 各 3。只按顶层段降级的话，`ui.font.scripts` 一�
 **与本节原文的两处出入**（实施时证伪，据实记下）：
 
 - 原文（及任务书）说 themes 列表是**两份**独立实现。**已不成立**：P1d 已把
-  `wind-webdata` 的 `theme_dirs()` 改为复用 `theme_search_dirs()`、`web_theme_list` 改为复用
+  `moodflow-webdata` 的 `theme_dirs()` 改为复用 `theme_search_dirs()`、`web_theme_list` 改为复用
   `list_themes_full`。现在列表只有一份实现，设置页与右键菜单共用。
 - 反过来多出一处原文没点到的搜索链消费者：`Coordinator::theme_palette`
   （`theme_query.rs`，移动端拉取式色表）**刻意不走** `push_theme` 那条链。不接它的现象是
@@ -444,14 +444,14 @@ stats/mobile/debug 各 3。只按顶层段降级的话，`ui.font.scripts` 一�
 
 **守门测试**（四个独立测试二进制——`custom_manifest()` 是 OnceLock，每个进程只能有一种层状态）：
 
-- `wind-engine/tests/custom_layer_hide.rs`：`ensure_schema` 拦下 / `installed_schemas` /
+- `moodflow-engine/tests/custom_layer_hide.rs`：`ensure_schema` 拦下 / `installed_schemas` /
   `available_schemas`（含上表那个「唯一独立生效」的角落）/ `overlay_index_of`（特殊模式
   注册表）/ 用户层同名文件仍不可见 / **降级落点与 `available` 非空**（上一节那个故障）/
   **真读盘比对 `config.toml` 字节未变**
-- `wind-coordinator/tests/custom_layer_hide_themes.rs`：列表两段 + 解析侧色表 + 用户层同名主题
-- `wind-coordinator/tests/custom_layer_hide_mix.rs`：mix 成员跳过且其余成员照常
+- `moodflow-coordinator/tests/custom_layer_hide_themes.rs`：列表两段 + 解析侧色表 + 用户层同名主题
+- `moodflow-coordinator/tests/custom_layer_hide_mix.rs`：mix 成员跳过且其余成员照常
   （经 `debug_mix_members` 直通生产函数；被跳过的成员**在候选面上不可观察**）
-- `wind-webdata/tests/custom_layer_hide_theme_import.rs`：被 hide 的 slug 导入被拒、不落盘
+- `moodflow-webdata/tests/custom_layer_hide_theme_import.rs`：被 hide 的 slug 导入被拒、不落盘
 
 ⚠️ **降级落点那几条判据互相兜底，夹具 id 是刻意挑的**：层序 / overlay 排除 / english 排最后
 三条里任意一条单独失效，落点往往仍然正确，用例察觉不到。故 `zz_huma` 排在所有 data 层 id
@@ -470,7 +470,7 @@ english 由「用户 available 里排第一」那个子场景负责。把 `zz_hu
 - `dict weight-check`（`apps/service/src/dict_cli.rs`）直接扫目录，定制版里被 hide 的方案
   仍会被它体检到。这是给**定制者自己**用的诊断工具，「盘上有什么就体检什么」正是它该有的
   语义（同 `--data` 那个标志的取舍），且它不影响输入法任何行为。
-- **主题的 `base` 继承链**：`wind_theme::load_merged_dirs` 解析 `base = "msime"` 时直接按
+- **主题的 `base` 继承链**：`moodflow_theme::load_merged_dirs` 解析 `base = "msime"` 时直接按
   目录找，不过 hide。定制者 hide 掉 `msime`、而某个保留主题写着 `base = "msime"` 时，
   msime 的色值照样经继承生效。**刻意不改**：当前行为更宽容（不连累那个无辜的派生主题——
   拦掉的话它会整个加载失败），代价只是与「在任何层都不存在」的措辞不严格一致。真要收紧
@@ -488,14 +488,14 @@ english 由「用户 available 里排第一」那个子场景负责。把 `zz_hu
    （`定制版 huma-edition 1.2（基于 0.9.30）`）。
    ⚠️ 遵守日志隐私约束：INFO 及以下不得含用户数据，路径按需降级到 DEBUG。
 
-2. **身份暴露**：`capabilities::generate`（wind-rpc）或独立 RPC 方法暴露定制版
+2. **身份暴露**：`capabilities::generate`（moodflow-rpc）或独立 RPC 方法暴露定制版
    `id/name/version/base_version`，设置页「关于」显示。**没有这个，定制版用户报障时
    连他装的是不是定制版都判断不出来。**
 
 3. **校验 CLI**（本阶段性价比最高的一项）：
 
    ```
-   wind_input config check --custom <data_custom 目录>
+   moodflow_input config check --custom <data_custom 目录>
    ```
 
    落点 `apps/service/src/config_cli.rs`（`config` 子命令有**离线降级**，
@@ -514,14 +514,14 @@ english 由「用户 available 里排第一」那个子场景负责。把 `zz_hu
 
 4. **文档与跨仓契约**：
 
-   - 文档站 `WindInputDocs` 新增「定制版制作指南」：层序、manifest 格式、
+   - 文档站 `MoodflowDocs` 新增「定制版制作指南」：层序、manifest 格式、
      「不要改 data，只写 data_custom」、「只写差异键」
-   - `wind-installer`：确认覆盖式解包不会删 `data_custom`（当前只有 legacy 迁移会删东西，
+   - `moodflow-installer`：确认覆盖式解包不会删 `data_custom`（当前只有 legacy 迁移会删东西，
      应当安全，但需显式测试）；卸载时 `cleanup.rs` 的清理范围要覆盖它
    - ⚠️ 这是**跨仓单向契约、无编译期约束**，两侧各写各的测试证明不了接线。
      必须有一个**真的建出 `data_custom` 再跑完整解析**的端到端用例。
 
-**★ 跨仓核实结论**（只读核过 `../wind-installer`，未改那个仓一个字节）：
+**★ 跨仓核实结论**（只读核过 `../moodflow-installer`，未改那个仓一个字节）：
 
 `data_custom` 这个名字在安装器里**零命中**——它是纯新增、未接线的。而两条契约**都已经
 成立**，靠的正是安装器两条路径都与名字无关：
@@ -542,7 +542,7 @@ english 由「用户 available 里排第一」那个子场景负责。把 `zz_hu
 值得单独一轮验证，**刻意不在本计划里顺手做**。
 
 ⚠️⚠️ **由此产生一条跨仓约束，写在这里因为它约束的是本仓的人**：
-`wind-installer` 的 `config/app.toml` 里，`legacy_dirs` **永远不能出现 `data_custom`**。
+`moodflow-installer` 的 `config/app.toml` 里，`legacy_dirs` **永远不能出现 `data_custom`**。
 那是唯一能让升级删掉定制层的入口。它与 `datadir.conf` 同类——**跨仓单向契约，无编译期
 约束**，两侧各写各的测试都证明不了它。
 
@@ -552,7 +552,7 @@ english 由「用户 available 里排第一」那个子场景负责。把 `zz_hu
 `apps/service/src/config_cli/custom_check.rs`）：
 
 ```
-wind_input config check [--custom <data_custom 目录>] [--data <data 目录>]
+moodflow_input config check [--custom <data_custom 目录>] [--data <data 目录>]
 ```
 
 两个目录都可省略（回落到本机安装的那一份），但**打包前自查的正式用法是显式给两个**——
@@ -651,7 +651,7 @@ OnceLock + 安装根）。理由不只是可测试性——**体检的对象是�
 **opencc：半套目录不报错，名字对不上才报——而「对不上」有两种，后果不同。**
 
 P1d 改成按名逐文件覆盖之后，只放一两本 `.octrie` 正是被支持的用法，报它就是报错了对的做法。
-判据是「出厂 `data/opencc/` 里有没有同名文件」，不引入 `wind-transform` 依赖去问 `chain_for`。
+判据是「出厂 `data/opencc/` 里有没有同名文件」，不引入 `moodflow-transform` 依赖去问 `chain_for`。
 
 ⚠️ **原文把后果写反了一半，已订正。** 检测本身两种都抓得到（`list_file_names` 走 `read_dir`
 拿磁盘真实文件名，`BTreeSet<String>` 精确比较），差别在措辞：
@@ -691,7 +691,7 @@ P1d 改成按名逐文件覆盖之后，只放一两本 `.octrie` 正是被支�
    带键名的那些），**不手动维护一个集合**——手动维护的那种一定会在下一处新增检查时漏掉，
    实测就漏过 `collect_leaves` 报的「段被写成标量」，于是同一个键报了两遍。
 3. ⚠️ **本函数跑的是裸 `try_into`，没跑 `Config::load` 的那批 `migrate_*_value`**（它们是
-   wind-config 的私有函数，CLI 调不到）。其中**两条会就地改写已注册的键**：
+   moodflow-config 的私有函数，CLI 调不到）。其中**两条会就地改写已注册的键**：
    `migrate_index_labels_value` 把 `ui.candidate.index_labels` 从字符串改写成数组、
    `migrate_empty_code_behavior_value` 把非法枚举值改写成 `commit`。所以这两个键上
    「裸 try_into 失败、而实际 load 成功」是可能的。**但它们不会从这里漏成误报**：两者都是
@@ -724,12 +724,12 @@ ANSI/GBK ⇒ 不是合法 UTF-8 ⇒ 定制层的配置差异**一条都不生效
 
 ##### 两张清单守门测试的登记（不登记 = 全仓测试红）
 
-- `wind-config/tests/resource_layer_gates.rs`：新增文件出现了 `join("schemas")` /
+- `moodflow-config/tests/resource_layer_gates.rs`：新增文件出现了 `join("schemas")` /
   `join("themes")` / `join("opencc")`。判定是**刻意只看命令行给的那两个目录**，不走
   `resource_layers`——同 `dict weight-check --data` 的取舍。`OPENCC_SITES` 那张「刻意为空」
   的表因此破了例，注释里写明了理由：那句「空表」约束的是**加载**侧，本处是**诊断**侧，
   只列目录名做比对、不建 `Converter`，成立的前提恰恰就是「链按文件名跨层取」。
-- `wind-config/tests/write_back_gates.rs`：`check_never_touches_the_user_layer` 里的禁用词
+- `moodflow-config/tests/write_back_gates.rs`：`check_never_touches_the_user_layer` 里的禁用词
   字面量 `"Config::load("` 被那张清单的 grep 数成了调用点。登记为「**不是调用点**」而不是
   换个写法绕开——绕开正是那份文档警告过的事，而登记把这个假阳性记在了下一个人会看的地方。
 
@@ -763,7 +763,7 @@ ANSI/GBK ⇒ 不是合法 UTF-8 ⇒ 定制层的配置差异**一条都不生效
 
 ### 定制版制作指南（要点）
 
-> 面向定制者的完整指南已落在文档站：`WindInputDocs` 的
+> 面向定制者的完整指南已落在文档站：`MoodflowDocs` 的
 > `content/docs/guides/custom-edition.mdx`（站内路径 `/docs/guides/custom-edition`）。
 > 下面这几条是**判据性**的原文，指南是它的面向用户改写——改动其一时对照另一处。
 
@@ -796,7 +796,7 @@ ANSI/GBK ⇒ 不是合法 UTF-8 ⇒ 定制层的配置差异**一条都不生效
    写成 `[schema]` 解析得过、一个字都不起作用。
 
 4. **`hide` 是绝对的**：被 hide 的 id 在**任何层**都不存在，包括用户自己在
-   `%APPDATA%\WindInput\schemas\` 里放的同名文件。所以只 hide 你确实想删掉的**内置** id。
+   `%APPDATA%\Moodflow\schemas\` 里放的同名文件。所以只 hide 你确实想删掉的**内置** id。
 
 5. **只写差异键，不要整份复制 `config.toml`。** 差异越小，跨版本存活率越高。与出厂值
    相同的键现在不起作用，但主程序将来调整那个默认值时，你这份旧值会把新默认顶住。
@@ -818,7 +818,7 @@ ANSI/GBK ⇒ 不是合法 UTF-8 ⇒ 定制层的配置差异**一条都不生效
    `"," = ["，"]` 而不是 `"," = "，"`；`[ui.font.scripts]` 同理（`latin = ["Consolas"]`）。
    写错的后果是那一整段配置在加载时被丢掉换成出厂默认，**每个用户、每次启动**都会踩到。
 
-9. **打包前跑一次 `wind_input config check --custom <目录> --data <目录>`。** 上面这几条
+9. **打包前跑一次 `moodflow_input config check --custom <目录> --data <目录>`。** 上面这几条
    连同配置键的类型/值域、以及「把你的定制层真的加载一遍」的结果，它都会当场报出来，
    并给出该改哪个文件的哪个键。`--data` 省略时会自动找 `--custom` 同级的 `data/`。
 
@@ -860,7 +860,7 @@ ANSI/GBK ⇒ 不是合法 UTF-8 ⇒ 定制层的配置差异**一条都不生效
 - 词库缓存指纹（`cache_fp.rs` 的 `fingerprint`）按**文件内容**哈希，不是路径/mtime，
   custom 层替换词库后缓存自然失效。**缓存撞名已于 P1d 核实：安全**，三条各自成立——
   ① 缓存名 = `<相对 schemas 的目录链>/<文件干>.<ext>`（`manager::cache_path` 与
-  `wind-reverse::comment_cache_path` 同源于 `wind_dict::cache_ns`），**层前缀不进名字**，故三层共用同一个缓存名；
+  `moodflow-reverse::comment_cache_path` 同源于 `moodflow_dict::cache_ns`），**层前缀不进名字**，故三层共用同一个缓存名；
   而同一时刻 `resolve_dict_file` 只解析出**一个**路径，共用者至多一个，撞不上；
   ② 新鲜度判据是内容指纹（+ 解析语义版本 + tag），换层即内容变即重建；`.wridx` 的
   `derived_cache_is_fresh` 更把**源文件全路径**编进摘要，字节完全相同的换层也会失效；

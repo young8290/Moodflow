@@ -1,0 +1,18 @@
+[package]
+name = "moodflow-keys"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+moodflow-cmdbar = { path = "../moodflow-cmdbar" }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-graphics = "0.25"
+
+[lints]
+workspace = true

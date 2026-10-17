@@ -5,8 +5,8 @@
 ## 计划裁决（写计划时读码发现 spec 与现实不符或需要落定的点；spec 原文未改）
 
 1. **A「截断之前过滤」在引擎内做不到字面意义**：词库层 `DictManager::search_pattern` 自己就按 `limit` 截断
-   （`wind-dict/src/composite.rs:99`、`datformat.rs:1541` 各层按两档取额），引擎拿到的已是截断后的列表。
-   **裁决**：不改 wind-dict 的 `DictLayer` 接口，在引擎 `wildcard_query` 内**加倍重取**——过滤后不够 `limit`
+   （`moodflow-dict/src/composite.rs:99`、`datformat.rs:1541` 各层按两档取额），引擎拿到的已是截断后的列表。
+   **裁决**：不改 moodflow-dict 的 `DictLayer` 接口，在引擎 `wildcard_query` 内**加倍重取**——过滤后不够 `limit`
    且词库未取尽时，`fetch` ×2 重查，直到够数 / 取尽 / 到硬上限 `WILDCARD_RESULT_LIMIT`。与生僻字模式
    「准入下推 + 不足则加大重取」同构（提交 `1eb0aab7` / `5fdb497c`）。仅单字关时只查一轮，与现状逐条相同。
 2. **A 的真实数据验收串不能只用 `azz`**：五笔 `a??` 等长 318 条**全是单字**，首批 100 条本来就全是单字，
@@ -42,7 +42,7 @@
    `Engine::reverse_wildcard_key`，与 `convert_wildcard` 共用私有内核 `wildcard_query`（A、C 自动生效）；
    混输只代理主码表，不调拼音。
 10. **B 的配置不加 `trigger_keys`**：spec 只列 `input.reverse.{enabled,candidate_layout}`。设置端按键绑定走
-    现成的「全局自定义按键」编辑器（wind-setting 动词表补 `reverse`）与方案页「z 键引导功能」下拉；
+    现成的「全局自定义按键」编辑器（moodflow-setting 动词表补 `reverse`）与方案页「z 键引导功能」下拉；
     `z_key_action = "reverse"` 需要 `try_z_fallback` 补一臂（GH#146 同构：五笔出厂 `zz*` 短语让首键 z
     恒让位，不补就永远进不去）。
 11. **B 直达热键的占位组合区**不新增 `input.caret.reverse_via_composition`，固定按开（与
@@ -59,7 +59,7 @@
     `default_enabled = false`（`data/schemas/wubi86.schema.toml`）。计划一律以 `is_enabled()` 为准。
 16. **C 样本**：`门头沟区 uuia` 只在 `wubi86_xzqy`（主库 / extra 无 `uuia` 码），用作「开关前后可见性」；
     反查模式首位通配样本 `zuia`（`?uia`，主库 6 条全是词组，xzqy 另有 门头沟区 / 巴彦淖尔市市辖区 / 二道江区）。
-17. **文档版本号**：`WindInputDocs/data/releases.json` 最新为 `0.124.0`，三期新内容一律 `<Since v="0.125" />`
+17. **文档版本号**：`MoodflowDocs/data/releases.json` 最新为 `0.124.0`，三期新内容一律 `<Since v="0.125" />`
     （未发布前构建期自动隐藏）。Task 开工时若 releases.json 已出现 `0.125.x`，改用下一个小版本并在报告里注明。
 
 ---
@@ -82,8 +82,8 @@
 - 配置：`CodetableGlobal` / `CodeTableSpec` 各加两字段（三态折叠）；`InputConfig.reverse: ReverseConfig`；
   `BoundAction::Reverse`（动词 `reverse`）。
 
-**Tech Stack:** Rust workspace（wind-candidate / wind-config / wind-engine / wind-coordinator）+ wind-setting 仓
-（`settings_manifest.toml` 等，经 `scripts/dev.sh sg/st` 在 xwin+wine 下生成与测试）+ WindInputDocs 仓（fumadocs）。
+**Tech Stack:** Rust workspace（moodflow-candidate / moodflow-config / moodflow-engine / moodflow-coordinator）+ moodflow-setting 仓
+（`settings_manifest.toml` 等，经 `scripts/dev.sh sg/st` 在 xwin+wine 下生成与测试）+ MoodflowDocs 仓（fumadocs）。
 
 **Spec:** `docs/design/codetable-reverse-mode.md`（**binding**，§2 A / §3 B / §4 C / §5 设置与文档 / §6 分期）；
 背景 `docs/design/codetable-wildcard.md` §3（首位让位）、§10（混输）、§11（过滤与翻页）。
@@ -95,7 +95,7 @@
 - **行为契约**（逐条照做）：
   1. 三个新开关出厂全关（`wildcard_single_only = false`、`lookup_disabled_dicts = false`、`input.reverse.enabled = false`），
      全关时一切与现状逐键相同。
-  2. 单字判据只用 `wind_candidate::single_markable_char`（UAX #29 字素簇）；**禁止** `chars().count() == 1`（issue #83）。
+  2. 单字判据只用 `moodflow_candidate::single_markable_char`（UAX #29 字素簇）；**禁止** `chars().count() == 1`（issue #83）。
   3. 普通 `convert`（打字候选、`has_code_prefix` 活码探针、顶码、自动上屏复评）**永不**读 `DisabledDictLayers`。
   4. 影子层**首次通配 / 反查查询时**才加载；开关关或从未查询 ⇒ 零加载。文件缺失 / 解析失败 ⇒ `warn!` 跳过该库，不阻塞。
   5. 注释反查仍只用 `*_if_ready` 系列取索引，未建好 ⇒ 后台建、本次不显示（沿用防卡死约束，`coordinator.rs:4502` 一带）。
@@ -105,25 +105,25 @@
      反查模式只查主码表。
 - 提交纪律：禁止 `git add -A` / `git add .` / `git commit -a` / `git stash`；新文件先 `git add -- <path>`；提交一律
   `git commit -F - --only -- <自己的路径…>`；提交前 `git diff --cached --name-status` 核对暂存区、提交后
-  `git show --stat HEAD` 核对文件数 / 行数与自己的改动量相符。**任何提交都不带 `wind_input/Cargo.lock`**。
+  `git show --stat HEAD` 核对文件数 / 行数与自己的改动量相符。**任何提交都不带 `moodflow_input/Cargo.lock`**。
   每次提交前 `git -C <仓> branch --show-current` 须为 `feat/codetable-reverse`（三仓同名分支）。
-- 路径：一切改动都在 `/home/dufeng/develop/windinput/wt-rev/{WindInput,wind-setting,WindInputDocs}` 下；**绝不**碰
-  `/home/dufeng/develop/windinput/{WindInput,wind-setting,WindInputDocs}`。
+- 路径：一切改动都在 `/home/dufeng/develop/moodflow/wt-rev/{Moodflow,moodflow-setting,MoodflowDocs}` 下；**绝不**碰
+  `/home/dufeng/develop/moodflow/{Moodflow,moodflow-setting,MoodflowDocs}`。
 - 格式化：禁止 `cargo fmt` / `cargo fmt --all`；只对自己改过的文件跑 `rustfmt --edition 2024 --check <file>`，其 diff 只落在
   自己 hunk 内才去掉 `--check` 执行，否则按 diff 手工采纳自己那几处。
-- 测试环境：cargo 一律在 `wind_input/` 下、带 `CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-rev TMPDIR=/tmp/wct-rev`
+- 测试环境：cargo 一律在 `moodflow_input/` 下、带 `CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-rev TMPDIR=/tmp/wct-rev`
   （先 `mkdir -p /tmp/wct-rev`；路径要短，别用 scratchpad）；全量跑加 `--no-fail-fast`。下文把这串前缀简写为 `$T`：
   `T="CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-rev TMPDIR=/tmp/wct-rev"`，命令写作 `env $T cargo test …`。
 - 已知偶发红：`handle_direct_aux::tests::schema_source_not_ready_is_noop_then_warms`（并发时序）。全量里它红了单独重跑；单跑绿即记偶发。
 - 集成测试依赖 `build_dev/data`（本 worktree 里是实拷贝，已核实 `schemas/wubi86/wubi86_jidian_extra_district.dict.yaml`
   等在位），缺失时静默跳过而计数照绿——以 `--test codetable_wildcard` / `--test codetable_reverse` 耗时 ≥ 1s 且输出无「跳过」为数据在位判据。
 - 日志：`info!` 不得含用户输入 / 候选。
-- **wind-setting 改动**：manifest 改完在 `WindInput/` 下先 `env $T cargo test -p wind-rpc --test wind_setting_assets`（core 侧对账，秒出），
+- **moodflow-setting 改动**：manifest 改完在 `Moodflow/` 下先 `env $T cargo test -p moodflow-rpc --test moodflow_setting_assets`（core 侧对账，秒出），
   再 `./scripts/dev.sh sg`（重生成 `capabilities.snapshot.json` / `mockdata/config.json`）与 `./scripts/dev.sh st`（xwin+wine 全量）。
   `sg` 后 `git diff` 里若只剩 `appVersion` 一行，**不提交它**。新 label 带进 `src/assets/pinyin_initials.txt` 没有的字会让
   `search::pinyin::tests::table_covers_every_title_char` 红——本计划选定的 label（「通配仅出单字」「通配与反查含扩展词库」
   「启用反查模式」「候选窗布局」）已逐字核对全在表内（`未` `只` `也` 不在表内，别用）。
-- **WindInputDocs 改动**：`pnpm install --frozen-lockfile && pnpm lint`；另跑 `pnpm check:config`——基线已缺 15 个键
+- **MoodflowDocs 改动**：`pnpm install --frozen-lockfile && pnpm lint`；另跑 `pnpm check:config`——基线已缺 15 个键
   （含 `schema.codetable.wildcard` / `wildcard_key`），本计划新增的键**不得**出现在缺失清单里（P1 顺手补上 wildcard 两键，
   缺失数降到 13 并保持）。
 
@@ -155,35 +155,35 @@
 
 | 文件 | 期 | 动作 | 职责 |
 |---|---|---|---|
-| `wind_input/crates/wind-config/src/config.rs` | P1 P2 P3 | Modify | `CodetableGlobal` 两字段 + `resolved` + `reverse_wildcard_char`；`ReverseConfig`；`BoundAction::Reverse`；测试 |
-| `wind_input/crates/wind-config/src/schema.rs` | P1 P2 | Modify | `CodeTableSpec` 两个 `Option<bool>` |
-| `wind_input/crates/wind-config/src/config_schema.rs` | P1 P2 P3 | Modify | `REGISTRY` 五键；`schema_overridden_keys` 两键 |
-| `wind_input/crates/wind-config/src/hotkey.rs` | P3 | Modify | `hotkey_policy_for` 穷举臂 |
+| `moodflow_input/crates/moodflow-config/src/config.rs` | P1 P2 P3 | Modify | `CodetableGlobal` 两字段 + `resolved` + `reverse_wildcard_char`；`ReverseConfig`；`BoundAction::Reverse`；测试 |
+| `moodflow_input/crates/moodflow-config/src/schema.rs` | P1 P2 | Modify | `CodeTableSpec` 两个 `Option<bool>` |
+| `moodflow_input/crates/moodflow-config/src/config_schema.rs` | P1 P2 P3 | Modify | `REGISTRY` 五键；`schema_overridden_keys` 两键 |
+| `moodflow_input/crates/moodflow-config/src/hotkey.rs` | P3 | Modify | `hotkey_policy_for` 穷举臂 |
 | `data/config.toml` | P1 P2 P3 | Modify | 显式列出新键 + 说明 |
-| `wind_input/crates/wind-candidate/src/candidate.rs` | P2 | Modify | `Candidate::from_disabled_dict`；`candidate_display_order` 插键；测试 |
-| `wind_input/crates/wind-engine/src/engine.rs` | P3 | Modify | `Engine::convert_reverse` / `reverse_wildcard_key` 默认实现 |
-| `wind_input/crates/wind-engine/src/codetable/engine.rs` | P1 P2 P3 | Modify | `CommitOptions` 新字段；`wildcard_query` 内核；`with_disabled_dicts`；`set_dict_enabled` 同步；测试 |
-| `wind_input/crates/wind-engine/src/codetable/disabled_dicts.rs` | P2 | Create | `DisabledDictLayers` / `DisabledDictSource`（影子层）；测试 |
-| `wind_input/crates/wind-engine/src/codetable/mod.rs` | P2 | Modify | 导出 |
-| `wind_input/crates/wind-engine/src/mixed/engine.rs` | P1 P3 | Modify | 单字只作用于通配侧的测试；`convert_reverse` / `reverse_wildcard_key` 代理主码表 |
-| `wind_input/crates/wind-engine/src/manager.rs` | P1 P2 P3 | Modify | `build_engine` 注入；`disabled_extra_sources`；`ReverseScope` 与索引变体；`active_reverse_key` / `convert_reverse`；测试 |
-| `wind_input/crates/wind-engine/src/lib.rs` | P2 | Modify | `pub use manager::ReverseScope` |
-| `wind_input/crates/wind-engine/tests/lookup_disabled_dicts.rs` | P2 | Create | 自造夹具：影子层接线、索引变体、失效 |
-| `wind_input/crates/wind-coordinator/src/comment.rs` | P2 P3 | Modify | 注释反查走变体 + 按需后台建；`template_for` 补 Reverse |
-| `wind_input/crates/wind-coordinator/src/coordinator.rs` | P2 P3 | Modify | `prewarm_indexes` / `spawn_index_warm_in`；`code_char_conflicts`、`cancel_session`、`hotkey_session_now` 补臂 |
-| `wind_input/crates/wind-coordinator/src/pipeline.rs` | P3 | Modify | `ModeKind::Reverse` |
-| `wind_input/crates/wind-coordinator/src/handle_reverse.rs` | P3 | Create | 进入 / 候选构建 / 扩充 / 放宽；`reverse_pattern`；单测 |
-| `wind_input/crates/wind-coordinator/src/lib.rs` | P3 | Modify | `mod handle_reverse;` |
-| `wind_input/crates/wind-coordinator/src/{handle_special,handle_lifecycle,handle_mode,handle_temp,handle_url,handle_candidate,candidate_nav,layout,debug_support,handle_common_chars}.rs`、`coordinator/message_handler.rs` | P3 | Modify | 按 `prefix-hijack-modes.md` §3 清单接线（Task 17/18/19 逐处列出） |
-| `wind_input/crates/wind-coordinator/tests/codetable_wildcard.rs` | P1 P2 | Modify | 真实数据验收（单字、影子层） |
-| `wind_input/crates/wind-coordinator/tests/codetable_reverse.rs` | P3 | Create | 反查模式真实数据验收 |
-| `../wind-setting/src/assets/settings_manifest.toml` | P1 P2 P3 | Modify | 三期设置项 |
-| `../wind-setting/src/dialogs/schema_codetable.rs` | P1 P2 | Modify | `SPEC_BEHAVIOR_FIELDS` |
-| `../wind-setting/src/dialogs/{schema_manager,key_binding}.rs`、`src/state.rs` | P3 | Modify | 动词 `reverse` 进按键编辑器 |
-| `../wind-setting/src/assets/capabilities.snapshot.json`、`src/mockdata/config.json` | P1 P2 P3 | Regenerate | `dev.sh sg` 产物 |
-| `../WindInputDocs/content/docs/settings/schema/codetable.mdx` | P1 P2 P3 | Modify | 通配输入节补 A / C；反查模式指路 |
-| `../WindInputDocs/content/docs/guides/config/{schema,input}.mdx` | P1 P2 P3 | Modify | 参考表补行 |
-| `../WindInputDocs/content/docs/guides/reverse-mode.mdx`、`guides/meta.json` | P3 | Create/Modify | 反查模式专页 |
+| `moodflow_input/crates/moodflow-candidate/src/candidate.rs` | P2 | Modify | `Candidate::from_disabled_dict`；`candidate_display_order` 插键；测试 |
+| `moodflow_input/crates/moodflow-engine/src/engine.rs` | P3 | Modify | `Engine::convert_reverse` / `reverse_wildcard_key` 默认实现 |
+| `moodflow_input/crates/moodflow-engine/src/codetable/engine.rs` | P1 P2 P3 | Modify | `CommitOptions` 新字段；`wildcard_query` 内核；`with_disabled_dicts`；`set_dict_enabled` 同步；测试 |
+| `moodflow_input/crates/moodflow-engine/src/codetable/disabled_dicts.rs` | P2 | Create | `DisabledDictLayers` / `DisabledDictSource`（影子层）；测试 |
+| `moodflow_input/crates/moodflow-engine/src/codetable/mod.rs` | P2 | Modify | 导出 |
+| `moodflow_input/crates/moodflow-engine/src/mixed/engine.rs` | P1 P3 | Modify | 单字只作用于通配侧的测试；`convert_reverse` / `reverse_wildcard_key` 代理主码表 |
+| `moodflow_input/crates/moodflow-engine/src/manager.rs` | P1 P2 P3 | Modify | `build_engine` 注入；`disabled_extra_sources`；`ReverseScope` 与索引变体；`active_reverse_key` / `convert_reverse`；测试 |
+| `moodflow_input/crates/moodflow-engine/src/lib.rs` | P2 | Modify | `pub use manager::ReverseScope` |
+| `moodflow_input/crates/moodflow-engine/tests/lookup_disabled_dicts.rs` | P2 | Create | 自造夹具：影子层接线、索引变体、失效 |
+| `moodflow_input/crates/moodflow-coordinator/src/comment.rs` | P2 P3 | Modify | 注释反查走变体 + 按需后台建；`template_for` 补 Reverse |
+| `moodflow_input/crates/moodflow-coordinator/src/coordinator.rs` | P2 P3 | Modify | `prewarm_indexes` / `spawn_index_warm_in`；`code_char_conflicts`、`cancel_session`、`hotkey_session_now` 补臂 |
+| `moodflow_input/crates/moodflow-coordinator/src/pipeline.rs` | P3 | Modify | `ModeKind::Reverse` |
+| `moodflow_input/crates/moodflow-coordinator/src/handle_reverse.rs` | P3 | Create | 进入 / 候选构建 / 扩充 / 放宽；`reverse_pattern`；单测 |
+| `moodflow_input/crates/moodflow-coordinator/src/lib.rs` | P3 | Modify | `mod handle_reverse;` |
+| `moodflow_input/crates/moodflow-coordinator/src/{handle_special,handle_lifecycle,handle_mode,handle_temp,handle_url,handle_candidate,candidate_nav,layout,debug_support,handle_common_chars}.rs`、`coordinator/message_handler.rs` | P3 | Modify | 按 `prefix-hijack-modes.md` §3 清单接线（Task 17/18/19 逐处列出） |
+| `moodflow_input/crates/moodflow-coordinator/tests/codetable_wildcard.rs` | P1 P2 | Modify | 真实数据验收（单字、影子层） |
+| `moodflow_input/crates/moodflow-coordinator/tests/codetable_reverse.rs` | P3 | Create | 反查模式真实数据验收 |
+| `../moodflow-setting/src/assets/settings_manifest.toml` | P1 P2 P3 | Modify | 三期设置项 |
+| `../moodflow-setting/src/dialogs/schema_codetable.rs` | P1 P2 | Modify | `SPEC_BEHAVIOR_FIELDS` |
+| `../moodflow-setting/src/dialogs/{schema_manager,key_binding}.rs`、`src/state.rs` | P3 | Modify | 动词 `reverse` 进按键编辑器 |
+| `../moodflow-setting/src/assets/capabilities.snapshot.json`、`src/mockdata/config.json` | P1 P2 P3 | Regenerate | `dev.sh sg` 产物 |
+| `../MoodflowDocs/content/docs/settings/schema/codetable.mdx` | P1 P2 P3 | Modify | 通配输入节补 A / C；反查模式指路 |
+| `../MoodflowDocs/content/docs/guides/config/{schema,input}.mdx` | P1 P2 P3 | Modify | 参考表补行 |
+| `../MoodflowDocs/content/docs/guides/reverse-mode.mdx`、`guides/meta.json` | P3 | Create/Modify | 反查模式专页 |
 | `docs/design/{codetable-reverse-mode,codetable-wildcard,prefix-hijack-modes}.md`、`docs/architecture/engine-candidate-pipeline.md` | P1–P3 | Modify | 状态行、§8 指路、清单更正、§3.4 |
 
 ---
@@ -193,14 +193,14 @@
 - [ ] **Step 0: 记全量基线**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-rev/WindInput && git status --short --branch && git log --oneline -1
-for r in wind-setting WindInputDocs; do git -C ../$r status --short --branch; done
+cd /home/dufeng/develop/moodflow/wt-rev/Moodflow && git status --short --branch && git log --oneline -1
+for r in moodflow-setting MoodflowDocs; do git -C ../$r status --short --branch; done
 T="CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-rev TMPDIR=/tmp/wct-rev"; mkdir -p /tmp/wct-rev
-cd wind_input && env $T cargo test --workspace --no-fail-fast 2>&1 | tee /tmp/wct-rev/baseline.log | grep -E "^test result" | awk '{p+=$4; f+=$6} END {print "passed="p, "failed="f}'
-cd ../../WindInputDocs && node scripts/check-config-coverage.mjs 2>&1 | tail -1
+cd moodflow_input && env $T cargo test --workspace --no-fail-fast 2>&1 | tee /tmp/wct-rev/baseline.log | grep -E "^test result" | awk '{p+=$4; f+=$6} END {print "passed="p, "failed="f}'
+cd ../../MoodflowDocs && node scripts/check-config-coverage.mjs 2>&1 | tail -1
 ```
 
-Expected: 三仓分支均为 `feat/codetable-reverse`，WindInput 工作区除本计划文件外干净（`M wind_input/Cargo.lock` 不属于本计划、永不提交）；
+Expected: 三仓分支均为 `feat/codetable-reverse`，Moodflow 工作区除本计划文件外干净（`M moodflow_input/Cargo.lock` 不属于本计划、永不提交）；
 记下 `passed=` / `failed=`（worktree 带实拷贝 `build_dev/data`，量级应 ~4600，四位数以下说明数据没在位）；
 `check-config-coverage` 末行「缺失 15」。`failed` 非 0 时先记失败名单（`grep -E "^test .* FAILED|panicked" /tmp/wct-rev/baseline.log`）。
 
@@ -211,9 +211,9 @@ Expected: 三仓分支均为 `feat/codetable-reverse`，WindInput 工作区除�
 ## Task 1: 配置字段 `schema.codetable.wildcard_single_only`
 
 **Files:**
-- Modify: `wind_input/crates/wind-config/src/schema.rs`（`CodeTableSpec` 的 `wildcard_key` 之后，~490）
-- Modify: `wind_input/crates/wind-config/src/config.rs`（`CodetableGlobal` 字段 ~2133 之后；`Default` ~2237；`resolved` ~2303；`mod tests` 的 `codetable_wildcard_folds_from_schema_and_validates_key` 之后）
-- Modify: `wind_input/crates/wind-config/src/config_schema.rs`（`REGISTRY` ~241；`schema_overridden_keys` ~918）
+- Modify: `moodflow_input/crates/moodflow-config/src/schema.rs`（`CodeTableSpec` 的 `wildcard_key` 之后，~490）
+- Modify: `moodflow_input/crates/moodflow-config/src/config.rs`（`CodetableGlobal` 字段 ~2133 之后；`Default` ~2237；`resolved` ~2303；`mod tests` 的 `codetable_wildcard_folds_from_schema_and_validates_key` 之后）
+- Modify: `moodflow_input/crates/moodflow-config/src/config_schema.rs`（`REGISTRY` ~241；`schema_overridden_keys` ~918）
 - Modify: `data/config.toml`（`wildcard_key = "z"` 之后，~90）
 
 **Interfaces:**
@@ -253,8 +253,8 @@ Expected: 三仓分支均为 `feat/codetable-reverse`，WindInput 工作区除�
 - [ ] **Step 2: 跑，确认红**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-rev/WindInput/wind_input
-env $T cargo test -p wind-config --lib codetable_wildcard_single_only_folds_from_schema
+cd /home/dufeng/develop/moodflow/wt-rev/Moodflow/moodflow_input
+env $T cargo test -p moodflow-config --lib codetable_wildcard_single_only_folds_from_schema
 ```
 
 Expected: 编译失败 `no field wildcard_single_only`。
@@ -281,24 +281,24 @@ Expected: 编译失败 `no field wildcard_single_only`。
 - [ ] **Step 4: 跑，确认绿 + 守门测试**
 
 ```bash
-env $T cargo test -p wind-config --no-fail-fast
-env $T cargo test -p wind-rpc --test wind_setting_assets
+env $T cargo test -p moodflow-config --no-fail-fast
+env $T cargo test -p moodflow-rpc --test moodflow_setting_assets
 ```
 
-Expected: wind-config 全绿（`registry_covers_every_config_key` / `data_config_toml_covers_registry` / `data_config_toml_has_no_orphan_keys` 在内）；
-`wind_setting_assets` 红在「manifest 未覆盖 `schema.codetable.wildcard_single_only`」一类——**预期**，Task 3 补齐，本任务不处理。
+Expected: moodflow-config 全绿（`registry_covers_every_config_key` / `data_config_toml_covers_registry` / `data_config_toml_has_no_orphan_keys` 在内）；
+`moodflow_setting_assets` 红在「manifest 未覆盖 `schema.codetable.wildcard_single_only`」一类——**预期**，Task 3 补齐，本任务不处理。
 
 - [ ] **Step 5: 格式与提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-rev/WindInput
-rustfmt --edition 2024 --check wind_input/crates/wind-config/src/{schema,config,config_schema}.rs
+cd /home/dufeng/develop/moodflow/wt-rev/Moodflow
+rustfmt --edition 2024 --check moodflow_input/crates/moodflow-config/src/{schema,config,config_schema}.rs
 git -C . branch --show-current && git diff --cached --name-status
-git commit -F - --only -- wind_input/crates/wind-config/src/schema.rs wind_input/crates/wind-config/src/config.rs wind_input/crates/wind-config/src/config_schema.rs data/config.toml <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-config/src/schema.rs moodflow_input/crates/moodflow-config/src/config.rs moodflow_input/crates/moodflow-config/src/config_schema.rs data/config.toml <<'EOF'
 feat(config): 码表通配仅单字开关 wildcard_single_only
 
 方案级三态折叠，与 wildcard 主开关正交，出厂关（reverse-mode spec §2）。
-wind_setting_assets 跨仓守门待 wind-setting 同步后转绿。
+moodflow_setting_assets 跨仓守门待 moodflow-setting 同步后转绿。
 EOF
 git show --stat HEAD
 ```
@@ -308,14 +308,14 @@ git show --stat HEAD
 ## Task 2: 引擎 `wildcard_query` 内核 + 单字过滤（先滤后截）
 
 **Files:**
-- Modify: `wind_input/crates/wind-engine/src/codetable/engine.rs`（`CommitOptions` ~218；`convert_wildcard` ~907-946 拆出 `wildcard_query`；`mod tests` 末尾）
-- Modify: `wind_input/crates/wind-engine/src/mixed/engine.rs`（`mod tests`：`ct_wildcard` ~2494 改为薄包装；末尾加测试）
-- Modify: `wind_input/crates/wind-engine/src/manager.rs`（`build_engine` 码表分支 `CommitOptions` 字面量 ~5773）
+- Modify: `moodflow_input/crates/moodflow-engine/src/codetable/engine.rs`（`CommitOptions` ~218；`convert_wildcard` ~907-946 拆出 `wildcard_query`；`mod tests` 末尾）
+- Modify: `moodflow_input/crates/moodflow-engine/src/mixed/engine.rs`（`mod tests`：`ct_wildcard` ~2494 改为薄包装；末尾加测试）
+- Modify: `moodflow_input/crates/moodflow-engine/src/manager.rs`（`build_engine` 码表分支 `CommitOptions` 字面量 ~5773）
 
 **Interfaces:**
 - Produces: `CommitOptions::wildcard_single_only: bool`；私有 `fn CodeTableEngine::wildcard_query(&self, input: &str, pattern: &str, max_candidates: usize) -> ConvertResult`
 - 签名不变：`fn convert_wildcard(&self, input: &str, pattern: &str, max_candidates: usize) -> Option<ConvertResult>`（= `self.opts.wildcard?; Some(self.wildcard_query(..))`）
-- Consumes: `wind_candidate::single_markable_char(&str) -> Option<&str>`
+- Consumes: `moodflow_candidate::single_markable_char(&str) -> Option<&str>`
 
 - [ ] **Step 1: 写失败测试**
 
@@ -362,7 +362,7 @@ git show --stat HEAD
         assert!(
             r.candidates
                 .iter()
-                .all(|c| wind_candidate::single_markable_char(&c.text).is_some())
+                .all(|c| moodflow_candidate::single_markable_char(&c.text).is_some())
         );
         let r = on.convert_wildcard("qzz", &slot_pattern("q??"), 500).unwrap();
         assert_eq!(r.candidates.len(), 120, "词库取尽即停，不死循环");
@@ -413,8 +413,8 @@ git show --stat HEAD
 - [ ] **Step 2: 跑，确认红**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-rev/WindInput/wind_input
-env $T cargo test -p wind-engine --lib wildcard
+cd /home/dufeng/develop/moodflow/wt-rev/Moodflow/moodflow_input
+env $T cargo test -p moodflow-engine --lib wildcard
 ```
 
 Expected: 编译失败 `no field wildcard_single_only on CommitOptions`。
@@ -435,13 +435,13 @@ Expected: 编译失败 `no field wildcard_single_only on CommitOptions`。
             // 直到够数 / 取尽 / 硬上限（计划裁决 1，同生僻字模式的 refill）。关着时只查一轮 ⇒ 与原实现逐条相同。
             let mut fetch = limit;
             loop {
-                let got = self.dm.search_pattern(pattern, wind_dict::WILDCARD_SLOT, fetch, with_prefix);
+                let got = self.dm.search_pattern(pattern, moodflow_dict::WILDCARD_SLOT, fetch, with_prefix);
                 let exhausted = got.len() < fetch;
                 hits = got;
                 if !self.opts.wildcard_single_only {
                     break;
                 }
-                hits.retain(|c| wind_candidate::single_markable_char(&c.text).is_some());
+                hits.retain(|c| moodflow_candidate::single_markable_char(&c.text).is_some());
                 if hits.len() >= limit || exhausted || fetch >= WILDCARD_RESULT_LIMIT {
                     break;
                 }
@@ -460,8 +460,8 @@ Expected: 编译失败 `no field wildcard_single_only on CommitOptions`。
 - [ ] **Step 4: 跑，确认绿 + 相邻回归**
 
 ```bash
-env $T cargo test -p wind-engine --lib wildcard
-env $T cargo test -p wind-engine --no-fail-fast 2>&1 | grep -E "^test result|FAILED" | tail -20
+env $T cargo test -p moodflow-engine --lib wildcard
+env $T cargo test -p moodflow-engine --no-fail-fast 2>&1 | grep -E "^test result|FAILED" | tail -20
 ```
 
 Expected: 全绿；既有 `wildcard_*` 用例（含 `wildcard_hard_cap_matches_expansion_cap_and_zero_is_empty`、
@@ -470,10 +470,10 @@ Expected: 全绿；既有 `wildcard_*` 用例（含 `wildcard_hard_cap_matches_e
 - [ ] **Step 5: 格式与提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-rev/WindInput
-rustfmt --edition 2024 --check wind_input/crates/wind-engine/src/codetable/engine.rs wind_input/crates/wind-engine/src/mixed/engine.rs wind_input/crates/wind-engine/src/manager.rs
+cd /home/dufeng/develop/moodflow/wt-rev/Moodflow
+rustfmt --edition 2024 --check moodflow_input/crates/moodflow-engine/src/codetable/engine.rs moodflow_input/crates/moodflow-engine/src/mixed/engine.rs moodflow_input/crates/moodflow-engine/src/manager.rs
 git -C . branch --show-current && git diff --cached --name-status
-git commit -F - --only -- wind_input/crates/wind-engine/src/codetable/engine.rs wind_input/crates/wind-engine/src/mixed/engine.rs wind_input/crates/wind-engine/src/manager.rs <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-engine/src/codetable/engine.rs moodflow_input/crates/moodflow-engine/src/mixed/engine.rs moodflow_input/crates/moodflow-engine/src/manager.rs <<'EOF'
 feat(engine): 通配仅单字——按字素簇过滤，先滤后截
 
 词库层 search_pattern 已按 limit 截断，事后过滤只剩被截段里的单字，首批凑不满、
@@ -486,12 +486,12 @@ git show --stat HEAD
 
 ---
 
-## Task 3: wind-setting 设置项「通配仅出单字」
+## Task 3: moodflow-setting 设置项「通配仅出单字」
 
 **Files:**
-- Modify: `../wind-setting/src/assets/settings_manifest.toml`（`schema.codetable.wildcard_key` 那条 `[[items]]` 之后）
-- Modify: `../wind-setting/src/dialogs/schema_codetable.rs`（`SPEC_BEHAVIOR_FIELDS` ~111）
-- Regenerate: `../wind-setting/src/assets/capabilities.snapshot.json`、`../wind-setting/src/mockdata/config.json`
+- Modify: `../moodflow-setting/src/assets/settings_manifest.toml`（`schema.codetable.wildcard_key` 那条 `[[items]]` 之后）
+- Modify: `../moodflow-setting/src/dialogs/schema_codetable.rs`（`SPEC_BEHAVIOR_FIELDS` ~111）
+- Regenerate: `../moodflow-setting/src/assets/capabilities.snapshot.json`、`../moodflow-setting/src/mockdata/config.json`
 
 **Interfaces:** 无代码接口。
 
@@ -501,7 +501,7 @@ git show --stat HEAD
 
 ```toml
 # 通配仅单字：行内通配与反查模式都受它管，故不挂 enabled_when（反查模式不看通配主开关）。
-# 单字判据是字素簇（core 的 wind_candidate::single_markable_char）。
+# 单字判据是字素簇（core 的 moodflow_candidate::single_markable_char）。
 [[items]]
 key = "schema.codetable.wildcard_single_only"
 group = "schema"
@@ -517,20 +517,20 @@ hint = "通配与反查模式的结果只列单字，词组不出。不影响正
 - [ ] **Step 2: core 侧对账 + 重生成 + 全量**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-rev/WindInput/wind_input && env $T cargo test -p wind-rpc --test wind_setting_assets
+cd /home/dufeng/develop/moodflow/wt-rev/Moodflow/moodflow_input && env $T cargo test -p moodflow-rpc --test moodflow_setting_assets
 cd .. && ./scripts/dev.sh sg && ./scripts/dev.sh st 2>&1 | tail -15
-git -C ../wind-setting diff --stat
+git -C ../moodflow-setting diff --stat
 ```
 
-Expected: `wind_setting_assets` 绿；`st` 全绿（含 `table_covers_every_title_char`）；diff 只含 manifest、`schema_codetable.rs`、
+Expected: `moodflow_setting_assets` 绿；`st` 全绿（含 `table_covers_every_title_char`）；diff 只含 manifest、`schema_codetable.rs`、
 snapshot（新增一条 `schema.codetable.wildcard_single_only`，带 `schemaOverride`）、mockdata（`"wildcard_single_only": false`）
-与可能的 `appVersion` 一行（后者不提交：`git -C ../wind-setting checkout -p -- src/mockdata/config.json` 只撤那一 hunk，
+与可能的 `appVersion` 一行（后者不提交：`git -C ../moodflow-setting checkout -p -- src/mockdata/config.json` 只撤那一 hunk，
 或手工改回；**不许** `git stash`）。
 
-- [ ] **Step 3: 提交（wind-setting 仓）**
+- [ ] **Step 3: 提交（moodflow-setting 仓）**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-rev/wind-setting
+cd /home/dufeng/develop/moodflow/wt-rev/moodflow-setting
 git branch --show-current && git diff --cached --name-status
 git commit -F - --only -- src/assets/settings_manifest.toml src/dialogs/schema_codetable.rs src/assets/capabilities.snapshot.json src/mockdata/config.json <<'EOF'
 feat(settings): 码表「通配仅出单字」开关
@@ -545,7 +545,7 @@ git show --stat HEAD
 ## Task 4: P1 真实数据验收
 
 **Files:**
-- Modify: `wind_input/crates/wind-coordinator/tests/codetable_wildcard.rs`（文件末尾新增一节）
+- Modify: `moodflow_input/crates/moodflow-coordinator/tests/codetable_wildcard.rs`（文件末尾新增一节）
 
 **Interfaces:**
 - Consumes（文件既有）: `data_dir()`、`dict_ready()`、`mixed_ready()`、`wubi(bool, &str) -> Config`、`wubi_pinyin(bool) -> Config`、
@@ -564,7 +564,7 @@ fn single_only(mut cfg: Config) -> Config {
 }
 
 fn is_single(t: &str) -> bool {
-    wind_candidate::single_markable_char(t).is_some()
+    moodflow_candidate::single_markable_char(t).is_some()
 }
 
 /// spec §5 列的冒烟串：`azz` 开仅单字后全是单字（`a??` 等长本就全是单字，首批不足以测截断先后）。
@@ -630,14 +630,14 @@ fn mixed_single_only_keeps_pinyin_words() {
 }
 ```
 
-若 `wind_candidate` 不在 wind-coordinator 的 dev-dependencies 可见范围：它是 wind-coordinator 的普通依赖（`Cargo.toml` 已有），集成测试可直接用；否则改走
+若 `moodflow_candidate` 不在 moodflow-coordinator 的 dev-dependencies 可见范围：它是 moodflow-coordinator 的普通依赖（`Cargo.toml` 已有），集成测试可直接用；否则改走
 `coord.debug_*` 返回的文本自行 `unicode_segmentation` 判定——**不许**退回 `chars().count()`。
 
 - [ ] **Step 2: 跑**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-rev/WindInput/wind_input
-time env $T cargo test -p wind-coordinator --test codetable_wildcard --no-fail-fast 2>&1 | tail -20
+cd /home/dufeng/develop/moodflow/wt-rev/Moodflow/moodflow_input
+time env $T cargo test -p moodflow-coordinator --test codetable_wildcard --no-fail-fast 2>&1 | tail -20
 ```
 
 Expected: 全绿、耗时 ≥ 1s、无「跳过」。核对点：`single_only_azzz_first_batch_is_full_of_singles` 若红在「前置」，说明检索范围把
@@ -646,10 +646,10 @@ Expected: 全绿、耗时 ≥ 1s、无「跳过」。核对点：`single_only_az
 - [ ] **Step 3: 格式与提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-rev/WindInput
-rustfmt --edition 2024 --check wind_input/crates/wind-coordinator/tests/codetable_wildcard.rs
+cd /home/dufeng/develop/moodflow/wt-rev/Moodflow
+rustfmt --edition 2024 --check moodflow_input/crates/moodflow-coordinator/tests/codetable_wildcard.rs
 git -C . branch --show-current && git diff --cached --name-status
-git commit -F - --only -- wind_input/crates/wind-coordinator/tests/codetable_wildcard.rs <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-coordinator/tests/codetable_wildcard.rs <<'EOF'
 test(wildcard): 通配仅单字的真实数据验收
 
 azz 冒烟；azzz 钉住先滤后截（按权重前 100 条只有 38 个单字，过滤后仍须回满并可翻页扩充）；
@@ -663,8 +663,8 @@ git show --stat HEAD
 ## Task 5: P1 文档 + 全量测试 + 回归核对
 
 **Files:**
-- Modify: `../WindInputDocs/content/docs/settings/schema/codetable.mdx`（`### 通配输入` 小节，~103）
-- Modify: `../WindInputDocs/content/docs/guides/config/schema.mdx`（`[schema.codetable]` 代码块与参考表，~36-66）
+- Modify: `../MoodflowDocs/content/docs/settings/schema/codetable.mdx`（`### 通配输入` 小节，~103）
+- Modify: `../MoodflowDocs/content/docs/guides/config/schema.mdx`（`[schema.codetable]` 代码块与参考表，~36-66）
 - Modify: `docs/design/codetable-reverse-mode.md`（头部状态行）、`docs/architecture/engine-candidate-pipeline.md`（§3.4 通配「引擎」一条）
 
 - [ ] **Step 1: 文档站**
@@ -687,7 +687,7 @@ git show --stat HEAD
     ```
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-rev/WindInputDocs && pnpm install --frozen-lockfile && pnpm lint && node scripts/check-config-coverage.mjs 2>&1 | tail -1
+cd /home/dufeng/develop/moodflow/wt-rev/MoodflowDocs && pnpm install --frozen-lockfile && pnpm lint && node scripts/check-config-coverage.mjs 2>&1 | tail -1
 ```
 
 Expected: lint 通过；缺失数 **13**（wildcard 两键补上、`wildcard_single_only` 不在清单）。
@@ -701,7 +701,7 @@ Expected: lint 通过；缺失数 **13**（wildcard 两键补上、`wildcard_sin
 - [ ] **Step 3: 全量测试与编译门**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-rev/WindInput/wind_input
+cd /home/dufeng/develop/moodflow/wt-rev/Moodflow/moodflow_input
 time env $T cargo test --workspace --no-fail-fast 2>&1 | tee /tmp/wct-rev/p1.log | grep -E "^test result|FAILED|panicked" | tail -40
 grep -E "^test result" /tmp/wct-rev/p1.log | awk '{p+=$4; f+=$6} END {print "passed="p, "failed="f}'
 env $T cargo check-headless && cd .. && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-rev ./scripts/dev.sh k
@@ -712,15 +712,15 @@ Expected: `failed` 同基线；`passed` = 基线 + **7**（Task 1：1；Task 2�
 - [ ] **Step 4: 回归与提交范围自查、两仓提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-rev/WindInput
+cd /home/dufeng/develop/moodflow/wt-rev/Moodflow
 base=$(git merge-base HEAD main)
 git log --oneline "$base"..HEAD && git diff "$base"..HEAD --stat
 git diff "$base"..HEAD | grep -nE "^\+.*(TODO|todo!|unimplemented!|#\[ignore\]|\.only\(|chars\(\)\.count\(\) == 1)" || echo clean
-git diff "$base"..HEAD --name-only | grep -x "wind_input/Cargo.lock" && echo "!! Cargo.lock 被提交" || echo "lock ok"
+git diff "$base"..HEAD --name-only | grep -x "moodflow_input/Cargo.lock" && echo "!! Cargo.lock 被提交" || echo "lock ok"
 git commit -F - --only -- docs/design/codetable-reverse-mode.md docs/architecture/engine-candidate-pipeline.md <<'EOF'
 docs(design): 通配仅单字落地——设计稿状态与架构文档 §3.4
 EOF
-cd ../WindInputDocs && git branch --show-current && git diff --cached --name-status
+cd ../MoodflowDocs && git branch --show-current && git diff --cached --name-status
 git commit -F - --only -- content/docs/settings/schema/codetable.mdx content/docs/guides/config/schema.mdx <<'EOF'
 docs(settings): 通配仅出单字；配置参考补 wildcard 三键
 EOF
@@ -736,7 +736,7 @@ Expected: `clean`、`lock ok`。回归核对：`wildcard_off_by_default_changes_
 ## Task 6: `Candidate::from_disabled_dict` 与显示序键
 
 **Files:**
-- Modify: `wind_input/crates/wind-candidate/src/candidate.rs`（`is_wildcard` 字段 ~456 之后；`Default` ~596；`candidate_display_order` ~970 `.then_with(|| cmp_exact_first(a, b))` 之后；`mod tests` 末尾）
+- Modify: `moodflow_input/crates/moodflow-candidate/src/candidate.rs`（`is_wildcard` 字段 ~456 之后；`Default` ~596；`candidate_display_order` ~970 `.then_with(|| cmp_exact_first(a, b))` 之后；`mod tests` 末尾）
 
 **Interfaces:**
 - Produces: `Candidate::from_disabled_dict: bool`（`#[serde(skip)]`，默认 false）
@@ -786,7 +786,7 @@ Expected: `clean`、`lock ok`。回归核对：`wildcard_off_by_default_changes_
     }
 ```
 
-- [ ] **Step 2: 跑，确认红**：`env $T cargo test -p wind-candidate --lib disabled_` → 编译失败 `no field from_disabled_dict`。
+- [ ] **Step 2: 跑，确认红**：`env $T cargo test -p moodflow-candidate --lib disabled_` → 编译失败 `no field from_disabled_dict`。
 
 - [ ] **Step 3: 实现**
   - 字段（紧随 `is_wildcard`）：文档「该候选来自**未启用的扩展词库**（影子层，`DisabledDictLayers`，reverse-mode spec §4.2）。
@@ -796,15 +796,15 @@ Expected: `clean`、`lock ok`。回归核对：`wildcard_off_by_default_changes_
     上方注释写明「全序：按布尔分两区，两条非未启用候选间恒 Equal ⇒ 不改任何既有次序（同 `is_draft` 论证）；放在 `cmp_exact_first` 之后
     ⇒ 不跨等长 / 更长两档」。
 
-- [ ] **Step 4: 跑，确认绿**：`env $T cargo test -p wind-candidate --no-fail-fast` 全绿。
+- [ ] **Step 4: 跑，确认绿**：`env $T cargo test -p moodflow-candidate --no-fail-fast` 全绿。
 
 - [ ] **Step 5: 格式与提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-rev/WindInput
-rustfmt --edition 2024 --check wind_input/crates/wind-candidate/src/candidate.rs
+cd /home/dufeng/develop/moodflow/wt-rev/Moodflow
+rustfmt --edition 2024 --check moodflow_input/crates/moodflow-candidate/src/candidate.rs
 git -C . branch --show-current && git diff --cached --name-status
-git commit -F - --only -- wind_input/crates/wind-candidate/src/candidate.rs <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-candidate/src/candidate.rs <<'EOF'
 feat(candidate): 未启用扩展库候选标记 from_disabled_dict，同档内排在已启用之后
 
 显示序会整体重排引擎结果，「已启用排前」只能落在比较键上（reverse-mode spec §4.2）。
@@ -847,7 +847,7 @@ git show --stat HEAD
     }
 ```
 
-- [ ] **Step 2: 跑，确认红**：`env $T cargo test -p wind-config --lib codetable_lookup_disabled_dicts` → 编译失败。
+- [ ] **Step 2: 跑，确认红**：`env $T cargo test -p moodflow-config --lib codetable_lookup_disabled_dicts` → 编译失败。
 
 - [ ] **Step 3: 实现**：照 Task 1 Step 3 的四处各加一份（字段文档：「通配、反查模式与候选注释反查可查到**未启用**的扩展词库
   （`DictSpec::is_enabled() == false`）；普通打字候选不受影响。见 reverse-mode spec §4」）。`data/config.toml`：
@@ -857,12 +857,12 @@ git show --stat HEAD
   lookup_disabled_dicts = false
   ```
 
-- [ ] **Step 4: 跑**：`env $T cargo test -p wind-config --no-fail-fast` 全绿（`wind_setting_assets` 预期红，Task 13 前补齐）。
+- [ ] **Step 4: 跑**：`env $T cargo test -p moodflow-config --no-fail-fast` 全绿（`moodflow_setting_assets` 预期红，Task 13 前补齐）。
 
 - [ ] **Step 5: 格式与提交**（同 Task 1 的四个路径）
 
 ```bash
-git commit -F - --only -- wind_input/crates/wind-config/src/schema.rs wind_input/crates/wind-config/src/config.rs wind_input/crates/wind-config/src/config_schema.rs data/config.toml <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-config/src/schema.rs moodflow_input/crates/moodflow-config/src/config.rs moodflow_input/crates/moodflow-config/src/config_schema.rs data/config.toml <<'EOF'
 feat(config): 通配与反查含未启用扩展词库开关 lookup_disabled_dicts
 
 方案级三态折叠，出厂关（reverse-mode spec §4.2）。
@@ -874,9 +874,9 @@ EOF
 ## Task 8: 影子层 `DisabledDictLayers` 与引擎合并
 
 **Files:**
-- Create: `wind_input/crates/wind-engine/src/codetable/disabled_dicts.rs`
-- Modify: `wind_input/crates/wind-engine/src/codetable/mod.rs`（`pub mod disabled_dicts; pub use disabled_dicts::{DisabledDictLayers, DisabledDictSource};`）
-- Modify: `wind_input/crates/wind-engine/src/codetable/engine.rs`（`CodeTableEngine` 字段 + `with_disabled_dicts` + `disabled_dicts()`；`wildcard_query` 合并；`set_dict_enabled` 禁用分支；`mod tests`）
+- Create: `moodflow_input/crates/moodflow-engine/src/codetable/disabled_dicts.rs`
+- Modify: `moodflow_input/crates/moodflow-engine/src/codetable/mod.rs`（`pub mod disabled_dicts; pub use disabled_dicts::{DisabledDictLayers, DisabledDictSource};`）
+- Modify: `moodflow_input/crates/moodflow-engine/src/codetable/engine.rs`（`CodeTableEngine` 字段 + `with_disabled_dicts` + `disabled_dicts()`；`wildcard_query` 合并；`set_dict_enabled` 禁用分支；`mod tests`）
 
 **Interfaces:**
 - Produces:
@@ -885,7 +885,7 @@ EOF
   pub struct DisabledDictSource { pub id: String, pub base_order: i32, pub default_weight: Option<i32>, pub load: DictLoader }
   pub struct DisabledDictLayers { /* declared, enabled: Mutex<HashSet<String>>, wnorm, loaded: Mutex<Option<Arc<DictManager>>>, loads: AtomicUsize */ }
   impl DisabledDictLayers {
-      pub fn new(declared: Vec<DisabledDictSource>, enabled: impl IntoIterator<Item = String>, wnorm: Option<wind_dict::WeightNorm>) -> Self;
+      pub fn new(declared: Vec<DisabledDictSource>, enabled: impl IntoIterator<Item = String>, wnorm: Option<moodflow_dict::WeightNorm>) -> Self;
       pub fn search_pattern(&self, pattern: &str, wildcard: char, limit: usize, with_prefix: bool) -> Vec<Candidate>;
       pub fn mark_disabled(&self, id: &str);
       pub fn load_count(&self) -> usize;
@@ -916,7 +916,7 @@ EOF
 ```rust
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use wind_dict::codetable::CodetableDict;
+    use moodflow_dict::codetable::CodetableDict;
 
     fn mem_source(id: &str, entries: &[(&str, &str, i32)], calls: Arc<AtomicUsize>) -> DisabledDictSource {
         let owned: Vec<(String, String, i32)> = entries
@@ -939,7 +939,7 @@ EOF
     }
 
     fn slot(p: &str) -> String {
-        p.replace('?', &wind_dict::WILDCARD_SLOT.to_string())
+        p.replace('?', &moodflow_dict::WILDCARD_SLOT.to_string())
     }
 
     /// spec §4.2：首次查询才加载，之后复用；启用集里的库不进影子。
@@ -956,8 +956,8 @@ EOF
         );
         assert_eq!(d.load_count(), 0, "构造不加载");
         let texts = |v: Vec<Candidate>| v.into_iter().map(|c| c.text).collect::<Vec<_>>();
-        assert_eq!(texts(d.search_pattern(&slot("uui?"), wind_dict::WILDCARD_SLOT, 10, true)), ["门头沟区"]);
-        d.search_pattern(&slot("uui?"), wind_dict::WILDCARD_SLOT, 10, true);
+        assert_eq!(texts(d.search_pattern(&slot("uui?"), moodflow_dict::WILDCARD_SLOT, 10, true)), ["门头沟区"]);
+        d.search_pattern(&slot("uui?"), moodflow_dict::WILDCARD_SLOT, 10, true);
         assert_eq!(d.load_count(), 1, "第二次复用");
         assert_eq!(calls.load(Ordering::SeqCst), 1, "只读了影子集合里的那一个库");
     }
@@ -974,10 +974,10 @@ EOF
             ["ext".to_string()],
             None,
         );
-        d.search_pattern(&slot("uui?"), wind_dict::WILDCARD_SLOT, 10, true);
+        d.search_pattern(&slot("uui?"), moodflow_dict::WILDCARD_SLOT, 10, true);
         d.mark_disabled("ext");
         let got: Vec<String> = d
-            .search_pattern(&slot("uui?"), wind_dict::WILDCARD_SLOT, 10, true)
+            .search_pattern(&slot("uui?"), moodflow_dict::WILDCARD_SLOT, 10, true)
             .into_iter()
             .map(|c| c.text)
             .collect();
@@ -1000,7 +1000,7 @@ EOF
             std::iter::empty(),
             None,
         );
-        let got = d.search_pattern(&slot("uui?"), wind_dict::WILDCARD_SLOT, 10, true);
+        let got = d.search_pattern(&slot("uui?"), moodflow_dict::WILDCARD_SLOT, 10, true);
         assert_eq!(got.len(), 1);
     }
 ```
@@ -1099,7 +1099,7 @@ EOF
     }
 ```
 
-- [ ] **Step 2: 跑，确认红**：`env $T cargo test -p wind-engine --lib disabled` → 编译失败（模块 / 方法不存在）。
+- [ ] **Step 2: 跑，确认红**：`env $T cargo test -p moodflow-engine --lib disabled` → 编译失败（模块 / 方法不存在）。
 
 - [ ] **Step 3: 实现**：按 Interfaces 的「行为」逐条实现。`CodeTableEngine` 新字段 `disabled_dicts: Option<super::DisabledDictLayers>`
   （文档写明「只在 `wildcard_query` 读——普通 `convert` 读它就是把未启用库漏进打字候选，spec §4.2 的保证全靠这一条」），`new` 里置 `None`；
@@ -1110,18 +1110,18 @@ EOF
 - [ ] **Step 4: 跑，确认绿 + 相邻回归**
 
 ```bash
-env $T cargo test -p wind-engine --lib disabled_dicts wildcard set_dict_enabled
-env $T cargo test -p wind-engine --no-fail-fast 2>&1 | grep -E "^test result|FAILED" | tail -20
+env $T cargo test -p moodflow-engine --lib disabled_dicts wildcard set_dict_enabled
+env $T cargo test -p moodflow-engine --no-fail-fast 2>&1 | grep -E "^test result|FAILED" | tail -20
 ```
 
 - [ ] **Step 5: 格式与提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-rev/WindInput
-git add -- wind_input/crates/wind-engine/src/codetable/disabled_dicts.rs
-rustfmt --edition 2024 --check wind_input/crates/wind-engine/src/codetable/{disabled_dicts,engine,mod}.rs
+cd /home/dufeng/develop/moodflow/wt-rev/Moodflow
+git add -- moodflow_input/crates/moodflow-engine/src/codetable/disabled_dicts.rs
+rustfmt --edition 2024 --check moodflow_input/crates/moodflow-engine/src/codetable/{disabled_dicts,engine,mod}.rs
 git -C . branch --show-current && git diff --cached --name-status
-git commit -F - --only -- wind_input/crates/wind-engine/src/codetable/disabled_dicts.rs wind_input/crates/wind-engine/src/codetable/mod.rs wind_input/crates/wind-engine/src/codetable/engine.rs <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-engine/src/codetable/disabled_dicts.rs moodflow_input/crates/moodflow-engine/src/codetable/mod.rs moodflow_input/crates/moodflow-engine/src/codetable/engine.rs <<'EOF'
 feat(engine): 影子层 DisabledDictLayers——通配查询合并未启用扩展词库
 
 独立于主 DictManager 懒加载（首次通配查询才读盘、失败 warn 跳过），按 (text, code)
@@ -1136,8 +1136,8 @@ git show --stat HEAD
 ## Task 9: `build_engine` 注入影子层 + 自造夹具集成测试
 
 **Files:**
-- Modify: `wind_input/crates/wind-engine/src/manager.rs`（`load_codetable_layers` ~5960 旁新增 `fn disabled_extra_sources`；`build_engine` 码表分支 ~5836 `CodeTableEngine::new(..)` 链上接 `.with_disabled_dicts(..)`；`mod tests` 加一条）
-- Create: `wind_input/crates/wind-engine/tests/lookup_disabled_dicts.rs`
+- Modify: `moodflow_input/crates/moodflow-engine/src/manager.rs`（`load_codetable_layers` ~5960 旁新增 `fn disabled_extra_sources`；`build_engine` 码表分支 ~5836 `CodeTableEngine::new(..)` 链上接 `.with_disabled_dicts(..)`；`mod tests` 加一条）
+- Create: `moodflow_input/crates/moodflow-engine/tests/lookup_disabled_dicts.rs`
 
 **Interfaces:**
 - Produces: `fn EngineManager::disabled_extra_sources(schema: &Schema, schemas_dir: &Path) -> Vec<DisabledDictSource>`
@@ -1178,8 +1178,8 @@ git show --stat HEAD
 //! 未启用扩展词库的通配 / 注释反查（reverse-mode spec §4），自造夹具，不依赖 build_dev/data。
 
 use std::path::{Path, PathBuf};
-use wind_config::Config;
-use wind_engine::EngineManager;
+use moodflow_config::Config;
+use moodflow_engine::EngineManager;
 
 fn uid(tag: &str) -> String {
     format!("zz_ldd_{tag}_{}", std::process::id())
@@ -1229,7 +1229,7 @@ fn write_fixture(dir: &Path, id: &str, with_xz: bool, xz_file: bool) {
 
 fn setup(tag: &str, on: bool, with_xz: bool, xz_file: bool) -> (EngineManager, String, Cleanup) {
     let id = uid(tag);
-    let dir = std::env::temp_dir().join(format!("wind_ldd_{id}"));
+    let dir = std::env::temp_dir().join(format!("moodflow_ldd_{id}"));
     let _ = std::fs::remove_dir_all(&dir);
     let guard = Cleanup { id: id.clone(), dir: dir.clone() };
     write_fixture(&dir, &id, with_xz, xz_file);
@@ -1246,7 +1246,7 @@ fn manager(dir: &Path, id: &str, on: bool) -> EngineManager {
 }
 
 fn slot(p: &str) -> String {
-    p.replace('?', &wind_dict::WILDCARD_SLOT.to_string())
+    p.replace('?', &moodflow_dict::WILDCARD_SLOT.to_string())
 }
 
 fn wc_texts(m: &EngineManager, input: &str, pat: &str) -> Vec<String> {
@@ -1296,22 +1296,22 @@ fn missing_disabled_file_is_skipped() {
 - [ ] **Step 2: 跑，确认红**
 
 ```bash
-env $T cargo test -p wind-engine --lib disabled_extra_sources
-env $T cargo test -p wind-engine --test lookup_disabled_dicts
+env $T cargo test -p moodflow-engine --lib disabled_extra_sources
+env $T cargo test -p moodflow-engine --test lookup_disabled_dicts
 ```
 
 Expected: 前者编译失败（函数不存在）；后者 `wildcard_sees_disabled_extra_only_when_switch_on` / `live_disable_moves_extra_into_lookup` 红（影子层未接线），其余两条绿（锁）。
 
 - [ ] **Step 3: 实现**：按 Interfaces。`build_engine` 注入点紧跟 `.with_own_extra_dicts(Self::declared_extra_dict_ids(&schema))`（~5838），英文分支（~5557）**不接**。
 
-- [ ] **Step 4: 跑，确认绿**：同 Step 2 两条 + `env $T cargo test -p wind-engine --test engine_manager --test invalidate_cascades_to_mixed`。
+- [ ] **Step 4: 跑，确认绿**：同 Step 2 两条 + `env $T cargo test -p moodflow-engine --test engine_manager --test invalidate_cascades_to_mixed`。
 
 - [ ] **Step 5: 格式与提交**
 
 ```bash
-git add -- wind_input/crates/wind-engine/tests/lookup_disabled_dicts.rs
-rustfmt --edition 2024 --check wind_input/crates/wind-engine/src/manager.rs wind_input/crates/wind-engine/tests/lookup_disabled_dicts.rs
-git commit -F - --only -- wind_input/crates/wind-engine/src/manager.rs wind_input/crates/wind-engine/tests/lookup_disabled_dicts.rs <<'EOF'
+git add -- moodflow_input/crates/moodflow-engine/tests/lookup_disabled_dicts.rs
+rustfmt --edition 2024 --check moodflow_input/crates/moodflow-engine/src/manager.rs moodflow_input/crates/moodflow-engine/tests/lookup_disabled_dicts.rs
+git commit -F - --only -- moodflow_input/crates/moodflow-engine/src/manager.rs moodflow_input/crates/moodflow-engine/tests/lookup_disabled_dicts.rs <<'EOF'
 feat(engine): 码表方案按 lookup_disabled_dicts 挂影子层
 
 来源与 load_codetable_layers 同口径（主库除外、扩展库全收），启用集取本次实际加载的层；
@@ -1325,9 +1325,9 @@ git show --stat HEAD
 ## Task 10: 反查索引「含未启用库」变体
 
 **Files:**
-- Modify: `wind_input/crates/wind-engine/src/manager.rs`（反查索引一族 ~1159-1700、~1887、`set_dict_enabled_live` ~3204、`invalidate_schema` ~3370、`reload_from_config` ~3481、`reverse_index_keeps` ~6828；`mod tests`）
-- Modify: `wind_input/crates/wind-engine/src/lib.rs`（`pub use manager::ReverseScope`）
-- Modify: `wind_input/crates/wind-engine/tests/lookup_disabled_dicts.rs`（追加）
+- Modify: `moodflow_input/crates/moodflow-engine/src/manager.rs`（反查索引一族 ~1159-1700、~1887、`set_dict_enabled_live` ~3204、`invalidate_schema` ~3370、`reload_from_config` ~3481、`reverse_index_keeps` ~6828；`mod tests`）
+- Modify: `moodflow_input/crates/moodflow-engine/src/lib.rs`（`pub use manager::ReverseScope`）
+- Modify: `moodflow_input/crates/moodflow-engine/tests/lookup_disabled_dicts.rs`（追加）
 
 **Interfaces:**
 - Produces:
@@ -1387,7 +1387,7 @@ git show --stat HEAD
 同时把既有 `reverse_index_path_is_scoped_by_schema_id_only` / `single_char_codes_cache_sits_next_to_the_reverse_index` 里的
 `reverse_index_cache_path_in(root, id)` 调用补上 `ReverseScope::Enabled` 实参（断言不变）。
 
-`tests/lookup_disabled_dicts.rs` 追加（顶部加 `use wind_engine::ReverseScope;`）：
+`tests/lookup_disabled_dicts.rs` 追加（顶部加 `use moodflow_engine::ReverseScope;`）：
 
 ```rust
 /// spec §4.2：注释反查变体含未启用库；加词查重（word_codes_in）与悬停（word_codes_display）口径不变（裁决 6）。
@@ -1448,7 +1448,7 @@ fn variant_invalidated_on_dict_toggle() {
 
 （`Cleanup` 的 `dir` 字段在 `variant_and_regular_indexes_use_separate_files` 里被读：把 `struct Cleanup` 的两个字段改 `pub`。）
 
-- [ ] **Step 2: 跑，确认红**：`env $T cargo test -p wind-engine --lib reverse_index` 与 `--test lookup_disabled_dicts` → 编译失败。
+- [ ] **Step 2: 跑，确认红**：`env $T cargo test -p moodflow-engine --lib reverse_index` 与 `--test lookup_disabled_dicts` → 编译失败。
 
 - [ ] **Step 3: 实现**：按 Interfaces。`build_reverse_index_for(schema_id)` 改为 `build_reverse_index_for(schema_id, scope)`；
   `reverse_index_for` 同理；所有 `.get(schema_id)` / `.insert(schema_id…)` / `.contains(schema_id)` 改用 `reverse_index_key`。
@@ -1457,8 +1457,8 @@ fn variant_invalidated_on_dict_toggle() {
 - [ ] **Step 4: 跑，确认绿 + 相邻回归**
 
 ```bash
-env $T cargo test -p wind-engine --lib reverse_index single_char_codes
-env $T cargo test -p wind-engine --test lookup_disabled_dicts --test reverse_index_cache --test text_codes --test single_char_codes_cache --test aux_code_sources
+env $T cargo test -p moodflow-engine --lib reverse_index single_char_codes
+env $T cargo test -p moodflow-engine --test lookup_disabled_dicts --test reverse_index_cache --test text_codes --test single_char_codes_cache --test aux_code_sources
 ```
 
 Expected: 全绿。`reverse_index_cache` / `text_codes` 是「常规索引行为不变」的锁。
@@ -1466,8 +1466,8 @@ Expected: 全绿。`reverse_index_cache` / `text_codes` 是「常规索引行为
 - [ ] **Step 5: 格式与提交**
 
 ```bash
-rustfmt --edition 2024 --check wind_input/crates/wind-engine/src/{manager,lib}.rs wind_input/crates/wind-engine/tests/lookup_disabled_dicts.rs
-git commit -F - --only -- wind_input/crates/wind-engine/src/manager.rs wind_input/crates/wind-engine/src/lib.rs wind_input/crates/wind-engine/tests/lookup_disabled_dicts.rs <<'EOF'
+rustfmt --edition 2024 --check moodflow_input/crates/moodflow-engine/src/{manager,lib}.rs moodflow_input/crates/moodflow-engine/tests/lookup_disabled_dicts.rs
+git commit -F - --only -- moodflow_input/crates/moodflow-engine/src/manager.rs moodflow_input/crates/moodflow-engine/src/lib.rs moodflow_input/crates/moodflow-engine/tests/lookup_disabled_dicts.rs <<'EOF'
 feat(engine): 反查索引加「含未启用扩展库」变体，只供候选注释反查
 
 内存键带 \u{1}with_disabled 后缀、磁盘 <key>.with_disabled.wridx，与常规索引分文件
@@ -1482,12 +1482,12 @@ git show --stat HEAD
 ## Task 11: 协调器注释反查走变体 + 后台预热
 
 **Files:**
-- Modify: `wind_input/crates/wind-coordinator/src/comment.rs`（`eval_text_var` 的 `code_rev_all | code_all` ~1108-1112；`eval_var` 的同名臂 ~1264-1267；两处 `code_rev | code` 臂在返回 `None` 时触发预热；文件末尾新测试模块）
-- Modify: `wind_input/crates/wind-coordinator/src/coordinator.rs`（`prewarm_indexes` ~4429；`spawn_index_warm` ~4502 抽成 `spawn_index_warm_in`；新增 `warm_comment_reverse_index`）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/comment.rs`（`eval_text_var` 的 `code_rev_all | code_all` ~1108-1112；`eval_var` 的同名臂 ~1264-1267；两处 `code_rev | code` 臂在返回 `None` 时触发预热；文件末尾新测试模块）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/coordinator.rs`（`prewarm_indexes` ~4429；`spawn_index_warm` ~4502 抽成 `spawn_index_warm_in`；新增 `warm_comment_reverse_index`）
 
 **Interfaces:**
 - Produces:
-  - `pub(crate) fn Coordinator::spawn_index_warm_in(&self, schema_id: &str, scope: wind_engine::ReverseScope, with_single_char: bool)`
+  - `pub(crate) fn Coordinator::spawn_index_warm_in(&self, schema_id: &str, scope: moodflow_engine::ReverseScope, with_single_char: bool)`
     （原 `spawn_index_warm` 体搬入，所有 `reverse_index_if_ready` / `reverse_index_skipped` / `is_building_reverse_index` / `prewarm_reverse_index`
     换成 `_in(.., scope)`；`spawn_index_warm(id, w)` = `spawn_index_warm_in(id, Enabled, w)`，调用方零改动）
   - `pub(crate) fn Coordinator::warm_comment_reverse_index(&self)`：`sid = code_source_schema()`；`scope = comment_reverse_scope(&sid)`；
@@ -1505,7 +1505,7 @@ mod comment_reverse_scope_tests {
     //! 候选注释反查走「含未启用库」变体（reverse-mode spec §4.2）。自造夹具，不依赖 build_dev/data。
     use crate::coordinator::Coordinator;
     use std::path::PathBuf;
-    use wind_config::Config;
+    use moodflow_config::Config;
 
     struct Cleanup {
         id: String,
@@ -1522,7 +1522,7 @@ mod comment_reverse_scope_tests {
 
     fn coord(tag: &str, on: bool) -> (std::sync::Arc<Coordinator>, Cleanup) {
         let id = format!("zz_crs_{tag}_{}", std::process::id());
-        let dir = std::env::temp_dir().join(format!("wind_crs_{id}"));
+        let dir = std::env::temp_dir().join(format!("moodflow_crs_{id}"));
         let _ = std::fs::remove_dir_all(&dir);
         let s = dir.join("schemas");
         std::fs::create_dir_all(s.join(&id)).unwrap();
@@ -1558,22 +1558,22 @@ mod comment_reverse_scope_tests {
 }
 ```
 
-- [ ] **Step 2: 跑，确认红**：`env $T cargo test -p wind-coordinator --lib comment_reverse_scope_tests` → 开关开那半红（`None`：变体没被预热）。
+- [ ] **Step 2: 跑，确认红**：`env $T cargo test -p moodflow-coordinator --lib comment_reverse_scope_tests` → 开关开那半红（`None`：变体没被预热）。
 
 - [ ] **Step 3: 实现**：按 Interfaces。
 
 - [ ] **Step 4: 跑，确认绿 + 相邻回归**
 
 ```bash
-env $T cargo test -p wind-coordinator --lib comment handle_aux_code handle_direct_aux handle_addword
-env $T cargo test -p wind-coordinator --no-fail-fast 2>&1 | grep -E "^test result|FAILED" | tail -30
+env $T cargo test -p moodflow-coordinator --lib comment handle_aux_code handle_direct_aux handle_addword
+env $T cargo test -p moodflow-coordinator --no-fail-fast 2>&1 | grep -E "^test result|FAILED" | tail -30
 ```
 
 - [ ] **Step 5: 格式与提交**
 
 ```bash
-rustfmt --edition 2024 --check wind_input/crates/wind-coordinator/src/{comment,coordinator}.rs
-git commit -F - --only -- wind_input/crates/wind-coordinator/src/comment.rs wind_input/crates/wind-coordinator/src/coordinator.rs <<'EOF'
+rustfmt --edition 2024 --check moodflow_input/crates/moodflow-coordinator/src/{comment,coordinator}.rs
+git commit -F - --only -- moodflow_input/crates/moodflow-coordinator/src/comment.rs moodflow_input/crates/moodflow-coordinator/src/coordinator.rs <<'EOF'
 feat(coordinator): 候选注释反查含未启用扩展库，未就绪时后台建
 
 code_rev / code / code_rev_all / code_all 走「含未启用库」变体（reverse-mode spec §4.2）；
@@ -1584,7 +1584,7 @@ git show --stat HEAD
 
 ---
 
-## Task 12: wind-setting 设置项「通配与反查含扩展词库」
+## Task 12: moodflow-setting 设置项「通配与反查含扩展词库」
 
 **Files:** 同 Task 3（manifest、`schema_codetable.rs`、两份生成物）。
 
@@ -1618,7 +1618,7 @@ feat(settings): 码表「通配与反查含扩展词库」开关
 ## Task 13: P2 真实数据验收
 
 **Files:**
-- Modify: `wind_input/crates/wind-coordinator/tests/codetable_wildcard.rs`（末尾新增一节）
+- Modify: `moodflow_input/crates/moodflow-coordinator/tests/codetable_wildcard.rs`（末尾新增一节）
 
 - [ ] **Step 1: 追加用例**
 
@@ -1685,13 +1685,13 @@ fn mixed_lookup_disabled_dicts_follows_primary() {
 }
 ```
 
-- [ ] **Step 2: 跑**：`time env $T cargo test -p wind-coordinator --test codetable_wildcard --no-fail-fast 2>&1 | tail -20` → 全绿、≥1s、无「跳过」。
+- [ ] **Step 2: 跑**：`time env $T cargo test -p moodflow-coordinator --test codetable_wildcard --no-fail-fast 2>&1 | tail -20` → 全绿、≥1s、无「跳过」。
   核对点：`lookup_disabled_dicts_leaves_plain_typing_identical` 若红在 `zz`，看是否是 headless 下 `zz` 无短语导致两边都空——空 == 空仍绿；若不等则是泄漏，回 Task 8/9 修。
 
 - [ ] **Step 3: 格式与提交**
 
 ```bash
-git commit -F - --only -- wind_input/crates/wind-coordinator/tests/codetable_wildcard.rs <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-coordinator/tests/codetable_wildcard.rs <<'EOF'
 test(wildcard): 通配含未启用扩展库的真实数据验收
 
 uuiz 开关前后「门头沟区」可见性、已启用等长结果全在其前；普通打字逐键不变；
@@ -1704,7 +1704,7 @@ EOF
 ## Task 14: P2 文档 + 全量测试 + 回归核对
 
 **Files:**
-- Modify: `../WindInputDocs/content/docs/settings/schema/codetable.mdx`、`../WindInputDocs/content/docs/guides/config/schema.mdx`
+- Modify: `../MoodflowDocs/content/docs/settings/schema/codetable.mdx`、`../MoodflowDocs/content/docs/guides/config/schema.mdx`
 - Modify: `docs/design/codetable-reverse-mode.md`（状态行）、`docs/architecture/engine-candidate-pipeline.md`（§3.4）
 
 - [ ] **Step 1: 文档站**
@@ -1716,7 +1716,7 @@ EOF
     参考表加 `| \`lookup_disabled_dicts\` <Since v="0.125" /> | 布尔 | — | \`false\` | 通配、反查模式与候选注释反查也查未启用（\`default_enabled = false\` 且未手动启用）的扩展词库，已启用的排前；普通打字候选不变 |`
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-rev/WindInputDocs && pnpm lint && node scripts/check-config-coverage.mjs 2>&1 | tail -1
+cd /home/dufeng/develop/moodflow/wt-rev/MoodflowDocs && pnpm lint && node scripts/check-config-coverage.mjs 2>&1 | tail -1
 ```
 
 Expected: lint 通过；缺失 13。
@@ -1732,10 +1732,10 @@ Expected: `failed` 同基线；`passed` = P1 结束时 + **24**（Task 6：2；T
 Task 10：单测 2 + 集成 4；Task 11：1；Task 13：3）。不符时列出多出 / 缺少的测试名。
 
 - [ ] **Step 4: 回归与提交范围自查、两仓提交**：同 Task 5 Step 4（grep 模式加 `from_disabled_dict` 之外无新增 `pub` 泄漏检查：
-  `git diff "$base"..HEAD -- wind_input/crates/wind-engine/src/codetable/engine.rs | grep -n "disabled_dicts" ` 只应出现在
+  `git diff "$base"..HEAD -- moodflow_input/crates/moodflow-engine/src/codetable/engine.rs | grep -n "disabled_dicts" ` 只应出现在
   字段声明、`new`、`with_disabled_dicts` / `disabled_dicts()`、`set_dict_enabled`、`wildcard_query` 与测试里——出现在 `fn convert` 体内即 Review Focus 1 破了）。
-  提交信息：WindInput `docs(design): 通配与反查含未启用扩展库落地——设计稿状态与架构文档 §3.4`；
-  WindInputDocs `docs(settings): 通配与反查含扩展词库`。
+  提交信息：Moodflow `docs(design): 通配与反查含未启用扩展库落地——设计稿状态与架构文档 §3.4`；
+  MoodflowDocs `docs(settings): 通配与反查含扩展词库`。
 
 ---
 
@@ -1744,9 +1744,9 @@ Task 10：单测 2 + 集成 4；Task 11：1；Task 13：3）。不符时列出�
 ## Task 15: 配置 `BoundAction::Reverse` 与 `input.reverse`
 
 **Files:**
-- Modify: `wind_input/crates/wind-config/src/config.rs`（`BoundAction` 枚举 ~1514 `RareChar` 之后；值域文档 ~1492；`only_in_chinese_mode` ~1670；`parse` ~1762；`InputConfig` ~3799 `rare_char` 之后；`Default` ~3917；`RareCharConfig` 之后新增 `ReverseConfig`；`CodetableGlobal` 新方法 `reverse_wildcard_char`；测试 ~13280 与 ~6983）
-- Modify: `wind_input/crates/wind-config/src/hotkey.rs`（`hotkey_policy_for` ~84）
-- Modify: `wind_input/crates/wind-config/src/config_schema.rs`（`REGISTRY` ~485 之后）
+- Modify: `moodflow_input/crates/moodflow-config/src/config.rs`（`BoundAction` 枚举 ~1514 `RareChar` 之后；值域文档 ~1492；`only_in_chinese_mode` ~1670；`parse` ~1762；`InputConfig` ~3799 `rare_char` 之后；`Default` ~3917；`RareCharConfig` 之后新增 `ReverseConfig`；`CodetableGlobal` 新方法 `reverse_wildcard_char`；测试 ~13280 与 ~6983）
+- Modify: `moodflow_input/crates/moodflow-config/src/hotkey.rs`（`hotkey_policy_for` ~84）
+- Modify: `moodflow_input/crates/moodflow-config/src/config_schema.rs`（`REGISTRY` ~485 之后）
 - Modify: `data/config.toml`（`[input.rare_char]` 段 ~974 之后）
 
 **Interfaces:**
@@ -1803,7 +1803,7 @@ Task 10：单测 2 + 集成 4；Task 11：1；Task 13：3）。不符时列出�
     }
 ```
 
-- [ ] **Step 2: 跑，确认红**：`env $T cargo test -p wind-config --lib reverse` → 编译失败。
+- [ ] **Step 2: 跑，确认红**：`env $T cargo test -p moodflow-config --lib reverse` → 编译失败。
 
 - [ ] **Step 3: 实现**
   - `BoundAction::Reverse` 文档：「进反查模式：输入**本方案编码**（含通配，任何位置都可通配），只查主码表（reverse-mode spec §3）。无载荷，单例。」
@@ -1822,16 +1822,16 @@ Task 10：单测 2 + 集成 4；Task 11：1；Task 13：3）。不符时列出�
     candidate_layout = "follow"
     ```
 
-- [ ] **Step 4: 跑**：`env $T cargo test -p wind-config --no-fail-fast` 全绿；`env $T cargo check -p wind-coordinator -p wind-service 2>&1 | grep -E "^error" | head`
-  ——预期 wind-coordinator 在 `bound_action_mode_kind` / `is_lock_free_bound` 等穷举 `match` 上报「non-exhaustive」，**本任务只在那些
+- [ ] **Step 4: 跑**：`env $T cargo test -p moodflow-config --no-fail-fast` 全绿；`env $T cargo check -p moodflow-coordinator -p moodflow-service 2>&1 | grep -E "^error" | head`
+  ——预期 moodflow-coordinator 在 `bound_action_mode_kind` / `is_lock_free_bound` 等穷举 `match` 上报「non-exhaustive」，**本任务只在那些
   `match` 上补最小臂让它编译**：`is_lock_free_bound` 并入 `false` 组；`bound_action_mode_kind` 暂并入 `return None` 组；`enter_bound_action`
   与 `handle_mode.rs` 的 commit-and-enter 暂返回 `None`（注释 `// 反查模式在 Task 17 接线`）；Task 17 替换。
 
 - [ ] **Step 5: 格式与提交**
 
 ```bash
-rustfmt --edition 2024 --check wind_input/crates/wind-config/src/{config,hotkey,config_schema}.rs wind_input/crates/wind-coordinator/src/{handle_lifecycle,handle_mode}.rs
-git commit -F - --only -- wind_input/crates/wind-config/src/config.rs wind_input/crates/wind-config/src/hotkey.rs wind_input/crates/wind-config/src/config_schema.rs data/config.toml wind_input/crates/wind-coordinator/src/handle_lifecycle.rs wind_input/crates/wind-coordinator/src/handle_mode.rs <<'EOF'
+rustfmt --edition 2024 --check moodflow_input/crates/moodflow-config/src/{config,hotkey,config_schema}.rs moodflow_input/crates/moodflow-coordinator/src/{handle_lifecycle,handle_mode}.rs
+git commit -F - --only -- moodflow_input/crates/moodflow-config/src/config.rs moodflow_input/crates/moodflow-config/src/hotkey.rs moodflow_input/crates/moodflow-config/src/config_schema.rs data/config.toml moodflow_input/crates/moodflow-coordinator/src/handle_lifecycle.rs moodflow_input/crates/moodflow-coordinator/src/handle_mode.rs <<'EOF'
 feat(config): 反查模式动词 reverse 与 [input.reverse]（enabled / candidate_layout）
 
 出厂关、不绑任何键（reverse-mode spec §3.1）；模式内通配键取方案 wildcard_key，
@@ -1844,10 +1844,10 @@ EOF
 ## Task 16: 引擎 `convert_reverse` / `reverse_wildcard_key`
 
 **Files:**
-- Modify: `wind_input/crates/wind-engine/src/engine.rs`（trait `convert_wildcard` ~400 之后）
-- Modify: `wind_input/crates/wind-engine/src/codetable/engine.rs`（`CommitOptions::reverse_key`；`Engine` impl；测试）
-- Modify: `wind_input/crates/wind-engine/src/mixed/engine.rs`（代理 primary；测试）
-- Modify: `wind_input/crates/wind-engine/src/manager.rs`（`build_engine` 注入 `reverse_key`；`active_reverse_key` / `convert_reverse` 紧跟 `convert_wildcard` ~2627）
+- Modify: `moodflow_input/crates/moodflow-engine/src/engine.rs`（trait `convert_wildcard` ~400 之后）
+- Modify: `moodflow_input/crates/moodflow-engine/src/codetable/engine.rs`（`CommitOptions::reverse_key`；`Engine` impl；测试）
+- Modify: `moodflow_input/crates/moodflow-engine/src/mixed/engine.rs`（代理 primary；测试）
+- Modify: `moodflow_input/crates/moodflow-engine/src/manager.rs`（`build_engine` 注入 `reverse_key`；`active_reverse_key` / `convert_reverse` 紧跟 `convert_wildcard` ~2627）
 
 **Interfaces:**
 - Produces:
@@ -1906,13 +1906,13 @@ EOF
 
 （`ct_wildcard_with` 的 `CommitOptions` 加 `reverse_key: Some('z')`。）
 
-- [ ] **Step 2: 跑，确认红**：`env $T cargo test -p wind-engine --lib reverse` → 编译失败。
+- [ ] **Step 2: 跑，确认红**：`env $T cargo test -p moodflow-engine --lib reverse` → 编译失败。
 - [ ] **Step 3: 实现**：按 Interfaces。
-- [ ] **Step 4: 跑**：`env $T cargo test -p wind-engine --no-fail-fast 2>&1 | grep -E "^test result|FAILED" | tail`
+- [ ] **Step 4: 跑**：`env $T cargo test -p moodflow-engine --no-fail-fast 2>&1 | grep -E "^test result|FAILED" | tail`
 - [ ] **Step 5: 提交**
 
 ```bash
-git commit -F - --only -- wind_input/crates/wind-engine/src/engine.rs wind_input/crates/wind-engine/src/codetable/engine.rs wind_input/crates/wind-engine/src/mixed/engine.rs wind_input/crates/wind-engine/src/manager.rs <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-engine/src/engine.rs moodflow_input/crates/moodflow-engine/src/codetable/engine.rs moodflow_input/crates/moodflow-engine/src/mixed/engine.rs moodflow_input/crates/moodflow-engine/src/manager.rs <<'EOF'
 feat(engine): 反查模式入口 convert_reverse——同通配内核、不看主开关
 
 与 convert_wildcard 共用 wildcard_query（仅单字、影子层自动生效）；混输只代理主码表，
@@ -1925,8 +1925,8 @@ EOF
 ## Task 17: 协调器 `ModeKind::Reverse` 骨架（进入 / 候选 / 按键 / 退出）
 
 **Files:**
-- Modify: `wind_input/crates/wind-coordinator/src/pipeline.rs`（`ModeKind::Reverse`，文档仿 `RareChar`）
-- Create: `wind_input/crates/wind-coordinator/src/handle_reverse.rs`；Modify: `src/lib.rs`（`mod handle_reverse;`）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/pipeline.rs`（`ModeKind::Reverse`，文档仿 `RareChar`）
+- Create: `moodflow_input/crates/moodflow-coordinator/src/handle_reverse.rs`；Modify: `src/lib.rs`（`mod handle_reverse;`）
 - Modify（`prefix-hijack-modes.md` §3 清单逐处，现名见裁决 14）：
   1. `debug_support.rs` `debug_active_mode` ~108：`Some(ModeKind::Reverse) => Some("reverse")`；新增 `pub fn debug_scope_relaxed(&self) -> bool`
   2. `handle_candidate.rs` `select_page_candidate` ~2470、`commit_highlighted` ~2539、`select_candidate_at` ~5049：并入 `Special | RareChar` 臂 → `commit_special_candidate`
@@ -1974,9 +1974,9 @@ mod tests {
     use crate::coordinator::Coordinator;
     use std::path::PathBuf;
     use std::sync::Arc;
-    use wind_bridge::handler::{KeyEventData, MessageHandler};
-    use wind_config::Config;
-    use wind_ipc::protocol::{EVENT_KEY_DOWN, MOD_SHIFT};
+    use moodflow_bridge::handler::{KeyEventData, MessageHandler};
+    use moodflow_config::Config;
+    use moodflow_ipc::protocol::{EVENT_KEY_DOWN, MOD_SHIFT};
 
     const VK_BACKSLASH: u32 = 0xDC;
     const VK_ESCAPE: u32 = 0x1B;
@@ -1998,7 +1998,7 @@ mod tests {
     /// 码表 `ab 甲 / ac 乙 / bb 丁`；`\` 绑反查、模式开。
     fn coord(tag: &str, tweak: impl FnOnce(&mut Config)) -> (Arc<Coordinator>, Cleanup) {
         let id = format!("zz_rev_{tag}_{}", std::process::id());
-        let dir = std::env::temp_dir().join(format!("wind_rev_{id}"));
+        let dir = std::env::temp_dir().join(format!("moodflow_rev_{id}"));
         let _ = std::fs::remove_dir_all(&dir);
         let s = dir.join("schemas");
         std::fs::create_dir_all(s.join(&id)).unwrap();
@@ -2046,7 +2046,7 @@ mod tests {
 
     #[test]
     fn reverse_pattern_marks_every_key_position() {
-        let s = wind_dict::WILDCARD_SLOT;
+        let s = moodflow_dict::WILDCARD_SLOT;
         assert_eq!(reverse_pattern("zbz", 'z'), format!("{s}b{s}"), "含首位");
         assert_eq!(reverse_pattern("ab", 'z'), "ab", "无通配键 ⇒ 字面等长 + 前缀");
     }
@@ -2100,13 +2100,13 @@ mod tests {
 
 （`debug_preedit` 的前缀：反斜杠触发时 `special_prefix == "\\"`；若 `vk_to_prefix_char_with_letters(0xDC)` 实际给的不是 `\`，按它的返回值改断言并在报告注明。）
 
-- [ ] **Step 2: 跑，确认红**：`env $T cargo test -p wind-coordinator --lib handle_reverse` → 编译失败（模块不存在）；实现骨架后跑 `layout` 测试确认 `MODES` 含 Reverse。
+- [ ] **Step 2: 跑，确认红**：`env $T cargo test -p moodflow-coordinator --lib handle_reverse` → 编译失败（模块不存在）；实现骨架后跑 `layout` 测试确认 `MODES` 含 Reverse。
 - [ ] **Step 3: 实现**：按 Files 1–13 与 Interfaces。
 - [ ] **Step 4: 跑，确认绿 + 相邻回归**
 
 ```bash
-env $T cargo test -p wind-coordinator --lib handle_reverse layout handle_special handle_url debug_support comment
-env $T cargo test -p wind-coordinator --no-fail-fast 2>&1 | grep -E "^test result|FAILED" | tail -30
+env $T cargo test -p moodflow-coordinator --lib handle_reverse layout handle_special handle_url debug_support comment
+env $T cargo test -p moodflow-coordinator --no-fail-fast 2>&1 | grep -E "^test result|FAILED" | tail -30
 ```
 
 Expected: 全绿；`handle_special` 生僻字那族（`real_dict_*`、`engine_side_admit_matches_caller_side_filter`）不变。
@@ -2114,9 +2114,9 @@ Expected: 全绿；`handle_special` 生僻字那族（`real_dict_*`、`engine_si
 - [ ] **Step 5: 提交**
 
 ```bash
-git add -- wind_input/crates/wind-coordinator/src/handle_reverse.rs
-cd wind_input/crates/wind-coordinator/src && rustfmt --edition 2024 --check pipeline.rs handle_reverse.rs lib.rs debug_support.rs handle_candidate.rs handle_mode.rs layout.rs comment.rs handle_url.rs coordinator.rs coordinator/message_handler.rs handle_common_chars.rs handle_lifecycle.rs handle_special.rs && cd -
-git commit -F - --only -- wind_input/crates/wind-coordinator/src/pipeline.rs wind_input/crates/wind-coordinator/src/handle_reverse.rs wind_input/crates/wind-coordinator/src/lib.rs wind_input/crates/wind-coordinator/src/debug_support.rs wind_input/crates/wind-coordinator/src/handle_candidate.rs wind_input/crates/wind-coordinator/src/handle_mode.rs wind_input/crates/wind-coordinator/src/layout.rs wind_input/crates/wind-coordinator/src/comment.rs wind_input/crates/wind-coordinator/src/handle_url.rs wind_input/crates/wind-coordinator/src/coordinator.rs wind_input/crates/wind-coordinator/src/coordinator/message_handler.rs wind_input/crates/wind-coordinator/src/handle_common_chars.rs wind_input/crates/wind-coordinator/src/handle_lifecycle.rs wind_input/crates/wind-coordinator/src/handle_special.rs <<'EOF'
+git add -- moodflow_input/crates/moodflow-coordinator/src/handle_reverse.rs
+cd moodflow_input/crates/moodflow-coordinator/src && rustfmt --edition 2024 --check pipeline.rs handle_reverse.rs lib.rs debug_support.rs handle_candidate.rs handle_mode.rs layout.rs comment.rs handle_url.rs coordinator.rs coordinator/message_handler.rs handle_common_chars.rs handle_lifecycle.rs handle_special.rs && cd -
+git commit -F - --only -- moodflow_input/crates/moodflow-coordinator/src/pipeline.rs moodflow_input/crates/moodflow-coordinator/src/handle_reverse.rs moodflow_input/crates/moodflow-coordinator/src/lib.rs moodflow_input/crates/moodflow-coordinator/src/debug_support.rs moodflow_input/crates/moodflow-coordinator/src/handle_candidate.rs moodflow_input/crates/moodflow-coordinator/src/handle_mode.rs moodflow_input/crates/moodflow-coordinator/src/layout.rs moodflow_input/crates/moodflow-coordinator/src/comment.rs moodflow_input/crates/moodflow-coordinator/src/handle_url.rs moodflow_input/crates/moodflow-coordinator/src/coordinator.rs moodflow_input/crates/moodflow-coordinator/src/coordinator/message_handler.rs moodflow_input/crates/moodflow-coordinator/src/handle_common_chars.rs moodflow_input/crates/moodflow-coordinator/src/handle_lifecycle.rs moodflow_input/crates/moodflow-coordinator/src/handle_special.rs <<'EOF'
 feat(coordinator): 反查模式 ModeKind::Reverse——复用 special 族按键处理
 
 同生僻字模式先例：缓冲 / 光标 / 退格 / 选词复用 handle_special_key，候选另由
@@ -2131,10 +2131,10 @@ EOF
 ## Task 18: 反查模式的翻页扩充与末页放宽
 
 **Files:**
-- Modify: `wind_input/crates/wind-coordinator/src/handle_reverse.rs`（`expand_reverse_candidates`）
-- Modify: `wind_input/crates/wind-coordinator/src/handle_candidate.rs`（`expand_candidates` ~2392 开头分流）
-- Modify: `wind_input/crates/wind-coordinator/src/candidate_nav.rs`（`try_relax_scope_on_page_end` ~223、`expire_scope_override` ~200）
-- Create: `wind_input/crates/wind-coordinator/tests/codetable_reverse.rs`（本任务起的真实数据用例都放这里）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/handle_reverse.rs`（`expand_reverse_candidates`）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/handle_candidate.rs`（`expand_candidates` ~2392 开头分流）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/candidate_nav.rs`（`try_relax_scope_on_page_end` ~223、`expire_scope_override` ~200）
+- Create: `moodflow_input/crates/moodflow-coordinator/tests/codetable_reverse.rs`（本任务起的真实数据用例都放这里）
 
 **Interfaces:**
 - Produces: `pub(crate) fn Coordinator::expand_reverse_candidates(&self, state: &mut State)`——与 `expand_candidates` 同判据：`!has_more` 返回；
@@ -2151,10 +2151,10 @@ EOF
 //! ⚠️ 数据缺失时整族静默跳过而计数照绿，判据是耗时（≥1s）与输出里有没有「跳过」。
 
 use std::path::PathBuf;
-use wind_bridge::handler::{KeyEventData, MessageHandler};
-use wind_config::Config;
-use wind_coordinator::Coordinator;
-use wind_ipc::protocol::{EVENT_KEY_DOWN, MOD_SHIFT};
+use moodflow_bridge::handler::{KeyEventData, MessageHandler};
+use moodflow_config::Config;
+use moodflow_coordinator::Coordinator;
+use moodflow_ipc::protocol::{EVENT_KEY_DOWN, MOD_SHIFT};
 
 const VK_BACKSLASH: u32 = 0xDC;
 const VK_ESCAPE: u32 = 0x1B;
@@ -2256,14 +2256,14 @@ fn reverse_smart_matches_general() {
 }
 ```
 
-- [ ] **Step 2: 跑，确认红**：`env $T cargo test -p wind-coordinator --test codetable_reverse` → `reverse_azzz_first_batch_100_and_expands` 红在扩充；`reverse_smart_matches_general` 应已绿（Task 17 已接 `apply_filter`，是锁）。
+- [ ] **Step 2: 跑，确认红**：`env $T cargo test -p moodflow-coordinator --test codetable_reverse` → `reverse_azzz_first_batch_100_and_expands` 红在扩充；`reverse_smart_matches_general` 应已绿（Task 17 已接 `apply_filter`，是锁）。
 - [ ] **Step 3: 实现**：按 Interfaces。
-- [ ] **Step 4: 跑**：同 Step 2 + `env $T cargo test -p wind-coordinator --lib candidate_nav expand_stop_tests` + `--test codetable_wildcard --test input_flow`。
+- [ ] **Step 4: 跑**：同 Step 2 + `env $T cargo test -p moodflow-coordinator --lib candidate_nav expand_stop_tests` + `--test codetable_wildcard --test input_flow`。
 - [ ] **Step 5: 提交**
 
 ```bash
-git add -- wind_input/crates/wind-coordinator/tests/codetable_reverse.rs
-git commit -F - --only -- wind_input/crates/wind-coordinator/src/handle_reverse.rs wind_input/crates/wind-coordinator/src/handle_candidate.rs wind_input/crates/wind-coordinator/src/candidate_nav.rs wind_input/crates/wind-coordinator/tests/codetable_reverse.rs <<'EOF'
+git add -- moodflow_input/crates/moodflow-coordinator/tests/codetable_reverse.rs
+git commit -F - --only -- moodflow_input/crates/moodflow-coordinator/src/handle_reverse.rs moodflow_input/crates/moodflow-coordinator/src/handle_candidate.rs moodflow_input/crates/moodflow-coordinator/src/candidate_nav.rs moodflow_input/crates/moodflow-coordinator/tests/codetable_reverse.rs <<'EOF'
 feat(coordinator): 反查模式接翻页扩充与末页放宽
 
 special 族原本没有扩充与检索范围放宽，而反查结果与行内通配同样首批 100、×2 扩到
@@ -2277,10 +2277,10 @@ EOF
 ## Task 19: 进入通路与首键冲突判据
 
 **Files:**
-- Modify: `wind_input/crates/wind-coordinator/src/handle_lifecycle.rs`（`is_any_mode_trigger` ~89；`bound_action_yield_reason` ~540）
-- Modify: `wind_input/crates/wind-coordinator/src/coordinator.rs`（`code_char_conflicts` ~5540 的「空缓冲类占用」块）
-- Modify: `wind_input/crates/wind-coordinator/src/handle_temp.rs`（`z_fallback_accepts` ~155；`try_z_fallback` ~247 装载臂与 ~274 刷新臂）
-- Modify: `wind_input/crates/wind-coordinator/tests/codetable_reverse.rs`（追加）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/handle_lifecycle.rs`（`is_any_mode_trigger` ~89；`bound_action_yield_reason` ~540）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/coordinator.rs`（`code_char_conflicts` ~5540 的「空缓冲类占用」块）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/handle_temp.rs`（`z_fallback_accepts` ~155；`try_z_fallback` ~247 装载臂与 ~274 刷新臂）
+- Modify: `moodflow_input/crates/moodflow-coordinator/tests/codetable_reverse.rs`（追加）
 
 **Interfaces（逐处改动，spec §3.1 / §3.3）:**
 - `is_any_mode_trigger`：`|| self.is_reverse_trigger(key_code)`（智能符号 press2 与行内通配首位让位 `wildcard_lead_yields` 都经它认得反查键）。
@@ -2296,8 +2296,8 @@ EOF
 - [ ] **Step 1: 写失败测试**（`codetable_reverse.rs` 追加）
 
 ```rust
-fn zz_phrases() -> Vec<wind_phrase::PhraseSeed> {
-    let seed = |code: &str, text: &str| wind_phrase::PhraseSeed {
+fn zz_phrases() -> Vec<moodflow_phrase::PhraseSeed> {
+    let seed = |code: &str, text: &str| moodflow_phrase::PhraseSeed {
         code: code.into(),
         text: text.into(),
         weight: 0,
@@ -2387,17 +2387,17 @@ fn z_key_action_reverse_enters_via_z_fallback() {
 }
 ```
 
-核对点：`input_chars = "a-y\\"`（TOML 里即 `a-y\`）若被 `CodeCharSet::new`（`wind-config/src/code_charset.rs:88`）判非法而回落默认 `a-z`，
+核对点：`input_chars = "a-y\\"`（TOML 里即 `a-y\`）若被 `CodeCharSet::new`（`moodflow-config/src/code_charset.rs:88`）判非法而回落默认 `a-z`，
 `code_char_conflicts` 会因 `is_default_alpha()` 直接返回空——换成 `input_chars = "a-y;"` 并把反查键改绑 `semicolon`（同时 `cfg.schema.mix_modes.clear()`
 让出厂 quick_mix 不占 `;`），断言字符改 `';'`，并在报告注明。
 
 - [ ] **Step 2: 跑，确认红**：`reverse_letter_trigger_yields_to_live_code_prefix` 红在冲突体检；`reverse_yields_in_pinyin_schema` 视 Task 17 门卫可能已绿（锁）；`z_key_action_reverse_enters_via_z_fallback` 红。
 - [ ] **Step 3: 实现**：按 Interfaces。
-- [ ] **Step 4: 跑**：`env $T cargo test -p wind-coordinator --test codetable_reverse --test input_flow --test codetable_wildcard` + `--lib handle_temp wildcard handle_lifecycle`。
+- [ ] **Step 4: 跑**：`env $T cargo test -p moodflow-coordinator --test codetable_reverse --test input_flow --test codetable_wildcard` + `--lib handle_temp wildcard handle_lifecycle`。
 - [ ] **Step 5: 提交**
 
 ```bash
-git commit -F - --only -- wind_input/crates/wind-coordinator/src/handle_lifecycle.rs wind_input/crates/wind-coordinator/src/coordinator.rs wind_input/crates/wind-coordinator/src/handle_temp.rs wind_input/crates/wind-coordinator/tests/codetable_reverse.rs <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-coordinator/src/handle_lifecycle.rs moodflow_input/crates/moodflow-coordinator/src/coordinator.rs moodflow_input/crates/moodflow-coordinator/src/handle_temp.rs moodflow_input/crates/moodflow-coordinator/tests/codetable_reverse.rs <<'EOF'
 feat(coordinator): 反查触发键接入首键冲突判据与 z 夺取
 
 is_any_mode_trigger / code_char_conflicts 补 reverse（新增引导键类动词的既有规约）；
@@ -2408,11 +2408,11 @@ EOF
 
 ---
 
-## Task 20: wind-setting 反查模式设置与动词
+## Task 20: moodflow-setting 反查模式设置与动词
 
 **Files:**
-- Modify: `../wind-setting/src/assets/settings_manifest.toml`（`# ── 生僻字 ──` 两项之后新增 `# ── 反查模式 ──` 两项；`schema.codetable.z_key_action` 的 `options` 加一项）
-- Modify: `../wind-setting/src/dialogs/schema_manager.rs`（动词表 ~1629 `rare_char` 之后）、`src/dialogs/key_binding.rs`（`categorize_lead_verbs` ~529 的 `"rare_char"` 臂；测试数组 ~1882）、`src/state.rs`（`key_action_label` ~2821；测试 ~3605）
+- Modify: `../moodflow-setting/src/assets/settings_manifest.toml`（`# ── 生僻字 ──` 两项之后新增 `# ── 反查模式 ──` 两项；`schema.codetable.z_key_action` 的 `options` 加一项）
+- Modify: `../moodflow-setting/src/dialogs/schema_manager.rs`（动词表 ~1629 `rare_char` 之后）、`src/dialogs/key_binding.rs`（`categorize_lead_verbs` ~529 的 `"rare_char"` 臂；测试数组 ~1882）、`src/state.rs`（`key_action_label` ~2821；测试 ~3605）
 - Regenerate: snapshot / mockdata
 
 - [ ] **Step 1: 改动**
@@ -2466,7 +2466,7 @@ capability 快照与 mockdata 重生成。
 ## Task 21: P3 真实数据验收
 
 **Files:**
-- Modify: `wind_input/crates/wind-coordinator/tests/codetable_reverse.rs`（追加）
+- Modify: `moodflow_input/crates/moodflow-coordinator/tests/codetable_reverse.rs`（追加）
 
 - [ ] **Step 1: 追加用例**
 
@@ -2512,7 +2512,7 @@ fn reverse_mode_single_only() {
     cfg.schema.codetable.wildcard_single_only = true;
     let tri = rev_triples(cfg, "azzz");
     assert_eq!(tri.len(), 100);
-    assert!(tri.iter().all(|(t, _, _)| wind_candidate::single_markable_char(t).is_some()));
+    assert!(tri.iter().all(|(t, _, _)| moodflow_candidate::single_markable_char(t).is_some()));
 }
 
 /// spec §3.2：混输下模式内只查主码表，没有拼音候选。
@@ -2579,14 +2579,14 @@ fn reverse_space_commits_highlight() {
 }
 ```
 
-- [ ] **Step 2: 跑**：`time env $T cargo test -p wind-coordinator --test codetable_reverse --no-fail-fast 2>&1 | tail -30` → 全绿、≥1s、无「跳过」。
+- [ ] **Step 2: 跑**：`time env $T cargo test -p moodflow-coordinator --test codetable_reverse --no-fail-fast 2>&1 | tail -30` → 全绿、≥1s、无「跳过」。
   核对点：`reverse_esc_exits_without_residue` 里 `hanz` 若只有一页，5 次 PageDown 中第 2 次起即放宽——正是要测的残留来源；若放宽没发生（无被滤字），
   改用 `azz` 并在报告注明。`reverse_space_commits_highlight` 以 `Debug` 字符串断言是为兼容 `InsertText` / `CommitThenDeferComposition` 两形态。
 
 - [ ] **Step 3: 提交**
 
 ```bash
-git commit -F - --only -- wind_input/crates/wind-coordinator/tests/codetable_reverse.rs <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-coordinator/tests/codetable_reverse.rs <<'EOF'
 test(reverse): 反查模式真实数据验收
 
 首位通配 zuia 且不看行内主开关；模式内含未启用扩展库、仅单字；混输不出拼音；
@@ -2599,10 +2599,10 @@ EOF
 ## Task 22: P3 文档 + 全量测试 + 回归核对
 
 **Files:**
-- Create: `../WindInputDocs/content/docs/guides/reverse-mode.mdx`；Modify: `../WindInputDocs/content/docs/guides/meta.json`（`"rare-char-mode"` 之后加 `"reverse-mode"`）
-- Modify: `../WindInputDocs/content/docs/settings/schema/codetable.mdx`（Task 5 那条补链接；`### 通配输入` 末段加一句指路；`### z 键引导功能` 选项列表若列举动词则补「反查模式」）
-- Modify: `../WindInputDocs/content/docs/guides/config/input.mdx`（`## 临时拼音（input.temp_pinyin）` 节之后新增 `## 反查模式（input.reverse） <Since v="0.125" /> [#reverse]`）、
-  `../WindInputDocs/content/docs/guides/config/keys.mdx`（`key_actions` 动词表若逐条列举则补 `reverse`）
+- Create: `../MoodflowDocs/content/docs/guides/reverse-mode.mdx`；Modify: `../MoodflowDocs/content/docs/guides/meta.json`（`"rare-char-mode"` 之后加 `"reverse-mode"`）
+- Modify: `../MoodflowDocs/content/docs/settings/schema/codetable.mdx`（Task 5 那条补链接；`### 通配输入` 末段加一句指路；`### z 键引导功能` 选项列表若列举动词则补「反查模式」）
+- Modify: `../MoodflowDocs/content/docs/guides/config/input.mdx`（`## 临时拼音（input.temp_pinyin）` 节之后新增 `## 反查模式（input.reverse） <Since v="0.125" /> [#reverse]`）、
+  `../MoodflowDocs/content/docs/guides/config/keys.mdx`（`key_actions` 动词表若逐条列举则补 `reverse`）
 - Modify: `docs/design/codetable-reverse-mode.md`（状态行）、`docs/design/codetable-wildcard.md`（顶部范围声明 + §8 第一条）、
   `docs/design/prefix-hijack-modes.md`（§3 清单名称更正 + 当前实例补反查）、`docs/architecture/engine-candidate-pipeline.md`（§3.4）
 
@@ -2624,7 +2624,7 @@ EOF
     正文一句「进入键在 [`key_actions`](/docs/guides/config/keys#key-actions) 里绑动词 `reverse`，出厂不绑。详见[反查模式](/docs/guides/reverse-mode)」。
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-rev/WindInputDocs && pnpm lint && pnpm build && pnpm lint:links && node scripts/check-config-coverage.mjs 2>&1 | tail -1
+cd /home/dufeng/develop/moodflow/wt-rev/MoodflowDocs && pnpm lint && pnpm build && pnpm lint:links && node scripts/check-config-coverage.mjs 2>&1 | tail -1
 ```
 
 Expected: 全部通过；缺失 13（`input.reverse.*` 不在清单）。
@@ -2645,15 +2645,15 @@ Expected: `failed` 同基线；`passed` = P2 结束时 + **23**（Task 15：conf
 - [ ] **Step 4: 回归与提交范围自查、三仓提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-rev/WindInput
+cd /home/dufeng/develop/moodflow/wt-rev/Moodflow
 base=$(git merge-base HEAD main)
 git diff "$base"..HEAD | grep -nE "^\+.*(TODO|todo!|unimplemented!|#\[ignore\]|\.only\(|chars\(\)\.count\(\) == 1)" || echo clean
-git diff "$base"..HEAD --name-only | grep -x "wind_input/Cargo.lock" && echo "!! Cargo.lock 被提交" || echo "lock ok"
+git diff "$base"..HEAD --name-only | grep -x "moodflow_input/Cargo.lock" && echo "!! Cargo.lock 被提交" || echo "lock ok"
 git diff "$base"..HEAD | grep -n "Task 17 接线" && echo "!! Task 15 的临时臂没替换" || echo "stub ok"
 git commit -F - --only -- docs/design/codetable-reverse-mode.md docs/design/codetable-wildcard.md docs/design/prefix-hijack-modes.md docs/architecture/engine-candidate-pipeline.md <<'EOF'
 docs(design): 反查模式落地——设计稿状态与实施偏离、通配 §8 指路、加模式清单更正
 EOF
-cd ../WindInputDocs && git add -- content/docs/guides/reverse-mode.mdx
+cd ../MoodflowDocs && git add -- content/docs/guides/reverse-mode.mdx
 git commit -F - --only -- content/docs/guides/reverse-mode.mdx content/docs/guides/meta.json content/docs/settings/schema/codetable.mdx content/docs/guides/config/input.mdx content/docs/guides/config/keys.mdx <<'EOF'
 docs(guides): 反查模式专页；通配输入指路、配置参考补 input.reverse
 EOF
@@ -2676,7 +2676,7 @@ Expected: `clean`、`lock ok`、`stub ok`。回归核对（已在全量内，逐
   §3.3 首键冲突 → Task 19。
   §4 C（配置、影子层、首次加载、复用 `load_at_with` / `reader_pool` / `resolve_dict_file` / `cache_path`、`(text, code)` 去重已启用排前、注释反查变体与缓存 key、`*_if_ready` 与后台建、
   三处失效、混输取主方案、文件缺失 warn 跳过、内存 mmap）→ Task 6–14（裁决 3–7）。
-  §5 设置与文档（wind-config 五键 + 动词、wind-setting 三期各自设置项且 label 过拼音表、文档站 `codetable.mdx` 与反查说明、`pnpm lint`、`codetable-wildcard.md` 顶部与 §8、
+  §5 设置与文档（moodflow-config 五键 + 动词、moodflow-setting 三期各自设置项且 label 过拼音表、文档站 `codetable.mdx` 与反查说明、`pnpm lint`、`codetable-wildcard.md` 顶部与 §8、
   真实数据 A `azz` / B 首位通配 Esc 冲突让位 / C `xzqy` 可见性与普通候选不变）→ Task 3/12/20、5/14/22、4/13/21。
   §6 分期 → P1 / P2 / P3 顺序与 Global Constraints「分期」。§7 已做裁决 → 全部照做（拼音不参与、不受主开关、已启用排前、不改普通候选）。
 - **签名一致性**：`wildcard_query(&self, &str, &str, usize) -> ConvertResult`（Task 2 定义，Task 8 扩展，Task 16 复用）；`CommitOptions::{wildcard_single_only: bool, reverse_key: Option<char>}`；

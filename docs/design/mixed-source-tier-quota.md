@@ -11,7 +11,7 @@
 >
 > **仍未做**：英文没有保底配额（§3.3）。这是本轮**刻意留下**的，不是遗漏。
 **前置阅读**：`docs/architecture/candidate-sorting-rules.md` 红线①②③、
-`wind_candidate::source_tier` 与 `cmp_match_layers` 的文档注释。
+`moodflow_candidate::source_tier` 与 `cmp_match_layers` 的文档注释。
 
 ## 1. 要解决什么
 
@@ -32,7 +32,7 @@
 - 同一个词在纯拼音与混输下量纲差 100 倍
 - 「拼音精确档」这类补丁的成因就是「拼音被一律 ÷100 压档」，是**一处实现在修另一处实现造成的问题**
 
-协调器侧的档位已经收敛为 [`wind_candidate::source_tier`]（已实施、已真机）。本文档处理剩下的
+协调器侧的档位已经收敛为 [`moodflow_candidate::source_tier`]（已实施、已真机）。本文档处理剩下的
 引擎侧。
 
 ## 2. 关键事实（已查证，决定了方案边界）
@@ -60,7 +60,7 @@ ct_should_clear && !(auto_commit_block_on_pinyin && (has_pinyin || pinyin_may_co
 `mark_common` 置位**，引擎产出的候选恒为 `false`。在引擎里调 `source_tier`，拼音精确候选会
 **静默落到档 4**。
 
-> `CommonChars` 类型本身在共享 crate `wind-candidate` 里，技术上可以下放给引擎。但**本设计
+> `CommonChars` 类型本身在共享 crate `moodflow-candidate` 里，技术上可以下放给引擎。但**本设计
 > 不这么做**——见 §3.3。
 
 ### 2.3 截断现状
@@ -185,7 +185,7 @@ weight 表达不了**（同款教训见 `candidate-sorting-rules.md` 与 `handle
 
 ### 3.3b 实施发现：`PHRASE_WEIGHT_BOOST` 是死代码
 
-`is_phrase` 在整个 `wind-engine` 里**没有任何生产代码置位**——`freq_rerank.rs` 里的几处全是
+`is_phrase` 在整个 `moodflow-engine` 里**没有任何生产代码置位**——`freq_rerank.rs` 里的几处全是
 测试 fixture，而 `apply_freq_rerank` 本身定义并调用于**协调器**。短语是协调器合并进候选列表
 的（`handle_candidate.rs`），发生在引擎返回**之后**。
 
@@ -310,22 +310,22 @@ weight:    501_554, // 1554 + PARTIAL_MATCH_BOOST(500K)
 
 | 仓 | 处 | 位置 |
 |---|---|---|
-| 主仓 | 1 | `wind-config/src/schema.rs` `MixedSpec::codetable_weight_boost` 字段 |
-| 主仓 | 2 | `wind-engine/src/manager.rs` 的 `boost` 回退取值 + 传参 |
-| 主仓 | 2 | `wind-engine/src/mixed/engine.rs` `MixConfig` 字段 / 默认值 |
+| 主仓 | 1 | `moodflow-config/src/schema.rs` `MixedSpec::codetable_weight_boost` 字段 |
+| 主仓 | 2 | `moodflow-engine/src/manager.rs` 的 `boost` 回退取值 + 传参 |
+| 主仓 | 2 | `moodflow-engine/src/mixed/engine.rs` `MixConfig` 字段 / 默认值 |
 | 主仓 | 1 | `data/schemas/wubi86_pinyin.schema.toml` |
-| WindInputCodeTable | 5 | `schemas/{chuangma,fysxm,jjm,tiger,tigress}/*_pinyin.schema.toml` |
-| WindInputTools | 3 | `src/lib/schema/schemas.ts` zod、`schema-editor/builtin-schemes.ts`、`schema-editor/field-spec.ts`（**带 UI 标签「码表精确提权」**） |
-| WindInputDocs | 3 | `guides/schemas.mdx`、`settings/schema/mixed.mdx` ×2 |
+| MoodflowCodeTable | 5 | `schemas/{chuangma,fysxm,jjm,tiger,tigress}/*_pinyin.schema.toml` |
+| MoodflowTools | 3 | `src/lib/schema/schemas.ts` zod、`schema-editor/builtin-schemes.ts`、`schema-editor/field-spec.ts`（**带 UI 标签「码表精确提权」**） |
+| MoodflowDocs | 3 | `guides/schemas.mdx`、`settings/schema/mixed.mdx` ×2 |
 
 ✅ **存量方案包安全**：`schema.rs` 全文无 `deny_unknown_fields`，老方案 toml 里残留这一行会被
 静默忽略，不会导致加载失败。⇒ 不需要迁移逻辑，也不需要版本门。
 
 ⚠️ **无编译期约束**：主仓 ↔ 工具站是跨仓单向契约且**无守门测试**（同
-`reference_windinput_tools_repo.md` 的「加字段要同步工具站三处」——**删字段走同一条链路**，
+`reference_moodflow_tools_repo.md` 的「加字段要同步工具站三处」——**删字段走同一条链路**，
 只是失败形态相反：漏同步不会报错，而是让工具站继续给用户提供一个没人读的输入框）。
 
-> `wind-setting` 源码**零引用**（只在编译产物里命中 `wind_config` crate）。
+> `moodflow-setting` 源码**零引用**（只在编译产物里命中 `moodflow_config` crate）。
 
 ## 6. 后续可选：来源优先级配置化
 

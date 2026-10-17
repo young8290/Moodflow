@@ -1,6 +1,6 @@
 # 应用兼容性规则
 # 针对特定应用的候选框定位、光标获取等兼容性修正。
-# 用户可在 %APPDATA%\WindInput\compat.toml 中覆盖或添加规则。
+# 用户可在 %APPDATA%\Moodflow\compat.toml 中覆盖或添加规则。
 #
 # 叠加语义（整体原则）：每一层（本文件 < data_custom < 用户层）都是相对下一层的**差异**，
 # 同名进程（不区分大小写）内**逐字段叠加**：
@@ -133,7 +133,7 @@
 #                         观感一致，多屏不同缩放也不必分别配置。
 #
 # 设置端「应用兼容性」页统一管理本文件与用户层 compat.toml（改写、禁用、还原、导入导出），
-# 逐字段的功能与解决的问题以 wind-config 的 compat_schema 为准，帮助页读的也是它。
+# 逐字段的功能与解决的问题以 moodflow-config 的 compat_schema 为准，帮助页读的也是它。
 #
 # first_show_mode / initial_mode / initial_punct / auto_pair / candidate_position_mode /
 # ignore_host_ime_close 对应右键菜单：「应用独立配置（<进程名>）」子菜单，各自单选。

@@ -15,7 +15,7 @@ permissions:
 jobs:
   cla:
     runs-on: ubuntu-latest
-    # 心晴：上游 CLA 只约束向上游贡献代码（产品书 14 §1），本 fork 内部开发不跑
+    # Moodflow：上游 CLA 只约束向上游贡献代码（产品书 14 §1），本 fork 内部开发不跑
     if: |
       github.repository == 'huanfeng/WindInput' && (
       (github.event_name == 'pull_request_target') ||

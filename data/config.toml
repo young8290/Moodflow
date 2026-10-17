@@ -1,7 +1,7 @@
-# WindInput 系统预置配置（键名 6 域重命名后，见 docs/config-key-migration.md）
+# Moodflow 系统预置配置（键名 6 域重命名后，见 docs/config-key-migration.md）
 # 此文件为应用内置默认配置，随程序安装包分发。
 # 加载优先级：代码默认值（Layer 1）→ 本文件（Layer 2）→ 用户配置
-# （%APPDATA%\WindInput\config.toml，Layer 3）。
+# （%APPDATA%\Moodflow\config.toml，Layer 3）。
 # 修改此文件可调整新安装或新版本升级后的默认行为，无需重新编译。
 #
 # ── 本文件的契约 ────────────────────────────────────────────────────────────
@@ -19,7 +19,7 @@
 # 注意：本文件不写 version 键——version 是用户文件的迁移状态锚点。
 
 [schema]
-# 心晴：出厂默认 26 键全拼（目标用户多用拼音），五笔与五笔拼音混输仍在切换列表里
+# Moodflow：出厂默认 26 键全拼（目标用户多用拼音），五笔与五笔拼音混输仍在切换列表里
 active = "pinyin"
 available = ["pinyin", "wubi86", "wubi86_pinyin"]
 # 主码表方案 ID（拼音反查码源），留空时按 available 顺序自动选第一个码表方案
@@ -43,7 +43,7 @@ primary_pinyin = ""
 
 # 全局码表配置：所有码表方案公共基线（出厂取主力码表 wubi86 偏好）。
 # 方案个性覆盖：在方案 .schema.toml 的 [engine.codetable] 内联行为字段（作者基线），或
-# %APPDATA%/WindInput/schema_overrides/{id}.toml 同名的 [engine.codetable] 段（设置页写入，深合并覆盖）；
+# %APPDATA%/Moodflow/schema_overrides/{id}.toml 同名的 [engine.codetable] 段（设置页写入，深合并覆盖）；
 # 二者段名/字段与本节一致，字段存在即覆盖、缺省即回落本节。
 [schema.codetable]
 top_code_commit = true
@@ -274,7 +274,7 @@ single_char = false
 # 也可显式写 quote / backtick / none。
 #
 # ⚠️ 这是**基线**，方案可以覆盖：在方案的 [engine.pinyin] 段（或
-# %APPDATA%\WindInput\schema_overrides\<方案id>.toml）写 separator = "none" 即可。
+# %APPDATA%\Moodflow\schema_overrides\<方案id>.toml）写 separator = "none" 即可。
 # 需要它的典型场景是键位争用——双拼出厂把反引号给了辅助码
 # （见 schemas/shuangpin.schema.toml 的 [key_actions]），而全拼的音节边界只能靠符号键
 # 表达。全局唯一的值表达不了「全拼用反引号作分隔符、双拼用反引号进辅助码」。
@@ -307,7 +307,7 @@ allow_full_pinyin = false
 #
 # ⚠️ 全拼与双拼要分别开关，不能只靠本项：全拼的反引号出厂已被音节分隔符占用
 # （separator = "auto" 且 ' 作选词键），绑了也进不去。故常见配置是「只在双拼开」——
-# 写 %APPDATA%\WindInput\schema_overrides\shuangpin.toml：
+# 写 %APPDATA%\Moodflow\schema_overrides\shuangpin.toml：
 #     [engine.aux_code]
 #     enabled = true
 enabled = false
@@ -582,7 +582,7 @@ filter_mode = "smart"
 # 为什么出厂是 keep：常用性判据是「整串每字都常用」，而字表是通用规范汉字表(8105 字)，
 # 于是「苯磺酸」(磺)、「馎饦」、五笔的「磳碟」这类词库正常收录的词，只因某一个字在表外
 # 就整条被判非常用——常用字档直接滤掉，智能档在同码有常用字时也滤掉（五笔 4 码词位几乎
-# 必然同码有常用字）。「一般输入法怎么做」的调研与取舍论证见 wind-candidate 的
+# 必然同码有常用字）。「一般输入法怎么做」的调研与取舍论证见 moodflow-candidate 的
 # `RarePhrasePolicy` 文档，此处不复述——两处各写一份，将来只会改一处。
 #
 # ⚠️ 与 filter_mode 正交，不是它的第四个档：那个决定「什么算该滤」，本项决定「词要不要吃
@@ -922,7 +922,6 @@ candidate_layout = "follow"
 # 特殊模式的那份在方案文件的 [overlay] 段里。
 # 注释模板共三层：模式级 → 方案级（方案文件 [candidate] 段）→ 全局（下方 [ui.candidate]）。
 # 上面两层都是「不写=跟随下一层」，所以给某个方案单独配注释不必动全局。
-# 说明见 https://windinput.com/docs/settings/appearance/candidate-comment
 
 [input.capslock]
 # 切中英模式（Shift 等切换键）时是否顺手取消大写锁定。仅此一处作用域——
@@ -1305,7 +1304,6 @@ min_rows = 0
 # （优先于主题），如 "$[info]{${code_hint|code_rev|shuangpin}}"。详见下方链接的「内联颜色」一节。
 # 例：竖排显示字根与注音 → "{〔${chaizi}〕}{ ${pinyin}}"
 # 例：同时看码表码与双拼码 → "${code_hint|code_rev}{ [${shuangpin}]}"
-# 完整说明与更多示例：https://windinput.com/docs/settings/appearance/candidate-comment
 comment_template_vertical = "${code_hint|code_rev|shuangpin}"
 comment_template_horizontal = "${code_hint|code_rev|shuangpin}"
 # 注释段最大字数（0=不限），超出截断并加省略号。横竖各一份：横排全部候选共享一行宽度，
@@ -1337,7 +1335,6 @@ auto_comment_dicts = true
 #
 # 数组顺序即优先级（同一个词多库都有注释时取靠前的）。schemas 用来避免无谓开销：
 # 一份大英汉词典写 schemas = ["english"] 后，中文方案下根本不加载。
-# 格式与更多示例：https://windinput.com/docs/settings/appearance/candidate-comment
 layout = "horizontal"
 # 编码显示方式：app_inline=内嵌应用光标处(候选窗不显 preedit) | candidate_top=候选窗顶部独立栏 | candidate_inline=编码内联候选首单元
 # ⚠ 后两种依赖候选窗来显示编码，而候选窗在「宿主自绘候选」的场合根本不弹（TSF UI-less 的
@@ -1509,14 +1506,14 @@ auto_hide_hover_reveal = false
 vertical = false
 # 显示哪些格、按什么顺序（数组顺序即从左到右 / 从上到下的顺序）；留空 = 全部显示。
 # 可选：mode（中英/方案）/punct（标点）/full_width（全半角）/s2t（简入繁出）/
-#       t2s（繁入简出）/soft_keyboard（软键盘）/xinqing（心晴天气按钮）/settings（设置）
-# 心晴：xinqing 格在心晴功能关着时不显示；左键和晴晴聊聊，右键可暂停感知、打开情绪看板。
+#       t2s（繁入简出）/soft_keyboard（软键盘）/moodflow（Moodflow 天气按钮）/settings（设置）
+# Moodflow：moodflow 格在 Moodflow 功能关着时不显示；左键和晴晴聊聊，右键可暂停感知、打开情绪看板。
 # 名字前加 - 表示「不显示，但记住它排在这个位置」，如 "-s2t"——设置页关掉某格时就是
 # 这么写的，于是关掉再打开它还在原位，而不是跳回默认顺序。
 # s2t 与 t2s 两格出厂都关着；去掉下面对应的 - 即可，之后点它就能随时开关。
 # s2t 格关着显「简」、开着显「繁」；t2s 格恒显「简」，亮起表示正在把繁体转成简体。
 # 整条工具栏都不想要请用 visible = false，别把每一项都加上 - 前缀。
-items = ["mode", "punct", "full_width", "-s2t", "-t2s", "soft_keyboard", "xinqing", "settings"]
+items = ["mode", "punct", "full_width", "-s2t", "-t2s", "soft_keyboard", "moodflow", "settings"]
 
 # 自定义按钮（高级功能，出厂无）。定义在 [[ui.toolbar.buttons]]，**要显示还得在上面的
 # items 里写一条 custom:<id>**——items 是「显示哪些、排第几」的唯一真相源，光定义不显示。
@@ -1535,7 +1532,7 @@ items = ["mode", "punct", "full_width", "-s2t", "-t2s", "soft_keyboard", "xinqin
 # action 可用的写法与短语里一样，常用几种：
 #   open("https://www.zdic.net")            打开网址 / 文件 / 程序（跟双击一样的效果）
 #   proc.run("notepad.exe")                 启动程序，可带参数与 cwd=/verb=/show=
-#   wind.cli("schema switch wubi86")        调用本输入法的命令，如一键切方案
+#   moodflow.cli("schema switch wubi86")        调用本输入法的命令，如一键切方案
 #   key.tap("Ctrl+Shift+P")                 模拟一次按键组合
 # 注意 action 要用单引号包起来（里面有双引号）。
 
@@ -1661,22 +1658,22 @@ dota2_compat = false
 # ⚠️ 留空 = 用出厂值，不是「关闭」；关闭请把上面的 dota2_compat 设为 false。
 dota2_compat_name = "拼音输入法"
 
-# ── xinqing：心晴（懂你心情的 AI 输入陪伴）──────────────────────────────────
+# ── moodflow：Moodflow（懂你心情的 AI 输入陪伴）──────────────────────────────────
 #
-# 是否采集、发不发文字由心晴 Hub 在首次引导时征得同意后下发，不在这里配置。
+# 是否采集、发不发文字由 Moodflow Hub 在首次引导时征得同意后下发，不在这里配置。
 
-[xinqing]
-# 心晴总开关。关闭后输入法不再与心晴组件通信，也不采集任何数据。
+[moodflow]
+# Moodflow 总开关。关闭后输入法不再与 Moodflow 组件通信，也不采集任何数据。
 enabled = true
 # 应用黑名单：在这些程序里打字不采集。按进程名匹配，* 匹配任意字符，不区分大小写。
-# 心晴自己的窗口（xinqing_hub.exe）总是排除，不必写在这里。
+# Moodflow 自己的窗口（moodflow_hub.exe）总是排除，不必写在这里。
 app_blocklist = ["*bank*", "*pay*", "KeePass*.exe", "1Password*.exe", "Bitwarden*.exe", "mstsc.exe"]
 # 应用白名单：非空时只在名单里的程序中采集；留空表示不限制。
 app_allowlist = []
 # 暂停感知（无痕模式）的快捷键，再按一次恢复。"none" 表示不绑。
 pause_hotkey = "ctrl+alt+p"
 # 温柔改写的快捷键：把刚打的一段话（或剪贴板里的文字）改得更温和。"none" 表示不绑。
-# 只有在心晴里同意了“温柔改写”后才会把这段文字发给 AI 服务。
+# 只有在 Moodflow 里同意了“温柔改写”后才会把这段文字发给 AI 服务。
 rewrite_hotkey = "ctrl+alt+r"
 # 改写一开始用哪种风格：gentle 更温和、polite 更礼貌得体、concise 更简洁、structured 更有条理。
 # 改写时在候选框里按 Tab 还能换。
@@ -1688,7 +1685,7 @@ rewrite_clipboard = true
 rewrite_insert_apps = []
 # 是否记住暂停状态。默认不记住：重启输入法后自动恢复感知，免得忘了重新打开。
 remember_pause = false
-# 输入法启动时自动打开心晴，心晴意外退出后自动重新打开（10 分钟内最多 3 次）。
+# 输入法启动时自动打开 Moodflow，Moodflow 意外退出后自动重新打开（10 分钟内最多 3 次）。
 hub_autostart = true
 
 # ── mobile：移动端对上面各域的覆盖 ─────────────────────────────────────────────

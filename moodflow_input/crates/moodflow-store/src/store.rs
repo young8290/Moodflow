@@ -1,0 +1,649 @@
+//! Store 核心：基于 redb 的持久化存储（骨架）
+//!
+//! 与 Go 版本 `moodflow_input/internal/store/store.go`（bbolt）对齐，但用 redb。
+//! 见 docs/redesign/store.md：redb 无嵌套 bucket，用扁平 table + schema 前缀复合 key。
+//!
+//! 本提交为**骨架**：open / 表定义 / 事务封装 / pause-resume（Windows 热替换释放文件锁）/
+//! version + 迁移框架。用户词/临时词/词频/shadow 的具体 ops 在后续提交按 store.md §10.2 实现。
+
+use redb::{Database, TableDefinition};
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use tracing::{debug, error, info, warn};
+
+/// 当前存储版本（迁移锚点）
+pub const CURRENT_VERSION: u32 = 1;
+
+/// redb 页缓存上限。**redb 的默认值是 1 GiB**（`Builder::set_cache_size` 的默认）。
+///
+/// ## 它是上限，不是预分配
+///
+/// 实际占用的上界是 `min(本值, 库文件大小)`——19 万词的库约 34 MB，给 1 GiB 也只会
+/// 占到 34 MB。所以默认值本身并不直接等于「吃掉 1 GiB」。
+///
+/// 旧实现每次按键全表扫描，把整张用户词表拉进缓存并常驻，量级是十几 MB；索引化之后
+/// 常规输入根本填不满缓存，只有设置页的词库列举（全表顺序扫）会填一次。故本值真正的
+/// 作用是**给超大词库一个显式上界**（50 万词的库约 90 MB），而不是解决 19 万词的内存。
+///
+/// ## 取值：由 `perf_cache_size.rs` 双向标定
+///
+/// 读路径（简拼召回 / 前缀补全 / 全量列举）对本值**几乎不敏感**：redb 2.x 不是 mmap，
+/// 未命中走 `read` 系统调用、由 OS 页缓存供数据，是 µs 级 syscall 而非磁盘寻道——
+/// 它下面还垫着一层 OS 页缓存。连 2 MiB 都测不出读性能退化。
+///
+/// **写路径敏感**：`set_cache_size` 把 10% 划给写缓存，19 万词批量导入在写缓存放得下
+/// 全部脏页时一次刷盘，放不下就反复外溢。实测断崖出现在 64↔256 MiB 之间。
+/// 首版取 32 MiB 只测了读就下了结论，导入因此慢 4.6 倍——**只测一半的结论等于没测**。
+pub const DEFAULT_CACHE_SIZE_BYTES: usize = 256 * 1024 * 1024;
+
+/// 按统一配置打开 redb（`open` 与 `resume` 共用，避免两处默认值漂移）。
+fn open_db(path: &Path, cache_bytes: usize) -> Result<Database, redb::DatabaseError> {
+    Database::builder().set_cache_size(cache_bytes).create(path)
+}
+
+// ── 表定义（key 编码见 store.md §2：复合 key 带 schema 前缀，redb 扁平）──
+/// 用户词：key = "{schema}\0{code}\0{text}"，value = 序列化记录
+pub(crate) const USER_WORDS: TableDefinition<&str, &[u8]> = TableDefinition::new("user_words");
+/// 临时词：同上
+pub(crate) const TEMP_WORDS: TableDefinition<&str, &[u8]> = TableDefinition::new("temp_words");
+/// 用户词**简拼索引**：key = `"{schema}\0{group}\0{code}\0{text}"`，value 空。
+/// 键的构成、分组规则与维护契约全在 [`crate::abbrev_index`]。
+///
+/// 新表无需迁移：`init_tables` 在写事务里 `open_table` 即创建；存量数据的索引由
+/// [`Store::rebuild_abbrev_indexes`] 在首次发现索引为空时补建。
+pub(crate) const USER_ABBREV: TableDefinition<&str, &[u8]> = TableDefinition::new("user_abbrev");
+/// 临时词**简拼索引**：与 [`USER_ABBREV`] 同构，索引 `TEMP_WORDS`。
+///
+/// 两层都要索引，因为简拼召回是**跨层**的：引擎侧挂的 `DictManager` 同时注册了
+/// `StoreUserLayer` 与 `StoreTempLayer`，只索引其一等于只修一半——自动造词开着时，
+/// 临时词库（默认上限 5000 条）仍会被逐切点全量枚举。
+pub(crate) const TEMP_ABBREV: TableDefinition<&str, &[u8]> = TableDefinition::new("temp_abbrev");
+/// 自动造词的**草稿层**：key = `"{schema}\0{code}\0{text}"`，value = {created_at} 定长 8B。
+///
+/// 滑窗切出的候选词先落这里，用户真的用它上屏过一次才跃迁进 [`TEMP_WORDS`]
+/// （设计见 `docs/design/auto-phrase-draft-layer.md`）。与临时词库的分界是**谁验证过它**：
+/// 草稿是机器猜的、带有效期、到期没人用就丢；临时词是用户用过的、长期留着。
+///
+/// **value 不存 weight**：草稿在候选里恒沉底（只精确召回 + 沉底键），weight 不参与任何比较，
+/// 存了就是一个永远读不到却要维护的字段。
+///
+/// ⚠️ **刻意没有伴随的简拼索引**（对比 [`TEMP_ABBREV`]）：草稿的写入量比临时词高一两个
+/// 数量级，配索引等于把写放大也翻上去。代价是草稿只支持精确码召回——而它的定位就是
+/// 「你刚打过的，用同样的码再打一次就出来」，简拼召回等它跃迁进临时词库之后自然就有。
+/// 这在 trait 层面是免费的：`DictLayer::search_abbrev` 的默认实现就返回空、不回退全表扫。
+/// 新表无需迁移：`init_tables` 在写事务里 `open_table` 即创建。
+pub(crate) const DRAFT_WORDS: TableDefinition<&str, &[u8]> = TableDefinition::new("draft_words");
+/// 用户词频：key = "{schema}\0{code}\0{text}"，value = {count,last_used}（见 frequency.md）
+/// 联想历史：key = "{schema}\0{上文}\0{选中的整词}"，value 同 [`FREQ`]（count + last_used）。
+/// 用户在某上文后选了哪条联想，见 [`crate::assoc_history`]。
+pub(crate) const ASSOC_HIST: TableDefinition<&str, &[u8]> = TableDefinition::new("assoc_history");
+pub(crate) const FREQ: TableDefinition<&str, &[u8]> = TableDefinition::new("freq");
+/// Shadow 规则：key = "{schema}\0{code}"
+pub(crate) const SHADOW: TableDefinition<&str, &[u8]> = TableDefinition::new("shadow");
+/// 快捷输入格式表的用户调整：key = 格式类别（`date` / `number` …），value = 记录 JSON。
+///
+/// **键只到类别**，不带方案与输入码——与 [`SHADOW`] 的分界见 [`crate::quick_format`]
+/// 的模块文档（存错了会表现为「调整当时有效、隔天失效」）。
+/// 新表无需迁移：`init_tables` 在写事务里 `open_table` 即创建。
+pub(crate) const QUICK_FORMAT: TableDefinition<&str, &[u8]> = TableDefinition::new("quick_format");
+/// 常用字表的**用户覆盖**：key = 单个字，value = 记录 JSON。
+///
+/// **键不带方案**——「某个字常不常用」是全局字级属性，与 [`SHADOW`]（按方案 + 输入码）
+/// 刻意分开。只存用户碰过的字，出厂那 8104 字仍在 `common_chars.txt` 里；为什么不整表
+/// 进库见 [`crate::common_chars`] 的模块文档。
+/// 新表无需迁移：`init_tables` 在写事务里 `open_table` 即创建。
+pub(crate) const COMMON_CHARS: TableDefinition<&str, &[u8]> = TableDefinition::new("common_chars");
+/// 字符类的**用户层**：key = 类的 key，value = 那个类的 yaml 文本（UTF-8 字节）。
+///
+/// value 是文本而不是结构化记录：格式只在 `moodflow_config::charset_def` 一份，本 crate
+/// 不解析。为什么用户层进库而不是目录见 [`crate::charsets`] 的模块文档。
+/// 新表无需迁移：`init_tables` 在写事务里 `open_table` 即创建。
+pub(crate) const CHARSET_USER: TableDefinition<&str, &[u8]> = TableDefinition::new("charset_user");
+/// 补全候选的**用户学习数据**：key = `"{kind}\0{text}"`，value = {count,last_used} 定长 12B。
+///
+/// `kind` 是 [`crate::completion::CompletionKind`] 的闭集（邮箱后缀 / 网址历史）。
+/// **键不带方案**——「我常用哪个邮箱后缀」「我访问过哪个网址」与五笔拼音无关，同
+/// [`COMMON_CHARS`] 的判据。与 [`FREQ`] 的分界见 [`crate::completion`] 模块文档。
+/// 新表无需迁移：`init_tables` 在写事务里 `open_table` 即创建。
+pub(crate) const COMPLETION: TableDefinition<&str, &[u8]> = TableDefinition::new("completion");
+/// 全局短语：key = "{code}\0{text}"
+pub(crate) const PHRASES: TableDefinition<&str, &[u8]> = TableDefinition::new("phrases");
+/// 每日统计：key = "YYYY-MM-DD"
+pub(crate) const STATS_DAILY: TableDefinition<&str, &[u8]> = TableDefinition::new("stats_daily");
+/// 元数据：version / device_id 等
+pub(crate) const META: TableDefinition<&str, &[u8]> = TableDefinition::new("meta");
+
+const META_VERSION_KEY: &str = "schema_version";
+
+/// 存储引擎（redb）。`db` 为 None 表示已暂停（pause，释放文件锁供热替换）。
+pub struct Store {
+    path: PathBuf,
+    db: Mutex<Option<Database>>,
+    /// 本库的页缓存上限；`resume` 重开时要用同一个值，故随实例存着。
+    cache_bytes: usize,
+    /// 上一轮检查之后有没有访问过本库。由 [`Self::with_db`] 置位、空闲回收线程取走。
+    ///
+    /// **刻意不存时间戳**：`with_db` 是热路径（一次简拼召回要经它十几遍），而
+    /// `Instant::elapsed()` 是一次 `clock_gettime`。改成「回收线程自己按固定节拍采样」
+    /// 之后，热路径只剩一个 `Relaxed` 的 bool store，代价可以忽略；精度损失至多一个
+    /// 节拍，而判据本来就是「空闲了一分钟」这种量级的事。
+    touched: std::sync::atomic::AtomicBool,
+    /// 累计丢弃页缓存的次数。供测试断言与诊断——「缓存到底有没有被回收」在外部
+    /// 不可观测（RSS 不降，见 `tests/redb_cache_high_water.rs`），只能由内部报数。
+    drops: std::sync::atomic::AtomicU64,
+    /// 用户词 / 临时词两表的**结构代次**：增删词、改权重（排序键）的事务 commit 后 +1，
+    /// `resume`（备份还原换了整个文件）也 +1。只增不减、进程内有效。
+    ///
+    /// 供按文本前缀取用户词的内存索引（词语联想，见 `moodflow-engine` 的 `UserAssocIndex`）
+    /// 判「缓存是否过期」——store 的键是 `schema\0code\0text`，没有按文本的次序，
+    /// 每次联想都扫全表在按键路径上付不起（用户词库可达十九万条）。
+    ///
+    /// ⚠️ **只改 count 的写不进这里**（见 `words_count_gen`）：选词几乎每次都给某条词
+    /// count +1，若也算结构变化，开着联想时几乎每次上屏都会触发一次后台全表重建。
+    ///
+    /// 宁多勿少：多 +1 只是多一次后台重建，漏 +1 则联想里永远缺那个词。
+    ///
+    /// 按方案的见 `words_gen_by_schema`。
+    words_gen: std::sync::atomic::AtomicU64,
+    /// **临时词** count 变化的代次（commit 后 +1）。临时词的 count 决定联想分档（门槛 2）
+    /// 与档内排序，但它随选词频繁变化，消费方应节流地跟（见 `UserAssocIndex`）。
+    /// 用户词的 count 不影响联想，不计入。
+    words_count_gen: std::sync::atomic::AtomicU64,
+    /// **按方案**的结构代次：`bump_words_gen(schema)` 同时推进全局 `words_gen` 与这里该方案的计数。
+    ///
+    /// 全局代次对「引用另一个方案」的索引太粗：在拼音里打字自动造词，会让五笔的用户词索引
+    /// （辅助码引用五笔时要用）也判过期、后台重扫。见 `docs/design/text-code-lookup.md` §3.2。
+    words_gen_by_schema: std::sync::Mutex<std::collections::HashMap<String, u64>>,
+    /// 不分方案的写入（`resume` 换了整个文件）推进的纪元；`words_generation_of` 把它并进返回值。
+    words_epoch: std::sync::atomic::AtomicU64,
+}
+
+impl Store {
+    /// 打开数据库：创建/打开 redb，建表，运行版本迁移。
+    pub fn open(path: impl AsRef<Path>) -> anyhow::Result<Self> {
+        Self::open_with_cache_size(path, DEFAULT_CACHE_SIZE_BYTES)
+    }
+
+    /// 指定页缓存上限打开。供 `perf_cache_size.rs` 标定用；生产走 [`Self::open`]。
+    pub fn open_with_cache_size(
+        path: impl AsRef<Path>,
+        cache_bytes: usize,
+    ) -> anyhow::Result<Self> {
+        let path = path.as_ref().to_path_buf();
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let db = open_db(&path, cache_bytes)?;
+        Self::init_tables(&db)?;
+        let store = Self {
+            path,
+            db: Mutex::new(Some(db)),
+            cache_bytes,
+            touched: std::sync::atomic::AtomicBool::new(false),
+            drops: std::sync::atomic::AtomicU64::new(0),
+            words_gen: std::sync::atomic::AtomicU64::new(0),
+            words_count_gen: std::sync::atomic::AtomicU64::new(0),
+            words_gen_by_schema: Default::default(),
+            words_epoch: std::sync::atomic::AtomicU64::new(0),
+        };
+        store.run_migrations()?;
+        store.backfill_abbrev_indexes();
+        info!(
+            "Store opened: {} (v{})",
+            store.path.display(),
+            store.version().unwrap_or(0)
+        );
+        Ok(store)
+    }
+
+    /// 存量库补建简拼索引：升级到带索引的版本时，老库里的词一条索引都没有，
+    /// 不补建则简拼**静默召不回**（比慢更糟）。
+    ///
+    /// 放在 `open` 里而不是交给调用方判断，是因为 `Store::open` 有多个入口（协调器、
+    /// 设置页、备份还原、各类测试）——留给调用方就等于留一个「忘了调」的口子，
+    /// 而这类遗漏的表现是静默失效。
+    ///
+    /// 常态开销 O(1)：索引条目数与主表条目数恒等（每条词正好一条索引），
+    /// 故只有「索引空而主表非空」时才会真正扫一遍。失败只记日志不阻断启动——
+    /// 简拼召不回是退化，打不开词库是故障，不该用后者换前者。
+    fn backfill_abbrev_indexes(&self) {
+        let need = self
+            .with_db(|db| {
+                use redb::ReadableTableMetadata;
+                let txn = db.begin_read()?;
+                let idx =
+                    txn.open_table(USER_ABBREV)?.len()? + txn.open_table(TEMP_ABBREV)?.len()?;
+                let main =
+                    txn.open_table(USER_WORDS)?.len()? + txn.open_table(TEMP_WORDS)?.len()?;
+                Ok(idx == 0 && main > 0)
+            })
+            .unwrap_or(false);
+        if !need {
+            return;
+        }
+        match self.rebuild_abbrev_indexes() {
+            Ok(n) => info!("简拼索引补建完成：{} 条", n),
+            Err(e) => warn!("简拼索引补建失败（简拼召回将失效）：{}", e),
+        }
+    }
+
+    /// 建表（首次打开表即创建；幂等）。
+    fn init_tables(db: &Database) -> anyhow::Result<()> {
+        let w = db.begin_write()?;
+        {
+            w.open_table(USER_WORDS)?;
+            w.open_table(USER_ABBREV)?;
+            w.open_table(TEMP_WORDS)?;
+            w.open_table(TEMP_ABBREV)?;
+            w.open_table(ASSOC_HIST)?;
+            w.open_table(DRAFT_WORDS)?;
+            w.open_table(FREQ)?;
+            w.open_table(SHADOW)?;
+            w.open_table(QUICK_FORMAT)?;
+            w.open_table(COMMON_CHARS)?;
+            w.open_table(CHARSET_USER)?;
+            w.open_table(COMPLETION)?;
+            w.open_table(PHRASES)?;
+            w.open_table(STATS_DAILY)?;
+            w.open_table(META)?;
+        }
+        w.commit()?;
+        Ok(())
+    }
+
+    /// 在持有 db 的前提下执行闭包；暂停态返回错误。各模块 ops（user_words/temp_words…）经此访问 db。
+    pub(crate) fn with_db<R>(
+        &self,
+        f: impl FnOnce(&Database) -> anyhow::Result<R>,
+    ) -> anyhow::Result<R> {
+        // 空闲回收的唯一信号源。放在这里而不是各个读写函数里：`with_db` 是**所有**
+        // 读写的唯一入口（AGENTS.md 的硬约定），漏不掉。
+        self.touched
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+        let guard = self.db.lock().unwrap_or_else(|e| e.into_inner());
+        match guard.as_ref() {
+            Some(db) => f(db),
+            None => anyhow::bail!("store is paused"),
+        }
+    }
+
+    /// 用户词 / 临时词两表的结构代次，见字段 `words_gen`。
+    pub fn words_generation(&self) -> u64 {
+        self.words_gen.load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    /// 某方案的结构代次：`(全体纪元, 该方案计数)`，任一分量变化即说明该方案的用户词 / 临时词变了。
+    pub fn words_generation_of(&self, schema: &str) -> (u64, u64) {
+        let epoch = self.words_epoch.load(std::sync::atomic::Ordering::Acquire);
+        let n = self
+            .words_gen_by_schema
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(schema)
+            .copied()
+            .unwrap_or(0);
+        (epoch, n)
+    }
+
+    pub(crate) fn bump_words_gen(&self, schema: &str) {
+        self.words_gen
+            .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        *self
+            .words_gen_by_schema
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .entry(schema.to_string())
+            .or_default() += 1;
+    }
+
+    /// 不分方案的结构变化（整库还原）：全局与纪元一起推进。
+    pub(crate) fn bump_words_epoch(&self) {
+        self.words_gen
+            .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        self.words_epoch
+            .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+    }
+
+    /// 临时词 count 代次，见字段 `words_count_gen`。
+    pub fn words_count_generation(&self) -> u64 {
+        self.words_count_gen
+            .load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    pub(crate) fn bump_words_count_gen(&self) {
+        self.words_count_gen
+            .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+    }
+
+    /// 读取存储版本（无 version 键视为 0=全新库）。
+    pub fn version(&self) -> anyhow::Result<u32> {
+        self.with_db(|db| {
+            let txn = db.begin_read()?;
+            let t = txn.open_table(META)?;
+            let v = match t.get(META_VERSION_KEY)? {
+                Some(g) => {
+                    let b = g.value();
+                    if b.len() == 4 {
+                        u32::from_le_bytes([b[0], b[1], b[2], b[3]])
+                    } else {
+                        0
+                    }
+                }
+                None => 0,
+            };
+            Ok(v)
+        })
+    }
+
+    /// 读 META 表的字符串值（UTF-8）。
+    pub(crate) fn meta_get(&self, key: &str) -> anyhow::Result<Option<String>> {
+        self.with_db(|db| {
+            let txn = db.begin_read()?;
+            let t = txn.open_table(META)?;
+            Ok(t.get(key)?
+                .map(|g| String::from_utf8_lossy(g.value()).into_owned()))
+        })
+    }
+
+    /// 写 META 表的字符串值。
+    pub(crate) fn meta_set(&self, key: &str, val: &str) -> anyhow::Result<()> {
+        self.with_db(|db| {
+            let txn = db.begin_write()?;
+            {
+                let mut t = txn.open_table(META)?;
+                t.insert(key, val.as_bytes())?;
+            }
+            txn.commit()?;
+            Ok(())
+        })
+    }
+
+    fn set_version(&self, v: u32) -> anyhow::Result<()> {
+        self.with_db(|db| {
+            let txn = db.begin_write()?;
+            {
+                let mut t = txn.open_table(META)?;
+                let vb = v.to_le_bytes();
+                t.insert(META_VERSION_KEY, vb.as_slice())?;
+            }
+            txn.commit()?;
+            Ok(())
+        })
+    }
+
+    /// 版本迁移框架：全新库直接打版本号；旧库按版本链逐步迁移（当前无迁移步骤）。
+    fn run_migrations(&self) -> anyhow::Result<()> {
+        let mut v = self.version()?;
+        if v == 0 {
+            // 全新 redb 库（Go 用 bbolt，此处不存在 legacy redb 数据）→ 直接标当前版本。
+            self.set_version(CURRENT_VERSION)?;
+            return Ok(());
+        }
+        while v < CURRENT_VERSION {
+            // 预留：match v { 1 => migrate_v1_to_v2()?, .. }
+            v += 1;
+            self.set_version(v)?;
+        }
+        if v > CURRENT_VERSION {
+            warn!(
+                "Store version {} 高于支持的 {}（程序可能被回滚）",
+                v, CURRENT_VERSION
+            );
+        }
+        Ok(())
+    }
+
+    /// 暂停：丢弃 Database，释放文件锁（Windows 下原子热替换 .redb 前调用）。
+    pub fn pause(&self) -> anyhow::Result<()> {
+        let mut guard = self.db.lock().unwrap_or_else(|e| e.into_inner());
+        *guard = None;
+        info!("Store paused: {}", self.path.display());
+        Ok(())
+    }
+
+    /// 恢复：重新打开 Database（暂停后调用）。
+    pub fn resume(&self) -> anyhow::Result<()> {
+        let mut guard = self.db.lock().unwrap_or_else(|e| e.into_inner());
+        if guard.is_none() {
+            let db = open_db(&self.path, self.cache_bytes)?;
+            Self::init_tables(&db)?;
+            *guard = Some(db);
+            self.bump_words_epoch();
+            info!("Store resumed: {}", self.path.display());
+        }
+        Ok(())
+    }
+
+    /// 丢掉 redb 的页缓存：**一次锁内**丢弃 `Database` 再重开。
+    ///
+    /// # 它解决什么
+    ///
+    /// redb 2.x 不是 mmap，它自己在普通文件 IO 之上维护 `PagedCachedFile`，页是堆上的
+    /// `Arc<[u8]>`，**全额计进进程私有内存**。这个缓存只增不减：每次读未命中就插入，
+    /// 只有越过上限才淘汰，唯一的整体清空是库文件扩容；事务刷盘时脏页还会被直接晋升
+    /// 进读缓存。于是它是个高水位结构，上界 ≈ `min(读缓存配额, 库文件大小)`——本机实测
+    /// 19 万词的库（32.6 MB）全表扫过之后吃掉 **41 MB 并长期不还**，50 万词约 90 MB。
+    /// 这正是用户反馈「导入大词库之后内存占用变高」的正主（`tests/redb_cache_high_water.rs`）。
+    ///
+    /// 导入必然写全表、脏页必然晋升，那一笔躲不掉，只能事后还。
+    ///
+    /// # 为什么不是 `pause()` + `resume()`
+    ///
+    /// 那是两次独立取锁，中间存在一个 `db` 为 `None` 的窗口，落在这个窗口里的查询会拿到
+    /// `store is paused` 的错误——按键线路正跑着的时候这就是一次吞字。本函数在**同一个
+    /// guard 里**换掉，对外没有可观测的暂停态。
+    ///
+    /// # 代价与边界
+    ///
+    /// 重开 `Database` 要读回 header 并校验，毫秒级；随后头几次查询会走冷缓存。所以它
+    /// **只该用在「刚做完一次全表规模的操作」之后**，绝不能进按键链路。
+    ///
+    /// ⚠️ **重开失败时自救一次**：`*guard = None` 已经执行，库已经丢了，此时若直接返回
+    /// `Err` 就把 store 永久钉在暂停态——之后每一次 `with_db` 都 bail「store is paused」，
+    /// 用户词 / 临时词 / 词频 / shadow 全线失效直到重启，而 [`Self::resume`] 在生产代码里
+    /// **一处调用都没有**（全仓只出现在测试里）。失败是真会发生的：重开要 open 加一次
+    /// `init_tables` 写事务 commit，而这个函数恰好被安排在「刚写完几十 MB 库文件」之后，
+    /// Windows 上杀软短暂持有 `.redb` 正是本仓当初做 pause/resume 的理由。
+    ///
+    /// 所以这里重试一次；再失败才返回 `Err`，并且**那时 store 确实是暂停态**，调用方必须
+    /// 当成故障处理（`error!` 而非 `warn!`），不能当成「只是内存没回落」。
+    ///
+    /// ⚠️ 「缓存释放了」不等于「内存还给 OS 了」：页是 4 KiB 的小块，glibc 与 Windows 堆
+    /// 都会把它们留在 free list 里，RSS / Private Bytes 未必立刻下降。释放的意义是这笔
+    /// 空间不再增长、且可被后续分配复用——`tests/redb_cache_high_water.rs` 的
+    /// `evict` / `hold` 两组正是为了把这件事和「RSS 降不降」分开而写的。
+    pub fn drop_page_cache(&self) -> anyhow::Result<()> {
+        let mut guard = self.db.lock().unwrap_or_else(|e| e.into_inner());
+        if guard.is_none() {
+            return Ok(()); // 已经是暂停态，没有缓存可丢；由 `resume` 负责开回来。
+        }
+        *guard = None;
+        // 丢了就必须开回来。第一次失败重试一次——最常见的原因（杀软/索引器短暂持有刚写完
+        // 的 .redb）是瞬时的。两次都不行才认栽，那时 store 停在暂停态，由调用方按故障处理。
+        let mut last = match Self::reopen(&self.path, self.cache_bytes) {
+            Ok(db) => {
+                *guard = Some(db);
+                self.drops
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                debug!("Store page cache dropped: {}", self.path.display());
+                return Ok(());
+            }
+            Err(e) => e,
+        };
+        for _ in 0..1 {
+            match Self::reopen(&self.path, self.cache_bytes) {
+                Ok(db) => {
+                    *guard = Some(db);
+                    warn!(
+                        "丢弃页缓存后首次重开失败（{last}），重试成功：{}",
+                        self.path.display()
+                    );
+                    return Ok(());
+                }
+                Err(e) => last = e,
+            }
+        }
+        Err(last.context(format!(
+            "丢弃页缓存后重开数据库失败，store 已停在暂停态：{}。\
+             此后所有读写都会报 store is paused，需调 resume() 或重启服务",
+            self.path.display()
+        )))
+    }
+
+    /// 开库 + 建表，[`Self::resume`] 与 [`Self::drop_page_cache`] 共用。
+    fn reopen(path: &Path, cache_bytes: usize) -> anyhow::Result<Database> {
+        let db = open_db(path, cache_bytes)?;
+        Self::init_tables(&db)?;
+        Ok(db)
+    }
+
+    /// 累计丢弃页缓存的次数。诊断与测试用。
+    pub fn page_cache_drops(&self) -> u64 {
+        self.drops.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// 起一条后台线程：**空闲够久就把页缓存还回去**。
+    ///
+    /// # 为什么光靠「写完就丢」不够
+    ///
+    /// 导入之后接 [`Self::drop_page_cache`] 只堵住了写那一路。真正把高水位顶起来的还有
+    /// 读：设置页的分页列表要给出精确的 `total`，就**不能中途早退**，于是照样扫完整表、
+    /// 把走过的叶子页全填进读缓存。用户导入完随手翻一下词库标签，41 MB 就原样回来了。
+    /// 正常打字也在慢慢填（简拼召回、前缀补全都读页），只是慢得多。
+    ///
+    /// redb 没有按范围计数的 API（`len()` 是 O(1) 但只给**整表**，而我们的 key 是
+    /// `schema\0code\0text`、一张表混着所有方案），所以「不扫全表也能拿到 total」这条路
+    /// 要自己维护计数器，写路径一多就会漏。与其在每条路上堵，不如在**空闲时统一回收**：
+    /// 这条覆盖所有填缓存的路径，包括将来新加的。
+    ///
+    /// # 判据
+    ///
+    /// 连续 `idle` 没有任何 `with_db`，且这期间之前确实访问过（`pending`），才丢一次。
+    /// 不设 `pending` 的话，一个没人用的输入法会每分钟白白重开一次数据库。
+    ///
+    /// 丢缓存本身要重开 `Database`（毫秒级）并让随后头几次查询走冷缓存，所以判据必须是
+    /// 「真的没人在用」——那时这点代价没人感知得到。冷缓存也不等于慢：redb 2.x 未命中走
+    /// `read` 系统调用，下面还垫着 OS 页缓存，是 µs 级 syscall 而非磁盘寻道。
+    ///
+    /// 线程持 `Weak`：`Store` 被丢弃后它自己退出，不拖住进程。
+    ///
+    /// ⚠️ 间隔**不做成配置键**（`docs/architecture/config-design-rules.md` §R1：差异可由
+    /// 程序判定就别加用户键）。参数化只为测试能用毫秒级的值跑完。
+    pub fn spawn_idle_cache_reclaimer(
+        self: &std::sync::Arc<Self>,
+        idle: std::time::Duration,
+        tick: std::time::Duration,
+    ) {
+        let weak = std::sync::Arc::downgrade(self);
+        let ticks_to_idle = (idle.as_millis() / tick.as_millis().max(1)).max(1) as u32;
+        let spawned = std::thread::Builder::new()
+            .name("store-cache-reclaim".into())
+            .spawn(move || {
+                let mut quiet = 0u32;
+                let mut pending = false;
+                loop {
+                    std::thread::sleep(tick);
+                    let Some(store) = weak.upgrade() else { return };
+                    if store
+                        .touched
+                        .swap(false, std::sync::atomic::Ordering::Relaxed)
+                    {
+                        // 这一拍里有人用过：静默计数归零，并记下「缓存可能涨了」。
+                        quiet = 0;
+                        pending = true;
+                        continue;
+                    }
+                    quiet += 1;
+                    if pending && quiet >= ticks_to_idle {
+                        match store.drop_page_cache() {
+                            Ok(()) => debug!("空闲 {idle:?}，已回收 redb 页缓存"),
+                            // 回收失败时 `drop_page_cache` 已经自救过一次仍不成，store
+                            // 停在暂停态——那是故障，不是「内存没回落」。
+                            Err(e) => error!("空闲回收页缓存失败：{e}"),
+                        }
+                        pending = false;
+                        quiet = 0;
+                    }
+                }
+            });
+        if let Err(e) = spawned {
+            // 不致命：只是内存不会自动回落，功能一切照旧。
+            warn!("空闲页缓存回收线程启动失败（{e}），内存将不会自动回落");
+        }
+    }
+
+    /// 是否处于暂停态
+    pub fn is_paused(&self) -> bool {
+        self.db.lock().unwrap_or_else(|e| e.into_inner()).is_none()
+    }
+
+    /// 数据库路径
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// 枚举按 schema 前缀编码的表（user/temp/freq/shadow/assoc_history）里出现过的全部 schema id。
+    /// 备份用：确保有数据但未在当前配置启用的方案也被覆盖。
+    pub fn list_data_schemas(&self) -> anyhow::Result<Vec<String>> {
+        let mut set = std::collections::BTreeSet::new();
+        self.with_db(|db| {
+            let txn = db.begin_read()?;
+            for table in [USER_WORDS, TEMP_WORDS, FREQ, SHADOW, ASSOC_HIST] {
+                let t = txn.open_table(table)?;
+                for item in t.range::<&str>(..)? {
+                    let (k, _) = item?;
+                    if let Some((schema, _rest)) = k.value().split_once('\u{0}') {
+                        set.insert(schema.to_string());
+                    }
+                }
+            }
+            Ok(())
+        })?;
+        Ok(set.into_iter().collect())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn list_data_schemas_across_tables() {
+        let path = std::env::temp_dir().join("moodflow_store_schemas_test.redb");
+        let _ = std::fs::remove_file(&path);
+        let s = Store::open(&path).unwrap();
+        s.add_user_word("wb", "a", "工", 1, 0).unwrap();
+        s.learn_temp_word("py", "ni", "你", 1, 0).unwrap();
+        s.record_freq("sp", "x", "词").unwrap();
+        s.pin_shadow("wb", "aa", "恭", None, 0).unwrap();
+        let mut got = s.list_data_schemas().unwrap();
+        got.sort();
+        assert_eq!(got, vec!["py", "sp", "wb"]);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_open_version_persist_and_reopen() {
+        let path = std::env::temp_dir().join("moodflow_store_skeleton_test.redb");
+        let _ = std::fs::remove_file(&path);
+
+        // 首次打开：版本应为当前版本
+        {
+            let s = Store::open(&path).unwrap();
+            assert_eq!(s.version().unwrap(), CURRENT_VERSION);
+        }
+        // 重开：版本持久化（证明写事务落盘）
+        {
+            let s = Store::open(&path).unwrap();
+            assert_eq!(s.version().unwrap(), CURRENT_VERSION);
+            // pause/resume 往返：暂停态报错，恢复后可用
+            s.pause().unwrap();
+            assert!(s.is_paused());
+            assert!(s.version().is_err(), "暂停态读取应失败");
+            s.resume().unwrap();
+            assert!(!s.is_paused());
+            assert_eq!(s.version().unwrap(), CURRENT_VERSION);
+        }
+        let _ = std::fs::remove_file(&path);
+    }
+}

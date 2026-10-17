@@ -1,9 +1,9 @@
-# WindInput 代码签名 (Windows / Authenticode)
+# Moodflow 代码签名 (Windows / Authenticode)
 #
 # 可单独运行, 也被 dev.ps1 的 8/9 出包流程自动调用。
 #
 #   .\scripts\sign.ps1 -Status               会话与配置体检 (不签任何文件)
-#   .\scripts\sign.ps1 build\xinqing_tsf.dll    签指定文件
+#   .\scripts\sign.ps1 build\moodflow_tsf.dll    签指定文件
 #   .\scripts\sign.ps1 -Verify dist\*.exe    只验签
 #
 # ══════════════════════════════════════════════════════════════════════════
@@ -67,23 +67,23 @@ function Gray ([string]$m) { Write-Host $m -ForegroundColor DarkGray }
 
 # ---------- 配置 ----------
 # 证书指纹。留空 = 签名整体关闭 (本机日常开发的默认状态)。
-$WIND_SIGN_THUMBPRINT = $env:WIND_SIGN_THUMBPRINT
+$MOODFLOW_SIGN_THUMBPRINT = $env:MOODFLOW_SIGN_THUMBPRINT
 
 # RFC3161 时间戳服务器。【必须有】—— 没有时间戳的签名会在证书到期当天集体失效,
 # 已经发出去的安装包会突然变成「未知发布者」。有时间戳则签名在证书有效期内永久有效。
 #
 # 时间戳与签名证书的来源【无关】(RFC3161 是通用协议, 任何 TSA 都能用), 故这里放一个
 # 通用公共服务作默认。你的 CA 若指定了自家 TSA, 在 sign.local.ps1 里覆盖即可。
-$WIND_SIGN_TIMESTAMP_URL = "http://timestamp.digicert.com"
+$MOODFLOW_SIGN_TIMESTAMP_URL = "http://timestamp.digicert.com"
 
 # 单个文件的签名尝试上限 (含首次)。覆盖两类瞬时故障: 时间戳服务器抽风、以及打包器
 # 刚写完文件时的占用 —— 判据与退避见 Invoke-SignOne。
 # 重试而非直接放弃, 但【绝不】降级成「不打时间戳也算成功」。
-$WIND_SIGN_RETRY = 3
+$MOODFLOW_SIGN_RETRY = 3
 
 # 会话不可用时打印的排障提示。默认是中性文案; 在 sign.local.ps1 里填上你那家服务商的
 # 具体步骤 (客户端叫什么、会话怎么开), 排障时能省一次翻文档 —— 而仓库里保持中性。
-$WIND_SIGN_SESSION_HINT = "打开签名服务的本地客户端并登录, 建立签名会话后重试"
+$MOODFLOW_SIGN_SESSION_HINT = "打开签名服务的本地客户端并登录, 建立签名会话后重试"
 
 # 可在 scripts\sign.local.ps1 覆盖以上变量 (该文件 gitignore; 模板见 .example)。
 $signCfg = "$ScriptDir\sign.local.ps1"
@@ -92,7 +92,7 @@ if (Test-Path $signCfg) { . $signCfg }
 # ---------- signtool 定位 ----------
 # Windows SDK 按版本号建目录, 取版本号最大的那个 x64 版。
 function Resolve-SignTool {
-    if ($env:WIND_SIGNTOOL -and (Test-Path $env:WIND_SIGNTOOL)) { return $env:WIND_SIGNTOOL }
+    if ($env:MOODFLOW_SIGNTOOL -and (Test-Path $env:MOODFLOW_SIGNTOOL)) { return $env:MOODFLOW_SIGNTOOL }
     $roots = @(
         "${env:ProgramFiles(x86)}\Windows Kits\10\bin",
         "$env:ProgramFiles\Windows Kits\10\bin"
@@ -118,8 +118,8 @@ function Resolve-SignTool {
 # Cert:\CurrentUser\My, 但 HasPrivateKey 为假 —— 此时 signtool 会在真正签名那一刻才
 # 失败, 而那时安装包已经打好了。提前拦在这里。
 function Resolve-SigningCert {
-    if (-not $WIND_SIGN_THUMBPRINT) { return $null }
-    $tp = ($WIND_SIGN_THUMBPRINT -replace '[^0-9A-Fa-f]', '').ToUpper()
+    if (-not $MOODFLOW_SIGN_THUMBPRINT) { return $null }
+    $tp = ($MOODFLOW_SIGN_THUMBPRINT -replace '[^0-9A-Fa-f]', '').ToUpper()
     $cert = Get-ChildItem Cert:\CurrentUser\My -ErrorAction SilentlyContinue |
         Where-Object { $_.Thumbprint -eq $tp }
     if (-not $cert) { return $null }
@@ -132,18 +132,18 @@ function Show-Status {
     $st = Resolve-SignTool
     if ($st) { Gray "  signtool : $st" } else { ErrMsg "  signtool : 未找到 (装 Windows SDK)" }
 
-    if (-not $WIND_SIGN_THUMBPRINT) {
+    if (-not $MOODFLOW_SIGN_THUMBPRINT) {
         Warn "  证书     : 未配置 —— 签名关闭"
         Gray "             配置方法: 复制 scripts\sign.local.ps1.example 为 sign.local.ps1"
         return $false
     }
-    Gray "  指纹     : $WIND_SIGN_THUMBPRINT"
+    Gray "  指纹     : $MOODFLOW_SIGN_THUMBPRINT"
 
     $cert = Resolve-SigningCert
     if (-not $cert) {
         Warn "  会话     : 不可用 —— 证书不在 Cert:\CurrentUser\My, 或私钥不可用"
         Gray "             多半是签名会话没开或已过期:"
-        Gray "             $WIND_SIGN_SESSION_HINT"
+        Gray "             $MOODFLOW_SIGN_SESSION_HINT"
         Gray "             建立会话后再跑一次 -Status"
         return $false
     }
@@ -153,7 +153,7 @@ function Show-Status {
     Gray "  有效期至 : $($cert.NotAfter)"
     $days = ($cert.NotAfter - (Get-Date)).Days
     if ($days -lt 30) { Warn "  ⚠️ 证书 $days 天后到期" }
-    Gray "  时间戳   : $WIND_SIGN_TIMESTAMP_URL"
+    Gray "  时间戳   : $MOODFLOW_SIGN_TIMESTAMP_URL"
     return $true
 }
 
@@ -194,12 +194,12 @@ function Test-AlreadySigned ([string]$file, [string]$thumbprint) {
 #    「正由另一进程使用」。只匹配英文的话, 中文机器上这个可重试故障会被当成硬失败。
 #    错误码 0x80070020 (ERROR_SHARING_VIOLATION) 与语言无关, 作为兜底一并匹配。
 function Invoke-SignOne ([string]$signtool, [string]$thumbprint, [string]$file) {
-    for ($i = 1; $i -le $WIND_SIGN_RETRY; $i++) {
+    for ($i = 1; $i -le $MOODFLOW_SIGN_RETRY; $i++) {
         # /fd SHA256      文件摘要算法
         # /tr + /td       RFC3161 时间戳 (/t 是老式 Authenticode 时间戳, 不要用)
         # /sha1           按指纹选证书 —— 比 /n 主体名精确, 存储里有多张证书时不会选错
         $out = & $signtool sign /fd SHA256 /sha1 $thumbprint `
-            /tr $WIND_SIGN_TIMESTAMP_URL /td SHA256 $file 2>&1
+            /tr $MOODFLOW_SIGN_TIMESTAMP_URL /td SHA256 $file 2>&1
         if ($LASTEXITCODE -eq 0) { return $true }
 
         $text = ($out | Out-String)
@@ -212,16 +212,16 @@ function Invoke-SignOne ([string]$signtool, [string]$thumbprint, [string]$file) 
             $why = "时间戳失败"; $wait = [math]::Min(5 * $i, 15)
         }
 
-        if ($why -and $i -lt $WIND_SIGN_RETRY) {
-            Warn "  $why, ${wait}s 后重试 ($i/$($WIND_SIGN_RETRY - 1)) ..."
+        if ($why -and $i -lt $MOODFLOW_SIGN_RETRY) {
+            Warn "  $why, ${wait}s 后重试 ($i/$($MOODFLOW_SIGN_RETRY - 1)) ..."
             Start-Sleep -Seconds $wait
             continue
         }
-        ErrMsg "  签名失败$(if ($why) { " ($why, 重试 $($WIND_SIGN_RETRY - 1) 次仍失败)" }): $file"
+        ErrMsg "  签名失败$(if ($why) { " ($why, 重试 $($MOODFLOW_SIGN_RETRY - 1) 次仍失败)" }): $file"
         Write-Host $text.TrimEnd()
         return $false
     }
-    return $false   # 循环只能从上面的 return 退出, 到这里说明 $WIND_SIGN_RETRY < 1
+    return $false   # 循环只能从上面的 return 退出, 到这里说明 $MOODFLOW_SIGN_RETRY < 1
 }
 
 function Invoke-VerifyOne ([string]$signtool, [string]$file) {
@@ -285,9 +285,9 @@ if (-not $cert) {
         Show-Status | Out-Null
         exit 1
     }
-    if ($WIND_SIGN_THUMBPRINT) {
+    if ($MOODFLOW_SIGN_THUMBPRINT) {
         Warn "`n⚠️ 已配置证书但签名会话不可用 (未登录或已过期), 本次产物【未签名】。"
-        Gray "   $WIND_SIGN_SESSION_HINT"
+        Gray "   $MOODFLOW_SIGN_SESSION_HINT"
         Gray "   或用 .\scripts\sign.ps1 -Status 体检。"
     } else {
         Gray "`n未配置代码签名, 跳过 (模板: scripts\sign.local.ps1.example)"

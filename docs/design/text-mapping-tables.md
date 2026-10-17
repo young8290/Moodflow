@@ -331,9 +331,9 @@ id = "category"; path = "emoji/emoji_category.txt"; enabled = false
 1. **右键菜单**（就地、单条）：只给「不再显示此符号」与「编辑符号表」两项。⛔ 不要复用
    置顶/前移/后移——那是跨候选的位置语义，符号只在自己那个词的小列表里有序，两套语义
    混在一个菜单里只会误导。
-2. **外部编辑对话框**（批量）：⛔ **不要自造两栏映射编辑器** —— wind-setting 是 Rust 原生
-   GUI（自研 windui），**没有动态增删行的映射编辑原语**，自造成本远高于复用。字符类已经把
-   这套对话框做成了**领域无关的壳**（`wind-setting/src/pages/dict/external_edit.rs`），接入
+2. **外部编辑对话框**（批量）：⛔ **不要自造两栏映射编辑器** —— moodflow-setting 是 Rust 原生
+   GUI（自研 moodflowui），**没有动态增删行的映射编辑原语**，自造成本远高于复用。字符类已经把
+   这套对话框做成了**领域无关的壳**（`moodflow-setting/src/pages/dict/external_edit.rs`），接入
    只需填一份 `ExternalEditDomain` 描述符（title / probe / export / import / key_param /
    new_label / file_filter / summarize，约 10 行）+ core 侧三个 RPC
    （`emoji.editFile` / `emoji.exportEdit` / `emoji.importFile`）。
@@ -343,7 +343,7 @@ id = "category"; path = "emoji/emoji_category.txt"; enabled = false
 ### 5.1 用户层存 redb，不存文件（⛔ 推翻 `emoji-suggestion.md` §9 的写法）
 
 §9 原本规划 `<userdata>/emoji/emoji_user.txt`。**这条要改**：仓里已经有一模一样的问题被解过
-并留下了判据（`wind-store/src/charsets.rs` 模块文档）：
+并留下了判据（`moodflow-store/src/charsets.rs` 模块文档）：
 
 > 用户层曾是 `{user_config}/charsets/` 目录（2026-09-04，未发布即改）。改成表的理由只有
 > 一条：**程序和人不能写同一个文件**。设置页改一个开关要重写文件，用户此时若在编辑器里
@@ -483,12 +483,12 @@ P2 之前不要开 P3——编辑的对象是「用户表」，而用户表的�
 - ⚠️ **`categories` 改类型须加 Value 层迁移**，否则老用户静默回落出厂值。
 - ⚠️ **`reader_pool` 的 `Close` 是配额语义、非幂等**：多表动态挂卸时重复调用会吃掉别人的
   引用计数（这条在单表时已记，多表下触发面变大）。
-- ⚠️ **加 redb 表要同改备份还原四处**：`wind-transfer/src/backup.rs` 的 `create_backup` 写入、
+- ⚠️ **加 redb 表要同改备份还原四处**：`moodflow-transfer/src/backup.rs` 的 `create_backup` 写入、
   `section_of`、`restore_backup` 的 sections 过滤，以及 `apps/service/src/backup_cli.rs` 的
   `RESTORE_SECTIONS` 白名单。★ 该白名单**现在就是破的**：缺 `common_chars` 与 `charset`，
   而备份侧早已在写这两类，它自己的文档注释写着「白名单须覆盖备份包实际写入的全部 type」
   ⇒ 加表时顺手补上。
-- ⚠️ **跨仓**：wind-setting 是 Rust 原生 GUI 不是 Web 前端，新 RPC 要在那边补一条 mock 分支，
+- ⚠️ **跨仓**：moodflow-setting 是 Rust 原生 GUI 不是 Web 前端，新 RPC 要在那边补一条 mock 分支，
   否则 mock 模式下静默返回 null；操作列加按钮必须同步调 `CategorySpec::actions_weight()`，
   否则按钮被静默挤出可视区。
 - 符号候选与 emoji 候选共用 `is_emoji_suggestion` 标记位。该位的语义是「这条是扩展来的」这个

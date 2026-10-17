@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""生成心晴 Hub 的占位图标（07 DS-BRAND-02：一朵圆润的云后面露出半个太阳）。
+"""生成 Moodflow Hub 的占位图标（07 DS-BRAND-02：一朵圆润的云后面露出半个太阳）。
 
-输出到 xinqing_hub/src-tauri/icons/：32x32.png、128x128.png、128x128@2x.png、icon.png（512）、
+输出到 moodflow_hub/src-tauri/icons/：32x32.png、128x128.png、128x128@2x.png、icon.png（512）、
 icon.ico（16→256 多层）。只是几何占位，正式设计稿到位后直接覆盖这些文件即可。需要 Pillow：
 
     python3 tools/gen_hub_icons.py
@@ -13,10 +13,10 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-OUT = Path(__file__).resolve().parents[1] / "xinqing_hub" / "src-tauri" / "icons"
-SUN = (246, 195, 68, 255)  # --xq-w-sunny
+OUT = Path(__file__).resolve().parents[1] / "moodflow_hub" / "src-tauri" / "icons"
+SUN = (246, 195, 68, 255)  # --mf-w-sunny
 CLOUD = (255, 255, 255, 255)
-OUTLINE = (107, 102, 94, 255)  # --xq-text-2，保证浅色任务栏上也看得见云的轮廓
+OUTLINE = (107, 102, 94, 255)  # --mf-text-2，保证浅色任务栏上也看得见云的轮廓
 ICO_SIZES = [16, 20, 24, 32, 40, 48, 64, 96, 128, 256]
 SS = 8  # 超采样倍数
 

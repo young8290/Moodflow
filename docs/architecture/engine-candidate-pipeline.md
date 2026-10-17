@@ -1,6 +1,6 @@
 # 输入引擎架构：从词库到候选（现状整理）
 
-> **现状文档**（非设计差分）。基于 2026-07-06 对 `wind_input/crates/` Rust 实现的实际代码核查整理，
+> **现状文档**（非设计差分）。基于 2026-07-06 对 `moodflow_input/crates/` Rust 实现的实际代码核查整理，
 > 覆盖码表 / 拼音（全拼）/ 双拼 / 混输 / 英文五类引擎从词库加载到候选呈现的完整链路，
 > 并对比各模式流程差异；§9 补辅助码字形二次筛选（协调器 overlay 模式）。
 > 行号为核查时快照，随代码演进可能漂移，以函数/结构名为准。
@@ -14,16 +14,16 @@
 ### 1.1 分层结构
 
 ```
-按键 (wind-coordinator)
+按键 (moodflow-coordinator)
   └─ build_candidates()                    handle_candidate.rs —— 候选后处理管线（§8）
-       └─ EngineManager::convert()          wind-engine/manager.rs —— 按活跃方案分发（§1.3）
+       └─ EngineManager::convert()          moodflow-engine/manager.rs —— 按活跃方案分发（§1.3）
             └─ dyn Engine::convert()        五类引擎实现之一（§3–§7）
-                 └─ DictManager / CompositeDict   wind-dict —— 多层词库合并查询（§2）
+                 └─ DictManager / CompositeDict   moodflow-dict —— 多层词库合并查询（§2）
 ```
 
 ### 1.2 公共契约
 
-**`Engine` trait**（`wind-engine/src/engine.rs`）：核心方法 `convert(input, max_candidates) -> ConvertResult`，
+**`Engine` trait**（`moodflow-engine/src/engine.rs`）：核心方法 `convert(input, max_candidates) -> ConvertResult`，
 另有 `reset()` / `engine_type()` / `max_code_length()` / `handle_top_code()` / `recheck_auto_commit()` /
 `set_dict_enabled()`，以及拼音探测类方法 `is_whole_syllable_pinyin()` / `completed_syllable_count()` 等
 （混输的拼音否决依赖后者，§7.3）。
@@ -42,7 +42,7 @@
 | `should_clear` | 满码空码清空缓冲 |
 | `is_empty` | 无候选 |
 
-**`Candidate`**（`wind-candidate/src/candidate.rs:28-126`）关键字段：
+**`Candidate`**（`moodflow-candidate/src/candidate.rs:28-126`）关键字段：
 
 - `text` / `code` / `comment`（编码提示或「拼」来源标记）
 - `weight`（引擎权重，排序主键）/ `natural_order`（同权重自然序，含词库层偏移）
@@ -53,12 +53,12 @@
 - `consumed_length`：候选上屏时消费的输入字节数；`0` 表示整串。拼音分段上屏的基石（§4.5）
 - `meta`：`lexicon_name` / `is_user_dict` / `is_temp_dict` / `raw_weight` / `freq_boost`
 
-候选比较函数 `wind_candidate::better()`（candidate.rs:131-139）：
+候选比较函数 `moodflow_candidate::better()`（candidate.rs:131-139）：
 `weight desc → natural_order asc → code asc → consumed_length desc → text asc`。
 
 ### 1.3 EngineManager：懒加载与方案分发
 
-`wind-engine/src/manager.rs`（~2570 行）：
+`moodflow-engine/src/manager.rs`（~2570 行）：
 
 - 持 `HashMap<方案ID → Arc<dyn Engine>>`，**懒加载**：`active_engine()`（:507）按需触发
   `ensure_loaded()`（:453），single-flight 构建锁保证并发下只构建一次。
@@ -91,7 +91,7 @@ default = true              # 主库标志；非 default 为扩展库
 
 ---
 
-## 2. 词库层（wind-dict）
+## 2. 词库层（moodflow-dict）
 
 ### 2.1 三种存储格式
 
@@ -109,7 +109,7 @@ DAT 从已排序编码列表 BFS 直接构建，峰值内存仅 base/check 两�
 
 `cached.rs`：`enum CachedDict { Mmap(WdatReader), Memory(CodetableDict) }`。
 加载时若 `.wdat` 缓存存在且**内容指纹**（sidecar，非 mtime）匹配源文件 → 直接 mmap；
-否则加载 yaml → 写 `.wdat` → mmap 重开。缓存根 `%LOCALAPPDATA%\WindInput\cache\{方案}/`。
+否则加载 yaml → 写 `.wdat` → mmap 重开。缓存根 `%LOCALAPPDATA%\Moodflow\cache\{方案}/`。
 拼音另有合并缓存：`merged.wdb`（主库+import_tables）。
 
 ### 2.3 多层合并（CompositeDict）
@@ -118,7 +118,7 @@ DAT 从已排序编码列表 BFS 直接构建，峰值内存仅 base/check 两�
 （layer.rs）：**Logic(0) > User(1) > Temp(2) > Cell(3) > System(4)**。
 
 - 系统层 `SystemDictLayer` 包装 CachedDict 并打 `source` 标记；用户造词 `StoreUserLayer`（redb 持久化）、
-  临时学习词 `StoreTempLayer`（会话级）来自 wind-store。
+  临时学习词 `StoreTempLayer`（会话级）来自 moodflow-store。
 - 合并查询：遍历启用层收集候选 → **按 text 去重**（weight 继承最高值；前缀查询同 text 多码取最短码）→
   每层 natural_order 叠加 `layer_idx × PER_LAYER_NO_OFFSET(10M)` 保证层序 → `better()` 排序 → 截断。
 - 层可热插拔：`set_layer_enabled()`（码表扩展库 `codetable-extra-*` 开关走此通道）。
@@ -127,7 +127,7 @@ DAT 从已排序编码列表 BFS 直接构建，峰值内存仅 base/check 两�
 
 ## 3. 码表引擎（CodeTableEngine）
 
-文件：`wind-engine/src/codetable/engine.rs`（~440 行）。
+文件：`moodflow-engine/src/codetable/engine.rs`（~440 行）。
 
 ### 3.1 查询流程（`convert()`，:98-174）
 
@@ -162,7 +162,7 @@ DAT 从已排序编码列表 BFS 直接构建，峰值内存仅 base/check 两�
 | `split_input` / `split_front_candidates` / `split_trigger` / `split_alt_display` | **逆切分**：满码长（或无后继的未满码）且空码时，切出一个二简作前段、余下归后段，各查一次词典（段候选吃候选调整），拼成组合候选（`hfkn` → `hf`(很可) + `kn`(能) → 「很可能」）。候选 `code` 为整串 ⇒ 后段唯一时被既有 `decide_auto_commit` 认作「恰一个精确匹配」而自动上屏，后段重码时出候选窗；`handle_top_code` 走 `convert(prefix,1)` ⇒ 继续打字母顶的就是切分首选。**方案级引擎固定参数，出厂关**。见 [codetable-split-input.md](../design/codetable-split-input.md) |
 
 配置来源：全局 `schema.codetable.*` + 方案 `[engine.codetable]` 行为字段逐字段折叠（`Some` 覆盖 /
-`None` 回落全局）。行为与引擎固定参数**同段同结构**收在 `CodeTableSpec`（`wind-config/src/schema.rs`）：
+`None` 回落全局）。行为与引擎固定参数**同段同结构**收在 `CodeTableSpec`（`moodflow-config/src/schema.rs`）：
 固定参数 `max_code_length` / `base_sort`（weight/natural）/ `input_chars`，行为参数为 tri-state `Option`。
 方案作者可在 `.schema.toml` 内联行为基线；`schema_overrides/{id}.toml` 用**相同的 `[engine.codetable]` 段**
 （设置页写入）经 `read_schema` 深合并覆盖之。已无独立 `CodetableOverride` 平行路径。
@@ -184,7 +184,7 @@ DAT 从已排序编码列表 BFS 直接构建，峰值内存仅 base/check 两�
 
 - **入口分离**：`convert` 恒为字面语义（它另被 `has_code_prefix` / z 夺取当活码探针用）；
   通配走 `Engine::convert_wildcard(input, pattern, max)`，`pattern` 中作通配的位是
-  `wind_dict::WILDCARD_SLOT`。哪几位作通配由协调器 `wildcard_pattern` 按
+  `moodflow_dict::WILDCARD_SLOT`。哪几位作通配由协调器 `wildcard_pattern` 按
   `docs/design/codetable-wildcard.md` §3.3 从缓冲重算：首位让位进来的字面通配键使整轮不作通配。
 - **词库层**：`DictLayer::search_pattern`。DAT 逐位推进前沿（通配位遍历全部有效转移），
   等长档取满后余额交给多起点分支限界（`bnb_collect`）；BTreeMap / redb 按首个通配前的字面
@@ -225,7 +225,7 @@ DAT 从已排序编码列表 BFS 直接构建，峰值内存仅 base/check 两�
 
 ## 4. 拼音引擎（PinyinEngine，全拼）
 
-文件：`wind-engine/src/pinyin/`。词库：`rime_pinyin` 主库合并 import_tables 缓存为 `merged.wdb` mmap；
+文件：`moodflow-engine/src/pinyin/`。词库：`rime_pinyin` 主库合并 import_tables 缓存为 `merged.wdb` mmap；
 用户/临时造词层经 `with_store_layers()` 注入。
 
 > **没有独立的语言模型文件**。词图节点分直接取自词条自身的词典权重（`lattice.rs::score_node_inner`），
@@ -289,7 +289,7 @@ DAT 从已排序编码列表 BFS 直接构建，峰值内存仅 base/check 两�
 | ⑥ 用户/临时造词层 | store_layers 整串精确 + 子码 + 前缀，整串与子码另查模糊变体码（同 ①③，前缀不做），按 text 与系统词典去重（精确先到先占位） | — |
 | **6.2 简拼前缀回退** | 整串无产出时按切点从长到短重查（`recall_abbrev_prefix`）：每切点 `MAX_FALLBACK_PER_CUT`(6) 条、只取前 `MAX_FALLBACK_CUTS`(2) 个有产出的切点。**系统层与 store 层各记各的配额基准**。这是**唯一**能产出「只消费前 N 码」简拼候选的路径 | `is_abbrev` + `is_partial` + 自带 `consumed_length` |
 
-> **两条简拼路径共用一个取码窗口** [`ABBREV_INDEX_LIMIT`](../../wind_input/crates/wind-engine/src/pinyin/mod.rs)(64)。
+> **两条简拼路径共用一个取码窗口** [`ABBREV_INDEX_LIMIT`](../../moodflow_input/crates/moodflow-engine/src/pinyin/mod.rs)(64)。
 > 纯简拼曾单独取 10，理由是「键即答案」——该前提只在键下词条少于 10 时成立：真实词库
 > `bcx` 有 48 条，取 10 意味着 w=1 的「拜城县」在 `bcx` 下永不产生，而在 `baicx`（混合、64）
 > 下能出。**打得更省事的写法反而查得更少**。且截断在**召回层**，候选窗开多大都捞不回来，
@@ -475,7 +475,7 @@ code 是 query 前缀 → 只消费前缀长度，剩余拼音继续转换；否
 
 ## 6. 英文引擎（EnglishEngine)
 
-文件：`wind-engine/src/english.rs`。**码表引擎的薄包装**：词库用码表格式
+文件：`moodflow-engine/src/english.rs`。**码表引擎的薄包装**：词库用码表格式
 （`type = "english"` 方案），构建时 code 列**小写化**实现大小写不敏感前缀匹配（manager.rs:1375-1400）；
 查询走精确 + 前缀，候选标 `source = English`。独立方案可直接使用，更常见的是被混输懒加载
 （`schema.mix.enable_english`）。
@@ -527,7 +527,7 @@ code 是 query 前缀 → 只消费前缀长度，剩余拼音继续转换；否
 
 ### 6.1 英文候选混入非混输方案（`schema.codetable.english_merge` / `schema.pinyin.english_merge`）
 
-文件：`wind-engine/src/english_merge.rs`。让**纯拼音 / 纯码表**方案也能在候选里捎带英文词
+文件：`moodflow-engine/src/english_merge.rs`。让**纯拼音 / 纯码表**方案也能在候选里捎带英文词
 （全拼下打 `hello` 直接选到 hello），出厂关。
 
 **配置按引擎分两份，取值互不共享**：`schema.codetable.english_merge`（`enable` /
@@ -584,7 +584,7 @@ hen / hence / henceforth / Henderson / Hendrix，混输 `github` 曾混进 8 条
 
 ## 7. 混输引擎（MixedEngine）—— 冲突处理与拼音否决
 
-文件：`wind-engine/src/mixed/engine.rs`（~1030 行）。部件：`primary`（码表）+ `secondary`（拼音，可空）+
+文件：`moodflow-engine/src/mixed/engine.rs`（~1030 行）。部件：`primary`（码表）+ `secondary`（拼音，可空）+
 `english`（可空），策略参数经 `MixConfig` 注入（manager.rs:1286-1369 从 `schema.mix.*` 构造）。
 
 ### 7.1 输入路由（两条路径）
@@ -807,7 +807,7 @@ step 2c（尾部残码参与整句解码）此前在混输下**整体关闭**（
   （旧的 `schema.quick_input.enable_english` 已废弃并在加载期迁移为成员删除）。
   也没有总开关——禁用即把 `trigger_keys` 清空（曾有 `quick_input.enabled`，但它从未被任何
   逻辑读取，关掉不产生任何效果，已删）。
-  前三者由 `wind-quick-input` 纯函数产出，`.repeat` 取 `recent_commits` 上屏历史（仅空缓冲时）。
+  前三者由 `moodflow-quick-input` 纯函数产出，`.repeat` 取 `recent_commits` 上屏历史（仅空缓冲时）。
   透镜分派见 `mix_has_quick_numeric`：含表达式类来源才开数字透镜（`-`/`=` 作运算符而非翻页）。
 - **词库热插拔**：`set_dict_enabled` 转发主/次子引擎（扩展码表层在码表子引擎）。
 
@@ -815,11 +815,11 @@ step 2c（尾部残码参与整句解码）此前在混输下**整体关闭**（
 
 ## 8. 候选后处理管线（协调器层，所有模式统一）
 
-`build_candidates()`（`wind-coordinator/src/handle_candidate.rs:177-340`），引擎返回后依次：
+`build_candidates()`（`moodflow-coordinator/src/handle_candidate.rs:177-340`），引擎返回后依次：
 
 ```
 ① engine convert（初始 limit 按引擎类型/码长阶梯，:160-171：码表 100/300/1000，拼音/混输 300）
-② 短语注入（wind-phrase lookup + lookup_prefix）：
+② 短语注入（moodflow-phrase lookup + lookup_prefix）：
      静态/模板短语、$CC 命令（is_command）、$SS/$AA 组（is_group 二级展开）
      weight = hit.weight（精确码/前缀枚举同口径；曾有的 PHRASE_WEIGHT_BASE=40M 类别硬顶已删除，
      短语按自身权重与码表精确候选竞争，见 candidate-sorting-rules.md §5.1）
@@ -828,7 +828,7 @@ step 2c（尾部残码参与整句解码）此前在混输下**整体关闭**（
      高权重子串单字会靠 weight 反超低权重精确词组——如 `pingtan` 下
      平(w=58 part=true)＞平摊(w=4 part=false)，前者插到词组前）
 ④ 按 text 去重（保留首个）+ **把被弃条目所占码位并入幸存者**（merged_codes，见 §8.1.2）
-⑤ apply_filter：填充 is_common（常用字表；短语豁免，判定作用域见 §8.1.1）→ wind_candidate::filter_candidates
+⑤ apply_filter：填充 is_common（常用字表；短语豁免，判定作用域见 §8.1.1）→ moodflow_candidate::filter_candidates
      含生僻字的**词**吃不吃这一刀由 `input.rare_phrase` 定（keep 出厂＝整词放行；「多字」按
      字素簇算，单个 emoji 不算词）。与 filter_mode **正交**——那个定「什么算该滤」，这个定
      「词吃不吃」，两者要能任意组合，故不是给档位加第四个值。判据见 `RarePhrasePolicy`。
@@ -849,7 +849,7 @@ step 2c（尾部残码参与整句解码）此前在混输下**整体关闭**（
 
 ### 8.1 智能过滤：按 (source, code) 分组
 
-`wind-candidate/src/filter.rs`。`FilterMode`：`Gb18030`（不过滤）/ `General`（仅常用）/
+`moodflow-candidate/src/filter.rs`。`FilterMode`：`Gb18030`（不过滤）/ `General`（仅常用）/
 `Smart`（智能）。Smart 规则：**按 `(CandidateSource, code)` 分组**，同组内存在常用词
 （is_common/is_phrase/is_command/is_group）则滤掉非常用，无常用则整组保留。
 
@@ -868,7 +868,7 @@ step 2c（尾部残码参与整句解码）此前在混输下**整体关闭**（
 按来源分组是提交 19d580f 的修复：混输下码表与拼音候选常共用同一 code 串（如 wang），
 原先只按 code 分组会让拼音常用字误杀同码的码表生僻字（佢），导致混输码表表现与纯五笔不一致。
 
-#### 8.1.1 常用性判定的作用域（`wind-candidate/src/common.rs`）
+#### 8.1.1 常用性判定的作用域（`moodflow-candidate/src/common.rs`）
 
 `is_string_common` 逐字判定：**属「汉字」的字符必须在通用规范汉字表（8105 字）内，其余辅助
 字符忽略**。所谓「汉字」= `is_han` ∪ `is_pua`，两侧各挡一类误判：
@@ -958,7 +958,7 @@ JSONL 的字段名保持 `ch`，老备份照旧读得回来。
 > 现状是用户显式加进词库的生僻字（`囍 靐 嘅 冇` 等均不在规范字表）在「常用字」档仍被滤掉，
 > 只能整体切到 `gb18030` 档才打得出，与「我自己加的词就该打得出」的直觉相悖。
 > 落点：`handle_candidate.rs` `apply_filter` 处 `c.meta.is_user_dict` 已由 dict 层
-> （`wind-dict/src/store_layer.rs:22-26`）置位，可直接读，形如
+> （`moodflow-dict/src/store_layer.rs:22-26`）置位，可直接读，形如
 > `c.is_common = c.meta.is_user_dict || self.common_chars.is_string_common(&c.text)`。
 > **豁免范围须止于 `is_user_dict`**：`is_temp_dict` 是码表自动造词的产物（连续单字+终止符
 > 自动成词，杂词率高），一并豁免等于让自动造出的杂词绕过这层过滤，而那正是它该管的。
@@ -998,7 +998,7 @@ merged_codes。**当前四个归并点**：`composite::merge_search`（跨词库
 
 ### 8.2 词频重排（freq_rerank.rs，两策略）
 
-不修改 weight，是排序后的独立重排维度（词频数据在 wind-store，按 §1.3 的 schema id 分键空间；
+不修改 weight，是排序后的独立重排维度（词频数据在 moodflow-store，按 §1.3 的 schema id 分键空间；
 仅 `consumed_length==0` 或 ≥ 输入长的候选参与取频）：
 
 - **码表/混输：永久 used-first**（`rerank_codetable_usedfirst()` :46-91）。
@@ -1012,7 +1012,7 @@ merged_codes。**当前四个归并点**：`composite::merge_search`（跨词库
 
 ### 8.3 Shadow 规则
 
-`wind-candidate/src/shadow.rs`：用户「删词/置顶/移动」规则，删除过滤 + 按目标位置重排，
+`moodflow-candidate/src/shadow.rs`：用户「删词/置顶/移动」规则，删除过滤 + 按目标位置重排，
 在过滤与词频之后应用（最高优先级）；自动上屏目标被 shadow 删除则不放行（⑧步存活复核）。
 
 ---
@@ -1020,7 +1020,7 @@ merged_codes。**当前四个归并点**：`composite::merge_search`（跨词库
 ## 9. 辅助码模式（AuxCode）—— 拼音候选的字形二次筛选
 
 协调器 overlay 模式（`ModeKind::AuxCode`），**非引擎**：对已跑完 §8 管线的拼音候选做字形二次
-筛选。文件：`wind-coordinator/src/handle_aux_code.rs` + `wind-aux-code/`（纯逻辑：三段式紧凑表
+筛选。文件：`moodflow-coordinator/src/handle_aux_code.rs` + `moodflow-aux-code/`（纯逻辑：三段式紧凑表
 + 纯筛选，不碰文件系统，路径由调用方解析）。
 
 - **配置（三层，同 `[schema.codetable]` 那套 tri-state，见 schema-config-layering.md §4）**：
@@ -1058,12 +1058,12 @@ merged_codes。**当前四个归并点**：`composite::merge_search`（跨词库
   （`invalidate_aux_code_table`，随 `sync_chaizi_assets`/`sync_comment_dicts` 一起）。表格式：
   UTF-8 `字=码` 一行一条（`=` 分隔，与 rime-lua-aux-code `aux_code` 目录一致；`=` 右侧也可按空白写多个码，
   如手心表 `七=a p`，行内 `#` 注释先剥掉；非 UTF-8 整张忽略并告警「请转存为 UTF-8」），`#` 注释跳过，第 1 行可选 `# name:`（缺省回落文件主干名），
-  version/source 当普通注释不解析。码表文件是 `wind-tools/gen_aux_code` 的构建产物、
+  version/source 当普通注释不解析。码表文件是 `moodflow-tools/gen_aux_code` 的构建产物、
   **不入版本库**（rime-stroke 为 LGPL-3.0，见 NOTICE.md）。笔画方案词库
   `schemas/stroke/stroke.dict.yaml` 与 `aux_code/stroke.txt` 由它同一次解析产出（字与码序逐一
   相同，另带 rime-frost 字频权重），故全拼引用方案与引用文件筛选结果一致——
   `handle_aux_code.rs::stroke_schema_source_filters_like_stroke_txt` 用真实产物对拍把守。
-- **筛选**（`wind-aux-code/src/filter.rs`）：`aux_code_matches` 谓词判断单个候选是否匹配；
+- **筛选**（`moodflow-aux-code/src/filter.rs`）：`aux_code_matches` 谓词判断单个候选是否匹配；
   `filter_by_aux_code` 批量筛选，`kept` 是输入候选的**子序列**（不变量，绝不重排）；
   单字任一码前缀匹配 `aux_input` 则留；词组**逐字首码匹配**（固定语义，无模式选项）——第 i 位
   命中第 i 字任一码的首字符，恰好 N 位，**不足 N 位 = 前缀态保留（边打边缩）、超过或某位不中
@@ -1087,7 +1087,7 @@ merged_codes。**当前四个归并点**：`composite::merge_search`（跨词库
 
 设计 `docs/design/aux-code-direct.md`。不进 overlay、**无状态**：每键在 `build_candidates` 的⑥'
 （`handle_direct_aux.rs::apply_direct_aux`）按奇偶把输入拆成「前缀 + 末 1～2 位」，前缀候选里
-字形对得上的并入主候选；纯逻辑（切分 / 任意字匹配 / 并入排序）在 `wind-aux-code/src/direct.rs`。
+字形对得上的并入主候选；纯逻辑（切分 / 任意字匹配 / 并入排序）在 `moodflow-aux-code/src/direct.rs`。
 
 - **门卫**：主输入路（`state.active == None`；临拼 / 混输 / 引导键态都不做）、`enabled` 且 `direct`
   （`AuxCodeSettings::direct` 已折叠「只认双拼」）、输入 ≥ 3 键、不含 `'`、前缀恰好切成完整双拼音节
@@ -1128,7 +1128,7 @@ merged_codes。**当前四个归并点**：`composite::merge_search`（跨词库
 
 ## 11. 配置速查（实际生效默认值）
 
-引擎相关配置三层合并：代码默认 → 系统 `data/config.toml` → 用户 `%APPDATA%\WindInput\config.toml`。
+引擎相关配置三层合并：代码默认 → 系统 `data/config.toml` → 用户 `%APPDATA%\Moodflow\config.toml`。
 下表「默认」为**系统配置层实际值**（与代码默认不同处已注明）：
 
 | 键 | 默认 | 说明 |
@@ -1160,18 +1160,18 @@ merged_codes。**当前四个归并点**：`composite::merge_search`（跨词库
 
 | 模块 | 文件 |
 |---|---|
-| 统一入口/构建/热重载 | `wind-engine/src/manager.rs` |
-| Engine trait / ConvertResult | `wind-engine/src/engine.rs` |
-| 码表引擎 | `wind-engine/src/codetable/engine.rs` |
-| 通配输入（按键裁决 / 模式构造 / 记账码） | `wind-coordinator/src/wildcard.rs`；词库层 `wind-dict` 的 `search_pattern` |
-| 拼音引擎 | `wind-engine/src/pinyin/mod.rs`（+ syllable/dag/fuzzy/lattice/viterbi/lm/scorer/generate） |
-| 双拼转换 | `wind-engine/src/pinyin/shuangpin.rs`；布局 `data/schemas/shuangpin/*.toml` |
-| 混输引擎（否决①②/档位/overflow） | `wind-engine/src/mixed/engine.rs` |
-| 英文引擎 | `wind-engine/src/english.rs` |
-| 词频重排 | `wind-engine/src/freq_rerank.rs` |
-| Candidate / 智能过滤 / shadow | `wind-candidate/src/{candidate,filter,shadow}.rs` |
-| 词库（格式/缓存/多层） | `wind-dict/src/{codetable,binformat,datformat,cached,composite,manager,layer,store_layer}.rs` |
-| 后处理管线 / 顶码守护 | `wind-coordinator/src/handle_candidate.rs`、`coordinator.rs`（VK_A..Z 顶码段） |
-| 辅助码（overlay 模式 / 纯筛选 / 三段式表 / 表格式） | `wind-coordinator/src/handle_aux_code.rs`、`wind-aux-code/src/{table,loader,filter}.rs`、`data/schemas/aux_code/*.txt` |
-| 直接辅助码（双拼，候选后处理） | `wind-coordinator/src/handle_direct_aux.rs`、`wind-aux-code/src/direct.rs` |
-| 配置结构与注册 | `wind-config/src/{config,schema,config_schema}.rs`、`data/config.toml` |
+| 统一入口/构建/热重载 | `moodflow-engine/src/manager.rs` |
+| Engine trait / ConvertResult | `moodflow-engine/src/engine.rs` |
+| 码表引擎 | `moodflow-engine/src/codetable/engine.rs` |
+| 通配输入（按键裁决 / 模式构造 / 记账码） | `moodflow-coordinator/src/wildcard.rs`；词库层 `moodflow-dict` 的 `search_pattern` |
+| 拼音引擎 | `moodflow-engine/src/pinyin/mod.rs`（+ syllable/dag/fuzzy/lattice/viterbi/lm/scorer/generate） |
+| 双拼转换 | `moodflow-engine/src/pinyin/shuangpin.rs`；布局 `data/schemas/shuangpin/*.toml` |
+| 混输引擎（否决①②/档位/overflow） | `moodflow-engine/src/mixed/engine.rs` |
+| 英文引擎 | `moodflow-engine/src/english.rs` |
+| 词频重排 | `moodflow-engine/src/freq_rerank.rs` |
+| Candidate / 智能过滤 / shadow | `moodflow-candidate/src/{candidate,filter,shadow}.rs` |
+| 词库（格式/缓存/多层） | `moodflow-dict/src/{codetable,binformat,datformat,cached,composite,manager,layer,store_layer}.rs` |
+| 后处理管线 / 顶码守护 | `moodflow-coordinator/src/handle_candidate.rs`、`coordinator.rs`（VK_A..Z 顶码段） |
+| 辅助码（overlay 模式 / 纯筛选 / 三段式表 / 表格式） | `moodflow-coordinator/src/handle_aux_code.rs`、`moodflow-aux-code/src/{table,loader,filter}.rs`、`data/schemas/aux_code/*.txt` |
+| 直接辅助码（双拼，候选后处理） | `moodflow-coordinator/src/handle_direct_aux.rs`、`moodflow-aux-code/src/direct.rs` |
+| 配置结构与注册 | `moodflow-config/src/{config,schema,config_schema}.rs`、`data/config.toml` |

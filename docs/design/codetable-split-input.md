@@ -81,8 +81,8 @@ flypy 给的分类（原帖配图）与本仓现状对照：
 
 - 组合区切分显示 `hf'kn` → `ConvertResult::preedit_codetable` + `sentence::SPLIT_SEPARATOR`（`'`）
 - 候选构造形态 → `CodeTableEngine::decode_sentence`（`codetable/engine.rs:203`）逐字段照抄
-- 配置形态 → `CodeTableSpec::sentence_input`（`wind-config/src/schema.rs:365`）的「方案级引擎固定参数」先例
-- 混输下的处置 → `resolve_sentence_input` / `MixedRole::Primary`（`wind-engine/src/manager.rs:182`）
+- 配置形态 → `CodeTableSpec::sentence_input`（`moodflow-config/src/schema.rs:365`）的「方案级引擎固定参数」先例
+- 混输下的处置 → `resolve_sentence_input` / `MixedRole::Primary`（`moodflow-engine/src/manager.rs:182`）
 
 ---
 
@@ -143,7 +143,7 @@ sm'a  →  sm(什么) + a(啊)  →  「什么啊」     ← 2+1，不是对半�
 **段候选吃候选调整**（论坛 t231）。候选调整平时在协调器应用，而两段是引擎自己查的——用户在
 `n` 上删掉的「内容」照样被拼进 `kpn` →「恐怕内容」。修法：`EngineManager` 给开了逆切分的码表
 引擎注入 `(store, 方案 id)`（`with_segment_shadow`），`split_segment` 按 `(方案, 段码)` 取规则
-应用 `wind_candidate::apply_shadow`。
+应用 `moodflow_candidate::apply_shadow`。
 
 - **先多取再截**：段向词典取 `SPLIT_SEGMENT_POOL`(16) 条，调整完再截到前段/后段条数。
   前段默认只取 1 条，先截再删的话，删掉段首选会让整个组合消失而不是由次选补位；置顶同理。
@@ -210,7 +210,7 @@ weight 沿构造序压成单调不增 ⇒ 协调器重排后仍是构造序
   破坏 `max_candidates` 契约。同时也必须在 `is_empty` 求值之前，否则 `should_clear` 会
   在切分出候选的同时清空缓冲（用户看到候选一闪即逝）。
 - ⚠️ **不要加 `.filter(|c| c.code == seg)`**。`DictManager::search` 走的是
-  `CompositeDict::merge_search(code, limit, Query::Exact)`（`wind-dict/src/composite.rs:69`），
+  `CompositeDict::merge_search(code, limit, Query::Exact)`（`moodflow-dict/src/composite.rs:69`），
   查询本身**已经是精确的**，不会混进前缀候选；但同一条 `merge_search` 在跨层合并时会
   「同 text 取最短码」——「能」若同时在 `kn` 与某个一简位上，返回条目的 `code` 字段可能
   被换成那个更短的码。**查询口径与 code 字段不是同一件事**，按 code 过滤会误杀正确的二简候选。
@@ -226,7 +226,7 @@ weight 沿构造序压成单调不增 ⇒ 协调器重排后仍是构造序
 
 ### 4.4 为什么新增 `is_split_composed` 而不复用 `is_sentence`
 
-`wind-engine/AGENTS.md` 有明文纪律：**「要沉底就加自己的字段，别借现成的布尔」**——
+`moodflow-engine/AGENTS.md` 有明文纪律：**「要沉底就加自己的字段，别借现成的布尔」**——
 `is_prefix` 被静态短语借用、`is_fuzzy` 被用户词简拼借作沉底标记，两次都已拆出独立字段
 （`is_promoted_completion` / `is_abbrev`）。
 
@@ -234,7 +234,7 @@ weight 沿构造序压成单调不增 ⇒ 协调器重排后仍是构造序
 （`is_sentence_demoted`）、`wants_codetable_split` 的 preedit 判据、若干探针的名次统计。
 借用会让「整句的统计里混进切分候选」这类问题在半年后以最难查的形态出现。
 
-新字段落点：`wind-candidate/src/candidate.rs`（`is_sentence` 邻位），`#[serde(skip)]`（同 `is_sentence_demoted`，
+新字段落点：`moodflow-candidate/src/candidate.rs`（`is_sentence` 邻位），`#[serde(skip)]`（同 `is_sentence_demoted`，
 它是引擎到协调器的进程内标记，不进任何持久化或 IPC 载荷）。
 
 ---
@@ -243,7 +243,7 @@ weight 沿构造序压成单调不增 ⇒ 协调器重排后仍是构造序
 
 ### 5.1 自动上屏——三条通路一次都不能漏
 
-`wind-engine/AGENTS.md` 的硬约定：任何新的上屏/否决判据必须同时接
+`moodflow-engine/AGENTS.md` 的硬约定：任何新的上屏/否决判据必须同时接
 **`convert` 满码 / `recheck_auto_commit` 显示态复评 / `handle_top_code` 顶码**三条通路。
 
 好消息是本功能**三条都不用改判据**，只要候选进了列表：
@@ -338,7 +338,7 @@ weight 沿构造序压成单调不增 ⇒ 协调器重排后仍是构造序
 
 | 函数 | 档 0 判据 |
 |---|---|
-| `wind_candidate::source_tier` | `CodeTable if c.code == input` |
+| `moodflow_candidate::source_tier` | `CodeTable if c.code == input` |
 | `mixed::engine::truncation_tier` | `CodeTable if c.code == ctx.codetable_exact` |
 
 ⇒ 那个回避在混输链路上被整个绕过，切分候选照样落进**档 0**，压过拼音精确候选（档 1）。
@@ -380,7 +380,7 @@ weight 沿构造序压成单调不增 ⇒ 协调器重排后仍是构造序
 
 ### 6.1 三个键，全部是**方案级引擎固定参数**
 
-落在 `CodeTableSpec`（`wind-config/src/schema.rs`，`sentence_input` 邻位），
+落在 `CodeTableSpec`（`moodflow-config/src/schema.rs`，`sentence_input` 邻位），
 **不进全局 `schema.codetable`、不进 `config_schema.rs` 的 REGISTRY、不进设置页**：
 
 ```toml
@@ -404,7 +404,7 @@ split_alt_display = "back"      # 次选显示形态："back"（默认，只显�
 除了方案作者在 `.schema.toml` 里声明，用户也能经设置页写 `schema_overrides/{id}.toml`
 的同名 `[engine.codetable]` 段自行覆盖（`read_schema` 深合并，已有通路）。
 
-**连带后果（有意为之）**：不改全局配置 ⇒ 设置仓 `../wind-setting` 的
+**连带后果（有意为之）**：不改全局配置 ⇒ 设置仓 `../moodflow-setting` 的
 `settings_manifest.toml` 与文档站的配置项清单**一行都不用动**，跨仓一致性风险为零。
 
 ### 6.1b 设置端不用改，也不会把手写的开关冲掉（已核实）
@@ -412,11 +412,11 @@ split_alt_display = "back"      # 次选显示形态："back"（默认，只显�
 这三个键不进全局 `schema.codetable`、不进 `config_schema.rs` 的 `REGISTRY`、不进设置仓的
 `settings_manifest.toml` —— 与 `sentence_input` 一样。两条核实：
 
-- **契约对账绿**：`cargo test -p wind-rpc --test wind_setting_assets` 三条全过
+- **契约对账绿**：`cargo test -p moodflow-rpc --test moodflow_setting_assets` 三条全过
   （`every_core_key_is_either_in_the_manifest_or_exempt` 等）。没往 REGISTRY 加键，
   邻仓三份检入产物一行不用动。
 - **设置页保存不会冲掉它**：方案级码表配置对话框的写回是**逐键 patch**
-  （`wind-setting/src/dialogs/schema_codetable.rs::apply` 的 `set_path`），只动它 items
+  （`moodflow-setting/src/dialogs/schema_codetable.rs::apply` 的 `set_path`），只动它 items
   里那些来自 manifest 的键。该函数的注释把这条定成了纪律：
 
   > 隐藏项（manifest `hidden = true`）没有信号，本函数**不动它**：既不写实也不清除，
@@ -450,11 +450,11 @@ flypy 的论证是**在小鹤音形上**成立的；本仓需要自己的数据�
 | 可切分率 | 空码串中，前后两段**都**查得到的比例 | 这是功能的实际覆盖面 |
 | 后段重码分布 | 可切分串的后段候选数直方图 | 决定「有多少比例能自动上屏」——原帖收益论证的核心 |
 
-探针：`crates/wind-engine/tests/codetable_split_probe.rs`（`#[ignore]`，依赖 `build_dev`
+探针：`crates/moodflow-engine/tests/codetable_split_probe.rs`（`#[ignore]`，依赖 `build_dev`
 下的构建产物词库）。换一张码表只改 `PROBE_DICTS` 里的路径与码元集即可出同一份报告。
 
 ```text
-cargo test -p wind-engine --test codetable_split_probe -- --ignored --nocapture
+cargo test -p moodflow-engine --test codetable_split_probe -- --ignored --nocapture
 ```
 
 ⚠️ 它量的是**编码空间的形状**，不是切出来的词对不对——后者要人读，故探针只抽样打印
@@ -512,8 +512,8 @@ cargo test -p wind-engine --test codetable_split_probe -- --ignored --nocapture
 | 阶段 | 内容 | 验收 |
 |---|---|---|
 | **S0 论证复核** | §7 三个指标的离线探针 | 拿到真实音形码表的三个数；覆盖面低于预期则回头找需求方重定范围 |
-| **S1 引擎** | ① `Candidate::is_split_composed`；② `CommitOptions` 三字段；③ `decode_split`（§3 三道门 + §4 构造）；④ `convert` 内接线（**`is_empty` 求值之前**）；⑤ `preedit_codetable` 填充 | `cargo test -p wind-engine`：满码零候选出组合候选 / 未满码不切 / 超码长不切（让给整句与顶码）/ 两段缺一不产 / 后段唯一时 `should_commit` 为真 / 后段重码时为假且候选按后段权重序 / **5 码时 `handle_top_code` 顶的是切分首选**（原帖规则三，§5.1）/ 关闭时零行为变化 |
-| **S2 协调器** | ① `wants_codetable_split` 加判据（§5.3）；② `candidate_display_order` 加沉底层（§5.4） | `cargo test -p wind-coordinator`：高亮切分候选时组合区显示 `hf'kn`、高亮别的候选时显示原串；`no_exact` 档下切分候选恒在既有候选之后 |
+| **S1 引擎** | ① `Candidate::is_split_composed`；② `CommitOptions` 三字段；③ `decode_split`（§3 三道门 + §4 构造）；④ `convert` 内接线（**`is_empty` 求值之前**）；⑤ `preedit_codetable` 填充 | `cargo test -p moodflow-engine`：满码零候选出组合候选 / 未满码不切 / 超码长不切（让给整句与顶码）/ 两段缺一不产 / 后段唯一时 `should_commit` 为真 / 后段重码时为假且候选按后段权重序 / **5 码时 `handle_top_code` 顶的是切分首选**（原帖规则三，§5.1）/ 关闭时零行为变化 |
+| **S2 协调器** | ① `wants_codetable_split` 加判据（§5.3）；② `candidate_display_order` 加沉底层（§5.4） | `cargo test -p moodflow-coordinator`：高亮切分候选时组合区显示 `hf'kn`、高亮别的候选时显示原串；`no_exact` 档下切分候选恒在既有候选之后 |
 | **S3 配置与混输** | ① `CodeTableSpec` 三字段；② `manager.rs` 装配 + `resolve_split_input`；③ 奇数/过短码长的 `warn!` 降级；④ 混输 warn（§5.6）；⑤ `reload_from_config` 核对 | 方案 TOML 开关生效；混输方案声明后 warn 且默认档无效果；全局配置与设置仓零改动（`git diff` 自证） |
 | **S4 收尾** | ① 本文「现状」并入 engine-candidate-pipeline.md §3 与 §10 对比表；② `.omc/feedback-todo.md` 的 C0-5 勾选；③ 论坛 t11 回帖 | `cargo fmt` 后逻辑与格式**分开提交**；全量测试绿 |
 
@@ -526,8 +526,8 @@ cargo test -p wind-engine --test codetable_split_probe -- --ignored --nocapture
 **① 用户目录的方案覆盖（推荐，不动安装目录）**
 
 ```
-%APPDATA%\WindInput\schema_overrides\{方案id}.toml      # 正常安装 release
-%APPDATA%\WindInputDev\schema_overrides\{方案id}.toml   # dev 变体
+%APPDATA%\Moodflow\schema_overrides\{方案id}.toml      # 正常安装 release
+%APPDATA%\MoodflowDev\schema_overrides\{方案id}.toml   # dev 变体
 <exe目录>\userdata\schema_overrides\{方案id}.toml       # 便携模式
 ```
 
@@ -625,7 +625,7 @@ split_front_candidates = 2
 可以逐条论证，但论证不是证据。实际做的是**双二进制对照**：
 
 ```
-git worktree add --detach ../wt-baseline/WindInput main   # 基线 = 未含本功能的 main
+git worktree add --detach ../wt-baseline/Moodflow main   # 基线 = 未含本功能的 main
 两边各跑 apps/repl，喂同一份 19 行输入（空码 / 有候选 / 未满码 / 超码长 / 一简二简）
 diff 两份输出 → 逐字相同（各 91 行、56 条候选行）
 ```

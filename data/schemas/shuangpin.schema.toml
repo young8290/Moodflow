@@ -20,7 +20,7 @@ layout = "xiaohe"
 #
 # ⚠️ 本段只声明「双拼推荐哪张辅助码表」，**不代表功能开启**。
 # 总开关是 config.toml 的 [schema.pinyin.aux_code].enabled（出厂 false）；
-# 用户要单独在双拼开启，写 %APPDATA%\WindInput\schema_overrides\shuangpin.toml：
+# 用户要单独在双拼开启，写 %APPDATA%\Moodflow\schema_overrides\shuangpin.toml：
 #     [engine.aux_code]
 #     enabled = true
 # 行为字段（enabled / max_phrase_len / direct）在此留空 = 回落全局，见 schema-config-layering.md §4。

@@ -6,10 +6,10 @@
 > 本文件的存在就是为了把它们钉在同一口径上。
 >
 > 涉及文件：
-> - `wind_input/crates/wind-candidate/src/candidate.rs`（字段定义 + `cmp_match_layers`/`cmp_exact_first`/`better`/`by_natural`）
-> - `wind_input/crates/wind-engine/src/codetable/engine.rs`、`pinyin/mod.rs`、`mixed/engine.rs`（引擎内排序）
-> - `wind_input/crates/wind-engine/src/freq_rerank.rs`（词频重排两条路径）
-> - `wind_input/crates/wind-coordinator/src/handle_candidate.rs`（`candidate_display_order` + 装配流水线）
+> - `moodflow_input/crates/moodflow-candidate/src/candidate.rs`（字段定义 + `cmp_match_layers`/`cmp_exact_first`/`better`/`by_natural`）
+> - `moodflow_input/crates/moodflow-engine/src/codetable/engine.rs`、`pinyin/mod.rs`、`mixed/engine.rs`（引擎内排序）
+> - `moodflow_input/crates/moodflow-engine/src/freq_rerank.rs`（词频重排两条路径）
+> - `moodflow_input/crates/moodflow-coordinator/src/handle_candidate.rs`（`candidate_display_order` + 装配流水线）
 
 ---
 
@@ -184,7 +184,7 @@
   整档白白豁免门槛，w=18 的「中华人民」因此在 `zhonghuar` 时登顶、压过整句「中华」——
   这正是用户报的「候选长度来回跳动」：有残码时冷僻长词靠豁免登顶、无残码时整句 3e7 登顶，
   两套依据逐键切换。⚠️ 该常量**不是** `COMPLETION_NEAR_SYLLABLES`（后者只管用户词长词上浮，
-  两者一度共用一个 2，改动时连带打断 `qingfengshu`→「清风输入法」）。
+  两者一度共用一个 2，改动时连带打断 `qingfengshu`→「Moodflow 输入法」）。
 
 ### 4.3 混输引擎（`mixed/engine.rs`）——**截断优先级档**
 
@@ -315,7 +315,7 @@
      胜负，等于从不生效；`buzhidaok` 的残码被忽略正是这么来的）
 ```
 
-**③ 拼音精确档（混输专属）**：判据 `wind_candidate::is_pinyin_exact_tier(c, input_len)` =
+**③ 拼音精确档（混输专属）**：判据 `moodflow_candidate::is_pinyin_exact_tier(c, input_len)` =
 `source==Pinyin && is_common && !is_prefix && !is_partial && !is_abbrev && !is_fuzzy`
 **且消费整串**（`consumed_length == 0 || consumed_length >= input_len`，0=未标注按整串算）。
 于是三档顺序为「码表精确/精确码短语 → **拼音精确** → 码表前缀补全」。

@@ -124,7 +124,7 @@ emoji 是单字素、本就算「单字」，受不受管辖结果一样。**删
 
 ## 3. 判据：什么算「一个字」，谁豁免
 
-实现在 `wind_candidate::single_char_admits`。
+实现在 `moodflow_candidate::single_char_admits`。
 
 ### 3.1 按字素簇算，不按码位
 
@@ -183,7 +183,7 @@ mark_common → sort → dedup → apply_filter → **apply_single_char** → ap
 
 ### 5.1 ★ 满码自动上屏：既有的「显示态复评」已经解决
 
-`decide_auto_commit`（`wind-engine` 的 `codetable/engine.rs`）数的是**引擎自己**那份候选里
+`decide_auto_commit`（`moodflow-engine` 的 `codetable/engine.rs`）数的是**引擎自己**那份候选里
 `code == input` 的条数，而本过滤做在协调器侧 ⇒ 引擎看见的列表里那个词还在，按它判恒是
 「不唯一、不上屏」。
 
@@ -301,7 +301,7 @@ emoji 是单字素、本就算「单字」，受不受管辖结果一样。见 �
 
 ### 7.2 工具栏格子与文档站未接
 
-设置页已接（`wind-setting` 仓）。工具栏格子、文档站待后续。
+设置页已接（`moodflow-setting` 仓）。工具栏格子、文档站待后续。
 
 ⚠️ 工具栏格子若要兼作指示器与开关，注意本仓那条 ★★★：**显隐不得由它指示的状态定**
 （否则关掉后格子消失，再也开不回来）。

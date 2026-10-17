@@ -1,4 +1,4 @@
-# WindInput 系统短语
+# Moodflow 系统短语
 # 随程序打包发布，用户不应直接修改此文件
 # 文本中的 $变量 会在运行时自动展开（$var / ${var}，$$ 转义为 $）
 #
@@ -494,7 +494,7 @@ weight = 2000
 platform = 'darwin'
 
 # Linux 上的按键合成（key.tap / key.seq / key.hold / key.release）由 Fcitx5 addon 接住
-#   CMD_KEY_* 下行帧、经 forwardKey 交给当前应用（wind_linux/AGENTS.md「命令直通车按键合成」）。
+#   CMD_KEY_* 下行帧、经 forwardKey 交给当前应用（moodflow_linux/AGENTS.md「命令直通车按键合成」）。
 [[phrases]]
 code = 'codl'
 text = '$CC("[删行]", key.seq("Home", "Shift+End", "Backspace"))'

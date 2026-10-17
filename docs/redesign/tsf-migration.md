@@ -1,32 +1,32 @@
-# 迁移：C++ TSF 核心层（wind_tsf）并入 WindInput
+# 迁移：C++ TSF 核心层（moodflow_tsf）并入 Moodflow
 
-> 目标：把原 `WindInput/wind_tsf`（Windows TSF 文本服务框架 C++ COM DLL）**完整迁移**进本仓库，
+> 目标：把原 `Moodflow/moodflow_tsf`（Windows TSF 文本服务框架 C++ COM DLL）**完整迁移**进本仓库，
 > 纳入现有 Linux→Windows 交叉编译链路（与 Rust 侧 `x86_64-pc-windows-gnu` 一致，无需 Windows/MSVC），
 > 文档化、可在 `dev.sh` 一键构建；迁移以**忠实保留**为原则（历史含大量 bug 修复，不做破坏性改动）。
 
-状态（2026-06-20）：**已完成并在 Linux 上编译+链接通过**，产出 `wind_tsf.dll`（PE32+ x64，3.4MB，
+状态（2026-06-20）：**已完成并在 Linux 上编译+链接通过**，产出 `moodflow_tsf.dll`（PE32+ x64，3.4MB，
 完全静态、无 MinGW 运行时依赖）。**运行期验证（regsvr32 + 实际输入）需在 Windows 实测机进行**，见 §9。
 
 ---
 
 ## 1. 迁移了什么
 
-源 `../WindInput/wind_tsf` → 本仓库 `wind_tsf/`（同级于 `wind_input/`，对齐原 Go 仓库布局）。
+源 `../Moodflow/moodflow_tsf` → 本仓库 `moodflow_tsf/`（同级于 `moodflow_input/`，对齐原 Go 仓库布局）。
 不带历史记录，按当前快照拷入。
 
 ```
-wind_tsf/
+moodflow_tsf/
 ├── src/                       # 14 个 .cpp（TextService/KeyEventSink/IPCClient/LangBarItemButton/HostWindow…）
-├── include/                   # 头文件 + BinaryProtocol.h（IPC 协议，与 Rust wind-ipc 镜像）
+├── include/                   # 头文件 + BinaryProtocol.h（IPC 协议，与 Rust moodflow-ipc 镜像）
 │   └── mingw_tsf_compat.h     # ★新增：MinGW TSF 兼容垫片（仅 __MINGW32__ 生效）
 ├── res/                       # 图标 + version.rc.in 模板
 ├── CMakeLists.txt             # 保留：Windows/MSVC 原生构建（Windows SDK 完整头）
 ├── Makefile                   # ★新增：MinGW 交叉编译（Linux 链路）
-├── wind_tsf.def(.in)          # COM 导出定义
+├── moodflow_tsf.def(.in)          # COM 导出定义
 └── README.md / AGENTS.md      # 文档（已更新 Go→Rust、构建路径）
 ```
 
-组件职责（详见 `wind_tsf/AGENTS.md`）：`CTextService` 主服务（实现一组 TSF COM 接口）、
+组件职责（详见 `moodflow_tsf/AGENTS.md`）：`CTextService` 主服务（实现一组 TSF COM 接口）、
 `CKeyEventSink` 按键、`CIPCClient` 命名管道（二进制协议 + 熔断 + 异步推送）、
 `CLangBarItemButton` 语言栏、`CHostWindow`（Win11 开始菜单 band 窗口候选框）、
 `CHotkeyManager` 热键白名单、`CFileLogger` 文件日志。
@@ -39,14 +39,14 @@ wind_tsf/
 
 | 路径 | 工具 | 何时用 | 缺失符号来源 |
 |------|------|--------|--------------|
-| **MinGW（默认，Linux）** | `wind_tsf/Makefile` + `x86_64-w64-mingw32-g++` | 本仓库交叉编译链路 | `mingw_tsf_compat.h/.cpp`（见 §3） |
-| **MSVC（Windows 原生）** | `wind_tsf/CMakeLists.txt` + VS 2022 | Windows 上用完整 SDK 构建 | Windows SDK + uuid.lib（原生齐全） |
+| **MinGW（默认，Linux）** | `moodflow_tsf/Makefile` + `x86_64-w64-mingw32-g++` | 本仓库交叉编译链路 | `mingw_tsf_compat.h/.cpp`（见 §3） |
+| **MSVC（Windows 原生）** | `moodflow_tsf/CMakeLists.txt` + VS 2022 | Windows 上用完整 SDK 构建 | Windows SDK + uuid.lib（原生齐全） |
 
 ### dev.sh
 
 `scripts/dev.sh` 原 `copy_tsf_dll`（从同级 Go 仓库复制预编译 DLL）已替换为 **`build_tsf`**（真正 MinGW 构建）：
 
-- `do_build` / `deploy_all` 在构建 `wind_input.exe` 后自动调 `build_tsf`，release→`wind_tsf.dll`、debug→`wind_tsf_debug.dll`。
+- `do_build` / `deploy_all` 在构建 `moodflow_input.exe` 后自动调 `build_tsf`，release→`moodflow_tsf.dll`、debug→`moodflow_tsf_debug.dll`。
 - 独立命令：`./scripts/dev.sh tsf`（release）、`./scripts/dev.sh tsf debug`（调试变体）；菜单项 `6`。
 - 未装 mingw-w64 时优雅跳过并提示（`push` 经 SSH 部署仍可复用 Windows 上已有 DLL）。
 - 版本号取自 `docs/VERSION` 传入 Makefile，写进版本资源。
@@ -54,9 +54,9 @@ wind_tsf/
 ### Makefile 选项
 
 ```bash
-make -C wind_tsf                         # build/wind_tsf.dll
-make -C wind_tsf DEBUG_VARIANT=1         # build_debug/wind_tsf_debug.dll（独立 CLSID/管道/日志，可与正式版共存）
-make -C wind_tsf VERSION=1.2.3 OUTDIR=/path
+make -C moodflow_tsf                         # build/moodflow_tsf.dll
+make -C moodflow_tsf DEBUG_VARIANT=1         # build_debug/moodflow_tsf_debug.dll（独立 CLSID/管道/日志，可与正式版共存）
+make -C moodflow_tsf VERSION=1.2.3 OUTDIR=/path
 ```
 
 产物及 `obj/` 落在 `build/`、`build_debug/`，已被根 `.gitignore` 忽略。
@@ -132,9 +132,9 @@ IMMERSIVESUPPORT / SYSTRAYSUPPORT / UIELEMENTENABLED / SECUREMODE / INPUTMODECOM
 
 ---
 
-## 6. IPC 协议状态（与 Rust wind-ipc 的兼容性）
+## 6. IPC 协议状态（与 Rust moodflow-ipc 的兼容性）
 
-`include/BinaryProtocol.h` 是 IPC 二进制协议的 C++ 侧定义，与 Rust `wind_input/crates/wind-ipc`
+`include/BinaryProtocol.h` 是 IPC 二进制协议的 C++ 侧定义，与 Rust `moodflow_input/crates/moodflow-ipc`
 （`protocol.rs`/`codec.rs`）互为镜像。命令码、Header、KeyPayload(18B)、CaretPayload(20B)、
 FocusGainedPayload(36B) 等核心结构两端一致（已核对）。
 
@@ -154,7 +154,7 @@ FocusGainedPayload(36B) 等核心结构两端一致（已核对）。
 
 - 扫描 `TODO/FIXME/DEPRECATED/legacy/废弃`：命中项多为**有意的向后兼容**（如 IPCClient 的 legacy 单字段
   镜像、Register 的 legacy profile 注册回退），删除有破坏风险，保留。
-- `wind_dwrite.dll` / `WindDWriteShim.cpp` 已在迁移前移除（DirectWrite 改由对端直调系统 dwrite.dll）；
+- `moodflow_dwrite.dll` / `MoodflowDWriteShim.cpp` 已在迁移前移除（DirectWrite 改由对端直调系统 dwrite.dll）；
   C++ 侧 LangBarItemButton 仍用 DWrite 渲染语言栏图标，属正常依赖。
 - 唯一实际精简是 §4 的两个 legacy 属性样式类别（且仅 MinGW 路径，被迫而非裁量）。
 
@@ -166,15 +166,15 @@ FocusGainedPayload(36B) 等核心结构两端一致（已核对）。
 
 ```bash
 # 单独构建 TSF DLL
-./scripts/dev.sh tsf               # release → wind_input/build/wind_tsf.dll
-./scripts/dev.sh tsf debug         # 调试变体 → wind_input/build/wind_tsf_debug.dll
-make -C wind_tsf                   # 直接用 Makefile
+./scripts/dev.sh tsf               # release → moodflow_input/build/moodflow_tsf.dll
+./scripts/dev.sh tsf debug         # 调试变体 → moodflow_input/build/moodflow_tsf_debug.dll
+make -C moodflow_tsf                   # 直接用 Makefile
 
 # 完整构建（exe + TSF DLL + data）
 ./scripts/dev.sh release           # 或 debug
 
 # Windows 原生（MSVC，可选）
-cd wind_tsf && mkdir build && cd build && cmake .. -A x64 && cmake --build . --config Release
+cd moodflow_tsf && mkdir build && cd build && cmake .. -A x64 && cmake --build . --config Release
 ```
 
 依赖：`x86_64-w64-mingw32-g++` / `-windres`（mingw-w64 工具链）。本机经 linuxbrew 安装，含较完整的
@@ -185,11 +185,11 @@ Windows 头（msctf/ctfutb/dwrite/shellscalingapi 等），缺失部分由 §3 �
 ## 9. 验证状态与待办
 
 - [x] 14 个 .cpp + 资源 + compat.cpp 全部 MinGW 编译通过
-- [x] 链接为 `wind_tsf.dll`（PE32+ x64），导出 4 个 COM 入口（DllCanUnloadNow/DllGetClassObject/DllRegisterServer/DllUnregisterServer）
+- [x] 链接为 `moodflow_tsf.dll`（PE32+ x64），导出 4 个 COM 入口（DllCanUnloadNow/DllGetClassObject/DllRegisterServer/DllUnregisterServer）
 - [x] 完全静态链接，无 libgcc/libstdc++/winpthread 运行时依赖（可 drop-in 到纯净 Windows）
 - [x] release 与 debug 变体均通过 Makefile + dev.sh 构建
 - [ ] **Windows 实测机运行期验证**（compile-verified，未 run-verified）：本机无 Windows，COM vtable 正确性
-      仅经编译期 + 权威源校验保证；需在 Windows 上 `regsvr32 wind_tsf.dll` → 切到清风输入法 → 实际输入，
+      仅经编译期 + 权威源校验保证；需在 Windows 上 `regsvr32 moodflow_tsf.dll` → 切到 Moodflow 输入法 → 实际输入，
       重点核验：① 中文组字/候选上屏 ② 语言栏图标/菜单 ③ 开始菜单候选框（HostWindow band 窗口）
       ④ 与 Rust 服务的 IPC 握手。可经 `./scripts/dev.sh push` 部署到 SSH 实测机。
 - [ ] Rust 侧 `SharedRenderHeader` 字段补齐（§6）

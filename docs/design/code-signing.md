@@ -6,7 +6,7 @@
 > 签名后的安装包可正确解包（85 个条目）；`latest-dev.json` 的 sha256/size 与实际文件逐位一致。
 > **`signtool` 未要求交互输入 PIN**，非交互会话下直接签成，无需在客户端勾「记住 PIN」。
 > 关联：`scripts/sign.ps1`、`scripts/sign.local.ps1.example`、`scripts/check-signed.py`、
-> `scripts/dev.ps1`（五个接线点）、跨仓 `wind-installer/src/archive/reader.rs`、
+> `scripts/dev.ps1`（五个接线点）、跨仓 `moodflow-installer/src/archive/reader.rs`、
 > `.github/workflows/release.yml`。
 
 > ⚠️ **本文与仓库中的所有脚本刻意不提任何签名服务商的名字。** 签名平台是可替换的外部
@@ -202,7 +202,7 @@ pack                       封进压缩块
 
 | 位置 | 做什么 |
 |---|---|
-| `wind-packer prep-uninstaller` | 新子命令。**幂等**：已带 overlay 就整段跳过 —— 判据必须挡在「写版本信息」和「追加 overlay」**两件事之前**，因为 `set_pe_version_info` 用 editpe 重写资源节，同样会毁签名 |
+| `moodflow-packer prep-uninstaller` | 新子命令。**幂等**：已带 overlay 就整段跳过 —— 判据必须挡在「写版本信息」和「追加 overlay」**两件事之前**，因为 `set_pe_version_info` 用 editpe 重写资源节，同样会毁签名 |
 | `pack.ps1 -PrepOnly` / `-SkipPrep` | 拆成两次调用，只为给中间那次签名腾位置。`-PrepOnly` 有意把 `uninstall.exe` 留在源目录不清理 |
 | `installer/steps.rs` 的 `AppendUninstallerOverlay` | 改为「自身已含 overlay 则跳过」。正常情况下这一步现在什么都不做，只为**老版打包器产出的旧包**保底（那里的卸载器仍是裸 stub，不补就读不到清单、启动即失败） |
 
@@ -235,7 +235,7 @@ pack                       封进压缩块
 - ⚠️ **但 CI 发版路径（第 6 节、`release.ps1 sign-draft`）仍然需要 `unstage`**：那条路的
   编译发生在 GitHub runner 上，产物只能以 stage artifact 的形式取回。别把两条路径混为一谈。
 
-配置就一行 —— `scripts/sign.local.ps1`（gitignore）里的 `$WIND_SIGN_THUMBPRINT`。指纹不是
+配置就一行 —— `scripts/sign.local.ps1`（gitignore）里的 `$MOODFLOW_SIGN_THUMBPRINT`。指纹不是
 秘密（见第 2 节）。
 
 从 Linux 发一次版的完整命令序列与检查点，见
@@ -252,7 +252,7 @@ pack                       封进压缩块
   用户机器上装着的包也会一起变成「未知发布者」。`signtool verify /pa /v` 的输出里应有
   `The signature is timestamped: ...`。
 
-## 5. wind-installer：签名会打废自解压包（已修）
+## 5. moodflow-installer：签名会打废自解压包（已修）
 
 这是接线过程中挖出来的、优先级最高的一个坑。
 
@@ -319,13 +319,13 @@ CI 已经产出了 Setup.exe 和 Portable.zip，看起来本机只要对它们�
 只签得到外壳，包内 5 个 PE 仍是全裸的，而 `signtool verify` 验 Setup.exe **照样通过** ——
 从外面完全看不出来。这正是第 5 节记的那个实测缺陷。
 
-所以 CI 额外产出一个**中转产物** `WindInput-Stage-<版本>.zip`（`dev.ps1 stage`），装的是
+所以 CI 额外产出一个**中转产物** `Moodflow-Stage-<版本>.zip`（`dev.ps1 stage`），装的是
 打包之前的散件：
 
 | 内容 | 用途 |
 |---|---|
 | `build\` | 全构建产物；内容 == 安装内容，是安装包与便携包的共同上游 |
-| `installer\` | wind-installer 的 stub / packer / uninstaller |
+| `installer\` | moodflow-installer 的 stub / packer / uninstaller |
 | `stage.json` | 版本号等清单，`unstage` 时硬校验 |
 
 带上 `installer\` 是为了让本机**一行代码都不编译** —— `Do-Installer` 检测到三件套已在，

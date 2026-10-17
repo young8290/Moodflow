@@ -16,7 +16,7 @@
    `setIgnoreCursorEvents`）。贴边隐藏、吸附、按显示器记住位置、全屏时隐藏、右键菜单、`Ctrl+Alt+W` 都照旧。
 2. **精灵图格式统一用 Codex 的。** 内置的“晴晴”由 `tools/gen_pet_sheet.py`（Pillow）画出，放在 `hub_templates/pets/qingqing/`：
    标准 `spritesheet.png`（拿到 Codex 里也能用）之外，多给 `body.png`（身体蒙版）和 `lines.png`（线条、五官、影子），小组件用
-   `mask-image` 把身体按当前天气的设计令牌（`--xq-w-*`）上色——“看颜色知道心情天气”（DS-COLOR）不丢。导入的宠物不随天气变色，
+   `mask-image` 把身体按当前天气的设计令牌（`--mf-w-*`）上色——“看颜色知道心情天气”（DS-COLOR）不丢。导入的宠物不随天气变色，
    旁边挂一个 24 px 的小天气精灵。换装（FR-WGT-08）只叠在内置晴晴身上，且只在平时的三种姿态里显示。
 3. **状态 → 动画。** 平时：专注中 review，闭眼（暂停 / 无痕 / 密码框）waiting，雨天与夜里 waiting，其他 idle；**不会因为心情不好播
    failed**（C-ETH：不评判用户）。反应：打错字 jumping 一次（取代“晃一下”）；新的暖心话、提醒、周信 waving 两轮（取代“靠近”）；

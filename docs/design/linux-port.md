@@ -1,20 +1,20 @@
 # Linux 移植设计
 
-> 状态：已合入 main（2026-10-02，WindInput 与 wind-setting 均已合入），后续在 main 上迭代。目标：在主流 Linux 桌面上「能正常输入」，再逐步补齐体验。
+> 状态：已合入 main（2026-10-02，Moodflow 与 moodflow-setting 均已合入），后续在 main 上迭代。目标：在主流 Linux 桌面上「能正常输入」，再逐步补齐体验。
 
 ## 1. 架构：复用 macOS 的「薄壳 + 服务进程」
 
 ```
- 宿主应用 ──(IME 框架)──► Fcitx5 addon (wind_linux/, C++17)
+ 宿主应用 ──(IME 框架)──► Fcitx5 addon (moodflow_linux/, C++17)
                               │  UDS 请求/响应 + push 推送
                               ▼
-                        wind_input 服务 (Rust, --features linux-host)
+                        moodflow_input 服务 (Rust, --features linux-host)
                               │  tiny-skia 光栅化 → POSIX SHM 帧
                               ▼
                         addon 把帧画成候选窗（X11 先行，Wayland 后补）
 ```
 
-与 `wind_tsf/`（Windows）、`wind_macos/`（macOS）同构：**引擎、词库、候选逻辑全在 Rust 服务里**，
+与 `moodflow_tsf/`（Windows）、`moodflow_macos/`（macOS）同构：**引擎、词库、候选逻辑全在 Rust 服务里**，
 addon 只做按键转发、上屏/预编辑写回、候选窗呈现。宿主选 **Fcitx5**（中文社区主流）；IBus 之后再议。
 
 不走 Fcitx5 原生候选窗：自定义主题、tooltip、注释上方条等特色都靠自绘，原生窗全丢。
@@ -33,7 +33,7 @@ addon 只做按键转发、上屏/预编辑写回、候选窗呈现。宿主选 
 此前协调器/桥接/UI 里 30 余处 `not(target_os = "macos")` 的真实语义是「Windows 桌面形态」，
 Linux 会被误归进去（拼 `.exe` 设置路径、弹进程内菜单并吞键——没有窗口时菜单永不关闭，输入被永久卡死）。
 
-`wind-ui` / `wind-bridge` / `wind-coordinator` 各有一份 `build.rs` 产出两个 cfg 别名
+`moodflow-ui` / `moodflow-bridge` / `moodflow-coordinator` 各有一份 `build.rs` 产出两个 cfg 别名
 （改动须三处同步）：
 
 | 别名 | 为真的条件 | 语义 |
@@ -42,15 +42,15 @@ Linux 会被误归进去（拼 `.exe` 设置路径、弹进程内菜单并吞键
 | `mock_text` | 非 Windows、非 macOS，且未开 `linux-host` | 文本后端是 mock（等宽近似）；含文本数值断言的测试据此门控 |
 
 **`linux-host` 默认关。** 关闭时 Linux 与原先完全一致——开发机 `cargo test` 仍走 mock 文本，
-布局/golden 测试的数值不变。发行的 Linux 服务用 `cargo build -p wind_service --features linux-host`。
+布局/golden 测试的数值不变。发行的 Linux 服务用 `cargo build -p moodflow_service --features linux-host`。
 
 判据：真正的 macOS API（CoreText、Carbon 热键、AppKit 软键盘面板、`activate_ime`）仍留在
 `target_os = "macos"`；其余「宿主承担」的语义一律用 `ext_presenter`。
 
 ## 4. 端点与目录
 
-- socket：`$WIND_INPUT_RUNTIME_DIR` → `$XDG_RUNTIME_DIR/WindInput[Dev]/{bridge,bridge_push}.sock`
-  → `/tmp/wind_input{_dev}-<uid>`。socket 是运行时状态，不落盘。
+- socket：`$MOODFLOW_INPUT_RUNTIME_DIR` → `$XDG_RUNTIME_DIR/Moodflow[Dev]/{bridge,bridge_push}.sock`
+  → `/tmp/moodflow_input{_dev}-<uid>`。socket 是运行时状态，不落盘。
 - **/tmp 兜底要私有**（无 `XDG_RUNTIME_DIR` 时）：`/tmp` 人人可写，别的用户抢先建好这个目录、在里面
   监听 socket，addon 就把全部按键（含密码框）发过去，对方再经推送通道发 `COMMIT_TEXT` / `KEY_*`
   注入文本与按键、或带任意参数拉起设置程序。服务把它建成 0700，并校验「是目录、不是符号链接、属主是
@@ -58,13 +58,13 @@ Linux 会被误归进去（拼 `.exe` 设置路径、弹进程内菜单并吞键
   的 socket 前做同一校验（`privateDirProblem`）。`$XDG_RUNTIME_DIR`（规范要求本用户 0700）与显式覆盖
   不校验目录。**两条通道两端都校验对端 uid**（`SO_PEERCRED`）：addon 只连本用户的服务，服务只服务
   本用户的进程。
-- 配置：`~/.config/WindInput[Dev]`（`dirs::config_dir`）；缓存/日志：`~/.local/share/WindInput[Dev]`。
+- 配置：`~/.config/Moodflow[Dev]`（`dirs::config_dir`）；缓存/日志：`~/.local/share/Moodflow[Dev]`。
 - data：服务可执行文件同目录的 `data/`（`variant::install_root`）；FHS 打包时再议。
-- SHM 名（Linux）：`/WindInput[Dev].<uid>` + 层后缀（`_TIP` / `_STS` / `_TST` / `_MN<k>`），带 uid
+- SHM 名（Linux）：`/Moodflow[Dev].<uid>` + 层后缀（`_TIP` / `_STS` / `_TST` / `_MN<k>`），带 uid
   免得多用户同机撞名（`/dev/shm` 全系统共用）；最长 28 字节，守 macOS 的 31 字节上限。macOS 仍是
-  `/WindInput_SHM[Dev]`。addon 映射前 `fstat` 校验属主与大小（见 `wind_linux/AGENTS.md`「候选窗」）。
+  `/Moodflow_SHM[Dev]`。addon 映射前 `fstat` 校验属主与大小（见 `moodflow_linux/AGENTS.md`「候选窗」）。
 
-## 5. 系统能力（`wind-ui/src/linux_host.rs`）
+## 5. 系统能力（`moodflow-ui/src/linux_host.rs`）
 
 服务不链接任何桌面库，与 macOS 的 `pbcopy`/`open` 同一路数走外部命令：
 
@@ -81,9 +81,9 @@ Linux 会被误归进去（拼 `.exe` 设置路径、弹进程内菜单并吞键
 
 与 macOS 不同：`.app` 原生排字，Linux addon 不排字——服务端光栅化（与候选窗同构），像素走各层
 独立的 SHM 段，`CMD_OVERLAY_FRAME` 只带落位规则与自动隐藏时长；落位（需要屏幕几何）与计时都在
-addon。细节见 `wind_linux/AGENTS.md`「光栅浮层」。
+addon。细节见 `moodflow_linux/AGENTS.md`「光栅浮层」。
 
-**鼠标交互对齐 Windows**（`wind_linux/include/OverlayInput.h`）。按「谁知道判据」分两半：
+**鼠标交互对齐 Windows**（`moodflow_linux/include/OverlayInput.h`）。按「谁知道判据」分两半：
 
 | 交互 | Windows | Linux 落点 |
 |---|---|---|
@@ -102,7 +102,7 @@ addon。细节见 `wind_linux/AGENTS.md`「光栅浮层」。
 不用 Fcitx5 / 桌面的菜单：与候选窗、浮层同构，服务进程光栅化、addon 贴图，外观与 Windows 同一份。
 
 - **复用 Windows 的 `popup_menu` 整套**（级联状态机、视图树、主题、定位、命中测试、增量重绘）。
-  `wind-ui/src/menu_linux.rs` 只换两头：出——各级像素写各自的 SHM 段（`_MN0`…），推
+  `moodflow-ui/src/menu_linux.rs` 只换两头：出——各级像素写各自的 SHM 段（`_MN0`…），推
   `CMD_OVERLAY_FRAME`（kind = `OVERLAY_KIND_MENU + 级`，落位 `EXACT`）；进——addon 在菜单打开期间
   **抓住指针**（X11 pointer grab，`owner_events=1`），把移动 / 按下原样报上来（`CMD_MENU_POINTER`
   0x021B，16 字节），命中测试在服务端做。键盘仍走 `forward_menu_key`（不抓键盘）。
@@ -111,8 +111,8 @@ addon。细节见 `wind_linux/AGENTS.md`「光栅浮层」。
   两边各算各的，命中就会错位。工作区取整块根窗口（不分显示器，同候选窗）。
 - **入口**：候选窗右键（命中候选 → 候选菜单，空白 / 翻页按钮 → 主菜单，同 Windows）；候选菜单
   末尾的「更多…」（仅 Linux：没有工具栏时组字中通往主菜单的路）。**空闲时没有主菜单入口**：
-  Fcitx5 状态区（托盘菜单与 kimpanel 面板都会列出）里那一项是「清风输入法设置」，点了直接由
-  addon 启动设置程序（与 `settings.open` 同一条 `launchSettings`，不绕服务端）。曾经是「清风输入法
+  Fcitx5 状态区（托盘菜单与 kimpanel 面板都会列出）里那一项是「Moodflow 输入法设置」，点了直接由
+  addon 启动设置程序（与 `settings.open` 同一条 `launchSettings`，不绕服务端）。曾经是「Moodflow 输入法
   菜单」、点了弹自绘主菜单，真机试用后用户觉得托盘里再弹一个自绘菜单很怪，改成设置入口；状态区
   的显示由 Fcitx5 的 UI 模块决定，我们只挂动作。
 - **按平台摘掉的主菜单项**（`build_main_menu_items`）：工具栏 / 状态图标开关（addon 不接
@@ -131,8 +131,8 @@ addon。细节见 `wind_linux/AGENTS.md`「光栅浮层」。
 
 ## 5d. 与 Fcitx5 自身 UI 的衔接
 
-- **输入法图标**：条目 `Icon=windinput`（`wind_linux/data/icons/hicolor`，16…256 各尺寸，出自
-  wind-setting 的 `wind_setting.ico`，`scripts/linux/gen-icons.py` 拆出）。**托盘 / 面板图标随模式
+- **输入法图标**：条目 `Icon=moodflow`（`moodflow_linux/data/icons/hicolor`，16…256 各尺寸，出自
+  moodflow-setting 的 `moodflow_setting.ico`，`scripts/linux/gen-icons.py` 拆出）。**托盘 / 面板图标随模式
   切换**：引擎实现 `subModeIconImpl` / `subModeLabelImpl`（`HostUi.h` 的 `ModeIndicator`）。Fcitx5 的
   classicui 托盘、notificationitem（StatusNotifierItem，Deepin / KDE / GNOME 的 AppIndicator 扩展）、
   kimpanel 都经 `Instance::inputMethodIcon` 取这个值。模式来源是服务端的四种帧：焦点进入的
@@ -141,7 +141,7 @@ addon。细节见 `wind_linux/AGENTS.md`「光栅浮层」。
   `CMD_MODE_STATUS`：那条由工具栏可见性驱动，Linux 不显示工具栏。
 
 - **系统输入法配置里的「配置」**：输入法与 addon 都是 `Configurable=True`，addon 的配置只有一项
-  `fcitx::ExternalOption`（指向设置程序，`WIND_INPUT_SETTING` 可覆盖）。依据：fcitx5-mozc /
+  `fcitx::ExternalOption`（指向设置程序，`MOODFLOW_INPUT_SETTING` 可覆盖）。依据：fcitx5-mozc /
   fcitx5-anthy 的包里**没有**静态 `configdesc/*.desc`，Fcitx5 5 的配置描述是 addon 运行时
   `getConfig()` 给的，外部工具就是 `Type=External` + `External=<命令>`。fcitx5-configtool 5.1.6 起
   「整页只有一个 External 项」时直接启动它；更早的版本（Ubuntu 22.04 的 5.0.x）显示一页、页上一个
@@ -158,7 +158,7 @@ addon。细节见 `wind_linux/AGENTS.md`「光栅浮层」。
 ### Windows 语言栏图标：状态 → 主字 / 角标（对照基准）
 
 出处：主字 `Coordinator::mode_icon_label`（唯一产地）、图标规格 `coordinator/langbar_icon.rs`
-`publish_langbar_icon`、渲染 `wind-ui/src/langbar_icon.rs`、配置 `docs/design/mode-icon-label-config.md`。
+`publish_langbar_icon`、渲染 `moodflow-ui/src/langbar_icon.rs`、配置 `docs/design/mode-icon-label-config.md`。
 
 | 状态 | 主字 | 主字色格（`TextColors`） | 角标（`[ui.langbar] badge`，出厂 `none` = 都不画） |
 |---|---|---|---|
@@ -177,23 +177,23 @@ addon。细节见 `wind_linux/AGENTS.md`「光栅浮层」。
 
 | 状态档 | 底色 | 主字 | 图标名 |
 |---|---|---|---|
-| 有效中文 | 蓝 `#2F86E6` | 方案标签（未配为「中」；英文方案在中文模式下是**蓝底**「英」，同 Windows 取中文色格） | `windinput-lbl-zh-<主字 UTF-8 十六进制>` |
-| 英文 | 灰 `#5E6B78` | `[ui.labels] english` | `windinput-lbl-en-…` |
-| 大写锁定（无论中英） | 橙 `#E08A1E` | `[ui.labels] caps_lock` | `windinput-lbl-caps-…` |
+| 有效中文 | 蓝 `#2F86E6` | 方案标签（未配为「中」；英文方案在中文模式下是**蓝底**「英」，同 Windows 取中文色格） | `moodflow-lbl-zh-<主字 UTF-8 十六进制>` |
+| 英文 | 灰 `#5E6B78` | `[ui.labels] english` | `moodflow-lbl-en-…` |
+| 大写锁定（无论中英） | 橙 `#E08A1E` | `[ui.labels] caps_lock` | `moodflow-lbl-caps-…` |
 
 - **落点**：`$XDG_DATA_HOME/icons/hicolor/<N>x<N>/apps/`（缺省 `~/.local/share`；N = 16/22/24/32/48/64）。
   XDG 图标主题规范的用户基目录，用户目录下不必有 `index.theme`（Fcitx5 / GTK / Qt 都合并各基目录的
   hicolor，子目录表取系统那份）。名字用十六进制编码主字：图标名要进 kimpanel 以冒号分段的属性串、
-  进文件名，只用 ASCII 最稳。编码规则两侧各一份（`wind_ui::tray_icon::icon_name` /
+  进文件名，只用 ASCII 最稳。编码规则两侧各一份（`moodflow_ui::tray_icon::icon_name` /
   `ModeIndicator::dynamicIconName`），两边单测钉同一组样例（addon 侧读 `tray_icon.rs` 源码核对）。
-  dev 版前缀 `windinput-lbl-dev-`（正式版保持 `windinput-lbl-`，已装机的文件照认）：两个变体共用这个
+  dev 版前缀 `moodflow-lbl-dev-`（正式版保持 `moodflow-lbl-`，已装机的文件照认）：两个变体共用这个
   目录，名字不分时启动清理会互删对方的图标。主字超过 32 字节（只有手配的超长 `[ui.labels]`）改为
   `h` + FNV-1a 64 位散列，文件名不超过 255 字节。
 - **时序由数据依赖保证**：`Coordinator::build_status` 返回之前确保本状态用得到的图标已在盘上
   （`coordinator/tray_icon.rs`，`not(test)`），任何带新标签的状态帧到 addon 时文件必然已写完。
   每次一并备好中文 / 英文 / 大写三组：addon 本端判定大写锁定翻转时不等服务端的帧。
   写入原子（同目录临时文件 + rename），按尺寸从小到大、64 最后；addon 以 64 那张在不在判断「这组写完」，
-  不在就用随包**种子** `windinput-zh` / `-en` / `-caps`（服务没起来、目录不可写、缺字体）。
+  不在就用随包**种子** `moodflow-zh` / `-en` / `-caps`（服务没起来、目录不可写、缺字体）。
 - **协议不变**：标签本来就在 `STATUS_UPDATE` / `STATE_PUSH` / `ACTIVATION_STATUS_PUSH` 的尾部
   （Windows 的 `_inputTypeLabel` 用的就是它），addon 以前没读。没有新增 cmd、没有扩展信封，
   Windows / macOS 帧格式一字不变。
@@ -226,7 +226,7 @@ addon。细节见 `wind_linux/AGENTS.md`「光栅浮层」。
 遗留风险：Fcitx5 / 面板**先于** addon 构建图标主题、而用户目录此前从未存在——首次安装后要重启一次
 Fcitx5（或重新登录）托盘才看得见运行时图标，之前显示种子。
 
-**清晰度**（`wind-ui/src/tray_icon.rs`）：本仓 Linux 文本后端没有 hinting，12~13px 字身直接栅格会把
+**清晰度**（`moodflow-ui/src/tray_icon.rs`）：本仓 Linux 文本后端没有 hinting，12~13px 字身直接栅格会把
 「英」「笔」的笔画间隙糊成灰带（8 倍放大看是一团）。
 
 - 16px 的常用单字（中 英 A 拼 五 笔 双）用手绘点阵，每一笔落整像素；
@@ -269,20 +269,20 @@ Fcitx5（或重新登录）托盘才看得见运行时图标，之前显示种�
 ## 5e. 随包数据里的平台相关内容（审计）
 
 范围：`data/` 下全部随包文件，查 `proc.run` / `proc.shell` / `open(` / `key.*` / `clip.paste` /
-`wind.cli` / `setting.*`、`.exe`、`%APPDATA%` 之类环境变量、反斜杠路径。
+`moodflow.cli` / `setting.*`、`.exe`、`%APPDATA%` 之类环境变量、反斜杠路径。
 
 | 位置 | 内容 | 归类 | 处理 |
 |---|---|---|---|
 | `system.phrases.toml` `cono` / `coca` / `cohm` | `notepad.exe` / `calc.exe` / `env("USERPROFILE")` | Windows 专属（已有 `darwin` 对应条目） | 补 `platform = 'linux'` 条目：编辑器、计算器用 `proc.any` 多候选，主目录用 `open(env("HOME"))`（`xdg-open`） |
 | `system.phrases.toml` `codl` | `key.seq("Home", "Shift+End", "Backspace")` | 需按平台写 | 补 `platform = 'linux'` 条目（与 Windows 同写法）。经 addon 的按键合成生效（§5f） |
 | `system.phrases.toml` 其余 `$CC` | `open(URL)`、`type`、`clip.copy` / `clip.paste`、`ime.*`、`dict.add`、`dict.rev`、`setting.open` | 跨平台 | 不动（`open` → `xdg-open`；`clip.paste` 在 `ext_presenter` 下经上屏通道落文本） |
-| `system.quick.toml` / `system.softkeyboard.toml` / `config.toml` / `schemas/shuangpin.schema.toml` | 注释里的 `%APPDATA%\WindInput\…` 路径；`config.toml` 注释里的 `proc.run("charmap.exe")` 等示例 | 仅文档 | 不动：只在注释里，不执行 |
+| `system.quick.toml` / `system.softkeyboard.toml` / `config.toml` / `schemas/shuangpin.schema.toml` | 注释里的 `%APPDATA%\Moodflow\…` 路径；`config.toml` 注释里的 `proc.run("charmap.exe")` 等示例 | 仅文档 | 不动：只在注释里，不执行 |
 | `compat.toml` | 全部内置规则是 Windows 宿主修正 | Windows 专属 | 已由 `scripts/lib/gen-compat.sh` 在打包时换成零规则版 |
 | cmdbar 帮助文本（`funcs/action.rs`） | `proc.run` 示例 `notepad.exe`；`clip.paste` 写着「模拟 Ctrl+V」；`verb` / `show` 已注明「仅 Windows」 | 文案偏 Windows | 不改：示例只是写法说明，Windows 的文案保持不变 |
 | cmdbar lint（`lint.rs`） | 只查「路径参数里的控制字符」（反斜杠单写） | 平台中立 | 把 `proc.any` 加进被查的函数 |
 
 **根因不在数据，在过滤。** 短语文件早就用 `platform` 字段按平台写了成对条目，但
-`wind-phrase` 的两个加载入口（`load` / `parse_system_entries`）都写死了只收 `"windows"`，
+`moodflow-phrase` 的两个加载入口（`load` / `parse_system_entries`）都写死了只收 `"windows"`，
 所以 Linux 和 macOS 上显示的都是 Windows 那一份，`darwin` 条目从未生效。现在按编译目标
 取当前平台名（`windows` / `darwin` / `linux`，`macos` 作 `darwin` 的别名；其它平台只收
 全平台条目）。Windows 上的条目集与改动前逐条一致（`builtin_platform_phrases` 用旧规则对拍）。入库同步按条目哈希判断，过滤改了之后首次启动就会重新同步，旧行随之清掉。
@@ -292,7 +292,7 @@ Fcitx5（或重新登录）托盘才看得见运行时图标，之前显示种�
 替换；打包时替换就得有第二份「哪条换成什么」的表，改 Windows 版时容易跟着漂移。
 字段机制已经存在，改成在源文件里按平台并列写，一眼能对照，也不需要改打包脚本。
 
-`proc.any(a, b, …)`（`wind-cmdbar`）：按顺序尝试启动，第一个成功的即停。「未找到」
+`proc.any(a, b, …)`（`moodflow-cmdbar`）：按顺序尝试启动，第一个成功的即停。「未找到」
 （`io::ErrorKind::NotFound`）和「找到了但启动失败」（权限等）都会接着试下一个，全部
 失败时两类分开列出名字。「成功」只看 spawn，程序起来后自己退出不算失败。Windows 上启动
 要转给 TSF 执行，这边拿不到结果，只会启动第一个，所以 Windows 词条仍用 `proc.run`。
@@ -310,43 +310,43 @@ DBus 客户端能直接断言 `ForwardKey` 序列；代价是只作用于当前�
 与 Windows / macOS 的差异：Windows `SendInput`、macOS CGEvent 都是会话级合成，全局快捷键看得见、
 `hold` 改变真实修饰态；Linux 两者都不成立。Wayland 下由 Fcitx5 的 Wayland 前端转发，未验。
 键名全集、事件顺序与 state、限流数值、`hold` 的卡键保护（失焦 / 换 IC / reset / 服务重启或断线 /
-析构补发抬起，最长保持 10 秒）逐条见 `wind_linux/AGENTS.md`「命令直通车按键合成」。
+析构补发抬起，最长保持 10 秒）逐条见 `moodflow_linux/AGENTS.md`「命令直通车按键合成」。
 
 ## 6. 阶段
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|
 | M0 | `ext_presenter`/`mock_text` 别名、服务端 `linux-host` 形态、端点路径、系统能力 | 完成 |
-| M1a | Linux 真实文字后端（`wind-ui/src/text/linux`，ttf-parser + ab_glyph_rasterizer + dlopen fontconfig）；彩色 emoji（CBDT / COLR v0·v1 / OpenType-SVG，emoji 序列经 rustybuzz 整簇整形），限制见该模块头 | 进行中 |
+| M1a | Linux 真实文字后端（`moodflow-ui/src/text/linux`，ttf-parser + ab_glyph_rasterizer + dlopen fontconfig）；彩色 emoji（CBDT / COLR v0·v1 / OpenType-SVG，emoji 序列经 rustybuzz 整簇整形），限制见该模块头 | 进行中 |
 | M1b | Fcitx5 addon：输入通路（按键/上屏/预编辑/焦点/自愈），DBus 集成测试 | 进行中 |
 | M1c | addon 的 X11 候选窗呈现、鼠标回传；状态气泡 / Toast / tooltip 光栅浮层 | 进行中 |
 | M2 | Wayland：Fcitx5 UI addon + input popup surface；先做 spike 验证 popup 表面能否收鼠标事件 | 待做 |
-| M3a | 设置端适配：`wind-setting` Linux 原生构建、平台门控、addon 处理 `settings.open`、`.desktop` 入口、随 `.deb` 分发 | 完成（见 §6b） |
+| M3a | 设置端适配：`moodflow-setting` Linux 原生构建、平台门控、addon 处理 `settings.open`、`.desktop` 入口、随 `.deb` 分发 | 完成（见 §6b） |
 | M3b | 自绘菜单（主菜单 / 候选右键菜单），见 §5c | 完成（X11） |
 
 ## 6b. 设置端（M3a 结论）
 
-- **能用**：`wind_setting` 在 Linux 原生编译、单测全绿；windui 默认走 X11（Wayland 会话经
+- **能用**：`moodflow_setting` 在 Linux 原生编译、单测全绿；moodflowui 默认走 X11（Wayland 会话经
   XWayland，`WINDUI_BACKEND=wayland` 才试原生 Wayland），文字经 fontconfig，中文渲染正常。
-  控制 socket、用户目录、日志目录与服务同一套规则（`$XDG_RUNTIME_DIR/wind_input[_dev]_ctrl.sock`、
-  `~/.config/WindInput[Dev]`），改设置写入用户 `config.toml` 并被服务热加载（实测）。
-- **入口**：应用菜单（`windinput-setting.desktop`，兼 `windinput://` 协议）、Fcitx5 状态区「清风输入法设置」
+  控制 socket、用户目录、日志目录与服务同一套规则（`$XDG_RUNTIME_DIR/moodflow_input[_dev]_ctrl.sock`、
+  `~/.config/Moodflow[Dev]`），改设置写入用户 `config.toml` 并被服务热加载（实测）。
+- **入口**：应用菜单（`moodflow-setting.desktop`，兼 `moodflow://` 协议）、Fcitx5 状态区「Moodflow 输入法设置」
   与系统输入法配置里的「配置」（§5d），以及「打开设置」热键
   （出厂 `Ctrl+Shift+]`）。后者：服务 `open_settings_with` 推扩展信封 `settings.open` → addon
-  （`SettingsLauncher` + `spawnDetached`）启动 `/usr/lib/windinput/wind_setting`
-  （`WIND_INPUT_SETTING` 可覆盖）；只启动自己的设置程序，信封内容只当参数。e2e 覆盖整条链。
-- **系统关联**（`windinput://`、`.wpkg`、`.wtheme`）：deb 装 `.desktop` ×2 + `windinput.xml` + hicolor `mimetypes` 类型图标，开箱即用；高级页「系统集成」按 XDG 现查（`xdg-mime query default` + 读 `.desktop` 的
+  （`SettingsLauncher` + `spawnDetached`）启动 `/usr/lib/moodflow/moodflow_setting`
+  （`MOODFLOW_INPUT_SETTING` 可覆盖）；只启动自己的设置程序，信封内容只当参数。e2e 覆盖整条链。
+- **系统关联**（`moodflow://`、`.wpkg`、`.wtheme`）：deb 装 `.desktop` ×2 + `moodflow.xml` + hicolor `mimetypes` 类型图标，开箱即用；高级页「系统集成」按 XDG 现查（`xdg-mime query default` + 读 `.desktop` 的
   `Exec`），系统包提供的注明「在此不能取消」。便携 / tarball 可按用户注册：包里同一份文件以本程序绝对路径写进
   `$XDG_DATA_HOME`（带标记），取消只撤带标记的文件与 `mimeapps.list` 里指向我们的项，别人的关联不动；
   自愈只修指向已消失路径的用户级文件。端到端 `scripts/linux/e2e-assoc.sh`；真桌面文件管理器、KDE 查询分支、
   snap / flatpak 浏览器未验。
 - **门控**：清单 `platform` 字段加 `linux`；在 macOS 精简范围之上，Linux 另藏工具栏显示/切换、
-  软键盘热键、`activate_ime`、Dota2 兼容与热键的「全局」勾选。逐项依据见 wind-setting README
+  软键盘热键、`activate_ime`、Dota2 兼容与热键的「全局」勾选。逐项依据见 moodflow-setting README
   「按平台屏蔽的设置项」。应用兼容性（按应用配置）**保留**：服务按 addon 报的程序名匹配规则，
   与 macOS 同一机制——§2「不做」指的是不为 Linux 维护内置规则，不是机制不可用。
-- **托盘 / 常驻（`run_resident`）缺失不影响设置端**：`wind_setting` 不用常驻模式也不用托盘；
+- **托盘 / 常驻（`run_resident`）缺失不影响设置端**：`moodflow_setting` 不用常驻模式也不用托盘；
   输入法自己的状态指示改由 Fcitx5 托盘图标承担（见 §5d）。
-- **已知问题**（windui Linux 后端）：设置程序已开着时，深链转来的切页要等下一次输入事件才显示；
+- **已知问题**（moodflowui Linux 后端）：设置程序已开着时，深链转来的切页要等下一次输入事件才显示；
   文件对话框依赖 xdg-desktop-portal 或 zenity，都没有时点了无反应。
 
 ## 7. 待验证的风险
@@ -357,13 +357,13 @@ DBus 客户端能直接断言 `ForwardKey` 序列；代价是只作用于当前�
    Wayland 阶段要重新验证每一条（尤其没有抓取时的「点菜单外」只能退回失焦 / 超时）。
    另：抓指针期间点菜单外，那一下被菜单吃掉、不传给下面的应用（同 X11 原生菜单，与 Windows
    「点外面照常响应」不同）。
-3. `wind-coordinator` 在 macOS 目标上依赖 C 库，本机无法交叉 check，改动靠 CI 的 macOS job 兜底。
+3. `moodflow-coordinator` 在 macOS 目标上依赖 C 库，本机无法交叉 check，改动靠 CI 的 macOS job 兜底。
 4. **菜单关闭回送没有代际（已知限制，不修）**：UI 收掉一个可见菜单时回送 `MenuClose`，协调器分不出
    是哪个菜单的。候选右键菜单 A 随候选收起（`notify_ui_hide` 发 `HideMenu`、靠回送收口）后、UI 处理
    之前，addon 又报 `menu.open` 弹出 B，则 UI 收 A 的回送会让协调器把 B 也收掉——B 一闪即逝，时间窗是
    一次跨线程往返（毫秒级）。两端认识始终一致（协调器复位时补发 `HideMenu`，不会出现「屏上没菜单、
    键却被吞」），`handle_menu.rs` 的 `stale_menu_close_echo_closes_new_menu_consistently` 钉住这一点。
-   不加代际的理由：要改 `wind-ui-types` 里三平台共用的 `HideMenu` / `MenuClose`（Windows 的
+   不加代际的理由：要改 `moodflow-ui-types` 里三平台共用的 `HideMenu` / `MenuClose`（Windows 的
    `popup_menu` 也发它），换来的只是一个人手几乎点不进去的时间窗里少闪一次菜单。
 5. **连接断开不分是哪条（已知限制）**：`server_unix` 每条请求连接结束都调
    `handle_client_disconnected`，协调器据此把开着的菜单复位，不看断的是哪条连接。addon 目前只有一条
@@ -383,19 +383,19 @@ DBus 客户端能直接断言 `ForwardKey` 序列；代价是只作用于当前�
 9. **SHM 名被别的用户抢先占用**：名字带 uid 后别人仍可在 `/dev/shm` 建我们的名字（`O_EXCL` 失败），
    服务端建不了段、候选窗不显示；addon 按属主拒收，内容伪造不了。只是拒绝服务，不处理。
 
-## 8. 安装包与 `windinput-setup` 的取舍
+## 8. 安装包与 `moodflow-setup` 的取舍
 
 - **升级 / 卸载结束服务**：postinst（仅 `configure`）与 postrm（仅 `remove`）用
-  `pkill -x -f '/usr/lib/windinput/wind_input( --restarted)?'`，按整条命令行精确匹配包里那个路径
+  `pkill -x -f '/usr/lib/moodflow/moodflow_input( --restarted)?'`，按整条命令行精确匹配包里那个路径
   （addon 拉起时（`spawnDetached`，双 fork 后 execve）argv 只有这个全路径；菜单「重启服务」自拉起的多一个 `--restarted`），
-  同名开发构建与 `wind_input restart` 这类 CLI 调用不受影响。卸载放 postrm：文件删掉后再结束，
+  同名开发构建与 `moodflow_input restart` 这类 CLI 调用不受影响。卸载放 postrm：文件删掉后再结束，
   已加载的 addon 想重新拉起时程序已不在。
 - **已知限制：被结束时丢最后 1 秒的运行时状态**。服务不处理 SIGTERM（默认动作即刻终止），
   `state.toml` 的单点写入器（`state_writer`，1s 防抖）只在 `Drop` 里 flush——被信号结束时不跑；
   菜单「重启服务」走的 `process::exit` 同样不跑。丢的只是防抖窗口内的界面位置类状态（工具栏位置、
-  软键盘页等），`config.toml` 的写入不经防抖、不受影响。补优雅退出要在 wind-coordinator 暴露 flush
+  软键盘页等），`config.toml` 的写入不经防抖、不受影响。补优雅退出要在 moodflow-coordinator 暴露 flush
   接口并在服务里装信号处理线程，收益只是「升级那一刻前 1 秒内拖过的位置」，暂不做。
-- **`windinput-setup` 与正在运行的 fcitx5**：fcitx5 退出时（注销即是）会把内存里的输入法组整份写回
+- **`moodflow-setup` 与正在运行的 fcitx5**：fcitx5 退出时（注销即是）会把内存里的输入法组整份写回
   `profile`，运行中改盘会被冲掉；`fcitx5-remote -r` 只重读全局配置、不重读 profile（隔离的
   `FCITX_CONFIG_HOME` 下用 SDK 的真 fcitx5 5.1.7 实测）。所以脚本检测到本用户的 fcitx5 在跑时先
   `fcitx5-remote -e` 让它退出（写回发生在改动之前），改完在有图形会话时 `fcitx5 -d` 拉起；全局
@@ -403,7 +403,7 @@ DBus 客户端能直接断言 `ForwardKey` 序列；代价是只作用于当前�
 
 ## 9. 发布流程接入（CI）
 
-**产物**：`WindInput-<版本>-linux-amd64.deb`、`WindInput-<版本>-linux-arm64.deb`，各带同名 `.sha256`（资产名与
+**产物**：`Moodflow-<版本>-linux-amd64.deb`、`Moodflow-<版本>-linux-arm64.deb`，各带同名 `.sha256`（资产名与
 Windows/macOS 同口径）。包内 `Version` 把预发布后缀的 `-` 换成 `~`（`0.123.0-dev.x` → `0.123.0~dev.x`），
 否则 dpkg 把它当「打包修订」而排在正式版之后。
 
@@ -412,7 +412,7 @@ Windows/macOS 同口径）。包内 `Version` 把预发布后缀的 `-` 换成 `
 | 文件 | 作用 |
 | --- | --- |
 | `linux-build.yml` | 可调用的构建流水线（仅 `workflow_call`）：门控 → 词库数据（一次）→ 两架构并行构建 → 核对 → 安装冒烟 → 上传 `dist-linux-<arch>` |
-| `release-linux.yml` | **独立入口**（手动触发）：不填 tag 只出 artifact；填 tag 则构建该 tag 并把 `.deb` 挂到该 tag 的 Release（不存在建草稿）。`setting_ref` 可指定 wind-setting 分支（默认 main，已含 Linux 适配） |
+| `release-linux.yml` | **独立入口**（手动触发）：不填 tag 只出 artifact；填 tag 则构建该 tag 并把 `.deb` 挂到该 tag 的 Release（不存在建草稿）。`setting_ref` 可指定 moodflow-setting 分支（默认 main，已含 Linux 适配） |
 | `release.yml` | tag 推送时并行调 `build-linux`，`publish` 汇总进同一个草稿 Release；Linux **不阻塞**（`publish` 不依赖它；单独的 `attach-linux` job 在两架构都成功后挂 .deb，失败不影响草稿、也不会因重跑拖着 publish 覆盖已签名的 exe） |
 | `release-published.yml` | Release 发布后把 `.deb` + `latest-linux.json`（`debs.<arch>.{url,sha256,size}`）同步到 R2，有则同步、两架构齐全才推 |
 
@@ -426,7 +426,7 @@ Windows/macOS 同口径）。包内 `Version` 把预发布后缀的 `-` 换成 `
 `compat.toml` 零规则、无 group/other 可写、maintainer 脚本语法；随后在 runner 上真装一次（apt 解析 Depends、`ldd` 无缺失库、能卸载）。
 构建脚本 `scripts/linux/build-deb.sh`（本机 docker 的 `package-deb.sh` 与 CI 共用，路径经环境变量传入）。
 
-**设置程序是私有仓**：没配 `WIND_REPOS_TOKEN`（fork）时整个 Linux 构建跳过并告警，不出缺设置入口的残缺包。
+**设置程序是私有仓**：没配 `MOODFLOW_REPOS_TOKEN`（fork）时整个 Linux 构建跳过并告警，不出缺设置入口的残缺包。
 
 **未做**：rpm（Fedora/openSUSE）与 Arch（PKGBUILD）需各自发行版实测；apt 仓库（签名密钥与托管）；客户端在线升级对 Linux 的消费
 （`latest-linux.json` 已就位，设置程序侧尚无读取方，升级暂走 apt/手动下载）；Wayland。
@@ -446,15 +446,15 @@ Windows/macOS 同口径）。包内 `Version` 把预发布后缀的 `-` 换成 `
 - **发布基线**三条同时写明：glibc ≥ 2.34（`dpkg-shlibdeps` 实算，构建机 22.04）、libstdc++ ≥ 11、Fcitx5 ≥ 5.0.14
   （addon 按 5.0.14 头文件编；5.1.x 的 Deepin 25 上实测可加载）。基线只能随构建机变高不能变低。
 - **addon 装到 `${CMAKE_INSTALL_LIBDIR}/fcitx5`**（`GNUInstallDirs`，Debian 得 `lib/<multiarch>`），不写死；
-  服务 / 设置程序 / 词库放私有目录 `/usr/lib/windinput/`（架构相关二进制，由包的 Architecture 区分）。
+  服务 / 设置程序 / 词库放私有目录 `/usr/lib/moodflow/`（架构相关二进制，由包的 Architecture 区分）。
 - **依赖自动算**：`build-deb.sh` 用 `dpkg-shlibdeps` 取链接期依赖，只手写算不到的（fcitx5 本体与最低版本、
   运行时 `dlopen` 的 `libfontconfig1`、字体、python3、procps）；`verify-deb.sh` 校验关键项在。
   （此前手写表漏了 libstdc++6 / libgcc-s1 / libfcitx5*，靠 fcitx5 传递依赖才碰巧能装。）
-- **不写用户 HOME**：包只装 `/usr` 下文件；用户配置 / 词库由 `windinput-setup` 与程序首次运行时在用户目录创建；
+- **不写用户 HOME**：包只装 `/usr` 下文件；用户配置 / 词库由 `moodflow-setup` 与程序首次运行时在用户目录创建；
   `remove` / `purge` 都不动用户数据。
-- **不杀 fcitx5**：postinst / postrm 只结束包路径下的 `wind_input` 服务（addon 下次连不上会自动拉起新版），
+- **不杀 fcitx5**：postinst / postrm 只结束包路径下的 `moodflow_input` 服务（addon 下次连不上会自动拉起新版），
   fcitx5 本身留给用户重启（`fcitx5 -rd` 或重新登录）。
-- **包名保持 `windinput`**：不改 `fcitx5-<名>` 形式——这个包不只是 addon，还带服务、设置程序与词库；已部署的测试机以此名升级。
-  日后若拆包，再按 `fcitx5-windinput`（addon）+ `windinput`（服务 / 数据）拆。
+- **包名保持 `moodflow`**：不改 `fcitx5-<名>` 形式——这个包不只是 addon，还带服务、设置程序与词库；已部署的测试机以此名升级。
+  日后若拆包，再按 `fcitx5-moodflow`（addon）+ `moodflow`（服务 / 数据）拆。
 - **不用 AppImage / Flatpak / Snap**，也不用 `alien` 转格式；将来做 rpm 要在 Fedora 容器里独立构建、独立实测。
 

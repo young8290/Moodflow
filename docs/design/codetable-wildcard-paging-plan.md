@@ -4,9 +4,9 @@
 
 **Goal:** 通配结果在「智能」检索范围下整份算一组（有常用字就先滤掉生僻字），通配首批 100 条、翻到边界按现有机制 ×2 扩充到 5000；翻页扩容的「到底」判据对所有引擎改看引擎条数。
 
-**Architecture:** 过滤：`wind-candidate/src/filter.rs` 的智能档分组键从 `(source, code)` 改成私有枚举 `SmartGroup`——`is_wildcard` 候选归 `SmartGroup::Wildcard(source)` 一组，其余仍是 `SmartGroup::Code(source, code)`（与原键逐字节同义），通配候选不往按码分组里写任何东西（含 `merged_codes`）。协调器 `apply_filter` 不改签名。数量：新增 `wind_engine::engine::CANDIDATE_LIMIT_CAP = 5000`，码表 `WILDCARD_RESULT_LIMIT` 改为它的别名，`convert_wildcard` 按 `max_candidates.min(上限)` 查且 0 不下传；`expand_candidates` 的 `.min(5000)` 改用同一常量。协调器 `update_candidates` 在 `wildcard_pattern_of(state).is_some()` 且非混输时首批取 `WILDCARD_INITIAL_LIMIT = 100`（混输维持 300）。到底判据：`expand_candidates` 由「可见条数未增」改为 `engine_count <= prev_limit`（「引擎条数未增」的等价写法，理由见 Task 2 Step 3 注释）。
+**Architecture:** 过滤：`moodflow-candidate/src/filter.rs` 的智能档分组键从 `(source, code)` 改成私有枚举 `SmartGroup`——`is_wildcard` 候选归 `SmartGroup::Wildcard(source)` 一组，其余仍是 `SmartGroup::Code(source, code)`（与原键逐字节同义），通配候选不往按码分组里写任何东西（含 `merged_codes`）。协调器 `apply_filter` 不改签名。数量：新增 `moodflow_engine::engine::CANDIDATE_LIMIT_CAP = 5000`，码表 `WILDCARD_RESULT_LIMIT` 改为它的别名，`convert_wildcard` 按 `max_candidates.min(上限)` 查且 0 不下传；`expand_candidates` 的 `.min(5000)` 改用同一常量。协调器 `update_candidates` 在 `wildcard_pattern_of(state).is_some()` 且非混输时首批取 `WILDCARD_INITIAL_LIMIT = 100`（混输维持 300）。到底判据：`expand_candidates` 由「可见条数未增」改为 `engine_count <= prev_limit`（「引擎条数未增」的等价写法，理由见 Task 2 Step 3 注释）。
 
-**Tech Stack:** Rust workspace（wind-candidate / wind-engine / wind-coordinator）+ WindInputDocs 仓（文档站）
+**Tech Stack:** Rust workspace（moodflow-candidate / moodflow-engine / moodflow-coordinator）+ MoodflowDocs 仓（文档站）
 
 **Spec:** `docs/design/codetable-wildcard.md` **§11（常用字过滤与翻页扩充，binding）**；§3.1（结果数量）、§10（混输调度）为背景。
 
@@ -19,10 +19,10 @@
   4. **不做**：结果缓存；把过滤下推到词库。
   5. **已知**：扩充后同组常用字进入，智能档先前放行的生僻字会被滤走、前页内容可能移位——用例钉住现状（Task 1 `smart_wildcard_group_without_common_keeps_all_until_common_arrives`）。**调用方永不向 `search_pattern` 传 0**（Composite 把 0 当不限、各层把 0 当空）。
 - 关闭通配 ⇒ 一切与现状逐键相同；开通配但串里没有通配位 ⇒ 分组、首批上限与关闭时相同（到底判据的改动对所有引擎生效，是契约 3 本意）。
-- 提交纪律：禁止 `git add -A` / `git add .` / `git commit -a` / `git stash`；新文件先 `git add -- <path>`；提交一律 `git commit -F - --only -- <自己的路径…>`；提交前 `git diff --cached --name-status` 核对暂存区、提交后 `git show --stat HEAD` 核对文件数/行数与自己的改动量相符。**任何提交都不带 `wind_input/Cargo.lock`**。每次提交前 `git -C <仓> branch --show-current` 须为 `feat/wildcard-paging`。
-- 路径：一切改动都在 `/home/dufeng/develop/windinput/wt-wcpage/{WindInput,WindInputDocs}` 下；**绝不**碰 `/home/dufeng/develop/windinput/{WindInput,wind-setting,WindInputDocs}`。wind-setting 本计划不改（见 Task 4 Step 1 的核对）。
+- 提交纪律：禁止 `git add -A` / `git add .` / `git commit -a` / `git stash`；新文件先 `git add -- <path>`；提交一律 `git commit -F - --only -- <自己的路径…>`；提交前 `git diff --cached --name-status` 核对暂存区、提交后 `git show --stat HEAD` 核对文件数/行数与自己的改动量相符。**任何提交都不带 `moodflow_input/Cargo.lock`**。每次提交前 `git -C <仓> branch --show-current` 须为 `feat/wildcard-paging`。
+- 路径：一切改动都在 `/home/dufeng/develop/moodflow/wt-wcpage/{Moodflow,MoodflowDocs}` 下；**绝不**碰 `/home/dufeng/develop/moodflow/{Moodflow,moodflow-setting,MoodflowDocs}`。moodflow-setting 本计划不改（见 Task 4 Step 1 的核对）。
 - 格式化：禁止 `cargo fmt` / `cargo fmt --all`；只对自己改过的文件跑 `rustfmt --edition 2024 --check <file>`，其 diff 只落在自己 hunk 内才去掉 `--check` 执行，否则按 diff 手工采纳自己那几处。
-- 测试环境：cargo 一律在 `wind_input/` 下、带 `CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage`（先 `mkdir -p /tmp/wct-wcpage`；路径要短，别用 scratchpad）；全量跑加 `--no-fail-fast`。
+- 测试环境：cargo 一律在 `moodflow_input/` 下、带 `CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage`（先 `mkdir -p /tmp/wct-wcpage`；路径要短，别用 scratchpad）；全量跑加 `--no-fail-fast`。
 - 已知偶发红：`handle_direct_aux::tests::schema_source_not_ready_is_noop_then_warms`（并发时序，与本计划无关）。全量里它红了，单独重跑一次；单跑绿即记为偶发，不改它。
 - 集成测试依赖 `build_dev/data`，缺失时静默跳过而计数照绿——以 `--test codetable_wildcard` 耗时 ≥ 1s 且输出无「跳过」为数据在位判据。
 - 日志：`info!` 不得含用户输入 / 候选。
@@ -41,16 +41,16 @@
 
 | 文件 | 动作 | 职责 |
 |---|---|---|
-| `wind_input/crates/wind-candidate/src/filter.rs` | Modify | 私有 `SmartGroup` 分组键；`build_has_common` / `filter_smart` 改用它；单测 |
-| `wind_input/crates/wind-engine/src/engine.rs` | Modify | 新增 `pub const CANDIDATE_LIMIT_CAP: usize = 5000` |
-| `wind_input/crates/wind-engine/src/codetable/engine.rs` | Modify | `WILDCARD_RESULT_LIMIT` 改为 `CANDIDATE_LIMIT_CAP` 别名；`convert_wildcard` 按 `max_candidates` 查、0 不下传；改写 / 新增单测 |
-| `wind_input/crates/wind-engine/src/mixed/engine.rs` | Modify | 仅加单测（混输主码表通配跟随 `max_candidates`） |
-| `wind_input/crates/wind-coordinator/src/wildcard.rs` | Modify | `pub(crate) const WILDCARD_INITIAL_LIMIT: usize = 100` |
-| `wind_input/crates/wind-coordinator/src/handle_candidate.rs` | Modify | `update_candidates` 首批上限分流；`expand_candidates` 到底判据与上限常量；文件末新增 `mod expand_stop_tests` |
-| `wind_input/crates/wind-coordinator/tests/codetable_wildcard.rs` | Modify | §11 真实数据用例（纯码表 / 混输 / 常用字档 / 末页放宽）；改写 `leading_wildcard_when_unbound_scans_whole_table` |
-| `../WindInputDocs/content/docs/settings/schema/codetable.mdx` | Modify | 「通配输入」小节的结果数量与过滤说明 |
-| `../WindInputDocs/content/docs/settings/input/index.mdx` | Modify | 检索范围「智能」一行补通配例外 |
-| `../WindInputDocs/content/docs/guides/config/input.mdx` | Modify | `filter_mode` 行补通配例外 |
+| `moodflow_input/crates/moodflow-candidate/src/filter.rs` | Modify | 私有 `SmartGroup` 分组键；`build_has_common` / `filter_smart` 改用它；单测 |
+| `moodflow_input/crates/moodflow-engine/src/engine.rs` | Modify | 新增 `pub const CANDIDATE_LIMIT_CAP: usize = 5000` |
+| `moodflow_input/crates/moodflow-engine/src/codetable/engine.rs` | Modify | `WILDCARD_RESULT_LIMIT` 改为 `CANDIDATE_LIMIT_CAP` 别名；`convert_wildcard` 按 `max_candidates` 查、0 不下传；改写 / 新增单测 |
+| `moodflow_input/crates/moodflow-engine/src/mixed/engine.rs` | Modify | 仅加单测（混输主码表通配跟随 `max_candidates`） |
+| `moodflow_input/crates/moodflow-coordinator/src/wildcard.rs` | Modify | `pub(crate) const WILDCARD_INITIAL_LIMIT: usize = 100` |
+| `moodflow_input/crates/moodflow-coordinator/src/handle_candidate.rs` | Modify | `update_candidates` 首批上限分流；`expand_candidates` 到底判据与上限常量；文件末新增 `mod expand_stop_tests` |
+| `moodflow_input/crates/moodflow-coordinator/tests/codetable_wildcard.rs` | Modify | §11 真实数据用例（纯码表 / 混输 / 常用字档 / 末页放宽）；改写 `leading_wildcard_when_unbound_scans_whole_table` |
+| `../MoodflowDocs/content/docs/settings/schema/codetable.mdx` | Modify | 「通配输入」小节的结果数量与过滤说明 |
+| `../MoodflowDocs/content/docs/settings/input/index.mdx` | Modify | 检索范围「智能」一行补通配例外 |
+| `../MoodflowDocs/content/docs/guides/config/input.mdx` | Modify | `filter_mode` 行补通配例外 |
 | `docs/architecture/engine-candidate-pipeline.md` | Modify | §3.4 引擎上限与协调器首批 / 扩容；§8.1 通配分组例外 |
 | `docs/design/codetable-wildcard.md` | Modify | 头部状态行；实施中若有偏离追加 §9 |
 
@@ -61,23 +61,23 @@
 - [ ] **Step 0: 记全量基线**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcpage/WindInput && git status --short --branch && git log --oneline -1
-cd wind_input && mkdir -p /tmp/wct-wcpage && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage cargo test --workspace --no-fail-fast 2>&1 | tee /tmp/wct-wcpage/baseline.log | grep -E "^test result" | awk '{p+=$4; f+=$6} END {print "passed="p, "failed="f}'
+cd /home/dufeng/develop/moodflow/wt-wcpage/Moodflow && git status --short --branch && git log --oneline -1
+cd moodflow_input && mkdir -p /tmp/wct-wcpage && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage cargo test --workspace --no-fail-fast 2>&1 | tee /tmp/wct-wcpage/baseline.log | grep -E "^test result" | awk '{p+=$4; f+=$6} END {print "passed="p, "failed="f}'
 ```
 
-Expected: 分支 `feat/wildcard-paging`，工作区除本计划文件外干净（若出现 `M wind_input/Cargo.lock`，不属于本计划、永不提交）；记下 `passed=` / `failed=` 两个数（Task 5 对照用）。`failed` 非 0 时先把失败名单记下（`grep -E "^test .* FAILED|panicked" /tmp/wct-wcpage/baseline.log`），它们不属于本计划；已知偶发项见 Global Constraints。
+Expected: 分支 `feat/wildcard-paging`，工作区除本计划文件外干净（若出现 `M moodflow_input/Cargo.lock`，不属于本计划、永不提交）；记下 `passed=` / `failed=` 两个数（Task 5 对照用）。`failed` 非 0 时先把失败名单记下（`grep -E "^test .* FAILED|panicked" /tmp/wct-wcpage/baseline.log`），它们不属于本计划；已知偶发项见 Global Constraints。
 
 ---
 
 ## Task 1: 智能档通配结果整份一组
 
 **Files:**
-- Modify: `wind_input/crates/wind-candidate/src/filter.rs`（`build_has_common` ~210-240、`filter_smart` ~242-277、`mod tests` 末尾）
-- Modify: `wind_input/crates/wind-coordinator/tests/codetable_wildcard.rs`（文件末尾新增一节）
+- Modify: `moodflow_input/crates/moodflow-candidate/src/filter.rs`（`build_has_common` ~210-240、`filter_smart` ~242-277、`mod tests` 末尾）
+- Modify: `moodflow_input/crates/moodflow-coordinator/tests/codetable_wildcard.rs`（文件末尾新增一节）
 - Test: 上述两文件
 
 **Interfaces:**
-- Consumes: `Candidate::is_wildcard: bool`（已有，只由 `CodeTableEngine::convert_wildcard` 置位，`wind-engine/src/codetable/engine.rs:927`）
+- Consumes: `Candidate::is_wildcard: bool`（已有，只由 `CodeTableEngine::convert_wildcard` 置位，`moodflow-engine/src/codetable/engine.rs:927`）
 - Produces（私有，仅本文件）:
   - `enum SmartGroup { Code(CandidateSource, String), Wildcard(CandidateSource) }`，`#[derive(Clone, PartialEq, Eq, Hash)]`
   - `fn SmartGroup::of(c: &Candidate) -> SmartGroup`
@@ -198,9 +198,9 @@ fn pure_wildcard_smart_filters_like_general() {
 - [ ] **Step 2: 跑，确认红**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcpage/WindInput/wind_input && mkdir -p /tmp/wct-wcpage
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage cargo test -p wind-candidate --lib filter::tests
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage cargo test -p wind-coordinator --test codetable_wildcard pure_wildcard_smart_filters_like_general
+cd /home/dufeng/develop/moodflow/wt-wcpage/Moodflow/moodflow_input && mkdir -p /tmp/wct-wcpage
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage cargo test -p moodflow-candidate --lib filter::tests
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage cargo test -p moodflow-coordinator --test codetable_wildcard pure_wildcard_smart_filters_like_general
 ```
 
 Expected: `smart_treats_all_wildcard_results_as_one_group` 红（kept 是 `["虑","眓","虙"]`）、`wildcard_group_does_not_leak_into_code_groups` 红（「佢」被 `merged_codes` 遮蔽）、`smart_wildcard_group_without_common_keeps_all_until_common_arrives` 红在第二个断言；`pure_wildcard_smart_filters_like_general` 红在 `assert_eq!(smart, general)`（`hanz` 智能 9 条 vs 常用 4 条量级）。
@@ -292,9 +292,9 @@ fn build_has_common(candidates: &[Candidate]) -> std::collections::HashMap<Smart
 - [ ] **Step 4: 跑，确认绿 + 相邻回归**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcpage/WindInput/wind_input
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage cargo test -p wind-candidate --lib filter::tests
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage cargo test -p wind-coordinator --test codetable_wildcard --test codetable_filter_scope_consistency --test rare_phrase_scope --test common_chars_override --no-fail-fast
+cd /home/dufeng/develop/moodflow/wt-wcpage/Moodflow/moodflow_input
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage cargo test -p moodflow-candidate --lib filter::tests
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage cargo test -p moodflow-coordinator --test codetable_wildcard --test codetable_filter_scope_consistency --test rare_phrase_scope --test common_chars_override --no-fail-fast
 ```
 
 Expected: 全绿；`codetable_wildcard` 耗时 ≥ 1s 且无「跳过」。
@@ -302,11 +302,11 @@ Expected: 全绿；`codetable_wildcard` 耗时 ≥ 1s 且无「跳过」。
 - [ ] **Step 5: 格式与提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcpage/WindInput
-rustfmt --edition 2024 --check wind_input/crates/wind-candidate/src/filter.rs wind_input/crates/wind-coordinator/tests/codetable_wildcard.rs
+cd /home/dufeng/develop/moodflow/wt-wcpage/Moodflow
+rustfmt --edition 2024 --check moodflow_input/crates/moodflow-candidate/src/filter.rs moodflow_input/crates/moodflow-coordinator/tests/codetable_wildcard.rs
 git -C . branch --show-current
 git diff --cached --name-status
-git commit -F - --only -- wind_input/crates/wind-candidate/src/filter.rs wind_input/crates/wind-coordinator/tests/codetable_wildcard.rs <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-candidate/src/filter.rs moodflow_input/crates/moodflow-coordinator/tests/codetable_wildcard.rs <<'EOF'
 fix(filter): 智能档把通配结果整份算一组，有常用字就先滤生僻字
 
 通配结果散在几十个码位上，按 (来源, 码) 分组时许多码位只有生僻字，被当孤儿码位放行，
@@ -324,18 +324,18 @@ git show --stat HEAD
 > **控制者裁决（2026-09-29）**：首批 100 只作用于**纯码表**；混输维持原首批 300（`EngineManager::active_wildcard_mixes_pinyin()` 为真时走原 `initial_candidate_limit`）。混输相关断言按首批 300 写；若某条计划用例假设混输首批 100，改按 300 并在报告说明。
 
 **Files:**
-- Modify: `wind_input/crates/wind-engine/src/engine.rs`（`ConvertResult` 之前加常量）
-- Modify: `wind_input/crates/wind-engine/src/codetable/engine.rs`（`WILDCARD_RESULT_LIMIT` ~90-91；`convert_wildcard` ~903-941；测试 `wildcard_respects_single_code_input_and_result_cap` ~2472-2505；`mod tests` 末尾）
-- Modify: `wind_input/crates/wind-engine/src/mixed/engine.rs`（`mod tests` 末尾，仅测试）
-- Modify: `wind_input/crates/wind-coordinator/src/wildcard.rs`（`WildcardDecision` 之前加常量）
-- Modify: `wind_input/crates/wind-coordinator/src/handle_candidate.rs`（`update_candidates` ~2263；`expand_candidates` ~2383-2413；文件末尾新增测试模块）
-- Modify: `wind_input/crates/wind-coordinator/tests/codetable_wildcard.rs`（§11 一节追加）
+- Modify: `moodflow_input/crates/moodflow-engine/src/engine.rs`（`ConvertResult` 之前加常量）
+- Modify: `moodflow_input/crates/moodflow-engine/src/codetable/engine.rs`（`WILDCARD_RESULT_LIMIT` ~90-91；`convert_wildcard` ~903-941；测试 `wildcard_respects_single_code_input_and_result_cap` ~2472-2505；`mod tests` 末尾）
+- Modify: `moodflow_input/crates/moodflow-engine/src/mixed/engine.rs`（`mod tests` 末尾，仅测试）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/wildcard.rs`（`WildcardDecision` 之前加常量）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/handle_candidate.rs`（`update_candidates` ~2263；`expand_candidates` ~2383-2413；文件末尾新增测试模块）
+- Modify: `moodflow_input/crates/moodflow-coordinator/tests/codetable_wildcard.rs`（§11 一节追加）
 
 **Interfaces:**
 - Produces:
-  - `pub const CANDIDATE_LIMIT_CAP: usize = 5000;`（`wind_engine::engine`）
-  - `pub const WILDCARD_RESULT_LIMIT: usize = crate::engine::CANDIDATE_LIMIT_CAP;`（`wind_engine::codetable::engine`，值 100 → 5000）
-  - `pub(crate) const WILDCARD_INITIAL_LIMIT: usize = 100;`（`wind_coordinator::wildcard`）
+  - `pub const CANDIDATE_LIMIT_CAP: usize = 5000;`（`moodflow_engine::engine`）
+  - `pub const WILDCARD_RESULT_LIMIT: usize = crate::engine::CANDIDATE_LIMIT_CAP;`（`moodflow_engine::codetable::engine`，值 100 → 5000）
+  - `pub(crate) const WILDCARD_INITIAL_LIMIT: usize = 100;`（`moodflow_coordinator::wildcard`）
 - 签名不变：`fn convert_wildcard(&self, input: &str, pattern: &str, max_candidates: usize) -> Option<ConvertResult>`；`pub(crate) fn expand_candidates(&self, state: &mut State)`；`pub(crate) fn update_candidates(&self, state: &mut State) -> InputOutcome`
 - Consumes: `Coordinator::wildcard_pattern_of(&self, state: &State) -> Option<String>`（已有，`wildcard.rs:222`）
 
@@ -443,9 +443,9 @@ mod expand_stop_tests {
     use std::collections::HashSet;
     use std::path::{Path, PathBuf};
     use std::sync::Arc;
-    use wind_bridge::handler::{KeyEventData, MessageHandler};
-    use wind_config::Config;
-    use wind_ipc::protocol::EVENT_KEY_DOWN;
+    use moodflow_bridge::handler::{KeyEventData, MessageHandler};
+    use moodflow_config::Config;
+    use moodflow_ipc::protocol::EVENT_KEY_DOWN;
 
     const VK_A: u32 = 0x41;
     const VK_NEXT: u32 = 0x22; // PageDown，出厂翻页键组 "pageupdown"
@@ -502,7 +502,7 @@ mod expand_stop_tests {
     fn coord(tag: &str) -> (Arc<Coordinator>, Cleanup) {
         let id = format!("zz_expand_{tag}_{}", std::process::id());
         let dir = std::env::temp_dir().join(format!(
-            "wind_expand_stop_{tag}_{}",
+            "moodflow_expand_stop_{tag}_{}",
             std::process::id()
         ));
         let _ = std::fs::remove_dir_all(&dir);
@@ -644,19 +644,19 @@ fn pure_wildcard_first_batch_is_100_and_expands() {
 - [ ] **Step 2: 跑，确认红**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcpage/WindInput/wind_input
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage cargo test -p wind-engine --lib wildcard
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage cargo test -p wind-coordinator --lib expand_stop_tests
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage cargo test -p wind-coordinator --test codetable_wildcard pure_wildcard_first_batch_is_100_and_expands
+cd /home/dufeng/develop/moodflow/wt-wcpage/Moodflow/moodflow_input
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage cargo test -p moodflow-engine --lib wildcard
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage cargo test -p moodflow-coordinator --lib expand_stop_tests
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage cargo test -p moodflow-coordinator --test codetable_wildcard pure_wildcard_first_batch_is_100_and_expands
 ```
 
-Expected: wind-engine 编译失败 `error[E0425]: cannot find value \`CANDIDATE_LIMIT_CAP\` in module \`crate::engine\``（先把新测试里这一行注释掉可看到另外两条红：`wildcard_respects_single_code_input_and_max_candidates` 得 100 ≠ 150、`wildcard_primary_follows_max_candidates` 得 100 ≠ 150；看完恢复）；`expansion_continues_past_an_all_filtered_batch` 红在 `left: 100, right: 150`；`pure_wildcard_first_batch_is_100_and_expands` 红在 `has_more`。
+Expected: moodflow-engine 编译失败 `error[E0425]: cannot find value \`CANDIDATE_LIMIT_CAP\` in module \`crate::engine\``（先把新测试里这一行注释掉可看到另外两条红：`wildcard_respects_single_code_input_and_max_candidates` 得 100 ≠ 150、`wildcard_primary_follows_max_candidates` 得 100 ≠ 150；看完恢复）；`expansion_continues_past_an_all_filtered_batch` 红在 `left: 100, right: 150`；`pure_wildcard_first_batch_is_100_and_expands` 红在 `has_more`。
 
 核对点（夹具）：若 `expansion_continues_past_an_all_filtered_batch` 红在**前置**断言（首批 ≠ 100），说明自造码表的前缀查询没按权重取前 100，或 `copy_factory_charsets` 后常用字判定未生效（全判常用 ⇒ 第 2 批不被滤、旧实现也会绿）。排查：临时在用例里打印 `c.debug_all_candidate_texts()` 的前 5 条与 `c.debug_common_char_mark(0)`；前者应是 `common[0..]`，后者应为 `Some((_, true))`。不改判据去迁就夹具。
 
 - [ ] **Step 3: 实现**
 
-`wind-engine/src/engine.rs`，`/// 引擎转换结果` 那行之前加：
+`moodflow-engine/src/engine.rs`，`/// 引擎转换结果` 那行之前加：
 
 ```rust
 /// 协调器向引擎要候选的**上限的上限**：翻页扩容（`expand_candidates`）翻倍到此为止，
@@ -692,7 +692,7 @@ pub const WILDCARD_RESULT_LIMIT: usize = crate::engine::CANDIDATE_LIMIT_CAP;
             Vec::new()
         } else {
             self.dm
-                .search_pattern(pattern, wind_dict::WILDCARD_SLOT, limit, with_prefix)
+                .search_pattern(pattern, moodflow_dict::WILDCARD_SLOT, limit, with_prefix)
         };
         let mut candidates: Vec<Candidate> = hits
             .into_iter()
@@ -708,7 +708,7 @@ pub const WILDCARD_RESULT_LIMIT: usize = crate::engine::CANDIDATE_LIMIT_CAP;
 
 同函数的 `candidates.truncate(max_candidates.min(WILDCARD_RESULT_LIMIT));` 改为 `candidates.truncate(limit);`。
 
-`wind-coordinator/src/wildcard.rs`，`/// 通配键此刻的去向。` 之前加：
+`moodflow-coordinator/src/wildcard.rs`，`/// 通配键此刻的去向。` 之前加：
 
 ```rust
 /// 通配组码的首批候选上限（spec §11）。不走 `initial_candidate_limit` 的码长分级
@@ -741,12 +741,12 @@ pub(crate) const WILDCARD_INITIAL_LIMIT: usize = 100;
 ```
 
 `expand_candidates`：文档行 `/// 扩展候选（翻页/下移到边界时调用）：上限翻倍（≤5000）重新加载，保持当前页/高亮。` 改为
-`/// 扩展候选（翻页/下移到边界时调用）：上限翻倍（≤ [`wind_engine::engine::CANDIDATE_LIMIT_CAP`]）重新加载，保持当前页/高亮。`；
+`/// 扩展候选（翻页/下移到边界时调用）：上限翻倍（≤ [`moodflow_engine::engine::CANDIDATE_LIMIT_CAP`]）重新加载，保持当前页/高亮。`；
 函数体从 `let new_limit = …` 到 `state.has_more = engine_count >= new_limit;` 替换为：
 
 ```rust
         let new_limit = (state.candidate_limit.saturating_mul(2))
-            .min(wind_engine::engine::CANDIDATE_LIMIT_CAP);
+            .min(moodflow_engine::engine::CANDIDATE_LIMIT_CAP);
         if new_limit <= state.candidate_limit {
             state.has_more = false;
             return;
@@ -775,10 +775,10 @@ pub(crate) const WILDCARD_INITIAL_LIMIT: usize = 100;
 - [ ] **Step 4: 跑，确认绿 + 相邻回归**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcpage/WindInput/wind_input
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage cargo test -p wind-engine --lib wildcard
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage cargo test -p wind-coordinator --lib expand_stop_tests handle_direct_aux handle_aux_code
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage cargo test -p wind-coordinator --test codetable_wildcard --test input_flow --test codetable_filter_scope_consistency --test temp_pinyin_candidate_limit --no-fail-fast
+cd /home/dufeng/develop/moodflow/wt-wcpage/Moodflow/moodflow_input
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage cargo test -p moodflow-engine --lib wildcard
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage cargo test -p moodflow-coordinator --lib expand_stop_tests handle_direct_aux handle_aux_code
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage cargo test -p moodflow-coordinator --test codetable_wildcard --test input_flow --test codetable_filter_scope_consistency --test temp_pinyin_candidate_limit --no-fail-fast
 ```
 
 Expected: 全绿（`handle_direct_aux::tests::schema_source_not_ready_is_noop_then_warms` 偶发红按 Global Constraints 处理）。重点看：`input_flow` 的 `test_dynamic_paging_expands_candidates`、`handle_direct_aux::tests::hits_survive_page_expansion`、`handle_aux_code::tests::arrow_navigation_does_not_lose_filter`（三者都走 `expand_candidates`）；`codetable_wildcard` 里 §10 的混输用例（`mixed_hanz_merges_wildcard_and_pinyin` / `mixed_azi_wildcard_first_then_pinyin` 等）在混输首批从 300 缩到 100 后仍绿。
@@ -788,11 +788,11 @@ Expected: 全绿（`handle_direct_aux::tests::schema_source_not_ready_is_noop_th
 - [ ] **Step 5: 格式与提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcpage/WindInput
-rustfmt --edition 2024 --check wind_input/crates/wind-engine/src/engine.rs wind_input/crates/wind-engine/src/codetable/engine.rs wind_input/crates/wind-engine/src/mixed/engine.rs wind_input/crates/wind-coordinator/src/wildcard.rs wind_input/crates/wind-coordinator/src/handle_candidate.rs wind_input/crates/wind-coordinator/tests/codetable_wildcard.rs
+cd /home/dufeng/develop/moodflow/wt-wcpage/Moodflow
+rustfmt --edition 2024 --check moodflow_input/crates/moodflow-engine/src/engine.rs moodflow_input/crates/moodflow-engine/src/codetable/engine.rs moodflow_input/crates/moodflow-engine/src/mixed/engine.rs moodflow_input/crates/moodflow-coordinator/src/wildcard.rs moodflow_input/crates/moodflow-coordinator/src/handle_candidate.rs moodflow_input/crates/moodflow-coordinator/tests/codetable_wildcard.rs
 git -C . branch --show-current
 git diff --cached --name-status
-git commit -F - --only -- wind_input/crates/wind-engine/src/engine.rs wind_input/crates/wind-engine/src/codetable/engine.rs wind_input/crates/wind-engine/src/mixed/engine.rs wind_input/crates/wind-coordinator/src/wildcard.rs wind_input/crates/wind-coordinator/src/handle_candidate.rs wind_input/crates/wind-coordinator/tests/codetable_wildcard.rs <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-engine/src/engine.rs moodflow_input/crates/moodflow-engine/src/codetable/engine.rs moodflow_input/crates/moodflow-engine/src/mixed/engine.rs moodflow_input/crates/moodflow-coordinator/src/wildcard.rs moodflow_input/crates/moodflow-coordinator/src/handle_candidate.rs moodflow_input/crates/moodflow-coordinator/tests/codetable_wildcard.rs <<'EOF'
 fix(wildcard): 通配结果首批 100 条、翻页扩充到 5000；扩容到底改看引擎条数
 
 引擎 search_pattern 的 limit 写死 100 且先截断后过滤，而首批上限按码长给 300/1000，
@@ -814,7 +814,7 @@ git show --stat HEAD
 > **控制者裁决（2026-09-29）**：首批 100 只作用于**纯码表**；混输维持原首批 300（`EngineManager::active_wildcard_mixes_pinyin()` 为真时走原 `initial_candidate_limit`）。混输相关断言按首批 300 写；若某条计划用例假设混输首批 100，改按 300 并在报告说明。
 
 **Files:**
-- Modify: `wind_input/crates/wind-coordinator/tests/codetable_wildcard.rs`（改写 `leading_wildcard_when_unbound_scans_whole_table` ~596-611；§11 一节追加）
+- Modify: `moodflow_input/crates/moodflow-coordinator/tests/codetable_wildcard.rs`（改写 `leading_wildcard_when_unbound_scans_whole_table` ~596-611；§11 一节追加）
 
 **Interfaces:**
 - Consumes（Task 1/2 已加的测试助手）: `with_filter(Config, &str) -> Config`、`triples_with(Config, &str) -> Vec<(String, String, String)>`、`no_relax(Config) -> Config`、`page_until_more_than(&Coordinator, usize) -> usize`；文件既有 `wubi(bool, &str) -> Config`、`wubi_pinyin(bool) -> Config`、`wubi_hit(&str, &str, bool) -> bool`、`mixed_ready() -> bool`、`press` / `press_vk`。
@@ -989,9 +989,9 @@ fn page_end_relax_appends_filtered_wildcard_results() {
 - [ ] **Step 3: 跑**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcpage/WindInput/wind_input
-time CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage cargo test -p wind-coordinator --test codetable_wildcard --no-fail-fast 2>&1 | tail -30
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage cargo test -p wind-coordinator --test codetable_filter_scope_consistency --test rare_phrase_scope --test common_chars_override --test single_char --no-fail-fast
+cd /home/dufeng/develop/moodflow/wt-wcpage/Moodflow/moodflow_input
+time CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage cargo test -p moodflow-coordinator --test codetable_wildcard --no-fail-fast 2>&1 | tail -30
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage cargo test -p moodflow-coordinator --test codetable_filter_scope_consistency --test rare_phrase_scope --test common_chars_override --test single_char --no-fail-fast
 ```
 
 Expected: 全绿、耗时 ≥ 1s、无「跳过」。第二条是「非通配 smart 分组与扩充行为不变」的既有锁；「关闭通配时逐键相同」由既有 `wildcard_off_by_default_changes_nothing` 覆盖。
@@ -1004,11 +1004,11 @@ Expected: 全绿、耗时 ≥ 1s、无「跳过」。第二条是「非通配 sm
 - [ ] **Step 4: 格式与提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcpage/WindInput
-rustfmt --edition 2024 --check wind_input/crates/wind-coordinator/tests/codetable_wildcard.rs
+cd /home/dufeng/develop/moodflow/wt-wcpage/Moodflow
+rustfmt --edition 2024 --check moodflow_input/crates/moodflow-coordinator/tests/codetable_wildcard.rs
 git -C . branch --show-current
 git diff --cached --name-status
-git commit -F - --only -- wind_input/crates/wind-coordinator/tests/codetable_wildcard.rs <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-coordinator/tests/codetable_wildcard.rs <<'EOF'
 test(wildcard): 常用字过滤与翻页扩充的真实数据验收
 
 纯码表 / 混输下智能档通配结果与常用字档一致、首选仍是等长通配；混输扩充后等长通配
@@ -1023,9 +1023,9 @@ git show --stat HEAD
 ## Task 4: 文档站、架构文档、spec 状态
 
 **Files:**
-- Modify: `../WindInputDocs/content/docs/settings/schema/codetable.mdx`（`### 通配输入` 小节 ~103）
-- Modify: `../WindInputDocs/content/docs/settings/input/index.mdx`（检索范围表「智能」行 ~38）
-- Modify: `../WindInputDocs/content/docs/guides/config/input.mdx`（`filter_mode` 行 ~38）
+- Modify: `../MoodflowDocs/content/docs/settings/schema/codetable.mdx`（`### 通配输入` 小节 ~103）
+- Modify: `../MoodflowDocs/content/docs/settings/input/index.mdx`（检索范围表「智能」行 ~38）
+- Modify: `../MoodflowDocs/content/docs/guides/config/input.mdx`（`filter_mode` 行 ~38）
 - Modify: `docs/architecture/engine-candidate-pipeline.md`（§3.4 ~192-205；§8.1 ~835-839）
 - Modify: `docs/design/codetable-wildcard.md`（头部状态行 ~7）
 
@@ -1034,11 +1034,11 @@ git show --stat HEAD
 - [ ] **Step 1: 核对设置说明不需要改**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcpage/wind-setting
-grep -n 'schema.codetable.wildcard' -A8 src/assets/settings_manifest.toml | grep -nE '100|上限|最多' || echo "hint 不提条数，wind-setting 不改"
+cd /home/dufeng/develop/moodflow/wt-wcpage/moodflow-setting
+grep -n 'schema.codetable.wildcard' -A8 src/assets/settings_manifest.toml | grep -nE '100|上限|最多' || echo "hint 不提条数，moodflow-setting 不改"
 ```
 
-Expected: `hint 不提条数，wind-setting 不改`。若有命中，停下回报（本计划未安排 wind-setting 改动与 `dev.sh sg` 重生成）。
+Expected: `hint 不提条数，moodflow-setting 不改`。若有命中，停下回报（本计划未安排 moodflow-setting 改动与 `dev.sh sg` 重生成）。
 
 - [ ] **Step 2: 文档站**
 
@@ -1082,7 +1082,7 @@ Expected: `hint 不提条数，wind-setting 不改`。若有命中，停下回�
 Run:
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcpage/WindInputDocs && pnpm install --frozen-lockfile && pnpm lint
+cd /home/dufeng/develop/moodflow/wt-wcpage/MoodflowDocs && pnpm install --frozen-lockfile && pnpm lint
 ```
 
 Expected: 通过。
@@ -1131,7 +1131,7 @@ Expected: 通过。
 - [ ] **Step 4: 两个仓各自提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcpage/WindInputDocs
+cd /home/dufeng/develop/moodflow/wt-wcpage/MoodflowDocs
 git branch --show-current
 git diff --cached --name-status
 git commit -F - --only -- content/docs/settings/schema/codetable.mdx content/docs/settings/input/index.mdx content/docs/guides/config/input.mdx <<'EOF'
@@ -1139,7 +1139,7 @@ docs(settings): 通配结果可翻页扩充，智能检索范围下整份算一�
 EOF
 git show --stat HEAD
 
-cd ../WindInput
+cd ../Moodflow
 git branch --show-current
 git diff --cached --name-status
 git commit -F - --only -- docs/architecture/engine-candidate-pipeline.md docs/design/codetable-wildcard.md <<'EOF'
@@ -1157,7 +1157,7 @@ git show --stat HEAD
 - [ ] **Step 1: 全量测试**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcpage/WindInput/wind_input
+cd /home/dufeng/develop/moodflow/wt-wcpage/Moodflow/moodflow_input
 time CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage TMPDIR=/tmp/wct-wcpage cargo test --workspace --no-fail-fast 2>&1 | tee /tmp/wct-wcpage/full.log | grep -E "^test result|FAILED|panicked" | tail -60
 grep -E "^test result" /tmp/wct-wcpage/full.log | awk '{p+=$4; f+=$6} END {print "passed="p, "failed="f}'
 ```
@@ -1167,7 +1167,7 @@ Expected: `failed` 与开工前基线相同（基线为 0 则为 0；偶发项�
 - [ ] **Step 2: 编译门**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcpage/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage cargo check-headless
+cd /home/dufeng/develop/moodflow/wt-wcpage/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage cargo check-headless
 cd .. && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcpage ./scripts/dev.sh k
 ```
 
@@ -1176,22 +1176,22 @@ Expected: 均通过。
 - [ ] **Step 3: 占位与提交范围自查**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcpage/WindInput
+cd /home/dufeng/develop/moodflow/wt-wcpage/Moodflow
 base=$(git merge-base HEAD main)
 git log --oneline "$base"..HEAD
 git diff "$base"..HEAD --stat
 git diff "$base"..HEAD | grep -nE "^\+.*(TODO|todo!|unimplemented!|#\[ignore\]|\.only\()" || echo clean
-git diff "$base"..HEAD --name-only | grep -x "wind_input/Cargo.lock" && echo "!! Cargo.lock 被提交" || echo "lock ok"
-git -C ../WindInputDocs log --oneline -2
+git diff "$base"..HEAD --name-only | grep -x "moodflow_input/Cargo.lock" && echo "!! Cargo.lock 被提交" || echo "lock ok"
+git -C ../MoodflowDocs log --oneline -2
 ```
 
-Expected: `clean`、`lock ok`；`--stat` 只含本计划文件结构表里 WindInput 仓的那些文件（加本计划文件与已在分支上的设计稿提交）。
+Expected: `clean`、`lock ok`；`--stat` 只含本计划文件结构表里 Moodflow 仓的那些文件（加本计划文件与已在分支上的设计稿提交）。
 
 ---
 
 ## spec 待澄清（写计划时对照真实代码发现）
 
-1. **§11 根因「首批 limit ≥ 300」不全对**：纯码表首批按码长分级，**1 码是 100**（`wind-coordinator/src/handle_candidate.rs:1065-1067`），2 码 300、≥3 码 1000，混输 / 其它 300（`:1072`）。故首位单键 `z` 的 `has_more` 本就为真，它翻不动的原因是另一条：扩容后引擎仍回 100 条、可见条数不增，`expand_candidates` 判到底（`:2403-2408`）。两条根因叠加，本计划两处都改（Task 2）。
+1. **§11 根因「首批 limit ≥ 300」不全对**：纯码表首批按码长分级，**1 码是 100**（`moodflow-coordinator/src/handle_candidate.rs:1065-1067`），2 码 300、≥3 码 1000，混输 / 其它 300（`:1072`）。故首位单键 `z` 的 `has_more` 本就为真，它翻不动的原因是另一条：扩容后引擎仍回 100 条、可见条数不增，`expand_candidates` 判到底（`:2403-2408`）。两条根因叠加，本计划两处都改（Task 2）。
 2. **§11 契约 1「分组键用 pattern 而非 code」**：过滤器与协调器 `apply_filter`（`handle_candidate.rs:2046-2080`）都拿不到 pattern，而一次构建只有一个 pattern ⇒ 「按 pattern 分组」≡「全部 `is_wildcard` 候选一组」。本计划用 `is_wildcard` 实现（`filter.rs` 私有 `SmartGroup`），语义等价、不改公共签名。若控制者要的是字面上把 pattern 传下去，需改 `filter_candidates` 公共签名。
 3. **§11 契约 3「引擎条数未增」没有现成的「上一批引擎条数」**：`State` 只存 `candidate_limit` / `has_more`（`coordinator.rs:647-649`）。本计划写成 `engine_count <= prev_limit`，前提是 `has_more` 只在 `engine_count >= limit` 时置真（`handle_candidate.rs:2286`、`:2411`）。若某引擎回的条数**超过** limit，判据会多扩一轮才停，不会误判到底（Task 2 Step 4 核对点）。
 4. **§11 契约 2「混输主码表通配与字面同拿 `max_candidates`」在代码里已成立**（`mixed/engine.rs:894-901`），挡路的只是主码表内部的固定 100（`codetable/engine.rs:919`、`:933`）。但「通配首批 100 条」一旦对混输生效，**混输首批从 300 缩到 100**，字面半边（拼音）只剩 `truncate_with_pinyin_quota` 的 20 席保底（`mixed/engine.rs:524-567`，`PINYIN_QUOTA_DIVISOR = 5`）。spec 未明说首批 100 是否含混输；本计划按「本串有 pattern 即 100」处理，需控制者确认。
@@ -1202,7 +1202,7 @@ Expected: `clean`、`lock ok`；`--stat` 只含本计划文件结构表里 WindI
 
 ## 自查
 
-- **spec 覆盖**：§11 契约 1（过滤一组、general 照旧、放宽追加、非通配不变）→ Task 1 `SmartGroup` + 3 条单测 + `pure_wildcard_smart_filters_like_general`；Task 3 `mixed_wildcard_smart_filters_like_general`、`page_end_relax_appends_filtered_wildcard_results`、既有 `codetable_filter_scope_consistency` 等。契约 2（去掉 100、硬上限 5000 对齐、首批 100、`has_more` 成立、混输同拿 `max_candidates`、配额不变）→ Task 2 常量 / `convert_wildcard` / `WILDCARD_INITIAL_LIMIT` + `wildcard_hard_cap_matches_expansion_cap_and_zero_is_empty`、`wildcard_respects_single_code_input_and_max_candidates`、`wildcard_primary_follows_max_candidates`、`pure_wildcard_first_batch_is_100_and_expands`；Task 3 `mixed_expansion_keeps_equal_length_wildcard_first`。契约 3（到底判据、所有引擎）→ Task 2 `expand_candidates` + `expand_stop_tests::expansion_continues_past_an_all_filtered_batch`（非通配）。契约 4（不做缓存、不下推）→ 未触碰 wind-dict 与缓存。契约 5（前页移位钉现状、不传 0）→ Task 1 单测、Task 2 `limit == 0` 分支与用例。测试对照：`hanz` / `a??` 首批无生僻且常用在前 → Task 1 / Task 3 两条 `*_filters_like_general`；翻页 `has_more` 与条数增加 → Task 2/3；general 翻页补足 → `general_mode_wildcard_pages_fill_up`；混输扩充后等长在前 → Task 3；末页放宽追加 → Task 3；关闭通配逐键相同 → 既有 `wildcard_off_by_default_changes_nothing`；非通配 smart 分组与扩充不变 → 既有 filter 单测、`codetable_filter_scope_consistency`、`input_flow::test_dynamic_paging_expands_candidates`、`expand_stop_tests`。文档：设置说明核对不改（Task 4 Step 1）、文档站三处、架构 §3.4 / §8.1、spec 状态行。
-- **签名一致性**：`CANDIDATE_LIMIT_CAP: usize`（`wind_engine::engine`，Task 2 定义）被 `WILDCARD_RESULT_LIMIT`（同任务）与 `expand_candidates`（同任务）消费；`WILDCARD_INITIAL_LIMIT: usize`（`crate::wildcard`，`pub(crate)`）只在 `update_candidates` 消费；`SmartGroup::of(&Candidate) -> SmartGroup` 与 `build_has_common(&[Candidate]) -> HashMap<SmartGroup, bool>` 仅 `filter.rs` 内部；`convert_wildcard(&self, &str, &str, usize) -> Option<ConvertResult>` / `filter_candidates(Vec<Candidate>, FilterMode, RarePhrasePolicy) -> FilterOutcome` / `expand_candidates(&self, &mut State)` 签名未变。测试助手 `with_filter` / `triples_with`（Task 1）、`no_relax` / `page_until_more_than` / `VK_NEXT`（Task 2）在 Task 3 消费，定义先于使用。
+- **spec 覆盖**：§11 契约 1（过滤一组、general 照旧、放宽追加、非通配不变）→ Task 1 `SmartGroup` + 3 条单测 + `pure_wildcard_smart_filters_like_general`；Task 3 `mixed_wildcard_smart_filters_like_general`、`page_end_relax_appends_filtered_wildcard_results`、既有 `codetable_filter_scope_consistency` 等。契约 2（去掉 100、硬上限 5000 对齐、首批 100、`has_more` 成立、混输同拿 `max_candidates`、配额不变）→ Task 2 常量 / `convert_wildcard` / `WILDCARD_INITIAL_LIMIT` + `wildcard_hard_cap_matches_expansion_cap_and_zero_is_empty`、`wildcard_respects_single_code_input_and_max_candidates`、`wildcard_primary_follows_max_candidates`、`pure_wildcard_first_batch_is_100_and_expands`；Task 3 `mixed_expansion_keeps_equal_length_wildcard_first`。契约 3（到底判据、所有引擎）→ Task 2 `expand_candidates` + `expand_stop_tests::expansion_continues_past_an_all_filtered_batch`（非通配）。契约 4（不做缓存、不下推）→ 未触碰 moodflow-dict 与缓存。契约 5（前页移位钉现状、不传 0）→ Task 1 单测、Task 2 `limit == 0` 分支与用例。测试对照：`hanz` / `a??` 首批无生僻且常用在前 → Task 1 / Task 3 两条 `*_filters_like_general`；翻页 `has_more` 与条数增加 → Task 2/3；general 翻页补足 → `general_mode_wildcard_pages_fill_up`；混输扩充后等长在前 → Task 3；末页放宽追加 → Task 3；关闭通配逐键相同 → 既有 `wildcard_off_by_default_changes_nothing`；非通配 smart 分组与扩充不变 → 既有 filter 单测、`codetable_filter_scope_consistency`、`input_flow::test_dynamic_paging_expands_candidates`、`expand_stop_tests`。文档：设置说明核对不改（Task 4 Step 1）、文档站三处、架构 §3.4 / §8.1、spec 状态行。
+- **签名一致性**：`CANDIDATE_LIMIT_CAP: usize`（`moodflow_engine::engine`，Task 2 定义）被 `WILDCARD_RESULT_LIMIT`（同任务）与 `expand_candidates`（同任务）消费；`WILDCARD_INITIAL_LIMIT: usize`（`crate::wildcard`，`pub(crate)`）只在 `update_candidates` 消费；`SmartGroup::of(&Candidate) -> SmartGroup` 与 `build_has_common(&[Candidate]) -> HashMap<SmartGroup, bool>` 仅 `filter.rs` 内部；`convert_wildcard(&self, &str, &str, usize) -> Option<ConvertResult>` / `filter_candidates(Vec<Candidate>, FilterMode, RarePhrasePolicy) -> FilterOutcome` / `expand_candidates(&self, &mut State)` 签名未变。测试助手 `with_filter` / `triples_with`（Task 1）、`no_relax` / `page_until_more_than` / `VK_NEXT`（Task 2）在 Task 3 消费，定义先于使用。
 - **占位扫描**：全文无 TBD / TODO / 「类似任务 N」。无法完全确认的细节均写明核对点：Task 1 Step 2（`azz` 首批是否确有生僻字，按词库估算约 6 个）、Task 2 Step 2（自造码表的前缀取数与常用字判定生效）、Task 2 Step 4（混输首批缩小后 §10 用例、引擎超 limit 的情形）、Task 3 Step 3（混输 `azz` 前置、放宽前缀是否落在 `code` 上）、Task 4 Step 1（设置说明是否提条数）。
 - **已知取舍**：Task 3 全部用例在 Task 1/2 之后首跑即绿，是验收与锁，已逐条注明缺哪一任务时会红；Task 1 的 `smart_wildcard_group_without_common_keeps_all_until_common_arrives` 前半在实现前即绿（锁住保底）。到底判据用 `engine_count <= prev_limit` 而非新增状态位，理由见 Task 2 Step 3 注释与「spec 待澄清」3。

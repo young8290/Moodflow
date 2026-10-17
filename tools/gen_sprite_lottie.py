@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """生成天气小精灵的 lottie 动画（07 DS-MOTION-02、16 D-03）。
 
-每种天气一个文件，输出到 xinqing_hub/src/assets/sprite/<weather>.json，画布 96 × 96、30 帧 / 秒，
-用标记（markers）分出五段，由 xinqing_hub/src/components/WeatherSprite.vue 按段播放：
+每种天气一个文件，输出到 moodflow_hub/src/assets/sprite/<weather>.json，画布 96 × 96、30 帧 / 秒，
+用标记（markers）分出五段，由 moodflow_hub/src/components/WeatherSprite.vue 按段播放：
 
     loop      4 秒   循环：呼吸、眨眼，加上各天气配饰的动作（DS-MOTION-02 要求 2–4 秒）
     shake     0.5 秒 晃一下（打错字）
@@ -12,7 +12,7 @@
     sleep     4 秒   闭着眼的循环：呼吸更轻，配饰不动
 
 颜色不写死：每个图层只有一种样式（一种填充或一种描边），图层带 class（lottie 的 `cl`），
-由组件里的 CSS 按设计令牌上色（--xq-w-*、--xq-on-weather、--xq-text-2），深浅色与高对比度跟着令牌走。
+由组件里的 CSS 按设计令牌上色（--mf-w-*、--mf-on-weather、--mf-text-2），深浅色与高对比度跟着令牌走。
 JSON 里的颜色只是占位。形状与原来的 SVG 小精灵一致（坐标单位同 viewBox 0 0 96 96）。
 
 只用标准库：
@@ -30,7 +30,7 @@ import re
 import sys
 from pathlib import Path
 
-OUT = Path(__file__).resolve().parents[1] / "xinqing_hub" / "src" / "assets" / "sprite"
+OUT = Path(__file__).resolve().parents[1] / "moodflow_hub" / "src" / "assets" / "sprite"
 WEATHERS = ["sunny", "wind", "cloudy", "rain", "storm", "night"]
 
 FPS = 30
@@ -50,10 +50,10 @@ EASE_IN = ((0.42, 0.0), (1.0, 1.0))
 
 # 占位颜色（运行时由 CSS 覆盖）
 PLACEHOLDER = {
-    "xq-fill-w": [0.96, 0.76, 0.27, 1],
-    "xq-line-on": [0.17, 0.16, 0.16, 1],
-    "xq-fill-on": [0.17, 0.16, 0.16, 1],
-    "xq-line-text": [0.42, 0.40, 0.37, 1],
+    "mf-fill-w": [0.96, 0.76, 0.27, 1],
+    "mf-line-on": [0.17, 0.16, 0.16, 1],
+    "mf-fill-on": [0.17, 0.16, 0.16, 1],
+    "mf-line-text": [0.42, 0.40, 0.37, 1],
 }
 
 
@@ -330,11 +330,11 @@ class Comp:
 
     def shape(self, name: str, cls: str, items: list[dict], parent: int, pivot: Point = (48, 48),
               width: float = 0, **ks) -> int:
-        """一个只有一种样式的形状图层：cls 决定是填充（xq-fill-*）还是描边（xq-line-*）。"""
+        """一个只有一种样式的形状图层：cls 决定是填充（mf-fill-*）还是描边（mf-line-*）。"""
         ind = self.next_ind
         self.next_ind += 1
         color = static(PLACEHOLDER[cls])
-        if cls.startswith("xq-fill"):
+        if cls.startswith("mf-fill"):
             style = {"ty": "fl", "c": color, "o": static(100), "r": 1, "bm": 0}
         else:
             style = {"ty": "st", "c": color, "o": static(100), "w": static(width), "lc": 2, "lj": 2, "bm": 0}
@@ -396,7 +396,7 @@ class Comp:
             "op": TOTAL,
             "w": 96,
             "h": 96,
-            "nm": f"xq-sprite-{self.weather}",
+            "nm": f"mf-sprite-{self.weather}",
             "ddd": 0,
             "assets": [],
             "layers": list(reversed(self.layers)),
@@ -460,14 +460,14 @@ def build(weather: str) -> dict:
         ),
     )
     body_center = (48.0, 50.0)
-    c.shape("body", "xq-fill-w", [ellipse(48, 50, 30)], breath, body_center)
-    c.shape("body-line", "xq-line-on", [ellipse(48, 50, 30)], breath, body_center, width=1.5)
+    c.shape("body", "mf-fill-w", [ellipse(48, 50, 30)], breath, body_center)
+    c.shape("body-line", "mf-line-on", [ellipse(48, 50, 30)], breath, body_center, width=1.5)
 
     eye_pivot = (48.0, 47.0)
     # 睁着的眼睛：眨眼（4 秒一次，第 92%–100% 之间）；close 段压扁后隐藏
     c.shape(
         "eyes-open",
-        "xq-fill-on",
+        "mf-fill-on",
         [ellipse(38, 47, 3), ellipse(58, 47, 3)],
         breath,
         eye_pivot,
@@ -487,7 +487,7 @@ def build(weather: str) -> dict:
     )
     c.shape(
         "eyes-closed",
-        "xq-line-on",
+        "mf-line-on",
         shapes_of("M34 48q4 4 8 0") + shapes_of("M54 48q4 4 8 0"),
         breath,
         eye_pivot,
@@ -497,14 +497,14 @@ def build(weather: str) -> dict:
     # 专心的两道小眉毛：只在 focus 段出现
     c.shape(
         "focus-brows",
-        "xq-line-on",
+        "mf-line-on",
         shapes_of("M33 39l9 2") + shapes_of("M63 39l-9 2"),
         breath,
         eye_pivot,
         width=2,
         o=keys([(0, 0, None, True), (focus, 100, None, True)]),
     )
-    c.shape("mouth", "xq-line-on", shapes_of("M42 60q6 5 12 0"), breath, (48, 60), width=2)
+    c.shape("mouth", "mf-line-on", shapes_of("M42 60q6 5 12 0"), breath, (48, 60), width=2)
     return c.to_json()
 
 
@@ -524,7 +524,7 @@ def add_accessory(c: Comp, weather: str, figure: int) -> None:
             rays.append(lottie_path({"start": p0, "segs": [(p0, p1, p1)], "closed": False}))
         c.shape(
             "rays",
-            "xq-line-text",
+            "mf-line-text",
             rays,
             figure,
             (48, 48),
@@ -541,8 +541,8 @@ def add_accessory(c: Comp, weather: str, figure: int) -> None:
                 (LOOP, offset_pos(pivot, 0, 0), None, False),
             ]
         )
-        c.shape("cloud", "xq-fill-w", shapes_of(d), figure, pivot, p=drift)
-        c.shape("cloud-line", "xq-line-on", shapes_of(d), figure, pivot, width=1.5, p=drift)
+        c.shape("cloud", "mf-fill-w", shapes_of(d), figure, pivot, p=drift)
+        c.shape("cloud-line", "mf-line-on", shapes_of(d), figure, pivot, width=1.5, p=drift)
     elif weather == "rain":
         # 三滴雨，2 秒落一次，彼此错开 0.7 秒
         for n, (x, y) in enumerate([(22, 80), (48, 84), (74, 80)]):
@@ -554,8 +554,8 @@ def add_accessory(c: Comp, weather: str, figure: int) -> None:
             fade = tiled([(0.0, 0.0, LINEAR), (0.2, 100.0, LINEAR), (0.99, 100.0, LINEAR), (1.0, 0.0, LINEAR)], 60, offset, LOOP)
             pos = keys([(t, offset_pos(pivot, 0, v), e, h) for t, v, e, h in fall])
             op = keys(fade)
-            c.shape(f"drop-{n}", "xq-fill-w", shapes_of(d), figure, pivot, p=pos, o=op)
-            c.shape(f"drop-{n}-line", "xq-line-on", shapes_of(d), figure, pivot, width=1.5, p=pos, o=op)
+            c.shape(f"drop-{n}", "mf-fill-w", shapes_of(d), figure, pivot, p=pos, o=op)
+            c.shape(f"drop-{n}-line", "mf-line-on", shapes_of(d), figure, pivot, width=1.5, p=pos, o=op)
     elif weather == "storm":
         # 闪电每 4 秒暗一下再亮回来（远低于 DS-MOTION-04 的每秒 3 次）
         d = "M76 6 64 28h9l-7 18 18-24h-9l6-16z"
@@ -568,8 +568,8 @@ def add_accessory(c: Comp, weather: str, figure: int) -> None:
                 (LOOP, 100, None, False),
             ]
         )
-        c.shape("bolt", "xq-fill-w", shapes_of(d), figure, (76, 26), o=flash)
-        c.shape("bolt-line", "xq-line-on", shapes_of(d), figure, (76, 26), width=1.5, o=flash)
+        c.shape("bolt", "mf-fill-w", shapes_of(d), figure, (76, 26), o=flash)
+        c.shape("bolt-line", "mf-line-on", shapes_of(d), figure, (76, 26), width=1.5, o=flash)
     elif weather == "night":
         d = "M84 10a12 12 0 1 0 6 20 10 10 0 1 1-6-20z"
         pivot = (84.0, 20.0)
@@ -580,15 +580,15 @@ def add_accessory(c: Comp, weather: str, figure: int) -> None:
                 (LOOP, offset_pos(pivot, 0, 0), None, False),
             ]
         )
-        c.shape("moon", "xq-fill-w", shapes_of(d), figure, pivot, p=bob)
-        c.shape("moon-line", "xq-line-on", shapes_of(d), figure, pivot, width=1.5, p=bob)
+        c.shape("moon", "mf-fill-w", shapes_of(d), figure, pivot, p=bob)
+        c.shape("moon-line", "mf-line-on", shapes_of(d), figure, pivot, width=1.5, p=bob)
     elif weather == "wind":
         # 三道风线，2 秒摆一次，彼此错开 0.3 秒
         for n, d in enumerate(["M4 30h20a5 5 0 1 0-5-5", "M4 40h28", "M4 50h18a5 5 0 1 1-5 5"]):
             pivot = (16.0, 30.0 + 10 * n)
             sway = tiled([(0.0, 0.0, EASE), (0.5, 3.0, EASE), (1.0, 0.0, LINEAR)], 60, n * 9, LOOP)
             pos = keys([(t, offset_pos(pivot, v, 0), e, h) for t, v, e, h in sway])
-            c.shape(f"gust-{n}", "xq-line-text", shapes_of(d), figure, pivot, width=2, p=pos)
+            c.shape(f"gust-{n}", "mf-line-text", shapes_of(d), figure, pivot, width=2, p=pos)
     else:  # pragma: no cover
         raise ValueError(weather)
 

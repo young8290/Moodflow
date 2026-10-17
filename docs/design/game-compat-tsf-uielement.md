@@ -4,8 +4,8 @@
 > 处理不好的游戏直接崩）。TSF 为此定义了 **UI-less 模式**：宿主接管候选绘制，输入法只交数据。
 > 本文记录外部规范要点、仓内现状、设计取舍与实施状态。
 >
-> 相关：`wind_tsf/src/TextService.cpp` UIElement 段、`wind-coordinator/src/handle_uielement.rs`、
-> `wind-ipc/src/protocol.rs` 的 `CMD_UIELEMENT_*`；工具栏的全屏隐藏见 `is_foreground_fullscreen`。
+> 相关：`moodflow_tsf/src/TextService.cpp` UIElement 段、`moodflow-coordinator/src/handle_uielement.rs`、
+> `moodflow-ipc/src/protocol.rs` 的 `CMD_UIELEMENT_*`；工具栏的全屏隐藏见 `is_foreground_fullscreen`。
 >
 > ⛔ **Dota 2（起源2引擎）不在本方案的可达范围内，别再为它调 UIElement 的数据形状。**
 > 它按输入法**身份**白名单决定要不要画候选，与我们交什么数据无关。见 §1.1。
@@ -51,7 +51,7 @@ HKLM\SOFTWARE\Microsoft\CTF\TIP\{CLSID}\LanguageProfile\0x00000804\{profile}
 `DefWindowProc(WM_IME_NOTIFY)` 正是把候选转交给**默认 IME 窗口**的那条路。
 **「左上角那个小窗」与「游戏里没有候选」是同一处的两个后果**，不是两个 bug。
 
-**证据**（`wind_tsf.dota2.42156.log`，同一进程内旁观 sink 同时记录两家）：
+**证据**（`moodflow_tsf.dota2.42156.log`，同一进程内旁观 sink 同时记录两家）：
 
 | | 我们 | QQ五笔 |
 |---|---|---|
@@ -60,7 +60,7 @@ HKLM\SOFTWARE\Microsoft\CTF\TIP\{CLSID}\LanguageProfile\0x00000804\{profile}
 | 处理后的动作 | 嵌套发给 `[IME]`（= `DefWindowProc`） | 当场取候选、返回 0 |
 
 七个输入法、三种表现，与白名单**零例外**对上：QQ五笔 / 微软拼音 / 微软五笔 / 搜狗在表内且正常；
-冰凌（`冰凌输入法`）、小狼毫（`小狼毫`）、我们（`清风输入法`）全不在表内且全都是小窗 + 无候选。
+冰凌（`冰凌输入法`）、小狼毫（`小狼毫`）、我们（`Moodflow 输入法`）全不在表内且全都是小窗 + 无候选。
 
 **⛔ 已实测证伪、别再试的方向**（每条都真机跑过）：
 
@@ -114,8 +114,8 @@ CJK 的假货（`浩浥湡条牥搮汬` 其实是 `imemanager.dll`），别被�
 
 ```
 20(8.076828):  WARNING: File verification failure. Unknown foreign dll.
-               Denied a request to load '\??\C:\Program Files\WindInputDev\wind_tsf_dev.dll'
-DLL load denials: 1, last '\??\C:\Program Files\WindInputDev\wind_tsf_dev.dll'
+               Denied a request to load '\??\C:\Program Files\MoodflowDev\moodflow_tsf_dev.dll'
+DLL load denials: 1, last '\??\C:\Program Files\MoodflowDev\moodflow_tsf_dev.dll'
 ```
 
 判定依据是 `game/bin/win64/` 下三份签名名单（文案 `WARNING: %s Denied a request to load '%s'`
@@ -149,14 +149,14 @@ DLL load denials: 1, last '\??\C:\Program Files\WindInputDev\wind_tsf_dev.dll'
 | QQ五笔 | `System32\IME\QQWubiTSF\` | Tencent，有效 | ❌ | ✅ **可用** |
 | 小狼毫 weasel | `System32\` | ❌ 未签名 | ❌ | ❌ 被拒 |
 | 冰凌 | `Program Files\Iime\` | Keroro，有效 | ❌ | ❌ 被拒 |
-| 清风（改造前） | `Program Files\WindInputDev\` | Certum，有效 | ❌ | ❌ 被拒 |
+| Moodflow（改造前） | `Program Files\MoodflowDev\` | Certum，有效 | ❌ | ❌ 被拒 |
 
 **⇒ 判据是「位于系统目录」AND「有代码签名」，与那 5 条 `AUTH` 无关。**
 佐证：微软自家 inbox IME（`CN=Microsoft Windows`，指纹 `DC91E564…`）也不在那 5 条里，
 却显然能在 CS2 里打字——若 `AUTH` 名单是 IME 的通行证，全体中日韩玩家都没法在游戏里聊天，
 Valve 不可能这么设计。**别再拿那 5 条当判据。**
 
-改造后（DLL 部署到 `System32\IME\WindInput[Dev]\` + Certum 签名）实测：CS2 内输入正常，
+改造后（DLL 部署到 `System32\IME\Moodflow[Dev]\` + Certum 签名）实测：CS2 内输入正常，
 候选窗正常，且 §1.1 的 Dota 2 兼容别名在 CS2 上一并生效（两道闸门都过）。
 
 **⛔ 仍然无效、别再试的方向：**
@@ -189,7 +189,7 @@ Valve 不可能这么设计。**别再拿那 5 条当判据。**
 
 #### 判据：一次日志就能定案
 
-`wind_tsf.dota2.*.log`（`level=trace`）里，那一键只有两行：
+`moodflow_tsf.dota2.*.log`（`level=trace`）里，那一键只有两行：
 
 ```
 OnTestKeyDown: wParam=0x08
@@ -216,7 +216,7 @@ compat.context_status focusSession=? flags=0x80000000 readonly=0 loading=0
   并读 `GetString`（17 次），但**只在组合活跃期间**读、上屏后一次都不读，空串没机会告诉它。
   ★ 副产品：开启后**我们的嵌入编码会显示在游戏的专门小栏里**，与不实现时的显示方式不同
   ——这是真实 UI 差异，要不要采用属产品选择，代码可从 `21c4e33e` 原样捞回。
-- **拆 `UI_LESS_THREAD` / `HOST_DRAWS` 判据**（`wind-ipc/src/protocol.rs`）——无效。
+- **拆 `UI_LESS_THREAD` / `HOST_DRAWS` 判据**（`moodflow-ipc/src/protocol.rs`）——无效。
   不在白名单时 Dota 照样回 `show=0`，声称接管却不画。
 - **用「宿主读不读候选数据」区分会不会画**——无效。两种状态都完整读完
   （`GetUpdatedFlags` → `GetPageIndex` → `GetString`×N），不在白名单时读得**更多**。
@@ -320,18 +320,18 @@ UTF-8 窄串的 VA。⚠️ `0x33E60` 是**文件偏移**，它落在 `.data`（
 
 | 步骤 | `TIP\{CLSID}` | `Description` | 我们键下的 `Dota2CompatAlias` |
 |---|---|---|---|
-| 注册后 | 在 | `清风输入法 (开发版)` | 无 |
+| 注册后 | 在 | `Moodflow 输入法 (开发版)` | 无 |
 | 模拟用户开兼容 | 在 | `搜狗拼音输入法` | `搜狗拼音输入法` |
 | **`regsvr32 /u` 后** | **没了** | **没了** | 还在 |
 | 重新注册 | 在 | ← 取决于判据 | 还在 |
 
 `ITfInputProcessorProfiles::Unregister(CLSID)` 会把整个 TIP 键连同 `Description` 删掉，
-而安装/升级走的正是「先反注册、再注册」（`wind-installer` 的 `UnregisterOldCom` →
+而安装/升级走的正是「先反注册、再注册」（`moodflow-installer` 的 `UnregisterOldCom` →
 `RegisterCom`；`dev.ps1` 的 `Unregister-Tsf` → `Register-Tsf`）。
 
 ⇒ **「读当前 Description 来判断要不要保留别名」在唯一会触发它的场景里必然落空。**
 `_ProfileNameToRegister()` 最初那版（以及更早只认硬编码别名的那版）都栽在这里，
-且毫无痕迹——症状是「升级后语言栏变回清风输入法、游戏里没候选，而设置页仍显示已开启」。
+且毫无痕迹——症状是「升级后语言栏变回 Moodflow 输入法、游戏里没候选，而设置页仍显示已开启」。
 判据改为以 `HKLM\Software\<app>\Dota2CompatAlias` 为准后同一实验已通过。
 
 ### 1.4 ⚠️ 传统 IMM32 宿主：多出一个候选框，还停在第一帧（2026-09-13 定案）
@@ -340,7 +340,7 @@ UTF-8 窄串的 VA。⚠️ `0x33E60` 是**文件偏移**，它落在 `.data`（
 游戏聊天框里**两个候选框**，上屏的字取自我们自己的那个；游戏画的那个只显示第一个码的
 候选，之后再按键也不更新。用户原话：「上個版本不會出現那個藍色候選框」。
 
-#### 证据链（用户日志 `wind_tsf.MapleStory.10508.log` + `wind_input.1.log`，五笔86）
+#### 证据链（用户日志 `moodflow_tsf.MapleStory.10508.log` + `moodflow_input.1.log`，五笔86）
 
 按 `T` → `Y` → `K` 一次组合：
 
@@ -472,7 +472,7 @@ opt-in 静默失效，新枫之谷又变回两个框。回归测试 `the_compat_
 （`RequestFocusCaretAsync` / `SendCaretPositionUpdate` / `OnLayoutChange`），而兜底 timer
 就设在 `SendCaretPositionUpdate` 里面，提前返回连它一起取消——而那个覆盖正是误判时的
 唯一退路。其二，同样的缺口对**判据二（D3D 独占全屏收窗）本来就存在**：DLL 侧对全屏
-一无所知（`wind_tsf/` 全仓搜 `fullscreen`/`exclusive` 零命中），那也是 core 侧的决定、
+一无所知（`moodflow_tsf/` 全仓搜 `fullscreen`/`exclusive` 零命中），那也是 core 侧的决定、
 一样传不到 DLL ⇒ 不是本次新开的一类问题。
 
 ⚠️ **但这一条不是「以后再说」，是带触发条件的跟进项。** 它重新暴露的具体故障是 §1.1 那条
@@ -569,7 +569,7 @@ SDL2 `SDL_windowskeyboard.c`（`UILess_GetCandidateList`）。
 
 ### 4.1 数据通道：拉取模型
 
-三条命令（`wind-ipc/protocol.rs` ↔ `wind_tsf/include/BinaryProtocol.h`）：
+三条命令（`moodflow-ipc/protocol.rs` ↔ `moodflow_tsf/include/BinaryProtocol.h`）：
 
 | 命令 | 方向 | 同步 | 内容 |
 |---|---|---|---|
@@ -716,7 +716,7 @@ SDL2 `SDL_windowskeyboard.c`（`UILess_GetCandidateList`）。
   等于零信息（编码栏根本不画），`app_inline` 不是折中而是唯一有意义的取值，且它就是出厂默认。
 
   > ⚠️ **别援引 R1 的第二条**（「差异可由程序判定 ⇒ 走自动判定」）。那条原文自带后半句
-  > 「**+ compat 覆盖**」，而 `AppCompatRule`（`wind-config/src/app_compat.rs`）今天**没有任何
+  > 「**+ compat 覆盖**」，而 `AppCompatRule`（`moodflow-config/src/app_compat.rs`）今天**没有任何
   > preedit 相关字段**，那个逃生口并不存在——援引它等于承诺了一个没兑现的东西。对照 §1.4
   > 同形状的那次判定：它援引 R1 时 `host_drawn_candidates` 这个 compat 键是配齐了的。
   > 真出现判错的宿主，要补的就是这个 per-app `preedit_display` 覆盖（**尚未实现**）。
@@ -751,11 +751,11 @@ SDL2 `SDL_windowskeyboard.c`（`UILess_GetCandidateList`）。
 `ui.toolbar.hide_in_fullscreen` 门控——同一次探测要给两个缓存位刷值。独占态翻转时
 `notify_ui_update` 一次，该收的收、该弹的弹。
 
-**最后一道闸在 UI 线程**（`wind_keys::foreground::exclusive_fullscreen_recent`，300ms TTL）：
-事件驱动的缓存在「游戏激活之后才切进独占全屏」时会过期，显示命令照发；于是 wind-ui 在
+**最后一道闸在 UI 线程**（`moodflow_keys::foreground::exclusive_fullscreen_recent`，300ms TTL）：
+事件驱动的缓存在「游戏激活之后才切进独占全屏」时会过期，显示命令照发；于是 moodflow-ui 在
 候选窗 / 状态气泡 / 工具栏每次**真正显示前**再问一次前台形态，独占全屏就改 hide。
 Dota 2 实测第一版（只有事件缓存）一输入就弹窗把游戏卡死，这道闸就是为它加的。
-探测函数因此从协调器搬到 wind-keys（wind-ui 不能依赖协调器）。
+探测函数因此从协调器搬到 moodflow-keys（moodflow-ui 不能依赖协调器）。
 
 **不设配置键**：这不是偏好而是物理事实（独占全屏下别的进程的窗口盖不上去，弹出去只剩副作用），
 按 config-design-rules R1「可由程序判定的走自动判定」。误判排查看 info 日志
@@ -763,8 +763,8 @@ Dota 2 实测第一版（只有事件缓存）一输入就弹窗把游戏卡死�
 
 ### 4.6 系统目录部署（Trusted Mode 的解，见 §1.2.1）
 
-TSF DLL 部署到 `%WINDIR%\System32\IME\WindInput[Dev]\`，x86 到
-`%WINDIR%\SysWOW64\IME\WindInput[Dev]\`，**对系统副本** `regsvr32`。
+TSF DLL 部署到 `%WINDIR%\System32\IME\Moodflow[Dev]\`，x86 到
+`%WINDIR%\SysWOW64\IME\Moodflow[Dev]\`，**对系统副本** `regsvr32`。
 `DllRegisterServer` 内的 `GetModuleFileName` 取到的就是系统副本路径，
 `InprocServer32` 与 profile 图标路径**自然指向系统副本**，无需后处理。
 
@@ -772,9 +772,9 @@ TSF DLL 部署到 `%WINDIR%\System32\IME\WindInput[Dev]\`，x86 到
 
 | 路径 | 落点 | 开关 | 默认 |
 |---|---|---|---|
-| 安装器 | `wind-installer` `src/installer/ime.rs` | 清单 `[ime] system_subdir` | 本产品清单已置 `IME/WindInput`；字段空=就地注册 |
+| 安装器 | `moodflow-installer` `src/installer/ime.rs` | 清单 `[ime] system_subdir` | 本产品清单已置 `IME/Moodflow`；字段空=就地注册 |
 | 开发部署 | `scripts/dev.ps1` `Register-Tsf` | 无 | 固定走系统目录 |
-| 便携模式 | `wind-portable` `src/registration.rs` | 便携根目录的 `system_deploy` 标记文件 | **就地注册** |
+| 便携模式 | `moodflow-portable` `src/registration.rs` | 便携根目录的 `system_deploy` 标记文件 | **就地注册** |
 
 **★ 便携模式默认就地，与安装器相反。** 因为 `System32\IME\<AppName>\` 与
 `HKLM\Software\<AppName>\InstallDir` 是**安装版与便携版共用的落点**——路径完全相同，
@@ -791,7 +791,7 @@ TSF DLL 部署到 `%WINDIR%\System32\IME\WindInput[Dev]\`，x86 到
 `GetModuleFileName` 只能取到系统副本路径，**推不出安装目录**——而服务拉起
 （`IPCClient::_StartService`）与便携标记检测都需要安装目录。三个部署方在 `regsvr32`
 **之前**写该键（注册一完成宿主就可能加载 DLL，那时键还不在就会白走一次）；
-读端 `wind_tsf/src/IPCClient.cpp` 的 `_ResolveAppBaseDir`，键缺失时回退到 DLL 自身目录，
+读端 `moodflow_tsf/src/IPCClient.cpp` 的 `_ResolveAppBaseDir`，键缺失时回退到 DLL 自身目录，
 兼容就地注册的存量部署。
 
 **★ 便携模式的归属判据必须换。** 系统副本对同一变体的**所有实例路径完全相同**，
@@ -825,31 +825,31 @@ TSF DLL 部署到 `%WINDIR%\System32\IME\WindInput[Dev]\`，x86 到
 
 ## 6. 涉及文件
 
-- `wind-ipc/src/protocol.rs`、`codec.rs`：常量、`UiElementStatePayload/ActionPayload/Page`、编解码 + 往返测试。
-- `wind-bridge/src/handler.rs`、`deferred.rs`、`server.rs`：trait 三方法、转发、分发 + 测试。
-- `wind-coordinator/src/handle_uielement.rs`（新）、`coordinator.rs`（两个字段 + `notify_ui_update` 守卫）、
+- `moodflow-ipc/src/protocol.rs`、`codec.rs`：常量、`UiElementStatePayload/ActionPayload/Page`、编解码 + 往返测试。
+- `moodflow-bridge/src/handler.rs`、`deferred.rs`、`server.rs`：trait 三方法、转发、分发 + 测试。
+- `moodflow-coordinator/src/handle_uielement.rs`（新）、`coordinator.rs`（两个字段 + `notify_ui_update` 守卫）、
   `handle_menu.rs`（探测线程刷两个缓存位）、`coordinator/message_handler.rs`（trait impl + 清账 +
   `preedit_uses_placeholder` 里的压制态强制嵌入编码，见 §4.4 末）、`lib.rs`（`FullscreenKind`）。
-- `wind_tsf/include/BinaryProtocol.h`、`IPCClient.h`、`src/IPCClient.cpp`（PAGE 解析）、
+- `moodflow_tsf/include/BinaryProtocol.h`、`IPCClient.h`、`src/IPCClient.cpp`（PAGE 解析）、
   `include/TextService.h`、`src/TextService.cpp`（UIElement 段重写、ActivateEx/Deactivate 接线）。
 
 系统目录部署（§4.6），跨三仓：
 
-- `wind_tsf/include/Globals.h`：`WIND_APP_NAME` / `WIND_APP_REGKEY` / `WIND_SERVICE_EXE`
+- `moodflow_tsf/include/Globals.h`：`MOODFLOW_APP_NAME` / `MOODFLOW_APP_REGKEY` / `MOODFLOW_SERVICE_EXE`
   三个变体宏；`src/IPCClient.cpp` 的 `_ResolveAppBaseDir` + `_StartService` 改读注册表
-  （顺带修掉「Dev 版读 release 的 `Software\WindInput` 键」这个既有变体缺陷）。
+  （顺带修掉「Dev 版读 release 的 `Software\Moodflow` 键」这个既有变体缺陷）。
 - `scripts/dev.ps1`：`Get-TsfSystemDir` / `Get-AppRegKey` / `Register-Tsf` / `Unregister-Tsf`；
   `Set-TomlKeysInSection`（清单 `[ime]` 段改稀疏替换，顺带修掉 `sweep_residue` 被整段
   替换静默丢弃的既有缺陷）。
 - `config/app.toml`：`[ime] system_subdir`。
-- `wind-installer`：`src/manifest.rs`（字段）、`src/installer/ime.rs`（部署/反注册/收目录、
+- `moodflow-installer`：`src/manifest.rs`（字段）、`src/installer/ime.rs`（部署/反注册/收目录、
   `system_subdir` 的路径穿越守卫）、`src/installer/registry.rs`（`set_install_dir`）、`app.toml`。
-- `wind-portable`：`src/registration.rs`（系统副本部署、`InstallDir` 所有权凭据、
+- `moodflow-portable`：`src/registration.rs`（系统副本部署、`InstallDir` 所有权凭据、
   `is_registered` 与 `installed_conflict` 的归属判据换轨）。
 
 ## 7. 验证
 
-已做：wind-ipc / wind-bridge / wind-coordinator 单测（编解码往返、分发、按 pid 压窗、快照分页、
+已做：moodflow-ipc / moodflow-bridge / moodflow-coordinator 单测（编解码往返、分发、按 pid 压窗、快照分页、
 动作、独占全屏位）；DLL x64 Release 编译。
 
 **本机可复现的 UI-less 宿主**：`dist/uiless_host.exe`（源码 `dist/uiless_host.cpp`，单文件

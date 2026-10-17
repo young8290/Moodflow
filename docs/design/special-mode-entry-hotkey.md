@@ -12,7 +12,7 @@ Rust 版的特殊模式（自定义码表 / 快符 / 生僻字等，`schema.spec
 ### 交付边界
 
 - **本仓（core）**：配置字段 + 热键编译 + 协调器分发，复用现有热键基座与已有的模式进入函数。
-- **wind-setting（独立原生程序仓）**：设置界面暴露这两个热键字段的 UI 不在本仓范围（同「输入诊断 HUD」的边界约定）。
+- **moodflow-setting（独立原生程序仓）**：设置界面暴露这两个热键字段的 UI 不在本仓范围（同「输入诊断 HUD」的边界约定）。
 
 ## 已定决策（本轮 brainstorming）
 
@@ -57,12 +57,12 @@ HotkeyEntry{ tsf_hash: raw|CHINESE_ONLY|GLOBAL,
   hotkey = "ctrl+shift+p"        # ← 新增；空串=不注册
 ```
 
-- `SpecialModeConfig`（`wind-config/src/config.rs`）新增 `#[serde(default)] pub hotkey: String`。
+- `SpecialModeConfig`（`moodflow-config/src/config.rs`）新增 `#[serde(default)] pub hotkey: String`。
 - `TempPinyinConfig`（同文件）新增 `#[serde(default)] pub hotkey: String`。
 - `config_schema.rs`：`schema.special_modes` 已是 `StructList` 不透明叶子，内部新增字段透明无需登记；**只需补一条** `f("input.temp_pinyin.hotkey", Str)`（供设置程序识别该叶子）。
 - **引用完整性天然成立**：hotkey 就长在模式上，不存在悬空 id 需要校验——这是「绑模式」相对「独立映射表」的核心红利。
 
-## B. 编译（`wind-config/src/hotkey.rs::Compiler::compile`）
+## B. 编译（`moodflow-config/src/hotkey.rs::Compiler::compile`）
 
 紧跟现有加词键段的范式，新增两段：
 
@@ -72,7 +72,7 @@ HotkeyEntry{ tsf_hash: raw|CHINESE_ONLY|GLOBAL,
 - **id 约束**：`enter_special:<id>` 用 `SpecialModeConfig.id`；id 为空的模式跳过（无法被分发定位）。
 - **冲突检测**：v1 不做显式热键冲突检测（与现有热键字段一致，last-wins），YAGNI。
 
-## C. 分发（`wind-coordinator/src/coordinator.rs` 的 `match_key_down` 调用点，约 3315 行）
+## C. 分发（`moodflow-coordinator/src/coordinator.rs` 的 `match_key_down` 调用点，约 3315 行）
 
 现状：该点已对 `add_word` / `open_add_word_dialog` 做**调用点特判**（因它们需 `&mut State` 并返回 `KeyAction`），其余 action 走 `dispatch_hotkey`。进入模式同样需 state + 返回 KeyAction，故放此处：
 
@@ -100,11 +100,11 @@ HotkeyEntry{ tsf_hash: raw|CHINESE_ONLY|GLOBAL,
 
 ## E. 涉及文件
 
-- `wind-config/src/config.rs`：`SpecialModeConfig` / `TempPinyinConfig` 各加 `hotkey: String`。
-- `wind-config/src/config_schema.rs`：补 `f("input.temp_pinyin.hotkey", Str)`。
-- `wind-config/src/hotkey.rs`：`compile()` 新增 special_modes / temp_pinyin 两段编译。
-- `wind-coordinator/src/coordinator.rs`：`match_key_down` 调用点新增 `enter_special:<id>` / `enter_temp_pinyin` 两分支。
-- （必要时）`wind-coordinator/src/handle_special.rs`：若采用 `Option<char>` 显式前缀参数则微调 `enter_special_mode` 签名。
+- `moodflow-config/src/config.rs`：`SpecialModeConfig` / `TempPinyinConfig` 各加 `hotkey: String`。
+- `moodflow-config/src/config_schema.rs`：补 `f("input.temp_pinyin.hotkey", Str)`。
+- `moodflow-config/src/hotkey.rs`：`compile()` 新增 special_modes / temp_pinyin 两段编译。
+- `moodflow-coordinator/src/coordinator.rs`：`match_key_down` 调用点新增 `enter_special:<id>` / `enter_temp_pinyin` 两分支。
+- （必要时）`moodflow-coordinator/src/handle_special.rs`：若采用 `Option<char>` 显式前缀参数则微调 `enter_special_mode` 签名。
 
 ## F. 测试
 
@@ -131,5 +131,5 @@ Rust 单测：
 
 - 不做热键冲突检测/提示 UI（另有 quick-input 触发键冲突检测 spec，属别的功能域）。
 - 不做 toggle 退出、不做英文模式强行切中文再进入。
-- 设置界面归 `wind-setting` 独立仓，本设计只交付 core 逻辑 + 配置字段。
+- 设置界面归 `moodflow-setting` 独立仓，本设计只交付 core 逻辑 + 配置字段。
 - 不新增 IPC 命令 / 窗口 / RPC。

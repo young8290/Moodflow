@@ -187,11 +187,11 @@ z-fallback 路径尤其要还：那里的 `z` 是从 `input_buffer` 里**抢走*
 
 ## 测试
 
-`crates/wind-coordinator/tests/input_flow.rs`，四条路径各一个 `*_nonempty_enter_clear_discards`，外加两个 `*_nonempty_enter_commit_still_outputs_code` 对照组。
+`crates/moodflow-coordinator/tests/input_flow.rs`，四条路径各一个 `*_nonempty_enter_clear_discards`，外加两个 `*_nonempty_enter_commit_still_outputs_code` 对照组。
 
 两个约束，改动本节测试时务必保留：
 
 1. **必须先断言「确实进入了该模式」**。触发键若未生效，按键会落到主输入路径，而主输入路径的 `clear` 同样返回 `ClearComposition` —— 不验证进入就是假绿。
 2. **对照组不可删**。没有 `commit` 模式的对照，无法区分「配置生效」与「该模式回车本来就不上屏」。
 
-> 注：该测试族依赖仓库根 `build_dev/data`（`has_schemas()` 为假时全部静默 `return`，测试显示 ok）。全量 `cargo test -p wind-coordinator` 真跑约 1.6s，**0.0x s 即假绿**。另该测试族会真写 `%APPDATA%\WindInput\config.toml` 的 `schema.active`，跑完须核对。
+> 注：该测试族依赖仓库根 `build_dev/data`（`has_schemas()` 为假时全部静默 `return`，测试显示 ok）。全量 `cargo test -p moodflow-coordinator` 真跑约 1.6s，**0.0x s 即假绿**。另该测试族会真写 `%APPDATA%\Moodflow\config.toml` 的 `schema.active`，跑完须核对。

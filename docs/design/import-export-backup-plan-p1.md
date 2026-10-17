@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: 用 superpowers:subagent-driven-development(推荐)或 superpowers:executing-plans 按任务逐条实现。步骤用 `- [ ]` 复选框跟踪。
 
-**Goal:** 搭好导入导出/备份还原的复用底座——通用 wdict 编解码(含用户词段)、`wind-transfer` 新 crate 的 Bundle 归档(manifest + zip)与合并引擎骨架——为后续 P2 词库、P3 方案包、P4 整机备份提供地基。
+**Goal:** 搭好导入导出/备份还原的复用底座——通用 wdict 编解码(含用户词段)、`moodflow-transfer` 新 crate 的 Bundle 归档(manifest + zip)与合并引擎骨架——为后续 P2 词库、P3 方案包、P4 整机备份提供地基。
 
-**Architecture:** 编解码层就地留在 `wind-store`(与其序列化的 redb 表同处,`wind-transfer` 依赖 `wind-store`,规避循环依赖)。新增 `wind-transfer` crate 承载 Bundle(zip+manifest)与 Merge(策略/dry-run)骨架。本计划不涉及 RPC 与 UI(那在 P2+)。
+**Architecture:** 编解码层就地留在 `moodflow-store`(与其序列化的 redb 表同处,`moodflow-transfer` 依赖 `moodflow-store`,规避循环依赖)。新增 `moodflow-transfer` crate 承载 Bundle(zip+manifest)与 Merge(策略/dry-run)骨架。本计划不涉及 RPC 与 UI(那在 P2+)。
 
 **Tech Stack:** Rust(edition 2021)、redb、`zip` crate、serde/serde_json、anyhow。
 
@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- 工作目录:所有 `cargo` 命令在 `wind_input/` 下执行(workspace 根)。
+- 工作目录:所有 `cargo` 命令在 `moodflow_input/` 下执行(workspace 根)。
 - 代码风格:提交前 `cargo fmt`;文档注释用简体中文,与既有 crate 风格一致。
 - 提交信息:conventional commit,**不带** Co-Authored-By 与 Constraint/Confidence/Tested 等 AI trailer。
 - 日志:INFO 及以下级别不得含用户敏感信息(词条内容、编码)。
@@ -24,7 +24,7 @@
 ### Task 1: 通用化 wdict codec —— 新增 user_words 段
 
 **Files:**
-- Modify: `wind_input/crates/wind-store/src/wdict.rs`(在 phrases 段之后追加 words 段)
+- Modify: `moodflow_input/crates/moodflow-store/src/wdict.rs`(在 phrases 段之后追加 words 段)
 
 **Interfaces:**
 - Consumes: 复用现有 `escape_field` / `unescape_field` / `find_section_body`(同文件私有函数)。
@@ -45,7 +45,7 @@ fn words_wdict_roundtrip() {
         WordIo { code: "ml".into(), text: "多行\n带\t制表".into(), weight: 0 },
     ];
     let s = export_words_wdict(&rows, "2026-07-11T00:00:00+08:00");
-    assert!(s.contains("wind_dict:"));
+    assert!(s.contains("moodflow_dict:"));
     assert!(s.contains("--- !words"));
     let (parsed, skipped) = parse_words_wdict(&s).unwrap();
     assert_eq!(skipped, 0);
@@ -54,13 +54,13 @@ fn words_wdict_roundtrip() {
 
 #[test]
 fn words_parse_rejects_bad_version() {
-    let bad = "wind_dict:\n  version: 2\n\n--- !words\na\t工\t1\n";
+    let bad = "moodflow_dict:\n  version: 2\n\n--- !words\na\t工\t1\n";
     assert!(parse_words_wdict(bad).is_err(), "version!=1 应拒绝");
 }
 
 #[test]
 fn words_parse_tolerates_bad_lines() {
-    let s = "wind_dict:\n  version: 1\n  sections:\n    words:\n      columns: [code, text, weight]\n\n--- !words\nok\t好\t10\nbadline_no_tabs\nkw\t坏权重\tNaN\n";
+    let s = "moodflow_dict:\n  version: 1\n  sections:\n    words:\n      columns: [code, text, weight]\n\n--- !words\nok\t好\t10\nbadline_no_tabs\nkw\t坏权重\tNaN\n";
     let (rows, skipped) = parse_words_wdict(s).unwrap();
     assert_eq!(rows.len(), 2);
     assert_eq!(skipped, 1, "列数不足的行跳过");
@@ -70,7 +70,7 @@ fn words_parse_tolerates_bad_lines() {
 
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `cd wind_input && cargo test -p wind-store wdict::tests::words_ -- --nocapture`
+Run: `cd moodflow_input && cargo test -p moodflow-store wdict::tests::words_ -- --nocapture`
 Expected: 编译错误 / FAIL,`WordIo` / `export_words_wdict` 未定义。
 
 - [ ] **Step 3: 实现 words 段(镜像 phrases)**
@@ -91,10 +91,10 @@ const WORD_COLUMNS: &[&str] = &["code", "text", "weight"];
 /// 导出 words 为 wdict 文本(YAML 头 + `--- !words` TSV 段)。
 pub fn export_words_wdict(rows: &[WordIo], exported_at: &str) -> String {
     let mut s = String::new();
-    s.push_str("# WindInput 用户数据文件\n");
-    s.push_str("wind_dict:\n");
+    s.push_str("# Moodflow 用户数据文件\n");
+    s.push_str("moodflow_dict:\n");
     s.push_str("  version: 1\n");
-    s.push_str("  generator: WindInput\n");
+    s.push_str("  generator: Moodflow\n");
     s.push_str(&format!("  exported_at: {exported_at}\n"));
     s.push_str("  sections:\n");
     s.push_str("    words:\n");
@@ -114,15 +114,15 @@ pub fn export_words_wdict(rows: &[WordIo], exported_at: &str) -> String {
 /// 解析 wdict 文本的 words 段。返回 (行, 跳过的非法行数)。只认 version==1。
 pub fn parse_words_wdict(text: &str) -> Result<(Vec<WordIo>, usize), String> {
     let header = text.split("\n---").next().unwrap_or("");
-    if !header.contains("wind_dict:") {
-        return Err("不是 WindDict 文件(缺 wind_dict 头)".into());
+    if !header.contains("moodflow_dict:") {
+        return Err("不是 MoodflowDict 文件(缺 moodflow_dict 头)".into());
     }
     let version_ok = header.lines().any(|l| {
         let t = l.trim();
         t.starts_with("version:") && t.trim_start_matches("version:").trim() == "1"
     });
     if !version_ok {
-        return Err("不支持的 WindDict 版本(需 version: 1)".into());
+        return Err("不支持的 MoodflowDict 版本(需 version: 1)".into());
     }
     let Some(after_tag) = find_section_body(text, "words") else {
         return Ok((Vec::new(), 0));
@@ -178,13 +178,13 @@ fn words_columns_from_header(header: &str) -> Vec<String> {
 
 - [ ] **Step 4: 跑测试确认通过**
 
-Run: `cd wind_input && cargo test -p wind-store wdict`
+Run: `cd moodflow_input && cargo test -p moodflow-store wdict`
 Expected: PASS(含既有 phrases 测试仍绿)。
 
 - [ ] **Step 5: 提交**
 
 ```bash
-git add wind_input/crates/wind-store/src/wdict.rs
+git add moodflow_input/crates/moodflow-store/src/wdict.rs
 git commit -m "feat(store): wdict 新增 words 段编解码"
 ```
 
@@ -193,7 +193,7 @@ git commit -m "feat(store): wdict 新增 words 段编解码"
 ### Task 2: store 侧用户词整库导出/导入(wdict)
 
 **Files:**
-- Modify: `wind_input/crates/wind-store/src/user_words.rs`(在 `impl Store` 内追加两个方法 + 一个全量迭代辅助)
+- Modify: `moodflow_input/crates/moodflow-store/src/user_words.rs`(在 `impl Store` 内追加两个方法 + 一个全量迭代辅助)
 - Test: 同文件 `mod tests`
 
 **Interfaces:**
@@ -209,7 +209,7 @@ git commit -m "feat(store): wdict 新增 words 段编解码"
 ```rust
 #[test]
 fn export_import_user_words_roundtrip() {
-    let path = tmp("wind_uw_io.redb");
+    let path = tmp("moodflow_uw_io.redb");
     let s = Store::open(&path).unwrap();
     s.add_user_word("wb", "a", "工", 100).unwrap();
     s.add_user_word("wb", "ml", "多行\n带\t制表", 5).unwrap();
@@ -219,7 +219,7 @@ fn export_import_user_words_roundtrip() {
     assert!(text.contains("--- !words"));
 
     // 导入到新库应还原
-    let path2 = tmp("wind_uw_io2.redb");
+    let path2 = tmp("moodflow_uw_io2.redb");
     let s2 = Store::open(&path2).unwrap();
     let (imported, skipped) = s2.import_user_words_wdict("wb", &text).unwrap();
     assert_eq!(skipped, 0);
@@ -233,7 +233,7 @@ fn export_import_user_words_roundtrip() {
 
 #[test]
 fn import_user_words_merges_max_weight() {
-    let path = tmp("wind_uw_merge.redb");
+    let path = tmp("moodflow_uw_merge.redb");
     let s = Store::open(&path).unwrap();
     s.add_user_word("wb", "a", "工", 100).unwrap();
     // 导入同词更低权重 → 保持 max(100)
@@ -250,7 +250,7 @@ fn import_user_words_merges_max_weight() {
 
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `cd wind_input && cargo test -p wind-store user_words::tests::export_import -- --nocapture`
+Run: `cd moodflow_input && cargo test -p moodflow-store user_words::tests::export_import -- --nocapture`
 Expected: FAIL,`export_user_words_wdict` 未定义。
 
 - [ ] **Step 3: 实现两个方法**
@@ -295,25 +295,25 @@ Expected: FAIL,`export_user_words_wdict` 未定义。
 
 - [ ] **Step 4: 跑测试确认通过**
 
-Run: `cd wind_input && cargo test -p wind-store user_words`
+Run: `cd moodflow_input && cargo test -p moodflow-store user_words`
 Expected: PASS(既有 user_words 测试仍绿)。
 
 - [ ] **Step 5: 提交**
 
 ```bash
-git add wind_input/crates/wind-store/src/user_words.rs
+git add moodflow_input/crates/moodflow-store/src/user_words.rs
 git commit -m "feat(store): 用户词整库 wdict 导出/导入(Merge)"
 ```
 
 ---
 
-### Task 3: 新建 `wind-transfer` crate + manifest 类型与校验
+### Task 3: 新建 `moodflow-transfer` crate + manifest 类型与校验
 
 **Files:**
-- Create: `wind_input/crates/wind-transfer/Cargo.toml`
-- Create: `wind_input/crates/wind-transfer/src/lib.rs`
-- Create: `wind_input/crates/wind-transfer/src/bundle.rs`
-- Modify: `wind_input/Cargo.toml`(workspace `members` 追加 `crates/wind-transfer`)
+- Create: `moodflow_input/crates/moodflow-transfer/Cargo.toml`
+- Create: `moodflow_input/crates/moodflow-transfer/src/lib.rs`
+- Create: `moodflow_input/crates/moodflow-transfer/src/bundle.rs`
+- Modify: `moodflow_input/Cargo.toml`(workspace `members` 追加 `crates/moodflow-transfer`)
 
 **Interfaces:**
 - Produces:
@@ -321,22 +321,22 @@ git commit -m "feat(store): 用户词整库 wdict 导出/导入(Merge)"
   - `pub struct ContentEntry { pub r#type: String, pub path: String, pub meta: serde_json::Value }`
   - `pub struct Manifest { pub format: String, pub kind: BundleKind, pub spec_version: u32, pub app_version: String, pub platform: String, pub created_at: String, pub contents: Vec<ContentEntry> }`
   - `pub const SPEC_VERSION: u32 = 1;`
-  - `pub const FORMAT_TAG: &str = "windinput-bundle";`
+  - `pub const FORMAT_TAG: &str = "moodflow-bundle";`
   - `impl Manifest { pub fn new(kind: BundleKind, app_version: &str, platform: &str, created_at: &str) -> Self; pub fn validate(&self) -> anyhow::Result<()> }`(validate:format 匹配、spec_version<=SPEC_VERSION,否则 Err)
 
 - [ ] **Step 1: 建 crate 骨架与依赖**
 
-`wind_input/crates/wind-transfer/Cargo.toml`:
+`moodflow_input/crates/moodflow-transfer/Cargo.toml`:
 
 ```toml
 [package]
-name = "wind-transfer"
+name = "moodflow-transfer"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-wind-store = { path = "../wind-store" }
-wind-config = { path = "../wind-config" }
+moodflow-store = { path = "../moodflow-store" }
+moodflow-config = { path = "../moodflow-config" }
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -346,24 +346,24 @@ zip = "2"
 tempfile = "3"
 ```
 
-> 若 workspace 用统一版本表(`[workspace.dependencies]`),改为 `anyhow.workspace = true` 等,与相邻 crate 的 Cargo.toml 保持一致——实现时先看 `crates/wind-store/Cargo.toml` 的写法照抄。
+> 若 workspace 用统一版本表(`[workspace.dependencies]`),改为 `anyhow.workspace = true` 等,与相邻 crate 的 Cargo.toml 保持一致——实现时先看 `crates/moodflow-store/Cargo.toml` 的写法照抄。
 
-`wind_input/crates/wind-transfer/src/lib.rs`:
+`moodflow_input/crates/moodflow-transfer/src/lib.rs`:
 
 ```rust
 //! 导入导出/备份还原的复用底座:Bundle(manifest + zip)与 Merge 骨架。
-//! 编解码在 wind-store(与 redb 表同处);本 crate 负责聚合打包与合并策略。
+//! 编解码在 moodflow-store(与 redb 表同处);本 crate 负责聚合打包与合并策略。
 pub mod bundle;
 // pub mod merge;  // Task 5 创建 merge.rs 时取消注释
 ```
 
 > 注:`merge` 模块在 Task 5 才创建,此处先不声明,以免 Task 3 的 `cargo build` 因缺文件失败。
 
-在 `wind_input/Cargo.toml` 的 `[workspace] members` 列表内追加一行 `"crates/wind-transfer"`(位置按字母序,紧邻 `crates/wind-theme` 之后)。
+在 `moodflow_input/Cargo.toml` 的 `[workspace] members` 列表内追加一行 `"crates/moodflow-transfer"`(位置按字母序,紧邻 `crates/moodflow-theme` 之后)。
 
 - [ ] **Step 2: 写失败测试**
 
-`wind_input/crates/wind-transfer/src/bundle.rs`(先只写 tests,类型下一步补):
+`moodflow_input/crates/moodflow-transfer/src/bundle.rs`(先只写 tests,类型下一步补):
 
 ```rust
 #[cfg(test)]
@@ -398,7 +398,7 @@ mod tests {
 
 - [ ] **Step 3: 跑测试确认失败**
 
-Run: `cd wind_input && cargo test -p wind-transfer bundle`
+Run: `cd moodflow_input && cargo test -p moodflow-transfer bundle`
 Expected: 编译错误,`Manifest` 等未定义。
 
 - [ ] **Step 4: 实现 manifest 类型与校验**
@@ -409,7 +409,7 @@ Expected: 编译错误,`Manifest` 等未定义。
 use serde::{Deserialize, Serialize};
 
 pub const SPEC_VERSION: u32 = 1;
-pub const FORMAT_TAG: &str = "windinput-bundle";
+pub const FORMAT_TAG: &str = "moodflow-bundle";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -454,11 +454,11 @@ impl Manifest {
     /// 校验:format 与 FORMAT_TAG 一致,且 spec_version 不高于当前支持版本。
     pub fn validate(&self) -> anyhow::Result<()> {
         if self.format != FORMAT_TAG {
-            anyhow::bail!("非 WindInput 归档(format={})", self.format);
+            anyhow::bail!("非 Moodflow 归档(format={})", self.format);
         }
         if self.spec_version > SPEC_VERSION {
             anyhow::bail!(
-                "归档版本过高(spec_version={},当前支持 {}),请升级 WindInput",
+                "归档版本过高(spec_version={},当前支持 {}),请升级 Moodflow",
                 self.spec_version,
                 SPEC_VERSION
             );
@@ -470,14 +470,14 @@ impl Manifest {
 
 - [ ] **Step 5: 跑测试确认通过 + 构建 workspace**
 
-Run: `cd wind_input && cargo test -p wind-transfer bundle && cargo build`
+Run: `cd moodflow_input && cargo test -p moodflow-transfer bundle && cargo build`
 Expected: PASS;workspace 构建成功(新成员已登记)。
 
 - [ ] **Step 6: 提交**
 
 ```bash
-git add wind_input/Cargo.toml wind_input/crates/wind-transfer/
-git commit -m "feat(transfer): 新增 wind-transfer crate 与 Bundle manifest"
+git add moodflow_input/Cargo.toml moodflow_input/crates/moodflow-transfer/
+git commit -m "feat(transfer): 新增 moodflow-transfer crate 与 Bundle manifest"
 ```
 
 ---
@@ -485,7 +485,7 @@ git commit -m "feat(transfer): 新增 wind-transfer crate 与 Bundle manifest"
 ### Task 4: Bundle zip 打包/解包 + 免解压读 manifest
 
 **Files:**
-- Modify: `wind_input/crates/wind-transfer/src/bundle.rs`
+- Modify: `moodflow_input/crates/moodflow-transfer/src/bundle.rs`
 
 **Interfaces:**
 - Consumes: `Manifest`(Task 3);`zip` crate。
@@ -535,7 +535,7 @@ fn read_manifest_rejects_bad_bundle() {
 
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `cd wind_input && cargo test -p wind-transfer bundle::tests::bundle_write -- --nocapture`
+Run: `cd moodflow_input && cargo test -p moodflow-transfer bundle::tests::bundle_write -- --nocapture`
 Expected: FAIL,`BundleWriter` 未定义。
 
 - [ ] **Step 3: 实现 zip 读写**
@@ -615,13 +615,13 @@ pub fn extract_entry(path: &Path, name: &str) -> anyhow::Result<Vec<u8>> {
 
 - [ ] **Step 4: 跑测试确认通过**
 
-Run: `cd wind_input && cargo test -p wind-transfer bundle`
+Run: `cd moodflow_input && cargo test -p moodflow-transfer bundle`
 Expected: PASS。
 
 - [ ] **Step 5: 提交**
 
 ```bash
-git add wind_input/crates/wind-transfer/src/bundle.rs
+git add moodflow_input/crates/moodflow-transfer/src/bundle.rs
 git commit -m "feat(transfer): Bundle zip 打包/解包与免解压读 manifest"
 ```
 
@@ -630,7 +630,7 @@ git commit -m "feat(transfer): Bundle zip 打包/解包与免解压读 manifest"
 ### Task 5: 合并引擎骨架(Strategy + 导入结果 + dry-run 类型)
 
 **Files:**
-- Create: `wind_input/crates/wind-transfer/src/merge.rs`
+- Create: `moodflow_input/crates/moodflow-transfer/src/merge.rs`
 
 **Interfaces:**
 - Produces:
@@ -642,7 +642,7 @@ git commit -m "feat(transfer): Bundle zip 打包/解包与免解压读 manifest"
 
 - [ ] **Step 1: 声明模块 + 写失败测试**
 
-先在 `wind_input/crates/wind-transfer/src/lib.rs` 取消注释(或追加)`pub mod merge;`(否则测试文件不会被编译,Step 2 无法看到"Strategy 未定义"的失败)。再创建 `wind_input/crates/wind-transfer/src/merge.rs`:
+先在 `moodflow_input/crates/moodflow-transfer/src/lib.rs` 取消注释(或追加)`pub mod merge;`(否则测试文件不会被编译,Step 2 无法看到"Strategy 未定义"的失败)。再创建 `moodflow_input/crates/moodflow-transfer/src/merge.rs`:
 
 ```rust
 #[cfg(test)]
@@ -675,7 +675,7 @@ mod tests {
 
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `cd wind_input && cargo test -p wind-transfer merge`
+Run: `cd moodflow_input && cargo test -p moodflow-transfer merge`
 Expected: FAIL,`Strategy` 未定义。
 
 - [ ] **Step 3: 实现类型**
@@ -729,13 +729,13 @@ pub struct ImportPreview {
 
 - [ ] **Step 4: 跑测试确认通过**
 
-Run: `cd wind_input && cargo test -p wind-transfer`
+Run: `cd moodflow_input && cargo test -p moodflow-transfer`
 Expected: PASS(bundle + merge 全绿)。
 
 - [ ] **Step 5: 提交**
 
 ```bash
-git add wind_input/crates/wind-transfer/src/merge.rs
+git add moodflow_input/crates/moodflow-transfer/src/merge.rs
 git commit -m "feat(transfer): 合并策略与导入结果/预览类型"
 ```
 
@@ -743,14 +743,14 @@ git commit -m "feat(transfer): 合并策略与导入结果/预览类型"
 
 ## P1 收尾验证
 
-- [ ] `cd wind_input && cargo test -p wind-store -p wind-transfer` 全绿。
-- [ ] `cd wind_input && cargo build` 成功(workspace 含新成员)。
-- [ ] `cd wind_input && cargo fmt --check`(或 `cargo fmt` 后无 diff)。
+- [ ] `cd moodflow_input && cargo test -p moodflow-store -p moodflow-transfer` 全绿。
+- [ ] `cd moodflow_input && cargo build` 成功(workspace 含新成员)。
+- [ ] `cd moodflow_input && cargo fmt --check`(或 `cargo fmt` 后无 diff)。
 
 ## P1 完成后交付物
 
-- `wind-store` 具备用户词整库 wdict 导出/导入(Merge)。
-- `wind-transfer` crate 就位:Bundle(manifest+zip 打包/解包/免解压读)、Merge 策略与结果类型。
+- `moodflow-store` 具备用户词整库 wdict 导出/导入(Merge)。
+- `moodflow-transfer` crate 就位:Bundle(manifest+zip 打包/解包/免解压读)、Merge 策略与结果类型。
 - 为 P2(词库 RPC)、P3(方案包)、P4(整机备份)提供全部底层积木。
 
 ## 后续计划(待 P1 落地后各自成计划)

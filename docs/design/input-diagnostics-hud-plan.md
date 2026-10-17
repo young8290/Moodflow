@@ -4,9 +4,9 @@
 
 **Goal:** 新增 DLL→服务端 禁用态上报链路 + 右键菜单可切换的实时 HUD 浮窗，并接通密码框强制英文抑制。
 
-**Architecture:** C++ TSF 在 `OnSetFocus` 与 `KEYBOARD_DISABLED` compartment 变更时上报 `{pid, disabled, reason, input_scope_mask}`；服务端 coordinator 存最新态 `last_input_diag`，据密码位置 `password_suppress`（在 `effective_chinese` 处 `&& !password_suppress` 强制英文），并把最新态经 `ui_tx` 下发给 wind-ui 的 `InputDiagHud` 浮窗。开关走右键菜单「高级」，会话级不持久化。
+**Architecture:** C++ TSF 在 `OnSetFocus` 与 `KEYBOARD_DISABLED` compartment 变更时上报 `{pid, disabled, reason, input_scope_mask}`；服务端 coordinator 存最新态 `last_input_diag`，据密码位置 `password_suppress`（在 `effective_chinese` 处 `&& !password_suppress` 强制英文），并把最新态经 `ui_tx` 下发给 moodflow-ui 的 `InputDiagHud` 浮窗。开关走右键菜单「高级」，会话级不持久化。
 
-**Tech Stack:** Rust workspace（wind-ipc / wind-bridge / wind-coordinator / wind-ui）+ C++ TSF（wind_tsf）+ Win32 LayeredWindow / DirectWrite。
+**Tech Stack:** Rust workspace（moodflow-ipc / moodflow-bridge / moodflow-coordinator / moodflow-ui）+ C++ TSF（moodflow_tsf）+ Win32 LayeredWindow / DirectWrite。
 
 设计来源：`docs/design/input-diagnostics-hud.md`。
 
@@ -25,16 +25,16 @@
 
 | 文件 | 责任 | 动作 |
 |---|---|---|
-| `wind-coordinator/src/input_diag.rs` | 诊断纯数据类型 + mask→reason 判定（可单测核心） | 新建 |
-| `wind-ipc/src/protocol.rs` | `FocusGainedPayload` 扩展 2 字节 + `InputStateReportPayload` + `CMD_INPUT_STATE_REPORT` | 改 |
-| `wind-ipc/src/codec.rs` | `decode_input_state_report` | 改 |
-| `wind-bridge/src/handler.rs` | `FocusData` 加 disabled/reason；Handler trait 加 `handle_input_state_report` | 改 |
-| `wind-bridge/src/server.rs` `server_unix.rs` | 填新字段 + 分发新命令 | 改 |
-| `wind-coordinator/src/coordinator.rs` | `last_input_diag` / `password_suppress` / `effective_chinese` 接线 / HUD 下发 | 改 |
-| `wind-coordinator/src/handle_menu.rs` | 「高级」两开关 + `run_menu_cmd` 分支 | 改 |
-| `wind-ui/src/manager.rs` | `MenuCmd` 两变体 + `UiCommand::ShowInputDiag/HideInputDiag` + `InputDiagView` | 改 |
-| `wind-ui/src/input_diag_hud.rs` | HUD 浮窗（仿 status_tip） | 新建 |
-| `wind_tsf/src/TextService.cpp` `IPCClient.cpp` `BinaryProtocol.h` | C++ 上报（focus 扩展 + compartment 上报） | 改 |
+| `moodflow-coordinator/src/input_diag.rs` | 诊断纯数据类型 + mask→reason 判定（可单测核心） | 新建 |
+| `moodflow-ipc/src/protocol.rs` | `FocusGainedPayload` 扩展 2 字节 + `InputStateReportPayload` + `CMD_INPUT_STATE_REPORT` | 改 |
+| `moodflow-ipc/src/codec.rs` | `decode_input_state_report` | 改 |
+| `moodflow-bridge/src/handler.rs` | `FocusData` 加 disabled/reason；Handler trait 加 `handle_input_state_report` | 改 |
+| `moodflow-bridge/src/server.rs` `server_unix.rs` | 填新字段 + 分发新命令 | 改 |
+| `moodflow-coordinator/src/coordinator.rs` | `last_input_diag` / `password_suppress` / `effective_chinese` 接线 / HUD 下发 | 改 |
+| `moodflow-coordinator/src/handle_menu.rs` | 「高级」两开关 + `run_menu_cmd` 分支 | 改 |
+| `moodflow-ui/src/manager.rs` | `MenuCmd` 两变体 + `UiCommand::ShowInputDiag/HideInputDiag` + `InputDiagView` | 改 |
+| `moodflow-ui/src/input_diag_hud.rs` | HUD 浮窗（仿 status_tip） | 新建 |
+| `moodflow_tsf/src/TextService.cpp` `IPCClient.cpp` `BinaryProtocol.h` | C++ 上报（focus 扩展 + compartment 上报） | 改 |
 
 依赖顺序：Task1（纯类型）→ Task2（协议）→ Task3（bridge）→ Task4（coordinator 存储+抑制）→ Task5（菜单开关）→ Task6（HUD 窗口）→ Task7（C++ 上报）。Task1/2/4/5 有单测；Task3/6/7 以集成/真机验证为主。
 
@@ -43,8 +43,8 @@
 ## Task 1: 诊断纯数据类型 + mask→reason 判定
 
 **Files:**
-- Create: `wind_input/crates/wind-coordinator/src/input_diag.rs`
-- Modify: `wind_input/crates/wind-coordinator/src/lib.rs`（`mod input_diag;`）
+- Create: `moodflow_input/crates/moodflow-coordinator/src/input_diag.rs`
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/lib.rs`（`mod input_diag;`）
 - Test: 同文件 `#[cfg(test)]`
 
 **Interfaces:**
@@ -95,7 +95,7 @@ mod tests {
 
 - [ ] **Step 2: 运行测试确认失败**
 
-Run: `cargo test -p wind-coordinator input_diag`
+Run: `cargo test -p moodflow-coordinator input_diag`
 Expected: 编译失败（`input_diag` 模块/符号未定义）。
 
 - [ ] **Step 3: 写最小实现**
@@ -161,17 +161,17 @@ pub struct InputDiagState {
 }
 ```
 
-在 `wind-coordinator/src/lib.rs` 加 `mod input_diag;`（若需对外则 `pub mod`；本计划内部使用即可，`pub(crate)` 语义用 `mod`）。
+在 `moodflow-coordinator/src/lib.rs` 加 `mod input_diag;`（若需对外则 `pub mod`；本计划内部使用即可，`pub(crate)` 语义用 `mod`）。
 
 - [ ] **Step 4: 运行测试确认通过**
 
-Run: `cargo test -p wind-coordinator input_diag`
+Run: `cargo test -p moodflow-coordinator input_diag`
 Expected: PASS（4 tests）。
 
 - [ ] **Step 5: 提交**
 
 ```bash
-git add wind_input/crates/wind-coordinator/src/input_diag.rs wind_input/crates/wind-coordinator/src/lib.rs
+git add moodflow_input/crates/moodflow-coordinator/src/input_diag.rs moodflow_input/crates/moodflow-coordinator/src/lib.rs
 git commit -m "feat(coordinator): 输入诊断数据类型 + InputScope 掩码判定"
 ```
 
@@ -180,9 +180,9 @@ git commit -m "feat(coordinator): 输入诊断数据类型 + InputScope 掩码�
 ## Task 2: wire 协议扩展 focus_gained + 新增 CMD_INPUT_STATE_REPORT
 
 **Files:**
-- Modify: `wind_input/crates/wind-ipc/src/protocol.rs`
-- Modify: `wind_input/crates/wind-ipc/src/codec.rs`
-- Test: `wind-ipc` 内 `#[cfg(test)]`（protocol.rs 末尾新增）
+- Modify: `moodflow_input/crates/moodflow-ipc/src/protocol.rs`
+- Modify: `moodflow_input/crates/moodflow-ipc/src/codec.rs`
+- Test: `moodflow-ipc` 内 `#[cfg(test)]`（protocol.rs 末尾新增）
 
 **Interfaces:**
 - Consumes: 现有 `FocusGainedPayload { caret, client_token, input_scope_mask }`（SIZE=36）、`CaretPayload`（SIZE=20）、`IpcHeader`。
@@ -240,7 +240,7 @@ mod input_diag_wire_tests {
 
 - [ ] **Step 2: 运行测试确认失败**
 
-Run: `cargo test -p wind-ipc input_diag_wire`
+Run: `cargo test -p moodflow-ipc input_diag_wire`
 Expected: 编译失败（`disabled`/`reason`/`InputStateReportPayload` 未定义）。
 
 - [ ] **Step 3: 写最小实现**
@@ -336,24 +336,24 @@ pub fn decode_input_state_report(payload: &[u8]) -> Result<InputStateReportPaylo
 
 - [ ] **Step 4: 运行测试确认通过**
 
-Run: `cargo test -p wind-ipc`
+Run: `cargo test -p moodflow-ipc`
 Expected: PASS（含新 3 测试 + 原有全绿）。
 
 - [ ] **Step 5: 提交**
 
 ```bash
-git add wind_input/crates/wind-ipc/src/protocol.rs wind_input/crates/wind-ipc/src/codec.rs
+git add moodflow_input/crates/moodflow-ipc/src/protocol.rs moodflow_input/crates/moodflow-ipc/src/codec.rs
 git commit -m "feat(ipc): focus_gained 载荷加 disabled/reason + CMD_INPUT_STATE_REPORT"
 ```
 
 ---
 
-## Task 3: wind-bridge 传递新字段 + 分发新命令
+## Task 3: moodflow-bridge 传递新字段 + 分发新命令
 
 **Files:**
-- Modify: `wind_input/crates/wind-bridge/src/handler.rs`
-- Modify: `wind_input/crates/wind-bridge/src/server.rs`（Windows）
-- Modify: `wind_input/crates/wind-bridge/src/server_unix.rs`
+- Modify: `moodflow_input/crates/moodflow-bridge/src/handler.rs`
+- Modify: `moodflow_input/crates/moodflow-bridge/src/server.rs`（Windows）
+- Modify: `moodflow_input/crates/moodflow-bridge/src/server_unix.rs`
 
 **Interfaces:**
 - Consumes: `FocusGainedPayload.disabled/reason`、`decode_input_state_report`、`CMD_INPUT_STATE_REPORT`。
@@ -402,17 +402,17 @@ Handler trait（`handler.rs` 内 `pub trait Handler`）新增默认方法：
 
 `server_unix.rs` 同步补 `FocusData` 的三字段（disabled/reason 缺省来自 payload；Unix 端不接 CMD_INPUT_STATE_REPORT，仅保证编译）。
 
-> 需要 `use wind_ipc::{decode_input_state_report, protocol::CMD_INPUT_STATE_REPORT};`（照现有 import 风格）。
+> 需要 `use moodflow_ipc::{decode_input_state_report, protocol::CMD_INPUT_STATE_REPORT};`（照现有 import 风格）。
 
 - [ ] **Step 3: 编译验证**
 
-Run: `cargo build -p wind-bridge`
+Run: `cargo build -p moodflow-bridge`
 Expected: 通过（无未用告警可忽略）。
 
 - [ ] **Step 4: 提交**
 
 ```bash
-git add wind_input/crates/wind-bridge/src/handler.rs wind_input/crates/wind-bridge/src/server.rs wind_input/crates/wind-bridge/src/server_unix.rs
+git add moodflow_input/crates/moodflow-bridge/src/handler.rs moodflow_input/crates/moodflow-bridge/src/server.rs moodflow_input/crates/moodflow-bridge/src/server_unix.rs
 git commit -m "feat(bridge): FocusData 传 disabled/reason + 分发 CMD_INPUT_STATE_REPORT"
 ```
 
@@ -421,7 +421,7 @@ git commit -m "feat(bridge): FocusData 传 disabled/reason + 分发 CMD_INPUT_ST
 ## Task 4: coordinator 存储 last_input_diag + 密码框抑制接线
 
 **Files:**
-- Modify: `wind_input/crates/wind-coordinator/src/coordinator.rs`
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/coordinator.rs`
 - Test: coordinator.rs `#[cfg(test)]`（复用已有 headless 构造 `Coordinator::build*` 测试辅助）
 
 **Interfaces:**
@@ -468,7 +468,7 @@ fn disabled_policy_no_suppress_when_off() {
 
 - [ ] **Step 2: 运行测试确认失败**
 
-Run: `cargo test -p wind-coordinator apply_input_diag`（或按测试名）
+Run: `cargo test -p moodflow-coordinator apply_input_diag`（或按测试名）
 Expected: 编译失败（字段/方法未定义）。
 
 - [ ] **Step 3: 写最小实现**
@@ -543,13 +543,13 @@ Expected: 编译失败（字段/方法未定义）。
 
 - [ ] **Step 4: 运行测试确认通过**
 
-Run: `cargo test -p wind-coordinator`
+Run: `cargo test -p moodflow-coordinator`
 Expected: PASS（新 3 测试 + 原有全绿）。特别核对既有依赖 `chinese_mode && !caps_lock` 的测试未回归。
 
 - [ ] **Step 5: 提交**
 
 ```bash
-git add wind_input/crates/wind-coordinator/src/coordinator.rs
+git add moodflow_input/crates/moodflow-coordinator/src/coordinator.rs
 git commit -m "feat(coordinator): last_input_diag 存储 + 密码框强制英文抑制"
 ```
 
@@ -558,8 +558,8 @@ git commit -m "feat(coordinator): last_input_diag 存储 + 密码框强制英文
 ## Task 5: 右键菜单「高级」两个开关
 
 **Files:**
-- Modify: `wind_input/crates/wind-ui/src/manager.rs`（MenuCmd + to_menu_id）
-- Modify: `wind_input/crates/wind-coordinator/src/handle_menu.rs`
+- Modify: `moodflow_input/crates/moodflow-ui/src/manager.rs`（MenuCmd + to_menu_id）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/handle_menu.rs`
 - Test: coordinator.rs / handle_menu 相关 `#[cfg(test)]`（切换语义单测）
 
 **Interfaces:**
@@ -596,7 +596,7 @@ fn toggle_password_suppress_flips_enabled() {
 
 - [ ] **Step 2: 运行确认失败**
 
-Run: `cargo test -p wind-coordinator toggle_`
+Run: `cargo test -p moodflow-coordinator toggle_`
 Expected: 编译失败（方法未定义）。
 
 - [ ] **Step 3: 实现**
@@ -627,7 +627,7 @@ coordinator（handle_menu.rs 的 `impl Coordinator`）加切换方法：
         if now {
             self.push_input_diag_hud_if_visible();
         } else {
-            let _ = self.ui_tx.send(wind_ui::manager::UiCommand::HideInputDiag);
+            let _ = self.ui_tx.send(moodflow_ui::manager::UiCommand::HideInputDiag);
         }
     }
 
@@ -671,13 +671,13 @@ coordinator（handle_menu.rs 的 `impl Coordinator`）加切换方法：
 
 - [ ] **Step 4: 运行确认通过**
 
-Run: `cargo test -p wind-coordinator toggle_ && cargo build -p wind-ui`
+Run: `cargo test -p moodflow-coordinator toggle_ && cargo build -p moodflow-ui`
 Expected: PASS + 编译通过。
 
 - [ ] **Step 5: 提交**
 
 ```bash
-git add wind_input/crates/wind-ui/src/manager.rs wind_input/crates/wind-coordinator/src/handle_menu.rs
+git add moodflow_input/crates/moodflow-ui/src/manager.rs moodflow_input/crates/moodflow-coordinator/src/handle_menu.rs
 git commit -m "feat(menu): 高级子菜单加输入诊断 HUD + 密码框强制英文开关"
 ```
 
@@ -686,10 +686,10 @@ git commit -m "feat(menu): 高级子菜单加输入诊断 HUD + 密码框强制�
 ## Task 6: HUD 浮窗 InputDiagHud + UiCommand 接线
 
 **Files:**
-- Modify: `wind_input/crates/wind-ui/src/manager.rs`（`UiCommand::ShowInputDiag/HideInputDiag` + `InputDiagView`；dispatch）
-- Create: `wind_input/crates/wind-ui/src/input_diag_hud.rs`
-- Modify: `wind_input/crates/wind-ui/src/lib.rs`（`mod input_diag_hud;`）
-- Modify: `wind_input/crates/wind-coordinator/src/coordinator.rs`（`push_input_diag_hud_if_visible` 实体）
+- Modify: `moodflow_input/crates/moodflow-ui/src/manager.rs`（`UiCommand::ShowInputDiag/HideInputDiag` + `InputDiagView`；dispatch）
+- Create: `moodflow_input/crates/moodflow-ui/src/input_diag_hud.rs`
+- Modify: `moodflow_input/crates/moodflow-ui/src/lib.rs`（`mod input_diag_hud;`）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/coordinator.rs`（`push_input_diag_hud_if_visible` 实体）
 - Test: `input_diag_hud.rs` 内纯格式化函数单测
 
 **Interfaces:**
@@ -730,7 +730,7 @@ mod tests {
 
 - [ ] **Step 2: 运行确认失败**
 
-Run: `cargo test -p wind-ui format_lines`
+Run: `cargo test -p moodflow-ui format_lines`
 Expected: 编译失败。
 
 - [ ] **Step 3: 实现纯逻辑 + 窗口**
@@ -780,7 +780,7 @@ pub struct InputDiagHud {
 
 impl InputDiagHud {
     pub fn new() -> Result<Self, String> {
-        // 仿 StatusTip::new，窗口类名 "WindInputDiagHud"；创建后追加 WS_EX_NOACTIVATE。
+        // 仿 StatusTip::new，窗口类名 "MoodflowDiagHud"；创建后追加 WS_EX_NOACTIVATE。
         // 详见下方「窗口实现要点」。
         todo!("窗口构造：仿 status_tip.rs，见要点")
     }
@@ -790,7 +790,7 @@ impl InputDiagHud {
 ```
 
 **窗口实现要点（非单测，真机验证）：**
-1. 构造仿 `status_tip.rs::StatusTip::new`：`LayeredWindow::create(None, W, H, "WindInputDiagHud")` + `TextRenderer`。
+1. 构造仿 `status_tip.rs::StatusTip::new`：`LayeredWindow::create(None, W, H, "MoodflowDiagHud")` + `TextRenderer`。
 2. 创建后对窗口句柄 `GetWindowLongPtr/SetWindowLongPtr` 追加 `WS_EX_NOACTIVATE | WS_EX_TOPMOST | WS_EX_TOOLWINDOW`（不进任务栏、不抢焦点）。
 3. 初始位置右下角（`GetSystemMetrics(SM_CXSCREEN/CYSCREEN)` - 尺寸 - 边距）。
 4. 拖动：窗口过程处理 `WM_LBUTTONDOWN` → 记录起点并 `SetCapture`，`WM_MOUSEMOVE`（按下时）`SetWindowPos` 跟随，`WM_LBUTTONUP` → `ReleaseCapture`。因窗口 `WS_EX_NOACTIVATE`，点击不激活、不夺焦。
@@ -817,30 +817,30 @@ coordinator（coordinator.rs）把 Task4 占位的空方法替换为实体：
             return;
         }
         let d = self.last_input_diag.lock().unwrap_or_else(|e| e.into_inner());
-        let view = wind_ui::manager::InputDiagView {
+        let view = moodflow_ui::manager::InputDiagView {
             process_name: d.process_name.clone(),
             pid: d.pid,
             disabled: d.disabled,
             reason_text: crate::input_diag::reason_label(d.reason).to_string(),
             mask: d.mask,
         };
-        let _ = self.ui_tx.send(wind_ui::manager::UiCommand::ShowInputDiag(view));
+        let _ = self.ui_tx.send(moodflow_ui::manager::UiCommand::ShowInputDiag(view));
     }
 ```
 
-> `InputDiagView` 从 `input_diag_hud` re-export 到 `manager`（`pub use crate::input_diag_hud::InputDiagView;`），使 coordinator 用 `wind_ui::manager::InputDiagView` 一致。
+> `InputDiagView` 从 `input_diag_hud` re-export 到 `manager`（`pub use crate::input_diag_hud::InputDiagView;`），使 coordinator 用 `moodflow_ui::manager::InputDiagView` 一致。
 
 - [ ] **Step 4: 运行确认通过**
 
-Run: `cargo test -p wind-ui format_lines && cargo build -p wind-ui && cargo build -p wind-coordinator`
+Run: `cargo test -p moodflow-ui format_lines && cargo build -p moodflow-ui && cargo build -p moodflow-coordinator`
 Expected: 纯逻辑测试 PASS + 编译通过（`todo!` 在非测试路径不触发编译错误；若窗口构造未完成会 panic，仅真机运行时相关，单测不走该路径）。
 
-> 实现窗口体（替换 `todo!`）后，`cargo build -p wind-service`（或主服务包）确保集成编译。
+> 实现窗口体（替换 `todo!`）后，`cargo build -p moodflow-service`（或主服务包）确保集成编译。
 
 - [ ] **Step 5: 提交**
 
 ```bash
-git add wind_input/crates/wind-ui/src/input_diag_hud.rs wind_input/crates/wind-ui/src/manager.rs wind_input/crates/wind-ui/src/lib.rs wind_input/crates/wind-coordinator/src/coordinator.rs
+git add moodflow_input/crates/moodflow-ui/src/input_diag_hud.rs moodflow_input/crates/moodflow-ui/src/manager.rs moodflow_input/crates/moodflow-ui/src/lib.rs moodflow_input/crates/moodflow-coordinator/src/coordinator.rs
 git commit -m "feat(ui): 输入诊断 HUD 浮窗（非激活可拖动，双击复制）"
 ```
 
@@ -849,9 +849,9 @@ git commit -m "feat(ui): 输入诊断 HUD 浮窗（非激活可拖动，双击�
 ## Task 7: C++ TSF 上报（focus 扩展 + compartment 上报）
 
 **Files:**
-- Modify: `wind_tsf/src/BinaryProtocol.h`（`CMD_INPUT_STATE_REPORT 0x0204`；focus_gained 编码 +2 字节）
-- Modify: `wind_tsf/src/IPCClient.cpp` / `.h`（`SendFocusGained` 补 disabled/reason；新增 `SendInputStateReport`）
-- Modify: `wind_tsf/src/TextService.cpp`（`OnSetFocus` 上报补字段；`KEYBOARD_DISABLED` compartment sink 回调调用 `SendInputStateReport`）
+- Modify: `moodflow_tsf/src/BinaryProtocol.h`（`CMD_INPUT_STATE_REPORT 0x0204`；focus_gained 编码 +2 字节）
+- Modify: `moodflow_tsf/src/IPCClient.cpp` / `.h`（`SendFocusGained` 补 disabled/reason；新增 `SendInputStateReport`）
+- Modify: `moodflow_tsf/src/TextService.cpp`（`OnSetFocus` 上报补字段；`KEYBOARD_DISABLED` compartment sink 回调调用 `SendInputStateReport`）
 
 **Interfaces:**
 - Consumes: 已有 `_QueryInputScopeMask()`、`_IsFocusKeyboardDisabled()`、`_bKeyboardDisabled`、compartment sink（`_dwKeyboardDisabledSinkCookie`）。
@@ -895,7 +895,7 @@ Expected: 编译链接通过。
 - [ ] **Step 5: 提交**
 
 ```bash
-git add wind_tsf/src/BinaryProtocol.h wind_tsf/src/IPCClient.cpp wind_tsf/src/IPCClient.h wind_tsf/src/TextService.cpp
+git add moodflow_tsf/src/BinaryProtocol.h moodflow_tsf/src/IPCClient.cpp moodflow_tsf/src/IPCClient.h moodflow_tsf/src/TextService.cpp
 git commit -m "feat(tsf): 上报禁用态（focus 扩展 disabled/reason + compartment 变更上报）"
 ```
 
@@ -913,7 +913,7 @@ git commit -m "feat(tsf): 上报禁用态（focus 扩展 disabled/reason + compa
 
 ## 未纳入本计划（后续）
 
-- 把「密码框强制英文」从「高级」菜单迁至设置程序（`wind-setting` 独立仓）作为用户可见选项。
+- 把「密码框强制英文」从「高级」菜单迁至设置程序（`moodflow-setting` 独立仓）作为用户可见选项。
 - HUD 主题化 / 位置持久化（当前会话级、固定初始右下）。
 
 ---

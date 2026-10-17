@@ -1,0 +1,24 @@
+[package]
+name = "moodflow_rpc"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "moodflow_rpc"
+path = "src/main.rs"
+
+[dependencies]
+moodflow-ipc = { path = "../../crates/moodflow-ipc" }
+moodflow-store = { path = "../../crates/moodflow-store" }
+moodflow-dict = { path = "../../crates/moodflow-dict" }
+moodflow-config = { path = "../../crates/moodflow-config" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true }
+
+[lints]
+workspace = true

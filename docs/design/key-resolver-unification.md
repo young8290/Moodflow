@@ -10,7 +10,7 @@
 > [session-key-actions.md](session-key-actions.md)（第二张表，有会话态）。本文不重复那两篇的
 > 立论，只处理**两张表之上的解析层**。
 >
-> 状态：**§7 第 1–3 步已实施**（`wind-coordinator/src/key_resolver.rs` +
+> 状态：**§7 第 1–3 步已实施**（`moodflow-coordinator/src/key_resolver.rs` +
 > `Coordinator::session_action_for` + `Schema::session_actions`）。
 > 第 4 步（设置仓只读按键总览）未做；主仓之外的三个仓（工具站 / 设置仓 / 文档站）
 > 尚未同步，清单见 §7。
@@ -370,8 +370,8 @@ CapsLock、方案 B 没配，每次切方案就装卸一次钩子——症状「
 
 ## 6. 目标形态：`KeyResolver`
 
-落在 `ConfigBundle`——**唯一同时看得见 `wind-config` 与 `wind-keys` 的地方**（`SessionAction` 在前者、
-`KeyBinds` 在后者，而 `wind-config` 不能反向依赖 `wind-keys`，经 `wind-cmdbar` 成环）。
+落在 `ConfigBundle`——**唯一同时看得见 `moodflow-config` 与 `moodflow-keys` 的地方**（`SessionAction` 在前者、
+`KeyBinds` 在后者，而 `moodflow-config` 不能反向依赖 `moodflow-keys`，经 `moodflow-cmdbar` 成环）。
 
 ```
 存储层（一律不动）
@@ -443,8 +443,8 @@ KeyResolver
 
 | 步 | 改动 | 验证 |
 |---|---|---|
-| **1** ✅ | 建 `key_resolver.rs`；**全局层** `keys.key_actions` 预编译成 VK 表；`bound_action_with_source` 的全局分支改查表；两层共用同一个键名→VK 解析口 | 纯重构，`schema_key_actions` 27 项 + 新增 5 项单测 + `wind-coordinator` 全量 900+ 全绿 |
-| **2** ◐ | 已做：`active_key_actions()` 改返 `Arc`（消除每键 clone 整表）。**剩下的搬家并进第 3 步**，见下 | `wind-engine` / `wind-coordinator` 全绿 |
+| **1** ✅ | 建 `key_resolver.rs`；**全局层** `keys.key_actions` 预编译成 VK 表；`bound_action_with_source` 的全局分支改查表；两层共用同一个键名→VK 解析口 | 纯重构，`schema_key_actions` 27 项 + 新增 5 项单测 + `moodflow-coordinator` 全量 900+ 全绿 |
+| **2** ◐ | 已做：`active_key_actions()` 改返 `Arc`（消除每键 clone 整表）。**剩下的搬家并进第 3 步**，见下 | `moodflow-engine` / `moodflow-coordinator` 全绿 |
 | **3** ✅ | 方案级 `[session_actions]`：`Schema` 加字段 → `EngineManager` 供表+并集 → `session_action_for` 两层逐键合并 → `none` 哨兵 → 并集进转发表与 `capslock_bound` | 新增 4 项 `key_resolver` 单测、1 项 engine 合并/并集用例、2 项转发表用例；四 crate 全量 1500+ 全绿 |
 | **4** | 设置仓：只读按键总览 | 与 1–3 解耦，可后置 |
 
@@ -496,16 +496,16 @@ KeyResolver
 
 ### ⚠️ 第 3 步的跨仓落点（`Schema` 加字段会牵动三个外仓）
 
-给 `wind-config/src/schema.rs` 的 `Schema` 加 `session_actions` 字段，**没有任何编译期约束**
+给 `moodflow-config/src/schema.rs` 的 `Schema` 加 `session_actions` 字段，**没有任何编译期约束**
 提醒你还要改别处。清单：
 
 | 仓 | 落点 | 有无守门测试 |
 |---|---|---|
-| `../WindInputTools` | `src/lib/schema/schemas.ts`（zod） | ❌ |
-| `../WindInputTools` | `src/tools/schema-editor/field-spec.ts`（表单 label/desc） | ❌ |
-| `../WindInputTools` | `src/lib/schema/__tests__/schema-fields.test.ts` | ⚠️ 自陈「内核加字段时这里会漏报」 |
-| `../wind-setting` | 已有 `keys.session_actions` 的 manifest 项 + `dialogs/session_actions.rs` 专用对话框，方案级需与之对齐 | 五道闸门（见该仓记录） |
-| `../WindInputDocs` | config 参考页 + 用法页两处 | ❌ |
+| `../MoodflowTools` | `src/lib/schema/schemas.ts`（zod） | ❌ |
+| `../MoodflowTools` | `src/tools/schema-editor/field-spec.ts`（表单 label/desc） | ❌ |
+| `../MoodflowTools` | `src/lib/schema/__tests__/schema-fields.test.ts` | ⚠️ 自陈「内核加字段时这里会漏报」 |
+| `../moodflow-setting` | 已有 `keys.session_actions` 的 manifest 项 + `dialogs/session_actions.rs` 专用对话框，方案级需与之对齐 | 五道闸门（见该仓记录） |
+| `../MoodflowDocs` | config 参考页 + 用法页两处 | ❌ |
 
 ★ **不适用的一条**（写下来省一轮查证）：`Schema.key_actions` 是 `BTreeMap<String, String>` +
 `#[serde(default)]`，新增 `session_actions` 同形，属**纯新增字段**，⇒ **不触发**「改已发布配置
@@ -513,7 +513,7 @@ KeyResolver
 
 ### 第 4 步的前置：总览放哪个仓、与既有对话框什么关系
 
-`../wind-setting` 已经有 `dialogs/session_actions.rs`（`keys.session_actions` 的行编辑器，
+`../moodflow-setting` 已经有 `dialogs/session_actions.rs`（`keys.session_actions` 的行编辑器，
 两列下拉）。只读总览**不是**它的替代品，两者关系要先定：总览按 §4.3 恒只读、按键排序、跨表跨层；
 该对话框按 §4.3 属「写回同一批字段」故可编辑。⇒ 总览里点某一行应**跳转**到对应编辑处，
 其中一个跳转目标就是这个对话框。
@@ -584,10 +584,10 @@ KeyResolver
 
 ### 跨 crate 契约（无编译期约束）
 
-6. **⚠️ 会话态键名表有两份**：`wind-config::hotkey::session_key_to_vk` 与
-   `wind-keys::keymap::session_key_name_to_vk`（`wind-config` 不能依赖 `wind-keys`，成环）。
+6. **⚠️ 会话态键名表有两份**：`moodflow-config::hotkey::session_key_to_vk` 与
+   `moodflow-keys::keymap::session_key_name_to_vk`（`moodflow-config` 不能依赖 `moodflow-keys`，成环）。
    靠 `session_key_tables_agree_across_crates` 守门。**加键名要同步两处。**
-7. **⚠️ 方案级 `session_actions` 的编译只能在 wind-coordinator。** 不要顺手放进
+7. **⚠️ 方案级 `session_actions` 的编译只能在 moodflow-coordinator。** 不要顺手放进
    `EngineManager::key_actions_cache` 旁边——那里看不见 `KeyBinds`。这是个很自然会犯的错，
    因为 `key_actions` 的缓存确实在那儿。
 

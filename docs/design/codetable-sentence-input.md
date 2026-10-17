@@ -59,7 +59,7 @@
 
 ### 2.1 码表引擎（无任何切分能力）
 
-`wind-engine/src/codetable/engine.rs::convert()` 是单段查询：
+`moodflow-engine/src/codetable/engine.rs::convert()` 是单段查询：
 
 ```
 输入码 → ① 精确 dm.search(input) → ② 前缀 dm.search_prefix(input) → ③ 空码补全
@@ -77,8 +77,8 @@
 | `LatticeBuilder::build()` | `pinyin/lattice.rs` | **结构可用**。它枚举的是字节跨度 `(p,q)` 而非音节路径，跨度来源是传入的 `SegGraph`。打分函数 `score_node` 是拼音语料调过的，需另立码表版 |
 | `SegGraph` | `pinyin/dag.rs` | **可用**。`edges[p] = 从 p 出发的终点集合`，纯字节位置图。已有 `from_dag`（多路径）/ `from_syllables`（真值链）两个构造器，码表只需加一个 `from_fixed_len(len, max_code_len)` |
 | `consumed_length` 分段上屏 | 协调器 `handle_candidate.rs` + `coordinator.rs` | 机制现成，但见 §7 的约定冲突 |
-| `Candidate::is_sentence` | `wind-candidate` | 现成标志，`freq_rerank` 的整句锚定按它判定 |
-| DAT 精确查询 | `wind-dict/datformat.rs::search()` | 够用。每个跨度一次精确查（复杂度见 §4.3） |
+| `Candidate::is_sentence` | `moodflow-candidate` | 现成标志，`freq_rerank` 的整句锚定按它判定 |
+| DAT 精确查询 | `moodflow-dict/datformat.rs::search()` | 够用。每个跨度一次精确查（复杂度见 §4.3） |
 
 **关键判断**：`LatticeNode` / `WordNode` 的 `start` / `end` 是**字节位置**，Viterbi 的 DP 也按
 字节位置推进。这正是混合简拼（`add_abbrev_nodes`）能与全拼节点同图共存而「Viterbi 一行都不用改」
@@ -482,8 +482,8 @@ Viterbi 的节点分是 `ln(weight / TOTAL)`。`ln(9999) − ln(851) ≈ 2.46`�
 > 本章记录**实现与上面设计的差异**，以及实测推翻的假设。上面各章保留原样（那是当时的
 > 判断），差异集中在这里，避免读者分不清「设计怎么想」与「代码怎么做」。
 >
-> 代码：`wind-engine/src/codetable/sentence.rs`（新）、`codetable/engine.rs`（接线）、
-> `wind-dict` 的 `DictLayer::for_each_entry`（新，供索引构建）。
+> 代码：`moodflow-engine/src/codetable/sentence.rs`（新）、`codetable/engine.rs`（接线）、
+> `moodflow-dict` 的 `DictLayer::for_each_entry`（新，供索引构建）。
 > 测试：同文件 9 条单测 + `codetable/engine.rs` 7 条集成测试 +
 > `tests/codetable_sentence_probe.rs` 2 条真实词库探针（`#[ignore]`）。
 

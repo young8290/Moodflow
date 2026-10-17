@@ -1,0 +1,8 @@
+[InputMethod]
+Name=Moodflow
+Name[zh_CN]=Moodflow 输入法
+Icon=moodflow
+Label=风
+LangCode=zh_CN
+Addon=moodflow
+Configurable=True

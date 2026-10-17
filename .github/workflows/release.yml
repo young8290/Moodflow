@@ -22,20 +22,20 @@ name: Release
 #   或后者的 body 覆盖前者。这也是本文件从「一个 job 干完」改成四个 job 的原因。
 #
 # 为何 Windows 用 windows-2022 原生 MSVC,而非过去的 ubuntu 交叉编译(clang + lld-link + xwin):
-#   交叉编产出的 wind_tsf.dll 虽 PE 安全元数据(DllCharacteristics/SafeSEH)与原生 MSVC
+#   交叉编产出的 moodflow_tsf.dll 虽 PE 安全元数据(DllCharacteristics/SafeSEH)与原生 MSVC
 #   逐位一致、也能独立 LoadLibrary,却在部分启用进程级缓解策略的宿主中 COM 激活失败 ——
 #   差异落在工具链代码生成层(clang vs cl.exe),静态审计无法穷尽。TSF DLL 会被注入任意
 #   第三方宿主进程,故【发布产物】必须由与生态一致的原生 MSVC 构建。CI 门禁(ci.yml)仍用
 #   ubuntu + xwin 交叉编译做快速校验(只验能否编过),不受影响。
 #
-# 兄弟仓检出已不再需要 PAT:wind-installer / wind-portable / wind-ui-rust 均已开源,
-# 用 actions/checkout 默认的 GITHUB_TOKEN 即可拉取。仅设置程序 wind-setting 仍是私有仓 ——
-# 它与 wind-ui-rust 的检出绑在一起,按 secrets.WIND_REPOS_TOKEN 是否配置来开关
-# (wind-ui-rust 只是 wind-setting 的 path 依赖;installer/portable 用 crates.io 上的
-#  windui,不看本地仓,故不检出 wind-setting 时也没必要拉它):
+# 兄弟仓检出已不再需要 PAT:moodflow-installer / moodflow-portable / moodflow-ui-rust 均已开源,
+# 用 actions/checkout 默认的 GITHUB_TOKEN 即可拉取。仅设置程序 moodflow-setting 仍是私有仓 ——
+# 它与 moodflow-ui-rust 的检出绑在一起,按 secrets.MOODFLOW_REPOS_TOKEN 是否配置来开关
+# (moodflow-ui-rust 只是 moodflow-setting 的 path 依赖;installer/portable 用 crates.io 上的
+#  moodflowui,不看本地仓,故不检出 moodflow-setting 时也没必要拉它):
 #   配了(本仓)    → 正常检出,产物含设置程序;检出失败即中止,不会静默少东西。
 #   没配(fork 等) → 跳过检出并告警。dev.ps1 / mac 的 dev.sh 本就把设置程序当可选模块
-#                   (仓库不存在则跳过),故构建照常完成,只是产物里没有 wind_setting。
+#                   (仓库不存在则跳过),故构建照常完成,只是产物里没有 moodflow_setting。
 # 于是 fork 既能跑 CI,也能跑通完整的发版流程。
 on:
   push:
@@ -80,48 +80,48 @@ jobs:
       BUILD_VERSION: ${{ needs.prep.outputs.version }}
       # secrets 上下文在 step 的 if: 里不可用,只能在 job 级 env 里先求值。
       # 这里存的是布尔结果而非 token 本身,避免把密文散布到每个 step 的环境变量里。
-      HAS_SETTING_TOKEN: ${{ secrets.WIND_REPOS_TOKEN != '' && 'true' || 'false' }}
+      HAS_SETTING_TOKEN: ${{ secrets.MOODFLOW_REPOS_TOKEN != '' && 'true' || 'false' }}
     steps:
-      # 多仓库需为同级目录:dev.ps1 用 ../wind-installer / ../wind-portable;
-      # wind-setting 另需 ../wind-ui-rust 与 ../WindInput。均 checkout 到 $GITHUB_WORKSPACE 下平级。
+      # 多仓库需为同级目录:dev.ps1 用 ../moodflow-installer / ../moodflow-portable;
+      # moodflow-setting 另需 ../moodflow-ui-rust 与 ../Moodflow。均 checkout 到 $GITHUB_WORKSPACE 下平级。
       # 下面三个仓已开源,checkout 走默认 GITHUB_TOKEN,无需额外 PAT。
-      - name: 检出 WindInput
+      - name: 检出 Moodflow
         uses: actions/checkout@v7
         with:
-          path: WindInput
-      - name: 检出 wind-installer
+          path: Moodflow
+      - name: 检出 moodflow-installer
         uses: actions/checkout@v7
         with:
           repository: huanfeng/wind-installer
-          path: wind-installer
-      - name: 检出 wind-portable
+          path: moodflow-installer
+      - name: 检出 moodflow-portable
         uses: actions/checkout@v7
         with:
           repository: huanfeng/wind-portable
-          path: wind-portable
+          path: moodflow-portable
 
       # 设置程序仍是私有仓:配了 PAT 才检出,失败即中止(不允许官方发版悄悄少个设置程序);
-      # 没配则整步跳过,Build-Setting 会因 ../wind-setting 不存在而自行跳过。
+      # 没配则整步跳过,Build-Setting 会因 ../moodflow-setting 不存在而自行跳过。
       #
-      # wind-ui-rust 同组门控:它只被 wind-setting 以 path 依赖引用
-      # (windui = { path = "../wind-ui-rust" });wind-installer / wind-portable 依赖的是
-      # crates.io 上发布的 windui,不看本地仓 —— 故不检出 wind-setting 时拉它纯属白拉。
-      - name: 检出 wind-ui-rust (wind-setting 的 path 依赖)
+      # moodflow-ui-rust 同组门控:它只被 moodflow-setting 以 path 依赖引用
+      # (moodflowui = { path = "../moodflow-ui-rust" });moodflow-installer / moodflow-portable 依赖的是
+      # crates.io 上发布的 moodflowui,不看本地仓 —— 故不检出 moodflow-setting 时拉它纯属白拉。
+      - name: 检出 moodflow-ui-rust (moodflow-setting 的 path 依赖)
         if: env.HAS_SETTING_TOKEN == 'true'
         uses: actions/checkout@v7
         with:
           repository: huanfeng/wind-ui-rust
-          path: wind-ui-rust
-      - name: 检出 wind-setting (私有仓,需 WIND_REPOS_TOKEN)
+          path: moodflow-ui-rust
+      - name: 检出 moodflow-setting (私有仓,需 MOODFLOW_REPOS_TOKEN)
         if: env.HAS_SETTING_TOKEN == 'true'
         uses: actions/checkout@v7
         with:
           repository: huanfeng/wind-setting
-          path: wind-setting
-          token: ${{ secrets.WIND_REPOS_TOKEN }}
+          path: moodflow-setting
+          token: ${{ secrets.MOODFLOW_REPOS_TOKEN }}
       - name: 提示跳过设置程序
         if: env.HAS_SETTING_TOKEN != 'true'
-        run: echo "::warning::未配置 secrets.WIND_REPOS_TOKEN,跳过私有仓 wind-setting(及其 path 依赖 wind-ui-rust);本次产物不含设置程序 wind_setting.exe。"
+        run: echo "::warning::未配置 secrets.MOODFLOW_REPOS_TOKEN,跳过私有仓 moodflow-setting(及其 path 依赖 moodflow-ui-rust);本次产物不含设置程序 moodflow_setting.exe。"
 
       # windows-2022 镜像自带 VS2022(含 C++ 工具链)+ CMake + Rust(stable-msvc),
       # 故不再需要 clang/lld/xwin。仍显式钉 Rust stable 以稳定缓存键与工具链版本。
@@ -130,35 +130,35 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           # workspaces 是单一多行输入,没法条件性增删某一行;留空行的行为未经验证
-          # (很可能被解析成仓库根),故 wind-setting / wind-ui-rust 缺席时改成重复列一次
+          # (很可能被解析成仓库根),故 moodflow-setting / moodflow-ui-rust 缺席时改成重复列一次
           # 主仓工作区 —— 重复项对缓存键无副作用,比赌空行的解析行为稳。
           workspaces: |
-            WindInput/wind_input
-            wind-installer
-            wind-portable
-            ${{ env.HAS_SETTING_TOKEN == 'true' && 'wind-ui-rust' || 'WindInput/wind_input' }}
-            ${{ env.HAS_SETTING_TOKEN == 'true' && 'wind-setting' || 'WindInput/wind_input' }}
+            Moodflow/moodflow_input
+            moodflow-installer
+            moodflow-portable
+            ${{ env.HAS_SETTING_TOKEN == 'true' && 'moodflow-ui-rust' || 'Moodflow/moodflow_input' }}
+            ${{ env.HAS_SETTING_TOKEN == 'true' && 'moodflow-setting' || 'Moodflow/moodflow_input' }}
 
       - name: 写入 docs/VERSION
         shell: bash
-        working-directory: WindInput
+        working-directory: Moodflow
         run: printf '%s' "$BUILD_VERSION" > docs/VERSION
 
-      # dev.ps1 8  = 全构建(wind_input + tsf x64/x86 + setting + portable + 词库数据)
-      #              + 调 wind-installer\scripts\pack.ps1 打包 → WindInput\dist\WindInput-Setup-<版本>.exe
+      # dev.ps1 8  = 全构建(moodflow_input + tsf x64/x86 + setting + portable + 词库数据)
+      #              + 调 moodflow-installer\scripts\pack.ps1 打包 → Moodflow\dist\Moodflow-Setup-<版本>.exe
       #              (+ .sha256 sidecar + 在线升级 manifest,由 New-UpdateManifest 生成)
       - name: 构建并打包安装程序(原生 MSVC)
         shell: pwsh
-        working-directory: WindInput
+        working-directory: Moodflow
         run: .\scripts\dev.ps1 8
 
-      # dev.ps1 9s = 复用上一步的 build/ 产出便携 zip(skip 全构建)→ WindInput\dist\WindInput-Portable-<版本>.zip(+ .sha256)
+      # dev.ps1 9s = 复用上一步的 build/ 产出便携 zip(skip 全构建)→ Moodflow\dist\Moodflow-Portable-<版本>.zip(+ .sha256)
       - name: 打包便携版压缩包
         shell: pwsh
-        working-directory: WindInput
+        working-directory: Moodflow
         run: .\scripts\dev.ps1 9s
 
-      # 中转产物 = 打包【之前】的散件(build\ 全构建产物 + wind-installer 三件套)。
+      # 中转产物 = 打包【之前】的散件(build\ 全构建产物 + moodflow-installer 三件套)。
       #
       # 为什么不能让本机只对上面那两个成品补签:签名夹在打包中间 —— PE 要在封进压缩块
       # 之前签,Setup.exe 要在 pack 之后、New-UpdateManifest 之前签。对成品补签只签得到
@@ -169,7 +169,7 @@ jobs:
       # pack.ps1 透传 -SkipBuild。整条流程由本机 release.ps1 sign-draft 驱动。
       - name: 打包发布中转产物
         shell: pwsh
-        working-directory: WindInput
+        working-directory: Moodflow
         run: .\scripts\dev.ps1 stage
 
       - name: 上传 Windows 产物
@@ -177,10 +177,10 @@ jobs:
         with:
           name: dist-windows
           path: |
-            WindInput/dist/WindInput-Setup-*.exe
-            WindInput/dist/WindInput-Setup-*.exe.sha256
-            WindInput/dist/WindInput-Portable-*.zip
-            WindInput/dist/WindInput-Portable-*.zip.sha256
+            Moodflow/dist/Moodflow-Setup-*.exe
+            Moodflow/dist/Moodflow-Setup-*.exe.sha256
+            Moodflow/dist/Moodflow-Portable-*.zip
+            Moodflow/dist/Moodflow-Portable-*.zip.sha256
           if-no-files-found: error
           retention-days: 14
 
@@ -190,7 +190,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: stage-windows
-          path: WindInput/dist/WindInput-Stage-*.zip
+          path: Moodflow/dist/Moodflow-Stage-*.zip
           if-no-files-found: error
           retention-days: 14
 
@@ -206,33 +206,33 @@ jobs:
     timeout-minutes: 90
     env:
       BUILD_VERSION: ${{ needs.prep.outputs.version }}
-      WIND_MAC_UNIVERSAL: '1'          # app / service / 设置 app 三者统一产 arm64+x86_64
-      HAS_SETTING_TOKEN: ${{ secrets.WIND_REPOS_TOKEN != '' && 'true' || 'false' }}
+      MOODFLOW_MAC_UNIVERSAL: '1'          # app / service / 设置 app 三者统一产 arm64+x86_64
+      HAS_SETTING_TOKEN: ${{ secrets.MOODFLOW_REPOS_TOKEN != '' && 'true' || 'false' }}
     steps:
-      # 目录布局同 Windows:wind-setting 以 path 依赖引用 ../wind-ui-rust,并需要 ../WindInput。
-      # macOS 侧不需要 wind-installer / wind-portable(打包由 scripts/mac/dev.sh 的 pkgbuild 完成)。
-      - name: 检出 WindInput
+      # 目录布局同 Windows:moodflow-setting 以 path 依赖引用 ../moodflow-ui-rust,并需要 ../Moodflow。
+      # macOS 侧不需要 moodflow-installer / moodflow-portable(打包由 scripts/mac/dev.sh 的 pkgbuild 完成)。
+      - name: 检出 Moodflow
         uses: actions/checkout@v7
         with:
-          path: WindInput
+          path: Moodflow
       # 同 Windows 侧:私有仓,有 PAT 才检出;没有则 build_setting 自行跳过,.pkg 不含设置 app。
-      # wind-ui-rust 是 wind-setting 的 path 依赖,同组门控 —— macOS 侧它没有别的消费者。
-      - name: 检出 wind-ui-rust (wind-setting 的 path 依赖)
+      # moodflow-ui-rust 是 moodflow-setting 的 path 依赖,同组门控 —— macOS 侧它没有别的消费者。
+      - name: 检出 moodflow-ui-rust (moodflow-setting 的 path 依赖)
         if: env.HAS_SETTING_TOKEN == 'true'
         uses: actions/checkout@v7
         with:
           repository: huanfeng/wind-ui-rust
-          path: wind-ui-rust
-      - name: 检出 wind-setting (私有仓,需 WIND_REPOS_TOKEN)
+          path: moodflow-ui-rust
+      - name: 检出 moodflow-setting (私有仓,需 MOODFLOW_REPOS_TOKEN)
         if: env.HAS_SETTING_TOKEN == 'true'
         uses: actions/checkout@v7
         with:
           repository: huanfeng/wind-setting
-          path: wind-setting
-          token: ${{ secrets.WIND_REPOS_TOKEN }}
+          path: moodflow-setting
+          token: ${{ secrets.MOODFLOW_REPOS_TOKEN }}
       - name: 提示跳过设置程序
         if: env.HAS_SETTING_TOKEN != 'true'
-        run: echo "::warning::未配置 secrets.WIND_REPOS_TOKEN,跳过私有仓 wind-setting(及其 path 依赖 wind-ui-rust);本次 .pkg 不含设置 app。"
+        run: echo "::warning::未配置 secrets.MOODFLOW_REPOS_TOKEN,跳过私有仓 moodflow-setting(及其 path 依赖 moodflow-ui-rust);本次 .pkg 不含设置 app。"
 
       # x86_64-apple-darwin 是通用二进制的另一半;缺它 dev.sh 的 cargo_build_universal 会直接失败。
       - uses: dtolnay/rust-toolchain@stable
@@ -242,19 +242,19 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
-            WindInput/wind_input
-            ${{ env.HAS_SETTING_TOKEN == 'true' && 'wind-ui-rust' || 'WindInput/wind_input' }}
-            ${{ env.HAS_SETTING_TOKEN == 'true' && 'wind-setting' || 'WindInput/wind_input' }}
+            Moodflow/moodflow_input
+            ${{ env.HAS_SETTING_TOKEN == 'true' && 'moodflow-ui-rust' || 'Moodflow/moodflow_input' }}
+            ${{ env.HAS_SETTING_TOKEN == 'true' && 'moodflow-setting' || 'Moodflow/moodflow_input' }}
 
       - name: 写入 docs/VERSION
-        working-directory: WindInput
+        working-directory: Moodflow
         run: printf '%s' "$BUILD_VERSION" > docs/VERSION
 
       # 签名身份。**当前默认走 ad-hoc** —— 尚无 Developer ID 证书(需付费 Apple Developer
       # Program)。这一步是为将来留的接线:配上 secrets 即自动切到真证书,无需改 workflow。
       #
       # 必须显式 export SIGN_IDENTITY="" 走 ad-hoc:dev.sh 的 pick_sign_identity 在未设该变量时
-      # 会去 security find-identity 挑,CI 上一个都挑不到就回落到自签名 "WindInput Dev",
+      # 会去 security find-identity 挑,CI 上一个都挑不到就回落到自签名 "Moodflow Dev",
       # 而那个证书在 runner 上并不存在 → codesign 失败 → 构建中止。
       - name: 准备签名身份
         id: sign
@@ -290,10 +290,10 @@ jobs:
           echo "签名身份: $ID"
 
       # dev.sh 8 = pkg_build release --build:cargo(通用) + gen-data(下载词库并组装) +
-      #            app_build(Swift 双架构) + build_setting → wind_macos/dist/WindInput-<版本>-macOS.pkg
+      #            app_build(Swift 双架构) + build_setting → moodflow_macos/dist/Moodflow-<版本>-macOS.pkg
       # 打包前会逐个 lipo -archs 校验架构齐全,缺一个即拒绝出包。
       - name: 构建并打包 .pkg(通用二进制)
-        working-directory: WindInput
+        working-directory: Moodflow
         env:
           SIGN_IDENTITY: ${{ steps.sign.outputs.identity }}
           # 以下四项配齐才会 productsign + notarytool + staple;缺任一项 pkg_build 自动跳过。
@@ -306,7 +306,7 @@ jobs:
       # 与 Windows 侧口径一致:每个产物配一个同名 .sha256 sidecar。
       # 格式对齐 sha256sum(<hash>␣␣<文件名>),下游校验脚本按第一列取值。
       - name: 生成 sha256 sidecar
-        working-directory: WindInput/wind_macos/dist
+        working-directory: Moodflow/moodflow_macos/dist
         run: |
           for f in *.pkg; do
             shasum -a 256 "$f" > "$f.sha256"
@@ -318,8 +318,8 @@ jobs:
         with:
           name: dist-macos
           path: |
-            WindInput/wind_macos/dist/*.pkg
-            WindInput/wind_macos/dist/*.pkg.sha256
+            Moodflow/moodflow_macos/dist/*.pkg
+            Moodflow/moodflow_macos/dist/*.pkg.sha256
           if-no-files-found: error
           retention-days: 14
 
@@ -368,7 +368,7 @@ jobs:
           ls -lh dist
           # 少了任何一个都说明某个 build job 悄悄产出了空目录 —— 与其发一个缺平台的
           # Release,不如在这里失败。
-          for pat in "WindInput-Setup-*.exe" "WindInput-Portable-*.zip" "*.pkg"; do
+          for pat in "Moodflow-Setup-*.exe" "Moodflow-Portable-*.zip" "*.pkg"; do
             # shellcheck disable=SC2086
             ls dist/$pat >/dev/null 2>&1 || { echo "缺产物: $pat" >&2; exit 1; }
           done
@@ -385,7 +385,7 @@ jobs:
       - name: 标注 Windows 产物签名状态
         id: signcheck
         run: |
-          if python3 scripts/check-signed.py dist/WindInput-Setup-*.exe; then
+          if python3 scripts/check-signed.py dist/Moodflow-Setup-*.exe; then
             echo "signed=true" >> "$GITHUB_OUTPUT"
           else
             echo "signed=false" >> "$GITHUB_OUTPUT"
@@ -422,10 +422,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           draft: true                          # 人工审核 Release Notes 后再发布
-          name: 清风输入法 v${{ env.BUILD_VERSION }}
+          name: Moodflow 输入法 v${{ env.BUILD_VERSION }}
           # 正文里的 user-facing 标记块是给人填的:发布前把面向用户的更新说明写进标记内。
           # 两个下游按此标记取内容 —— 文档仓 scripts/sync_release_notes.py(→ 官网更新记录)
-          # 与 wind-setting src/update/notes.rs(→ 应用内升级提示),保持"暂未填写"占位则两边都跳过。
+          # 与 moodflow-setting src/update/notes.rs(→ 应用内升级提示),保持"暂未填写"占位则两边都跳过。
           body_path: release_notes.md
           files: dist/*
 
@@ -457,6 +457,6 @@ jobs:
       - name: 核对两个架构都在并上传
         run: |
           for a in amd64 arm64; do
-            [ -f "dist/WindInput-${BUILD_VERSION}-linux-${a}.deb" ] || { echo "缺产物: linux-${a}.deb" >&2; exit 1; }
+            [ -f "dist/Moodflow-${BUILD_VERSION}-linux-${a}.deb" ] || { echo "缺产物: linux-${a}.deb" >&2; exit 1; }
           done
           gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber dist/*

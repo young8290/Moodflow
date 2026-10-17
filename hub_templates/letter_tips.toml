@@ -1,4 +1,4 @@
-# 心晴 · 周信兜底模板的配套句子（FR-REV-02，与 letter_fallback.md 一起用）
+# Moodflow · 周信兜底模板的配套句子（FR-REV-02，与 letter_fallback.md 一起用）
 # rest_comment：接在“休息提醒完成了 N%，”后面，按完成率选（≥70% high，30–69% mid，<30% low）。
 # tip：“下周可以试试：”后面的一句，按 late → rest_low → hard → default 的顺序取第一条符合的：
 #   late     ：这周有 ≥2 晚停止打字晚于 23:30，或平均停止打字时间晚于 23:30

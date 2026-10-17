@@ -1,6 +1,6 @@
-# WindInput 远程构建 —— 把 cargo / MSVC 编译放到另一台 Windows 机器执行, 产物回传本机部署。
+# Moodflow 远程构建 —— 把 cargo / MSVC 编译放到另一台 Windows 机器执行, 产物回传本机部署。
 #
-# ⚠️ 本脚本默认完全不生效。只有 scripts\build.local.ps1 存在且设了 $WIND_REMOTE_HOST 时,
+# ⚠️ 本脚本默认完全不生效。只有 scripts\build.local.ps1 存在且设了 $MOODFLOW_REMOTE_HOST 时,
 #    dev.ps1 才会把构建类命令转发到这里。未配置的开发者 clone 下来, dev.ps1 行为逐字不变;
 #    直接调用本脚本也不会报错, 而是把命令交回本机执行 (见下方「回落本机」)。
 #
@@ -8,12 +8,12 @@
 #    (含内网地址与账号), 每台开发机自行照模板填。
 #
 # ── 临时回落本机 ──────────────────────────────────────────────────────────
-#   $env:WIND_NO_REMOTE = "1"     # 本会话内一律本机编 (编译机关机 / 不在内网 / 要做对照)
-#   $env:WIND_NO_REMOTE = $null   # 恢复
+#   $env:MOODFLOW_NO_REMOTE = "1"     # 本会话内一律本机编 (编译机关机 / 不在内网 / 要做对照)
+#   $env:MOODFLOW_NO_REMOTE = $null   # 恢复
 #   已配置时想单次走本机, 也可以直接 `dev.ps1` 加这个环境变量前缀。
 #
 # ── 为什么编译机必须是 Windows + 原生 MSVC ────────────────────────────────────
-# clang / cargo-xwin 交叉编译出的 xinqing_tsf.dll 在带安全加固的宿主 (企业微信 / TIM /
+# clang / cargo-xwin 交叉编译出的 moodflow_tsf.dll 在带安全加固的宿主 (企业微信 / TIM /
 # QQ 部分进程 / UU浏览器) 里 COM 激活失败, 同 commit 的本机 MSVC 版正常 —— 已由 A/B 实测
 # 把唯一变量锁定在工具链上 (6dbc8595 因此把发布链从 ubuntu 交叉编译改回 windows-latest)。
 # 由此:
@@ -24,8 +24,8 @@
 #
 # ── 两种用法 ──────────────────────────────────────────────────────────────
 #   -Command <dev.ps1 子命令>    经 dev.ps1 的构建 (dm2 / d1 / 8 ...), 完事回传产物
-#   -Raw     <任意命令>          在编译机的 wind_input\ 下直接跑, 不回传产物
-#                                (细粒度 cargo: cargo test -p wind-coordinator 等)
+#   -Raw     <任意命令>          在编译机的 moodflow_input\ 下直接跑, 不回传产物
+#                                (细粒度 cargo: cargo test -p moodflow-coordinator 等)
 #
 # ── 通道: 一律 SSH ────────────────────────────────────────────────────────
 # 源码同步、命令执行、产物回传全部走同一套 SSH 密钥认证, 不引入第二套凭据。
@@ -79,19 +79,19 @@ if (Test-Path $buildCfg) { . $buildCfg }
 # 本脚本入库后, 绝大多数 clone 都不会配 build.local.ps1。它必须在那些环境里「安静地做对的
 # 事」——把命令交回本机跑完, 而不是报错退出。三种回落情形:
 #   1. 没有 build.local.ps1, 或缺 HOST/USER/ROOT 任一项 —— 从没配过
-#   2. $env:WIND_NO_REMOTE 非空 —— 临时强制本机 (编译机关机 / 不在内网 / 要和远程做对照)
+#   2. $env:MOODFLOW_NO_REMOTE 非空 —— 临时强制本机 (编译机关机 / 不在内网 / 要和远程做对照)
 #   3. 上层已在回落中 —— 见下方哨兵, 防 dev.ps1 ⇄ remote-build.ps1 互调成死循环
 function Test-RemoteReady {
-    if ($env:WIND_NO_REMOTE) { return $false }
-    foreach ($req in @("WIND_REMOTE_HOST", "WIND_REMOTE_USER", "WIND_REMOTE_ROOT")) {
+    if ($env:MOODFLOW_NO_REMOTE) { return $false }
+    foreach ($req in @("MOODFLOW_REMOTE_HOST", "MOODFLOW_REMOTE_USER", "MOODFLOW_REMOTE_ROOT")) {
         if (-not (Get-Variable $req -ValueOnly -ErrorAction SilentlyContinue)) { return $false }
     }
     return $true
 }
 
 if (-not (Test-RemoteReady)) {
-    if ($env:WIND_NO_REMOTE) {
-        Gray "WIND_NO_REMOTE 已设 —— 本次在本机执行。"
+    if ($env:MOODFLOW_NO_REMOTE) {
+        Gray "MOODFLOW_NO_REMOTE 已设 —— 本次在本机执行。"
     } else {
         Gray "未配置远程编译机 —— 本机执行。(要启用见 scripts\build.local.ps1.example)"
     }
@@ -101,42 +101,42 @@ if (-not (Test-RemoteReady)) {
     }
     # ⚠️ 哨兵必须在调 dev.ps1 之前设上: dev.ps1 的转发闸门看的正是这个环境变量, 不设它就会
     #    dev.ps1 → remote-build.ps1 → dev.ps1 无限递归。finally 还原, 免得污染调用者的会话。
-    $prevNoRemote = $env:WIND_NO_REMOTE
-    $env:WIND_NO_REMOTE = "1"
+    $prevNoRemote = $env:MOODFLOW_NO_REMOTE
+    $env:MOODFLOW_NO_REMOTE = "1"
     try {
         if ($PSCmdlet.ParameterSetName -eq 'Raw') {
-            # -Raw 的本机等价物: 在 wind_input\ 下原样执行。远程侧也是把整个字符串交给 pwsh,
+            # -Raw 的本机等价物: 在 moodflow_input\ 下原样执行。远程侧也是把整个字符串交给 pwsh,
             # 故这里同样不拆词 —— 拆了会丢掉引号内的空格 (rc.ps1 会给含空格的参数加引号)。
-            Push-Location "$ProductRoot\wind_input"
+            Push-Location "$ProductRoot\moodflow_input"
             try { Invoke-Expression $Raw } finally { Pop-Location }
         } else {
             & "$ScriptDir\dev.ps1" $Command
         }
         $rc = $LASTEXITCODE
-    } finally { $env:WIND_NO_REMOTE = $prevNoRemote }
+    } finally { $env:MOODFLOW_NO_REMOTE = $prevNoRemote }
     if ($null -eq $rc) { $rc = 0 }
     exit $rc
 }
-$Target   = "$WIND_REMOTE_USER@$WIND_REMOTE_HOST"
-$remotePs = if ($WIND_REMOTE_PS) { $WIND_REMOTE_PS } else { "pwsh" }
+$Target   = "$MOODFLOW_REMOTE_USER@$MOODFLOW_REMOTE_HOST"
+$remotePs = if ($MOODFLOW_REMOTE_PS) { $MOODFLOW_REMOTE_PS } else { "pwsh" }
 # 远程仓库路径的两种写法: Windows 原生 (给 pwsh/dev.ps1) 与正斜杠 (给 scp)
-$RRoot    = $WIND_REMOTE_ROOT.TrimEnd('\')
+$RRoot    = $MOODFLOW_REMOTE_ROOT.TrimEnd('\')
 
 # ---------- worktree 槽位: 换掉【父目录】, 而不是主仓的目录名 ----------
-# 多个 worktree 共用一台编译机时, 若都同步到 C:\build\WindInput 就会互相覆盖, 且是无声的:
+# 多个 worktree 共用一台编译机时, 若都同步到 C:\build\Moodflow 就会互相覆盖, 且是无声的:
 # 后一次 tar 解压盖掉前一次的源码, 产物属于哪个分支全看谁最后跑完。
 #
-# ⚠️ 为什么是换父目录, 而不是把 root 改成 C:\build\WindInput-fx:
-#    伴生仓与主仓平级, 而 wind-setting\Cargo.toml 里写死了三条相对 path 依赖
-#    (wind-ipc / wind-rpc / wind-config 均为 ../WindInput/wind_input/crates/...)。
-#    只改主仓目录名, wind-setting 仍会去 ..\WindInput 取那三个 crate —— 取到的是主树代码,
+# ⚠️ 为什么是换父目录, 而不是把 root 改成 C:\build\Moodflow-fx:
+#    伴生仓与主仓平级, 而 moodflow-setting\Cargo.toml 里写死了三条相对 path 依赖
+#    (moodflow-ipc / moodflow-rpc / moodflow-config 均为 ../Moodflow/moodflow_input/crates/...)。
+#    只改主仓目录名, moodflow-setting 仍会去 ..\Moodflow 取那三个 crate —— 取到的是主树代码,
 #    编译照样成功, 错得毫无提示。整个父目录换槽位, 相对结构才保持自洽:
-#        默认     C:\build\{WindInput, wind-setting, wind-ui-rust, ...}
-#        槽位 fx  C:\build-fx\{WindInput, wind-setting, wind-ui-rust, ...}
+#        默认     C:\build\{Moodflow, moodflow-setting, moodflow-ui-rust, ...}
+#        槽位 fx  C:\build-fx\{Moodflow, moodflow-setting, moodflow-ui-rust, ...}
 #
 # ⚠️ 每个槽位各有一份 target\ (几十 GB)。开完记得 `remote-build.ps1 -Command <x> -Clean`
 #    或直接删掉编译机上的整个槽位目录。
-$slot = $env:WIND_REMOTE_SLOT
+$slot = $env:MOODFLOW_REMOTE_SLOT
 if ($slot -and $slot -in @('0', 'none', 'off')) {
     $slot = $null          # 显式关掉: worktree 也共用默认目录 (串台风险自负)
 } elseif (-not $slot) {
@@ -256,7 +256,7 @@ function Exit-RemoteLock {
 # 旧文档曾让用户"确认对方已死后去编译机上手动删文件" —— 大多数人根本没法/不敢直接 SSH
 # 上去删文件。这里给一条安全的等价操作: 只删锁文件, 不碰源码/产物, 走已有的 SSH 通道。
 if ($PSCmdlet.ParameterSetName -eq 'Unlock') {
-    Say "`n========== 强制释放编译机锁 ($WIND_REMOTE_HOST) =========="
+    Say "`n========== 强制释放编译机锁 ($MOODFLOW_REMOTE_HOST) =========="
     if ($slot) { Gray "  槽位 $slot → $RRoot" }
     $r = Get-RemoteValue @"
 if (Test-Path -LiteralPath '$LockFile') {
@@ -310,7 +310,7 @@ function Sync-Tree ([string]$src, [string]$remoteDir, [string]$label) {
     $rTgz = "C:/Windows/Temp/wi-src-$rnd.tar.gz"
     try {
         # bsdtar 的 --exclude 按【归档内路径】做 fnmatch。以 -C <root> . 打包时路径形如
-        # ./wind_input/..., 故顶层与嵌套两种模式都要给 —— 只写 --exclude=target 不保险。
+        # ./moodflow_input/..., 故顶层与嵌套两种模式都要给 —— 只写 --exclude=target 不保险。
         $ex = @()
         foreach ($d in $ExcludeDirs)  { $ex += "--exclude=./$d"; $ex += "--exclude=*/$d" }
         foreach ($f in $ExcludeFiles) { $ex += "--exclude=$f" }
@@ -408,10 +408,10 @@ function Sync-Tree ([string]$src, [string]$remoteDir, [string]$label) {
 # 按命令只取该模块产出的文件 —— dm2 只需 1 个 exe (20 MB), 没必要连 data\ 22 MB 一起拉。
 # 全构建 (1/d1/8/9) 才整目录打包回传。
 $ArtifactMap = @{
-    'm1'  = @('xinqing_tsf.dll', 'xinqing_tsf_x86.dll');       'dm1' = @('xinqing_tsf_dev.dll', 'xinqing_tsf_x86_dev.dll')
-    'm2'  = @('xinqing_core.exe', 'wind_cli.bat');         'dm2' = @('xinqing_core_dev.exe', 'wind_cli.bat')
-    'm3'  = @('wind_setting.exe');                       'dm3' = @('wind_setting_dev.exe')
-    'm4'  = @('wind_portable.exe');                      'dm4' = @('wind_portable.exe')
+    'm1'  = @('moodflow_tsf.dll', 'moodflow_tsf_x86.dll');       'dm1' = @('moodflow_tsf_dev.dll', 'moodflow_tsf_x86_dev.dll')
+    'm2'  = @('moodflow_core.exe', 'moodflow_cli.bat');         'dm2' = @('moodflow_core_dev.exe', 'moodflow_cli.bat')
+    'm3'  = @('moodflow_setting.exe');                       'dm3' = @('moodflow_setting_dev.exe')
+    'm4'  = @('moodflow_portable.exe');                      'dm4' = @('moodflow_portable.exe')
 }
 
 # 命令 → 只回传 build[_dev]\ 下的这个子目录。gen-data 只产出 data\, 若照全构建那样整目录回传,
@@ -497,21 +497,21 @@ function Get-OutDirFor ([string]$cmd) {
 # 命令 → 真正需要的伴生仓。dm1/dm2 (最常用) 和细粒度 cargo 完全用不到它们, 每次都同步
 # 三个仓纯属浪费; 只有构建 setting/portable 或打包时才需要。
 #
-# ⚠️ wind-setting 必须连 wind-ui-rust 一起同步: 它是 **path 依赖**
-# (windui = { path = "../wind-ui-rust" }), 仓不在就直接 "系统找不到指定的路径 (os error 3)"。
-# wind-portable / wind-installer 用的是 crates.io 版本 (均 0.11), 不需要本地仓。
+# ⚠️ moodflow-setting 必须连 moodflow-ui-rust 一起同步: 它是 **path 依赖**
+# (moodflowui = { path = "../moodflow-ui-rust" }), 仓不在就直接 "系统找不到指定的路径 (os error 3)"。
+# moodflow-portable / moodflow-installer 用的是 crates.io 版本 (均 0.11), 不需要本地仓。
 function Get-NeededSiblings ([string]$cmd) {
-    if (-not $WIND_REMOTE_SIBLINGS) { return @() }
+    if (-not $MOODFLOW_REMOTE_SIBLINGS) { return @() }
     $need = switch -Regex ($cmd) {
-        '^(1|release|d1|dev)$' { @('wind-setting', 'wind-ui-rust', 'wind-portable'); break }
-        '^(m3|dm3)$'           { @('wind-setting', 'wind-ui-rust'); break }
-        '^(m4|dm4)$'           { @('wind-portable'); break }
-        '^(8|8s|d8|d8s)$'      { @('wind-setting', 'wind-ui-rust', 'wind-portable', 'wind-installer'); break }
-        '^(9|9s|d9|d9s)$'      { @('wind-setting', 'wind-ui-rust', 'wind-portable'); break }
+        '^(1|release|d1|dev)$' { @('moodflow-setting', 'moodflow-ui-rust', 'moodflow-portable'); break }
+        '^(m3|dm3)$'           { @('moodflow-setting', 'moodflow-ui-rust'); break }
+        '^(m4|dm4)$'           { @('moodflow-portable'); break }
+        '^(8|8s|d8|d8s)$'      { @('moodflow-setting', 'moodflow-ui-rust', 'moodflow-portable', 'moodflow-installer'); break }
+        '^(9|9s|d9|d9s)$'      { @('moodflow-setting', 'moodflow-ui-rust', 'moodflow-portable'); break }
         default                { @() }
     }
     # 与用户配置的清单取交集 —— 用户可能只列了其中一部分
-    return @($WIND_REMOTE_SIBLINGS | Where-Object { $need -contains $_ })
+    return @($MOODFLOW_REMOTE_SIBLINGS | Where-Object { $need -contains $_ })
 }
 
 # ============================== 主流程 ==============================
@@ -524,7 +524,7 @@ else {
     $localOut = "$ProductRoot\$outName"
 }
 
-Say "`n========== 远程执行 ($cmdText → $WIND_REMOTE_HOST) =========="
+Say "`n========== 远程执行 ($cmdText → $MOODFLOW_REMOTE_HOST) =========="
 # 槽位必须显式打出来: 不可见的路径切换本身就是下一个坑 —— 看到产物不对时, 第一眼就能
 # 分清「编错了」还是「编在别的槽位里」。
 if ($slot) { Gray "  槽位 $slot → $RRoot" }
@@ -571,17 +571,17 @@ $tSync.Stop()
 #         合并它反而会把上面那套 CLIXML 序列化一起拖进来。
 #   exit $LASTEXITCODE —— 不可省, 否则 ssh 只反映 pwsh 是否启动成功, 编译失败会被吞成绿灯。
 if ($isRaw) {
-    Say "[2/3] 在编译机 wind_input\ 下执行: $Raw"
+    Say "[2/3] 在编译机 moodflow_input\ 下执行: $Raw"
     # ⚠️ 必须包进 &{ } 再重定向: 6>&1 只能作用于【命令】。直接写 "$Raw 6>&1" 时, 若 $Raw 以
     #    语句块收尾 (if/foreach/try ...), PowerShell 会把 6>&1 解析成下一条命令 —— 报
     #    "The term '6>&1' is not recognized"。简单命令 (cargo test -p x) 看不出问题, 复合
     #    命令才炸, 属于放着必然咬人的那类。
-    $inner = "Set-Location -LiteralPath '$RRoot\wind_input'; & { $Raw } 6>&1; exit `$LASTEXITCODE"
+    $inner = "Set-Location -LiteralPath '$RRoot\moodflow_input'; & { $Raw } 6>&1; exit `$LASTEXITCODE"
 } else {
     Say "[2/3] 在编译机上执行 dev.ps1 $Command ..."
     # 编译机是专用机器, 没有「别把机器压卡」的顾虑, 于是让全构建的四步并行 (见 dev.ps1 的
     # Invoke-BuildStagesParallel)。开关只在这里注入 —— 本机直接跑 dev.ps1 时行为不变。
-    $inner = "`$env:WIND_PARALLEL_BUILD='1'; & '$RRoot\scripts\dev.ps1' $Command 6>&1; exit `$LASTEXITCODE"
+    $inner = "`$env:MOODFLOW_PARALLEL_BUILD='1'; & '$RRoot\scripts\dev.ps1' $Command 6>&1; exit `$LASTEXITCODE"
 }
 $tExec = [System.Diagnostics.Stopwatch]::StartNew()
 if (-not (Invoke-RemotePs $inner)) {

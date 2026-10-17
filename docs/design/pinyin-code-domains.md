@@ -288,12 +288,12 @@ L3（简拼）是最后一步——它只是这条断链最显眼的症状。
 
 按 §5.1 实施。新造的词与导入导出的词都带真边界。
 
-**生成端**（`wind-engine`）：`generate_word_pinyin` 及 `Engine` trait / `EngineManager`
+**生成端**（`moodflow-engine`）：`generate_word_pinyin` 及 `Engine` trait / `EngineManager`
 返回类型由 `(String, u64)` 改为带空格的 `String`；`CodeBuilder` 换成 `SpacedCode`
 （音节 `Vec<String>` + `join(" ")`），mask 左移与 overflow 检测整体删除；`DpState.seg_mask`
 字段消失。查词典处显式 `replace(' ', "")` —— 词典 key 是扁平的。
 
-**持久化端**（`wind-store`）：新增 `wdict::{join_code_by_boundary, split_spaced_code}`；
+**持久化端**（`moodflow-store`）：新增 `wdict::{join_code_by_boundary, split_spaced_code}`；
 接入 `collect_user_word_rows` / `import_user_words` / `preview_import_user_words` /
 `export_temp_words_wdict` / `import_temp_words_wdict` / `import_temp_word_rows` /
 `dict_export` 的 TempWords 段。`import_user_words` 的分类判据加入「仅补边界」也算 updated，

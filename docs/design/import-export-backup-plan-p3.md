@@ -4,16 +4,16 @@
 
 **Goal:** 交付方案包导出/导入:把一个输入方案(.schema.toml)连同其引用资源(码表/拆字表/字体/双拼布局/unigram)打成自描述 zip,可在另一台机器导入到用户方案目录并即刻可用。
 
-**Architecture:** 核心逻辑全部在 `wind-transfer/scheme.rs`(纯函数,目录作参数,tempdir 可测);资源收集按"用户目录命中→打包 / 系统目录命中→只记引用 / 均无→记缺失"三分类,mixed 方案递归收集引用的用户方案;zip 内**保留 schemas 根相对路径**(`schemas/<rel>`),导入零路径改写。RPC 层三个薄 handlers;导入后 `invalidate_schema`,列表可见性靠 `installed_schemas()` 实时扫盘天然生效。
+**Architecture:** 核心逻辑全部在 `moodflow-transfer/scheme.rs`(纯函数,目录作参数,tempdir 可测);资源收集按"用户目录命中→打包 / 系统目录命中→只记引用 / 均无→记缺失"三分类,mixed 方案递归收集引用的用户方案;zip 内**保留 schemas 根相对路径**(`schemas/<rel>`),导入零路径改写。RPC 层三个薄 handlers;导入后 `invalidate_schema`,列表可见性靠 `installed_schemas()` 实时扫盘天然生效。
 
-**Tech Stack:** Rust、zip(已有)、toml、serde、wind-config 的 `Schema` 类型、tempfile(dev)。
+**Tech Stack:** Rust、zip(已有)、toml、serde、moodflow-config 的 `Schema` 类型、tempfile(dev)。
 
 **关联:** 设计 `docs/design/import-export-backup-design.md`;P1/P2 计划同目录。
 
 ## Global Constraints
 
-- 工作目录:所有 `cargo` 命令在 `wind_input/` 下执行。
-- **cwd 防护(强制)**:实现者只能在指定 worktree 内操作;每次 git 写命令前 `pwd` 验证;严禁触碰 `D:/Develop/workspace/windinput/WindInput` 主仓。
+- 工作目录:所有 `cargo` 命令在 `moodflow_input/` 下执行。
+- **cwd 防护(强制)**:实现者只能在指定 worktree 内操作;每次 git 写命令前 `pwd` 验证;严禁触碰 `D:/Develop/workspace/moodflow/Moodflow` 主仓。
 - 格式化:只用 `cargo fmt -p <crate>`,严禁裸 `cargo fmt`;提交前 `git status` 核查并 restore 非本任务文件。
 - 提交:conventional commit,不带 Co-Authored-By 与任何 AI trailer。TDD 先写失败测试。
 - **zip 布局决策(覆盖设计文档示意)**:包内条目名 = `schemas/` + schemas 根相对路径(如 `schemas/wubi86.schema.toml`、`schemas/wubi86/xx.dict.yaml`、`schemas/shuangpin/xiaohe.toml`)。设计文档原示意(`schema/dicts/...` 重排)会破坏 schema.toml 内的相对引用,弃用;Task 4 更新设计文档。
@@ -27,7 +27,7 @@
 ### Task 1: bundle API 扩展——带类型条目与无载荷引用条目
 
 **Files:**
-- Modify: `wind_input/crates/wind-transfer/src/bundle.rs`
+- Modify: `moodflow_input/crates/moodflow-transfer/src/bundle.rs`
 
 **Interfaces:**
 - Consumes: 既有 `BundleWriter{writer, manifest}`、`ContentEntry`、`MANIFEST_NAME`。
@@ -73,7 +73,7 @@ fn typed_entries_and_refs_in_manifest() {
 
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `cd wind_input && cargo test -p wind-transfer bundle::tests::typed_entries`
+Run: `cd moodflow_input && cargo test -p moodflow-transfer bundle::tests::typed_entries`
 Expected: 编译错误,`add_bytes_with` / `add_ref` 未定义。
 
 - [ ] **Step 3: 实现**
@@ -117,14 +117,14 @@ Expected: 编译错误,`add_bytes_with` / `add_ref` 未定义。
 
 - [ ] **Step 4: 跑测试确认通过(含既有 bundle 测试回归)**
 
-Run: `cd wind_input && cargo test -p wind-transfer bundle`
+Run: `cd moodflow_input && cargo test -p moodflow-transfer bundle`
 Expected: PASS(新测试 + 既有 4 个 bundle 测试全绿)。
 
 - [ ] **Step 5: 格式化并提交**
 
 ```bash
-cd wind_input && cargo fmt -p wind-transfer
-git add wind_input/crates/wind-transfer/src/bundle.rs
+cd moodflow_input && cargo fmt -p moodflow-transfer
+git add moodflow_input/crates/moodflow-transfer/src/bundle.rs
 git commit -m "feat(transfer): bundle 支持类型化条目与无载荷引用条目"
 ```
 
@@ -133,11 +133,11 @@ git commit -m "feat(transfer): bundle 支持类型化条目与无载荷引用条
 ### Task 2: scheme.rs——资源收集与方案包导出
 
 **Files:**
-- Create: `wind_input/crates/wind-transfer/src/scheme.rs`
-- Modify: `wind_input/crates/wind-transfer/src/lib.rs`(追加 `pub mod scheme;`)
+- Create: `moodflow_input/crates/moodflow-transfer/src/scheme.rs`
+- Modify: `moodflow_input/crates/moodflow-transfer/src/lib.rs`(追加 `pub mod scheme;`)
 
 **Interfaces:**
-- Consumes: Task 1 的 `BundleWriter::{new, add_bytes_with, add_ref, finish}`、`Manifest::new`、`BundleKind::Scheme`;`wind_config::schema::Schema`(serde 反序列化 TOML;字段:`schema.id`、`engine.engine_type`、`engine.chaizi.{db_path,font_path}`、`engine.pinyin.{unigram_path, shuangpin.layout}`、`engine.mixed.{primary_schema,secondary_schema}`、`dictionaries[].path`)。wind-transfer 需追加依赖 `toml = "0.8"`(Cargo.toml `[dependencies]`;若 workspace 表有 toml 则用 `{ workspace = true }`,以根 Cargo.toml 实况为准)。
+- Consumes: Task 1 的 `BundleWriter::{new, add_bytes_with, add_ref, finish}`、`Manifest::new`、`BundleKind::Scheme`;`moodflow_config::schema::Schema`(serde 反序列化 TOML;字段:`schema.id`、`engine.engine_type`、`engine.chaizi.{db_path,font_path}`、`engine.pinyin.{unigram_path, shuangpin.layout}`、`engine.mixed.{primary_schema,secondary_schema}`、`dictionaries[].path`)。moodflow-transfer 需追加依赖 `toml = "0.8"`(Cargo.toml `[dependencies]`;若 workspace 表有 toml 则用 `{ workspace = true }`,以根 Cargo.toml 实况为准)。
 - Produces(Task 3/4 依赖):
   - `pub struct CollectPlan { pub pack: Vec<(String, std::path::PathBuf)>, pub system_refs: Vec<String>, pub missing: Vec<String>, pub schema_ids: Vec<String> }`(pack 元素 = (zip 条目名, 绝对源路径))
   - `pub fn collect_package_files(id: &str, user_dir: &Path, system_dir: Option<&Path>) -> anyhow::Result<CollectPlan>`
@@ -258,7 +258,7 @@ secondary_schema = "pinyin"
 
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `cd wind_input && cargo test -p wind-transfer scheme`
+Run: `cd moodflow_input && cargo test -p moodflow-transfer scheme`
 Expected: 编译错误,`collect_package_files` 等未定义。
 
 - [ ] **Step 3: 实现收集与导出**
@@ -302,7 +302,7 @@ fn locate(rel: &str, user_dir: &Path, system_dir: Option<&Path>) -> Located {
 }
 
 /// 从一个已解析 Schema 提取其资源相对路径(不含方案文件本身、不含引用方案)。
-fn resource_rels(schema: &wind_config::schema::Schema) -> Vec<String> {
+fn resource_rels(schema: &moodflow_config::schema::Schema) -> Vec<String> {
     let mut rels = Vec::new();
     for d in &schema.dictionaries {
         if !d.path.is_empty() {
@@ -380,7 +380,7 @@ fn collect_into(
         .push((format!("schemas/{schema_rel}"), schema_abs.clone()));
 
     let text = std::fs::read_to_string(&schema_abs)?;
-    let schema: wind_config::schema::Schema = toml::from_str(&text)?;
+    let schema: moodflow_config::schema::Schema = toml::from_str(&text)?;
 
     for rel in resource_rels(&schema) {
         match locate(&rel, user_dir, system_dir) {
@@ -455,14 +455,14 @@ pub fn export_package(
 
 - [ ] **Step 4: 跑测试确认通过**
 
-Run: `cd wind_input && cargo test -p wind-transfer scheme`
-Expected: PASS(3 个测试)。再跑 `cargo test -p wind-transfer` 确认 bundle/merge 无回归。
+Run: `cd moodflow_input && cargo test -p moodflow-transfer scheme`
+Expected: PASS(3 个测试)。再跑 `cargo test -p moodflow-transfer` 确认 bundle/merge 无回归。
 
 - [ ] **Step 5: 格式化并提交**
 
 ```bash
-cd wind_input && cargo fmt -p wind-transfer
-git add wind_input/crates/wind-transfer/Cargo.toml wind_input/crates/wind-transfer/src/lib.rs wind_input/crates/wind-transfer/src/scheme.rs
+cd moodflow_input && cargo fmt -p moodflow-transfer
+git add moodflow_input/crates/moodflow-transfer/Cargo.toml moodflow_input/crates/moodflow-transfer/src/lib.rs moodflow_input/crates/moodflow-transfer/src/scheme.rs
 git commit -m "feat(transfer): 方案包资源收集与导出(三分类+mixed递归)"
 ```
 
@@ -471,7 +471,7 @@ git commit -m "feat(transfer): 方案包资源收集与导出(三分类+mixed递
 ### Task 3: scheme.rs——导入预览与导入落盘
 
 **Files:**
-- Modify: `wind_input/crates/wind-transfer/src/scheme.rs`(追加导入侧)
+- Modify: `moodflow_input/crates/moodflow-transfer/src/scheme.rs`(追加导入侧)
 
 **Interfaces:**
 - Consumes: Task 2 全部;`crate::bundle::{read_manifest, extract_entry}`;`crate::merge::Strategy`。
@@ -568,7 +568,7 @@ git commit -m "feat(transfer): 方案包资源收集与导出(三分类+mixed递
 
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `cd wind_input && cargo test -p wind-transfer scheme::tests::import_`
+Run: `cd moodflow_input && cargo test -p moodflow-transfer scheme::tests::import_`
 Expected: 编译错误,`preview_import` / `import_package` 未定义。
 
 - [ ] **Step 3: 实现导入侧**
@@ -686,7 +686,7 @@ pub fn import_package(
         if let Some(parent) = target.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let tmp = target.with_extension("windinput.tmp");
+        let tmp = target.with_extension("moodflow.tmp");
         std::fs::write(&tmp, bytes)?;
         // Windows: rename 到已存在目标会失败,Replace 先移除旧文件。
         if target.exists() {
@@ -711,14 +711,14 @@ pub fn import_package(
 
 - [ ] **Step 4: 跑测试确认通过**
 
-Run: `cd wind_input && cargo test -p wind-transfer scheme`
+Run: `cd moodflow_input && cargo test -p moodflow-transfer scheme`
 Expected: PASS(6 个测试:Task 2 的 3 个 + 本任务 3 个)。
 
 - [ ] **Step 5: 格式化并提交**
 
 ```bash
-cd wind_input && cargo fmt -p wind-transfer
-git add wind_input/crates/wind-transfer/src/scheme.rs
+cd moodflow_input && cargo fmt -p moodflow-transfer
+git add moodflow_input/crates/moodflow-transfer/src/scheme.rs
 git commit -m "feat(transfer): 方案包导入预览与落盘(Merge跳过/Replace覆盖+穿越防护)"
 ```
 
@@ -727,25 +727,25 @@ git commit -m "feat(transfer): 方案包导入预览与落盘(Merge跳过/Replac
 ### Task 4: RPC scheme.exportPackage / importPackage / previewImport
 
 **Files:**
-- Modify: `wind_input/crates/wind-coordinator/src/webdata.rs`(dispatch 三分支 + 三 handlers + 契约测试)
-- Modify(条件): `wind_input/crates/wind-engine/src/manager.rs`(若 `invalidate_schema` 非 pub 则改为 pub,带 doc 注释;先查再改)
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/webdata.rs`(dispatch 三分支 + 三 handlers + 契约测试)
+- Modify(条件): `moodflow_input/crates/moodflow-engine/src/manager.rs`(若 `invalidate_schema` 非 pub 则改为 pub,带 doc 注释;先查再改)
 - Modify: `docs/design/import-export-backup-design.md`(方案包 zip 布局章节按"schemas 根相对路径"实况更新)
 
 **Interfaces:**
-- Consumes: Task 2/3 的 `wind_transfer::scheme::{export_package, preview_import, import_package}`;`wind_transfer::merge::Strategy`;`Config::user_config_dir()`(用户 schemas 根 = `user_config_dir()/schemas`,不存在则 `create_dir_all`)、`Config::data_dir()`(系统 schemas 根 = `data_dir()/schemas`);`self.engine_mgr.invalidate_schema(id)`。
-- Produces(wind-setting 契约):
+- Consumes: Task 2/3 的 `moodflow_transfer::scheme::{export_package, preview_import, import_package}`;`moodflow_transfer::merge::Strategy`;`Config::user_config_dir()`(用户 schemas 根 = `user_config_dir()/schemas`,不存在则 `create_dir_all`)、`Config::data_dir()`(系统 schemas 根 = `data_dir()/schemas`);`self.engine_mgr.invalidate_schema(id)`。
+- Produces(moodflow-setting 契约):
   - `scheme.exportPackage {id, path}` → `{path, packed, systemRefs, missing}`
   - `scheme.importPackage {path, strategy?}` → `{imported, conflicts, schemaIds}`
   - `scheme.previewImport {path}` → `{manifest, willAdd, conflicts, systemRefs, missing}`
 
 - [ ] **Step 1: 确认 invalidate_schema 可见性**
 
-Run: `cd wind_input && grep -n "fn invalidate_schema" crates/wind-engine/src/manager.rs`
+Run: `cd moodflow_input && grep -n "fn invalidate_schema" crates/moodflow-engine/src/manager.rs`
 若非 `pub fn`,改为 `pub fn` 并在其 doc 注释追加一行:`/// pub:方案包导入后由 RPC 层调用,失效已加载缓存(未加载时安全 no-op)。`
 
 - [ ] **Step 2: 写失败契约测试**
 
-`webdata.rs` 的 `mod tests` 追加(只测只读/错误路径——importPackage 的 happy path 会写真实用户目录,由 wind-transfer 单测 + 真机覆盖):
+`webdata.rs` 的 `mod tests` 追加(只测只读/错误路径——importPackage 的 happy path 会写真实用户目录,由 moodflow-transfer 单测 + 真机覆盖):
 
 ```rust
 #[test]
@@ -769,7 +769,7 @@ fn scheme_package_rpc_contract() {
         .is_err()
     );
     // previewImport:真实构造的包 → 只读预览成功,形状正确
-    let t = std::env::temp_dir().join("wind_schemepkg_test");
+    let t = std::env::temp_dir().join("moodflow_schemepkg_test");
     let _ = std::fs::remove_dir_all(&t);
     let (user, system) = (t.join("u"), t.join("s"));
     std::fs::create_dir_all(user.join("my")).unwrap();
@@ -781,7 +781,7 @@ fn scheme_package_rpc_contract() {
     .unwrap();
     std::fs::write(user.join("my/d.yaml"), "d").unwrap();
     let pkg = t.join("my.zip");
-    wind_transfer::scheme::export_package(
+    moodflow_transfer::scheme::export_package(
         "my", &user, Some(&system), &pkg, "1.0.0", "windows", "t",
     )
     .unwrap();
@@ -807,7 +807,7 @@ fn scheme_package_rpc_contract() {
 
 - [ ] **Step 3: 跑测试确认失败**
 
-Run: `cd wind_input && cargo test -p wind-coordinator scheme_package_rpc -- --nocapture`
+Run: `cd moodflow_input && cargo test -p moodflow-coordinator scheme_package_rpc -- --nocapture`
 Expected: FAIL,`unknown method: scheme.exportPackage`。
 
 - [ ] **Step 4: 实现 dispatch 与 handlers**
@@ -823,9 +823,9 @@ dispatch(`web_data_rpc` 的 match)中 `"schema.references"` 分支之后追加:
 handlers 区追加(建议紧邻 `web_schema_delete` 之后):
 
 ```rust
-    /// 用户 schemas 根目录(%APPDATA%/WindInput/schemas),不存在则创建。
+    /// 用户 schemas 根目录(%APPDATA%/Moodflow/schemas),不存在则创建。
     fn user_schemas_dir() -> anyhow::Result<std::path::PathBuf> {
-        let dir = wind_config::Config::user_config_dir()
+        let dir = moodflow_config::Config::user_config_dir()
             .ok_or_else(|| anyhow::anyhow!("无用户配置目录"))?
             .join("schemas");
         std::fs::create_dir_all(&dir)?;
@@ -834,7 +834,7 @@ handlers 区追加(建议紧邻 `web_schema_delete` 之后):
 
     /// 系统 schemas 根目录(<exe>/data/schemas),可能不存在(如测试环境)。
     fn system_schemas_dir() -> Option<std::path::PathBuf> {
-        wind_config::Config::data_dir()
+        moodflow_config::Config::data_dir()
             .map(|d| d.join("schemas"))
             .filter(|d| d.is_dir())
     }
@@ -844,7 +844,7 @@ handlers 区追加(建议紧邻 `web_schema_delete` 之后):
         let out = str_param(params, "path")?;
         let user = Self::user_schemas_dir()?;
         let system = Self::system_schemas_dir();
-        let r = wind_transfer::scheme::export_package(
+        let r = moodflow_transfer::scheme::export_package(
             id,
             &user,
             system.as_deref(),
@@ -862,13 +862,13 @@ handlers 区追加(建议紧邻 `web_schema_delete` 之后):
     }
 
     fn web_scheme_import_package(&self, params: &Value) -> anyhow::Result<Value> {
-        use wind_transfer::merge::Strategy;
+        use moodflow_transfer::merge::Strategy;
         let path = str_param(params, "path")?;
         let strategy = Strategy::from_param(
             params.get("strategy").and_then(|v| v.as_str()).unwrap_or(""),
         );
         let user = Self::user_schemas_dir()?;
-        let r = wind_transfer::scheme::import_package(
+        let r = moodflow_transfer::scheme::import_package(
             std::path::Path::new(path),
             &user,
             strategy,
@@ -887,7 +887,7 @@ handlers 区追加(建议紧邻 `web_schema_delete` 之后):
     fn web_scheme_preview_import(&self, params: &Value) -> anyhow::Result<Value> {
         let path = str_param(params, "path")?;
         let user = Self::user_schemas_dir()?;
-        let p = wind_transfer::scheme::preview_import(std::path::Path::new(path), &user)?;
+        let p = moodflow_transfer::scheme::preview_import(std::path::Path::new(path), &user)?;
         Ok(json!({
             "manifest": serde_json::to_value(&p.manifest)?,
             "willAdd": p.will_add,
@@ -898,11 +898,11 @@ handlers 区追加(建议紧邻 `web_schema_delete` 之后):
     }
 ```
 
-> 注:wind-coordinator 已依赖 wind-transfer(P2 加入),无需改 Cargo.toml。若 `invalidate_schema` 签名为 `&self` 以外形式,以实况为准适配。
+> 注:moodflow-coordinator 已依赖 moodflow-transfer(P2 加入),无需改 Cargo.toml。若 `invalidate_schema` 签名为 `&self` 以外形式,以实况为准适配。
 
 - [ ] **Step 5: 跑测试确认通过(含既有 webdata 回归)**
 
-Run: `cd wind_input && cargo test -p wind-coordinator webdata`
+Run: `cd moodflow_input && cargo test -p moodflow-coordinator webdata`
 Expected: PASS。
 
 - [ ] **Step 6: 设计文档布局更新**
@@ -921,9 +921,9 @@ schemas/shuangpin/<布局>.toml     (若引用自定义双拼布局)
 - [ ] **Step 7: 格式化并提交**
 
 ```bash
-cd wind_input && cargo fmt -p wind-coordinator
-# 若 Step 1 改了 manager.rs: cargo fmt -p wind-engine
-git add wind_input/crates/wind-coordinator/src/webdata.rs docs/design/import-export-backup-design.md
+cd moodflow_input && cargo fmt -p moodflow-coordinator
+# 若 Step 1 改了 manager.rs: cargo fmt -p moodflow-engine
+git add moodflow_input/crates/moodflow-coordinator/src/webdata.rs docs/design/import-export-backup-design.md
 # 若改了 manager.rs 一并 add
 git commit -m "feat(rpc): scheme.exportPackage/importPackage/previewImport 方案包三件套"
 ```
@@ -932,13 +932,13 @@ git commit -m "feat(rpc): scheme.exportPackage/importPackage/previewImport 方�
 
 ## P3 收尾验证
 
-- [ ] `cd wind_input && cargo test -p wind-transfer -p wind-coordinator` 全绿。
-- [ ] `cd wind_input && cargo build` 成功。
-- [ ] `cd wind_input && cargo fmt -p wind-transfer -p wind-coordinator -- --check` 干净(不含既有漂移文件)。
+- [ ] `cd moodflow_input && cargo test -p moodflow-transfer -p moodflow-coordinator` 全绿。
+- [ ] `cd moodflow_input && cargo build` 成功。
+- [ ] `cd moodflow_input && cargo fmt -p moodflow-transfer -p moodflow-coordinator -- --check` 干净(不含既有漂移文件)。
 
 ## P3 交付物
 
-- `wind-transfer/scheme.rs`:三分类资源收集(mixed 递归防环)、导出打包、只读预览、Merge/Replace 导入(穿越防护 + 读齐再写)。
+- `moodflow-transfer/scheme.rs`:三分类资源收集(mixed 递归防环)、导出打包、只读预览、Merge/Replace 导入(穿越防护 + 读齐再写)。
 - RPC:`scheme.exportPackage/importPackage/previewImport` 契约就位。
 - 遗留(P5):多文件覆盖回滚(backup 已覆盖文件);`web_schema_list` 的 `builtin` 恒 true(用户方案无法在 UI 区分,建议 P5 一并修);真机验证导入后方案切换可用。
 

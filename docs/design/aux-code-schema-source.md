@@ -57,7 +57,7 @@ max_phrase_len = 4      # 不变
 
 ## 4. 字 → 编码：统一查询接口
 
-`wind-aux-code` 的筛选（`filter_by_aux_code` / `AuxCodeSession::apply`）今天直接拿 `&AuxCodeTable`。
+`moodflow-aux-code` 的筛选（`filter_by_aux_code` / `AuxCodeSession::apply`）今天直接拿 `&AuxCodeTable`。
 改为拿一个查询接口：
 
 ```rust
@@ -82,7 +82,7 @@ codes_of(ch) = 各来源依次给出的码（先出现的在前，去重）
 ```
 
 方案来源不预先 `merge` 进表：它的用户层会频繁变，合成放在查询时做。候选一页只有几十个字，
-成本可忽略。**相邻的文件来源仍 `merge` 成一层**（`wind-aux-code` 的「多表坍缩成单表」规矩照旧），
+成本可忽略。**相邻的文件来源仍 `merge` 成一层**（`moodflow-aux-code` 的「多表坍缩成单表」规矩照旧），
 层数只随方案来源数增长；被方案来源隔开的文件段各自合并，清单顺序即优先级不变。
 
 ### 4.1 方案来源 = 「按词查编码」统一入口的一个使用方
@@ -141,7 +141,7 @@ R8.1 勾选行：
 - 用勾选行而不是 R8.2 下拉：选项会超过 6 项；也与卡片上另两行形态一致。
 - 「全部恢复跟随」一并清这一行；卡片摘要「已自定义 N 项」计入它。
 
-新 RPC **`schema.auxCodeSources`**（主仓 wind-webdata）：
+新 RPC **`schema.auxCodeSources`**（主仓 moodflow-webdata）：
 
 ```json
 {
@@ -179,8 +179,8 @@ R8.1 勾选行：
 | 0 | 前置：「按词查编码」统一入口第一期（`text-code-lookup.md`） | 主仓 | `8b99d7a7`、`d5fa0499`、`d000b8e6` |
 | 1 | `AuxCodeLookup` 接口与来源拼接；`schema:` 条目解析；方案来源接统一入口；后台预热与缓存键（修 saveConfig 不失效）；`schema.auxCodeSources` | 主仓 | `9ab878f4`、`31cd04c8`、`09e1459d`、`51595c94`；终审修复 `12406518`、`d8a8b03d`（预热落地、会话中失效放行、文件来源合层） |
 | 2 | 笔画码表方案、全拼默认改引用、NOTICE | 主仓（工具 + 数据） | `ad350315`、`2a9193ba`、`951a6b5c`（直接在 main） |
-| 3 | 「辅助码来源」勾选行、mock、渲染与写回测试 | wind-setting + 主仓 | wind-setting `26a2c60`、`b7cd3bc`、`c2c4198`；主仓 `ec3e1c8b` |
-| 4 | 文档：`[engine.aux_code].files` 的 `schema:` 写法；「用五笔 / 笔画方案作拼音辅助码」 | 文档站 | WindInputDocs `b9f066d`（另补笔画码取码规则） |
+| 3 | 「辅助码来源」勾选行、mock、渲染与写回测试 | moodflow-setting + 主仓 | moodflow-setting `26a2c60`、`b7cd3bc`、`c2c4198`；主仓 `ec3e1c8b` |
+| 4 | 文档：`[engine.aux_code].files` 的 `schema:` 写法；「用五笔 / 笔画方案作拼音辅助码」 | 文档站 | MoodflowDocs `b9f066d`（另补笔画码取码规则） |
 
 触发键与分隔符冲突警示（原 P2 第 6 条）不在本文范围。
 

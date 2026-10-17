@@ -4,9 +4,9 @@
 
 **Goal:** 让码表方案在开关打开后，组码时按通配键即代替「恰好一个码元」，候选显示完整编码，且通配结果不自动上屏、不顶字、不清空。
 
-**Architecture:** wind-dict 新增 `DictLayer::search_pattern`（DAT 多起点分支限界 / BTreeMap 字面前缀扫描 / redb 前缀扫描 + 过滤 / Composite 按 `(text, code)` 合并、等长档优先）。引擎新增**显式**的 `Engine::convert_wildcard(input, pattern, max)`，`convert` 保持字面语义不变；「缓冲里哪几位是通配」由协调器按 §3.3 裁决后以 `WILDCARD_SLOT` 占位交给引擎，三处上屏短路（自动上屏 / 清空 / 顶字）落在协调器。配置按 `CodetableGlobal` + `CodeTableSpec` 三态折叠进 `CommitOptions.wildcard`，wind-setting 暴露两项。
+**Architecture:** moodflow-dict 新增 `DictLayer::search_pattern`（DAT 多起点分支限界 / BTreeMap 字面前缀扫描 / redb 前缀扫描 + 过滤 / Composite 按 `(text, code)` 合并、等长档优先）。引擎新增**显式**的 `Engine::convert_wildcard(input, pattern, max)`，`convert` 保持字面语义不变；「缓冲里哪几位是通配」由协调器按 §3.3 裁决后以 `WILDCARD_SLOT` 占位交给引擎，三处上屏短路（自动上屏 / 清空 / 顶字）落在协调器。配置按 `CodetableGlobal` + `CodeTableSpec` 三态折叠进 `CommitOptions.wildcard`，moodflow-setting 暴露两项。
 
-**Tech Stack:** Rust workspace（wind-dict / wind-engine / wind-config / wind-coordinator）+ wind-setting 仓
+**Tech Stack:** Rust workspace（moodflow-dict / moodflow-engine / moodflow-config / moodflow-coordinator）+ moodflow-setting 仓
 
 **Spec:** docs/design/codetable-wildcard.md
 
@@ -26,9 +26,9 @@
 - 首位字母判定必须晚于 `try_activate_mode` 与 `try_z_fallback`（`codetable-input-chars.md` §3.4 顺序铁律）。
 - 通配键是方案真实码元时照样按通配处理；**仅当方案显式配置 `input_chars` 且含该键**时启动告警（spec §3.3），文案单列（意思是「该码元被通配吞掉」，与非首位让位告警相反）。
 - 冲突告警复用 `code_char_conflicts` 的体检形状；首位让位不告警，非首位让位才告警。
-- 提交纪律：禁止 `git add -A` / `git add .` / `git commit -a` / `git stash`；新文件先 `git add -- <path>`；提交一律 `git commit -F - --only -- <自己的路径…>`；提交前 `git diff --cached --name-status` 核对暂存区。开局快照里 `wind_input/Cargo.lock` 已是别人的改动，任何提交都不带它。
-- 格式化：禁止 `cargo fmt` / `cargo fmt --all`；只对自己的文件 `rustfmt --edition 2024 <file>`（本仓 workspace edition 是 2024，见 `wind_input/Cargo.toml:39`）。共享文件先 `--check`，只采纳落在自己 hunk 内的改动。
-- 测试环境：cargo 命令都在 `wind_input/` 下跑，带隔离 TMPDIR（`mkdir -p /tmp/wct-wcard && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test …`，路径要短，别用 scratchpad）；跑全量用 `--no-fail-fast`。coordinator 集成测试依赖 `build_dev/data`，缺失时静默跳过、计数照绿——以 `--test codetable_wildcard` 耗时 ≥ 1s 且输出里没有「跳过」为数据在位判据。
+- 提交纪律：禁止 `git add -A` / `git add .` / `git commit -a` / `git stash`；新文件先 `git add -- <path>`；提交一律 `git commit -F - --only -- <自己的路径…>`；提交前 `git diff --cached --name-status` 核对暂存区。开局快照里 `moodflow_input/Cargo.lock` 已是别人的改动，任何提交都不带它。
+- 格式化：禁止 `cargo fmt` / `cargo fmt --all`；只对自己的文件 `rustfmt --edition 2024 <file>`（本仓 workspace edition 是 2024，见 `moodflow_input/Cargo.toml:39`）。共享文件先 `--check`，只采纳落在自己 hunk 内的改动。
+- 测试环境：cargo 命令都在 `moodflow_input/` 下跑，带隔离 TMPDIR（`mkdir -p /tmp/wct-wcard && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test …`，路径要短，别用 scratchpad）；跑全量用 `--no-fail-fast`。coordinator 集成测试依赖 `build_dev/data`，缺失时静默跳过、计数照绿——以 `--test codetable_wildcard` 耗时 ≥ 1s 且输出里没有「跳过」为数据在位判据。
 - 所有 cargo 命令带 `CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard`（本 worktree 专用）；每次提交前 `git -C <仓> branch --show-current` 须为 `feat/codetable-wildcard`。
 - 日志：`info!` 不得含用户输入 / 候选；通配键本身是配置值，可以进 `warn!`。
 
@@ -46,58 +46,58 @@
 
 | 文件 | 动作 | 职责 |
 |---|---|---|
-| `wind_input/crates/wind-dict/src/layer.rs` | Modify | `WILDCARD_SLOT`、`pattern_matches`、`literal_prefix`、`cmp_pattern`；`DictLayer::search_pattern` 默认空实现 |
-| `wind_input/crates/wind-dict/src/lib.rs` | Modify | 再导出 `WILDCARD_SLOT` |
-| `wind_input/crates/wind-dict/src/datformat.rs` | Modify | `WdatReader::search_pattern`；把 `search_prefix_inner` 的分支限界主循环抽成多起点的 `bnb_collect` |
-| `wind_input/crates/wind-dict/src/codetable.rs` | Modify | `CodetableDict::search_pattern`（BTreeMap 字面前缀 range + 过滤） |
-| `wind_input/crates/wind-dict/src/cached.rs` | Modify | `CachedDict::search_pattern` 分派 |
-| `wind_input/crates/wind-dict/src/manager.rs` | Modify | `SystemDictLayer::search_pattern`；`DictManager::search_pattern` |
-| `wind_input/crates/wind-dict/src/store_layer.rs` | Modify | `StoreUserLayer` / `StoreTempLayer::search_pattern`（Draft 保持默认空） |
-| `wind_input/crates/wind-dict/src/composite.rs` | Modify | `Query::Pattern`、`CompositeDict::search_pattern`、`(text, code)` 去重、等长优先排序 |
-| `wind_input/crates/wind-engine/src/engine.rs` | Modify | `Engine::wildcard_key` / `Engine::convert_wildcard` 默认实现 |
-| `wind_input/crates/wind-engine/src/codetable/engine.rs` | Modify | `CommitOptions.wildcard`、`WILDCARD_RESULT_LIMIT`、`CodeTableEngine` 实现两方法 |
-| `wind_input/crates/wind-engine/src/mixed/engine.rs` | Modify | 两方法代理主码表 |
-| `wind_input/crates/wind-engine/src/manager.rs` | Modify | `active_wildcard_key`、`convert_wildcard`；`build_engine` 注入 `wildcard` |
-| `wind_input/crates/wind-config/src/config.rs` | Modify | `CodetableGlobal.wildcard` / `.wildcard_key` + `Default` + `resolved()`；`parse_wildcard_key`、`CodetableGlobal::wildcard_char` |
-| `wind_input/crates/wind-config/src/schema.rs` | Modify | `CodeTableSpec.wildcard` / `.wildcard_key`（`Option`） |
-| `wind_input/crates/wind-config/src/config_schema.rs` | Modify | `REGISTRY` 两条、`schema_overridden_keys` 两条 |
+| `moodflow_input/crates/moodflow-dict/src/layer.rs` | Modify | `WILDCARD_SLOT`、`pattern_matches`、`literal_prefix`、`cmp_pattern`；`DictLayer::search_pattern` 默认空实现 |
+| `moodflow_input/crates/moodflow-dict/src/lib.rs` | Modify | 再导出 `WILDCARD_SLOT` |
+| `moodflow_input/crates/moodflow-dict/src/datformat.rs` | Modify | `WdatReader::search_pattern`；把 `search_prefix_inner` 的分支限界主循环抽成多起点的 `bnb_collect` |
+| `moodflow_input/crates/moodflow-dict/src/codetable.rs` | Modify | `CodetableDict::search_pattern`（BTreeMap 字面前缀 range + 过滤） |
+| `moodflow_input/crates/moodflow-dict/src/cached.rs` | Modify | `CachedDict::search_pattern` 分派 |
+| `moodflow_input/crates/moodflow-dict/src/manager.rs` | Modify | `SystemDictLayer::search_pattern`；`DictManager::search_pattern` |
+| `moodflow_input/crates/moodflow-dict/src/store_layer.rs` | Modify | `StoreUserLayer` / `StoreTempLayer::search_pattern`（Draft 保持默认空） |
+| `moodflow_input/crates/moodflow-dict/src/composite.rs` | Modify | `Query::Pattern`、`CompositeDict::search_pattern`、`(text, code)` 去重、等长优先排序 |
+| `moodflow_input/crates/moodflow-engine/src/engine.rs` | Modify | `Engine::wildcard_key` / `Engine::convert_wildcard` 默认实现 |
+| `moodflow_input/crates/moodflow-engine/src/codetable/engine.rs` | Modify | `CommitOptions.wildcard`、`WILDCARD_RESULT_LIMIT`、`CodeTableEngine` 实现两方法 |
+| `moodflow_input/crates/moodflow-engine/src/mixed/engine.rs` | Modify | 两方法代理主码表 |
+| `moodflow_input/crates/moodflow-engine/src/manager.rs` | Modify | `active_wildcard_key`、`convert_wildcard`；`build_engine` 注入 `wildcard` |
+| `moodflow_input/crates/moodflow-config/src/config.rs` | Modify | `CodetableGlobal.wildcard` / `.wildcard_key` + `Default` + `resolved()`；`parse_wildcard_key`、`CodetableGlobal::wildcard_char` |
+| `moodflow_input/crates/moodflow-config/src/schema.rs` | Modify | `CodeTableSpec.wildcard` / `.wildcard_key`（`Option`） |
+| `moodflow_input/crates/moodflow-config/src/config_schema.rs` | Modify | `REGISTRY` 两条、`schema_overridden_keys` 两条 |
 | `data/config.toml` | Modify | `[schema.codetable]` 显式写出两项 + 说明 |
-| `wind_input/crates/wind-coordinator/src/wildcard.rs` | Create | `WildcardDecision`、`wildcard_decision`、`wildcard_pattern`、`wildcard_conflicts`、`warn_wildcard_conflicts` |
-| `wind_input/crates/wind-coordinator/src/lib.rs` | Modify | `pub(crate) mod wildcard;` |
-| `wind_input/crates/wind-coordinator/src/handle_lifecycle.rs` | Modify | `is_any_mode_trigger` 提为 `pub(crate)` |
-| `wind_input/crates/wind-coordinator/src/coordinator.rs` | Modify | `try_code_char_gate` 符号通配入口、`accumulate_code_char` 顶字短路、`char_is_literal_symbol` 排除通配键、`build` 里调 `warn_wildcard_conflicts` |
-| `wind_input/crates/wind-coordinator/src/coordinator/message_handler.rs` | Modify | 字母臂通配入口 |
-| `wind_input/crates/wind-coordinator/src/handle_candidate.rs` | Modify | `build_candidates` 分流 + 短语 / 自动上屏 / 清空短路；`freq_code` 通配记账 |
-| `wind_input/crates/wind-coordinator/src/debug_support.rs` | Modify | `debug_input_buffer`、`debug_candidate_triples` |
-| `wind_input/crates/wind-coordinator/tests/codetable_wildcard.rs` | Create | §7 协调器集成用例 |
-| `../wind-setting/src/assets/settings_manifest.toml` | Modify | 两项设置 |
-| `../wind-setting/src/dialogs/schema_codetable.rs` | Modify | `SPEC_BEHAVIOR_FIELDS` 两条 |
-| `../wind-setting/src/assets/pinyin_initials.txt` | Modify（生成） | 补新 label 里的「通」 |
-| `../wind-setting/src/assets/capabilities.snapshot.json`、`../wind-setting/src/mockdata/config.json` | Modify（生成） | `dev.sh sg` 重生成 |
+| `moodflow_input/crates/moodflow-coordinator/src/wildcard.rs` | Create | `WildcardDecision`、`wildcard_decision`、`wildcard_pattern`、`wildcard_conflicts`、`warn_wildcard_conflicts` |
+| `moodflow_input/crates/moodflow-coordinator/src/lib.rs` | Modify | `pub(crate) mod wildcard;` |
+| `moodflow_input/crates/moodflow-coordinator/src/handle_lifecycle.rs` | Modify | `is_any_mode_trigger` 提为 `pub(crate)` |
+| `moodflow_input/crates/moodflow-coordinator/src/coordinator.rs` | Modify | `try_code_char_gate` 符号通配入口、`accumulate_code_char` 顶字短路、`char_is_literal_symbol` 排除通配键、`build` 里调 `warn_wildcard_conflicts` |
+| `moodflow_input/crates/moodflow-coordinator/src/coordinator/message_handler.rs` | Modify | 字母臂通配入口 |
+| `moodflow_input/crates/moodflow-coordinator/src/handle_candidate.rs` | Modify | `build_candidates` 分流 + 短语 / 自动上屏 / 清空短路；`freq_code` 通配记账 |
+| `moodflow_input/crates/moodflow-coordinator/src/debug_support.rs` | Modify | `debug_input_buffer`、`debug_candidate_triples` |
+| `moodflow_input/crates/moodflow-coordinator/tests/codetable_wildcard.rs` | Create | §7 协调器集成用例 |
+| `../moodflow-setting/src/assets/settings_manifest.toml` | Modify | 两项设置 |
+| `../moodflow-setting/src/dialogs/schema_codetable.rs` | Modify | `SPEC_BEHAVIOR_FIELDS` 两条 |
+| `../moodflow-setting/src/assets/pinyin_initials.txt` | Modify（生成） | 补新 label 里的「通」 |
+| `../moodflow-setting/src/assets/capabilities.snapshot.json`、`../moodflow-setting/src/mockdata/config.json` | Modify（生成） | `dev.sh sg` 重生成 |
 | `docs/architecture/engine-candidate-pipeline.md` | Modify | §3.4 通配输入 |
 | `docs/design/codetable-wildcard.md` | Modify | 状态行 + 回写本计划的偏离 |
-| `../WindInputDocs/content/docs/settings/schema/codetable.mdx` | Modify | 文档站小节 |
+| `../MoodflowDocs/content/docs/settings/schema/codetable.mdx` | Modify | 文档站小节 |
 
 ---
 
-## P1 — wind-dict `search_pattern`
+## P1 — moodflow-dict `search_pattern`
 
 ### Task 1: 通配查询公共件与 `DictLayer::search_pattern` 默认实现
 
 **Files:**
-- Modify: `wind_input/crates/wind-dict/src/layer.rs`（文件末尾追加常量 / 函数；trait 内 `for_each_entry` 之后追加方法；末尾新增 `mod tests`）
-- Modify: `wind_input/crates/wind-dict/src/lib.rs`（`pub use layer::{…}` 那行）
-- Test: `wind_input/crates/wind-dict/src/layer.rs` 内联 `mod tests`
+- Modify: `moodflow_input/crates/moodflow-dict/src/layer.rs`（文件末尾追加常量 / 函数；trait 内 `for_each_entry` 之后追加方法；末尾新增 `mod tests`）
+- Modify: `moodflow_input/crates/moodflow-dict/src/lib.rs`（`pub use layer::{…}` 那行）
+- Test: `moodflow_input/crates/moodflow-dict/src/layer.rs` 内联 `mod tests`
 
 **Interfaces:**
-- Consumes: `wind_candidate::{Candidate, better}`
+- Consumes: `moodflow_candidate::{Candidate, better}`
 - Produces:
   - `pub const WILDCARD_SLOT: char = '\u{1}';`
   - `pub fn pattern_matches(pattern: &str, wildcard: char, code: &str, with_prefix: bool) -> bool`
   - `pub fn literal_prefix(pattern: &str, wildcard: char) -> &str`
   - `pub fn cmp_pattern(pattern_len: usize, a: &Candidate, b: &Candidate) -> std::cmp::Ordering`
   - `DictLayer::search_pattern(&self, pattern: &str, wildcard: char, limit: usize, with_prefix: bool) -> Vec<Candidate>`（默认 `Vec::new()`）
-  - `wind_dict::WILDCARD_SLOT`（再导出）
+  - `moodflow_dict::WILDCARD_SLOT`（再导出）
 
 - [ ] **Step 1: 写失败测试**
 
@@ -151,7 +151,7 @@ mod tests {
 
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput/wind_input && mkdir -p /tmp/wct-wcard && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-dict --lib layer::tests`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && mkdir -p /tmp/wct-wcard && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-dict --lib layer::tests`
 Expected: 编译失败，`cannot find function pattern_matches` / `literal_prefix` / `cmp_pattern`。
 
 - [ ] **Step 3: 最小实现**
@@ -160,7 +160,7 @@ Expected: 编译失败，`cannot find function pattern_matches` / `literal_prefi
 
 ```rust
 use std::cmp::Ordering;
-use wind_candidate::{Candidate, better};
+use moodflow_candidate::{Candidate, better};
 ```
 
 trait `DictLayer` 内、`for_each_entry` 之后追加：
@@ -233,16 +233,16 @@ pub use layer::{DictLayer, LayerType, MutableLayer, WILDCARD_SLOT};
 
 - [ ] **Step 4: 跑测试确认通过**
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-dict --lib layer::tests`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-dict --lib layer::tests`
 Expected: `test result: ok. 3 passed`。
 
 - [ ] **Step 5: 提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wildcard/WindInput
-rustfmt --edition 2024 --check wind_input/crates/wind-dict/src/layer.rs wind_input/crates/wind-dict/src/lib.rs
+cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow
+rustfmt --edition 2024 --check moodflow_input/crates/moodflow-dict/src/layer.rs moodflow_input/crates/moodflow-dict/src/lib.rs
 git diff --cached --name-status   # 应为空；非空说明有别人的暂存，靠下面的 --only 隔离
-git commit -F - --only -- wind_input/crates/wind-dict/src/layer.rs wind_input/crates/wind-dict/src/lib.rs <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-dict/src/layer.rs moodflow_input/crates/moodflow-dict/src/lib.rs <<'EOF'
 feat(dict): 通配查询公共件与 DictLayer::search_pattern 默认实现
 
 WILDCARD_SLOT 占位、逐位匹配、字面前缀、等长优先比较器；默认实现返回空，
@@ -256,7 +256,7 @@ git show --stat HEAD   # 文件数应为 2
 ### Task 2: DAT `WdatReader::search_pattern`（多起点分支限界）
 
 **Files:**
-- Modify: `wind_input/crates/wind-dict/src/datformat.rs`（`search_prefix_inner` ~1396-1510 拆出 `bnb_collect`；`search_prefix_scan` ~1519 之前新增 `search_pattern`；`mod tests` 追加两条用例与 `reference_pattern`）
+- Modify: `moodflow_input/crates/moodflow-dict/src/datformat.rs`（`search_prefix_inner` ~1396-1510 拆出 `bnb_collect`；`search_prefix_scan` ~1519 之前新增 `search_pattern`；`mod tests` 追加两条用例与 `reference_pattern`）
 - Test: 同文件 `mod tests`
 
 **Interfaces:**
@@ -387,7 +387,7 @@ git show --stat HEAD   # 文件数应为 2
 
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-dict --lib datformat::tests::search_pattern`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-dict --lib datformat::tests::search_pattern`
 Expected: 编译失败，`no method named search_pattern found for struct WdatReader`。
 
 - [ ] **Step 3: 重构 `search_prefix_inner` 抽出 `bnb_collect`（行为不变）**
@@ -456,7 +456,7 @@ Expected: 编译失败，`no method named search_pattern found for struct WdatRe
 ```
 
 > 核对点：搬运循环体时 `arena.push(...)` / `arena.len()` 对 `&mut Vec` 照写即可；`stats.states_visited += 1` 不变。搬完先单独跑一次既有用例确认零行为变化：
-> `CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-dict --lib datformat::tests` —— 除两条新用例（仍缺 `search_pattern`，编译不过就先注释掉那两条再跑）外全绿，尤其 `topn_prefix_*`、`bnb_actually_prunes_when_weights_differ`、`pruning_bound_must_be_strictly_less`。
+> `CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-dict --lib datformat::tests` —— 除两条新用例（仍缺 `search_pattern`，编译不过就先注释掉那两条再跑）外全绿，尤其 `topn_prefix_*`、`bnb_actually_prunes_when_weights_differ`、`pruning_bound_must_be_strictly_less`。
 
 - [ ] **Step 4: 实现 `search_pattern`**
 
@@ -618,16 +618,16 @@ Expected: 编译失败，`no method named search_pattern found for struct WdatRe
 
 - [ ] **Step 5: 跑测试确认通过**
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-dict --lib datformat::tests`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-dict --lib datformat::tests`
 Expected: 全绿，含 `search_pattern_matches_full_scan`、`search_pattern_equal_length_never_crowded_out` 与全部既有 `topn_prefix_*` / `bnb_*`。
 
 - [ ] **Step 6: 提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wildcard/WindInput
-rustfmt --edition 2024 --check wind_input/crates/wind-dict/src/datformat.rs   # 只采纳落在自己 hunk 内的改动
+cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow
+rustfmt --edition 2024 --check moodflow_input/crates/moodflow-dict/src/datformat.rs   # 只采纳落在自己 hunk 内的改动
 git diff --cached --name-status
-git commit -F - --only -- wind_input/crates/wind-dict/src/datformat.rs <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-dict/src/datformat.rs <<'EOF'
 feat(dict): wdat 通配查询 search_pattern（多起点分支限界）
 
 分支限界主循环抽成 bnb_collect，起点可以不止一个：各起点的码预铺进 arena、
@@ -644,9 +644,9 @@ git show --stat HEAD
 > **控制者裁决（预检 #15）**：本任务另加一条 `CodetableDict::search_pattern` 与「`for_each_entry` 全遍历 + `pattern_matches` 过滤 + 同口径排序截断」的对拍测试（随机/多组 pattern：单通配、多通配、首位通配、`with_prefix` 开关），与 Task 2 的 DAT 对拍同形。
 
 **Files:**
-- Modify: `wind_input/crates/wind-dict/src/codetable.rs`（`search_prefix` ~786 之后新增方法；`mod tests` ~1284 追加用例）
-- Modify: `wind_input/crates/wind-dict/src/cached.rs`（`search_prefix` ~438 之后新增分派）
-- Modify: `wind_input/crates/wind-dict/src/manager.rs`（`impl DictLayer for SystemDictLayer` ~212 内追加；`DictManager` ~45 追加包装）
+- Modify: `moodflow_input/crates/moodflow-dict/src/codetable.rs`（`search_prefix` ~786 之后新增方法；`mod tests` ~1284 追加用例）
+- Modify: `moodflow_input/crates/moodflow-dict/src/cached.rs`（`search_prefix` ~438 之后新增分派）
+- Modify: `moodflow_input/crates/moodflow-dict/src/manager.rs`（`impl DictLayer for SystemDictLayer` ~212 内追加；`DictManager` ~45 追加包装）
 - Test: `codetable.rs` 与 `manager.rs` 的 `mod tests`
 
 **Interfaces:**
@@ -690,7 +690,7 @@ git show --stat HEAD
     }
 ```
 
-`manager.rs`（wind-dict）的 `mod tests` 追加：
+`manager.rs`（moodflow-dict）的 `mod tests` 追加：
 
 ```rust
     /// 系统层把通配命中转成候选：带完整 code、更长码标 `is_prefix`、等长档在前。
@@ -711,7 +711,7 @@ git show --stat HEAD
 
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-dict --lib search_pattern`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-dict --lib search_pattern`
 Expected: 编译失败，`no method named search_pattern found for struct CodetableDict`。
 
 - [ ] **Step 3: 最小实现**
@@ -803,7 +803,7 @@ Expected: 编译失败，`no method named search_pattern found for struct Codeta
     }
 ```
 
-`manager.rs`（wind-dict）`impl DictLayer for SystemDictLayer`，`has_longer_code` 之后：
+`manager.rs`（moodflow-dict）`impl DictLayer for SystemDictLayer`，`has_longer_code` 之后：
 
 ```rust
     /// 通配查询：委托底层有序索引，权重按本层口径换算，等长档在前。
@@ -850,16 +850,16 @@ Expected: 编译失败，`no method named search_pattern found for struct Codeta
 
 - [ ] **Step 4: 跑测试确认通过**
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-dict --lib search_pattern`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-dict --lib search_pattern`
 Expected: `search_pattern_scans_literal_prefix_and_tiers_equal_length_first`、`system_layer_answers_pattern_queries` 及 Task 2 两条全过。
 
 - [ ] **Step 5: 提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wildcard/WindInput
-rustfmt --edition 2024 --check wind_input/crates/wind-dict/src/codetable.rs wind_input/crates/wind-dict/src/cached.rs wind_input/crates/wind-dict/src/manager.rs
+cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow
+rustfmt --edition 2024 --check moodflow_input/crates/moodflow-dict/src/codetable.rs moodflow_input/crates/moodflow-dict/src/cached.rs moodflow_input/crates/moodflow-dict/src/manager.rs
 git diff --cached --name-status
-git commit -F - --only -- wind_input/crates/wind-dict/src/codetable.rs wind_input/crates/wind-dict/src/cached.rs wind_input/crates/wind-dict/src/manager.rs <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-dict/src/codetable.rs moodflow_input/crates/moodflow-dict/src/cached.rs moodflow_input/crates/moodflow-dict/src/manager.rs <<'EOF'
 feat(dict): 内存码表与系统层接上通配查询
 
 CodetableDict 按字面前缀 range 扫描后逐条过滤，CachedDict 两后端同语义分派，
@@ -873,7 +873,7 @@ git show --stat HEAD
 ### Task 4: redb 用户层 / 临时层（草稿层不参与）
 
 **Files:**
-- Modify: `wind_input/crates/wind-dict/src/store_layer.rs`（`sort_trunc` ~58 旁新增 `sort_trunc_pattern`；`StoreUserLayer` / `StoreTempLayer` 的 `impl DictLayer` 各加一个方法；`mod tests` 追加用例）
+- Modify: `moodflow_input/crates/moodflow-dict/src/store_layer.rs`（`sort_trunc` ~58 旁新增 `sort_trunc_pattern`；`StoreUserLayer` / `StoreTempLayer` 的 `impl DictLayer` 各加一个方法；`mod tests` 追加用例）
 - Test: 同文件 `mod tests`
 
 **Interfaces:**
@@ -934,7 +934,7 @@ git show --stat HEAD
 
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-dict --lib store_layer::tests::store_layers_answer_pattern`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-dict --lib store_layer::tests::store_layers_answer_pattern`
 Expected: FAIL（trait 默认实现返回空，第一条 `assert_eq!` 左侧为 `[]`）。
 
 - [ ] **Step 3: 最小实现**
@@ -1020,16 +1020,16 @@ fn pattern_from_records(
 
 - [ ] **Step 4: 跑测试确认通过**
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-dict --lib store_layer::tests`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-dict --lib store_layer::tests`
 Expected: 全绿（含既有 `drafts_never_surface_through_prefix_queries` 等）。
 
 - [ ] **Step 5: 提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wildcard/WindInput
-rustfmt --edition 2024 --check wind_input/crates/wind-dict/src/store_layer.rs
+cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow
+rustfmt --edition 2024 --check moodflow_input/crates/moodflow-dict/src/store_layer.rs
 git diff --cached --name-status
-git commit -F - --only -- wind_input/crates/wind-dict/src/store_layer.rs <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-dict/src/store_layer.rs <<'EOF'
 feat(dict): 用户层与临时层接上通配查询，草稿层不参与
 
 字面前缀全扫后过滤，不把 limit 传进 redb（先截断后过滤会整批落空）。
@@ -1042,8 +1042,8 @@ git show --stat HEAD
 ### Task 5: `CompositeDict` 的 `Query::Pattern` 与 `DictManager` 包装
 
 **Files:**
-- Modify: `wind_input/crates/wind-dict/src/composite.rs`（`enum Query` ~18；`search_abbrev_exact` ~92 之后新增公开方法；`merge_search` ~132-231；测试 `MockLayer` 的 `impl DictLayer` ~248 加方法；`mod tests` 追加用例）
-- Modify: `wind_input/crates/wind-dict/src/manager.rs`（`DictManager::has_longer_code` ~60 之后）
+- Modify: `moodflow_input/crates/moodflow-dict/src/composite.rs`（`enum Query` ~18；`search_abbrev_exact` ~92 之后新增公开方法；`merge_search` ~132-231；测试 `MockLayer` 的 `impl DictLayer` ~248 加方法；`mod tests` 追加用例）
+- Modify: `moodflow_input/crates/moodflow-dict/src/manager.rs`（`DictManager::has_longer_code` ~60 之后）
 - Test: `composite.rs` `mod tests`
 
 **Interfaces:**
@@ -1116,7 +1116,7 @@ git show --stat HEAD
 
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-dict --lib composite::tests::pattern_merges`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-dict --lib composite::tests::pattern_merges`
 Expected: 编译失败，`no method named search_pattern found for struct CompositeDict`。
 
 - [ ] **Step 3: 最小实现**
@@ -1176,18 +1176,18 @@ Expected: 编译失败，`no method named search_pattern found for struct Compos
 
    并把末尾的 `seen.insert(cand.text.clone(), results.len());` 改为 `seen.insert(key, results.len());`。
 
-3. 排序：`results.sort_by(wind_candidate::better);` 改为：
+3. 排序：`results.sort_by(moodflow_candidate::better);` 改为：
 
 ```rust
         if by_code {
             let n = query.chars().count();
             results.sort_by(|a, b| crate::layer::cmp_pattern(n, a, b));
         } else {
-            results.sort_by(wind_candidate::better);
+            results.sort_by(moodflow_candidate::better);
         }
 ```
 
-`manager.rs`（wind-dict）`DictManager`，`has_longer_code` 之后：
+`manager.rs`（moodflow-dict）`DictManager`，`has_longer_code` 之后：
 
 ```rust
     /// 通配查询（跨层，见 `DictLayer::search_pattern` / `CompositeDict::search_pattern`）。
@@ -1205,16 +1205,16 @@ Expected: 编译失败，`no method named search_pattern found for struct Compos
 
 - [ ] **Step 4: 跑测试确认通过**
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-dict --no-fail-fast`
-Expected: wind-dict 全绿（既有 `dedup_same_text_merges_source_flags` 等不受影响，因为非 Pattern 查询的去重键仍是 text）。
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-dict --no-fail-fast`
+Expected: moodflow-dict 全绿（既有 `dedup_same_text_merges_source_flags` 等不受影响，因为非 Pattern 查询的去重键仍是 text）。
 
 - [ ] **Step 5: 提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wildcard/WindInput
-rustfmt --edition 2024 --check wind_input/crates/wind-dict/src/composite.rs wind_input/crates/wind-dict/src/manager.rs
+cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow
+rustfmt --edition 2024 --check moodflow_input/crates/moodflow-dict/src/composite.rs moodflow_input/crates/moodflow-dict/src/manager.rs
 git diff --cached --name-status
-git commit -F - --only -- wind_input/crates/wind-dict/src/composite.rs wind_input/crates/wind-dict/src/manager.rs <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-dict/src/composite.rs moodflow_input/crates/moodflow-dict/src/manager.rs <<'EOF'
 feat(dict): CompositeDict 通配查询按 (text, code) 合并、等长优先
 
 同字不同码各留一条（学码要看到每个码位），同码才合并取更高权重；
@@ -1230,15 +1230,15 @@ git show --stat HEAD
 ### Task 6: `CommitOptions.wildcard` 与 `CodeTableEngine::convert_wildcard`
 
 **Files:**
-- Modify: `wind_input/crates/wind-engine/src/engine.rs`（trait `Engine` 内 `input_chars` ~377 之后）
-- Modify: `wind_input/crates/wind-engine/src/codetable/engine.rs`（`CommitOptions` ~175 追加字段；文件顶部常量区追加 `WILDCARD_RESULT_LIMIT`；`impl Engine for CodeTableEngine` ~643 追加两方法；`mod tests` ~971 追加用例）
+- Modify: `moodflow_input/crates/moodflow-engine/src/engine.rs`（trait `Engine` 内 `input_chars` ~377 之后）
+- Modify: `moodflow_input/crates/moodflow-engine/src/codetable/engine.rs`（`CommitOptions` ~175 追加字段；文件顶部常量区追加 `WILDCARD_RESULT_LIMIT`；`impl Engine for CodeTableEngine` ~643 追加两方法；`mod tests` ~971 追加用例）
 - Test: `codetable/engine.rs` 内联 `mod tests`（`engine_opts` 夹具 ~1186）
 
 **Interfaces:**
-- Consumes: `DictManager::search_pattern`、`wind_dict::WILDCARD_SLOT`、`wind_candidate::cmp_exact_first`
+- Consumes: `DictManager::search_pattern`、`moodflow_dict::WILDCARD_SLOT`、`moodflow_candidate::cmp_exact_first`
 - Produces:
   - `CommitOptions { pub wildcard: Option<char>, .. }`（`Default` = `None`，派生 `Copy` 不变）
-  - `pub const WILDCARD_RESULT_LIMIT: usize = 100;`（`wind_engine::codetable::engine::WILDCARD_RESULT_LIMIT`）
+  - `pub const WILDCARD_RESULT_LIMIT: usize = 100;`（`moodflow_engine::codetable::engine::WILDCARD_RESULT_LIMIT`）
   - `Engine::wildcard_key(&self) -> Option<char>`（默认 `None`）
   - `Engine::convert_wildcard(&self, input: &str, pattern: &str, max_candidates: usize) -> Option<ConvertResult>`（默认 `None`）
 
@@ -1255,7 +1255,7 @@ git show --stat HEAD
     }
 
     fn slot_pattern(p: &str) -> String {
-        p.replace('?', &wind_dict::WILDCARD_SLOT.to_string())
+        p.replace('?', &moodflow_dict::WILDCARD_SLOT.to_string())
     }
 
     /// §3.1 / §3.2：等长优先（更长码权重再高也排后）、注释是完整编码、源标码表。
@@ -1363,7 +1363,7 @@ git show --stat HEAD
 
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-engine --lib codetable::engine::tests::wildcard`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-engine --lib codetable::engine::tests::wildcard`
 Expected: 编译失败，`struct CommitOptions has no field named wildcard` / `no method named convert_wildcard`。
 
 - [ ] **Step 3: 最小实现**
@@ -1377,7 +1377,7 @@ Expected: 编译失败，`struct CommitOptions has no field named wildcard` / `n
         None
     }
 
-    /// 通配转换。`pattern` 是把**作通配的那几位**替换成 [`wind_dict::WILDCARD_SLOT`] 后的输入，
+    /// 通配转换。`pattern` 是把**作通配的那几位**替换成 [`moodflow_dict::WILDCARD_SLOT`] 后的输入，
     /// 哪几位作通配由协调器裁决（首位让位时首位是字面码元，spec §3.3）；`input` 是原始缓冲，
     /// 只用于组合区显示。不支持通配的引擎返回 `None`。
     ///
@@ -1431,7 +1431,7 @@ pub const WILDCARD_RESULT_LIMIT: usize = 100;
         let with_prefix = !self.opts.single_code_input;
         let mut candidates: Vec<Candidate> = self
             .dm
-            .search_pattern(pattern, wind_dict::WILDCARD_SLOT, WILDCARD_RESULT_LIMIT, with_prefix)
+            .search_pattern(pattern, moodflow_dict::WILDCARD_SLOT, WILDCARD_RESULT_LIMIT, with_prefix)
             .into_iter()
             .map(|mut c| {
                 c.source = CandidateSource::CodeTable;
@@ -1453,20 +1453,20 @@ pub const WILDCARD_RESULT_LIMIT: usize = 100;
     }
 ```
 
-> 核对点：`manager.rs` 里 `CommitOptions { … }` 字面量只有 `build_engine` ~5615 一处（`grep -n "CommitOptions {" wind_input/crates/wind-engine/src/manager.rs`），它是显式列全字段的——本步编译会在那里报 `missing field wildcard`，**先临时补 `wildcard: None,`** 让本任务编过，Task 9 再改成真值。其余构造点都用 `..Default::default()`。
+> 核对点：`manager.rs` 里 `CommitOptions { … }` 字面量只有 `build_engine` ~5615 一处（`grep -n "CommitOptions {" moodflow_input/crates/moodflow-engine/src/manager.rs`），它是显式列全字段的——本步编译会在那里报 `missing field wildcard`，**先临时补 `wildcard: None,`** 让本任务编过，Task 9 再改成真值。其余构造点都用 `..Default::default()`。
 
 - [ ] **Step 4: 跑测试确认通过**
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-engine --lib codetable::engine::tests`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-engine --lib codetable::engine::tests`
 Expected: 五条 `wildcard_*` 全过，既有用例全绿。
 
 - [ ] **Step 5: 提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wildcard/WindInput
-rustfmt --edition 2024 --check wind_input/crates/wind-engine/src/engine.rs wind_input/crates/wind-engine/src/codetable/engine.rs
+cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow
+rustfmt --edition 2024 --check moodflow_input/crates/moodflow-engine/src/engine.rs moodflow_input/crates/moodflow-engine/src/codetable/engine.rs
 git diff --cached --name-status
-git commit -F - --only -- wind_input/crates/wind-engine/src/engine.rs wind_input/crates/wind-engine/src/codetable/engine.rs wind_input/crates/wind-engine/src/manager.rs <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-engine/src/engine.rs moodflow_input/crates/moodflow-engine/src/codetable/engine.rs moodflow_input/crates/moodflow-engine/src/manager.rs <<'EOF'
 feat(engine): 码表引擎显式通配转换 convert_wildcard
 
 convert 保持字面语义（它还是协调器的活码前缀探针），通配走独立方法：
@@ -1481,8 +1481,8 @@ git show --stat HEAD
 ### Task 7: 混输代理与 `EngineManager` 入口
 
 **Files:**
-- Modify: `wind_input/crates/wind-engine/src/mixed/engine.rs`（`impl Engine for MixedEngine` 内 `input_chars` ~830 之后；`mod tests` ~1127 追加）
-- Modify: `wind_input/crates/wind-engine/src/manager.rs`（`active_is_leading_char` ~2574 之后新增两方法）
+- Modify: `moodflow_input/crates/moodflow-engine/src/mixed/engine.rs`（`impl Engine for MixedEngine` 内 `input_chars` ~830 之后；`mod tests` ~1127 追加）
+- Modify: `moodflow_input/crates/moodflow-engine/src/manager.rs`（`active_is_leading_char` ~2574 之后新增两方法）
 - Test: `mixed/engine.rs` 内联 `mod tests`
 
 **Interfaces:**
@@ -1521,7 +1521,7 @@ git show --stat HEAD
         );
         assert_eq!(e.wildcard_key(), Some('z'));
         let r = e
-            .convert_wildcard("az", &format!("a{}", wind_dict::WILDCARD_SLOT), 10)
+            .convert_wildcard("az", &format!("a{}", moodflow_dict::WILDCARD_SLOT), 10)
             .expect("主码表开了通配");
         let texts: Vec<&str> = r.candidates.iter().map(|c| c.text.as_str()).collect();
         assert_eq!(texts, ["甲"], "拼音子引擎不得参与通配");
@@ -1537,7 +1537,7 @@ git show --stat HEAD
 
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-engine --lib mixed::engine::tests::wildcard_goes_to_primary_only`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-engine --lib mixed::engine::tests::wildcard_goes_to_primary_only`
 Expected: FAIL，`assert_eq!(e.wildcard_key(), Some('z'))` 左侧为 `None`（trait 默认实现）。
 
 - [ ] **Step 3: 最小实现**
@@ -1586,16 +1586,16 @@ Expected: FAIL，`assert_eq!(e.wildcard_key(), Some('z'))` 左侧为 `None`（tr
 
 - [ ] **Step 4: 跑测试确认通过**
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-engine --lib --no-fail-fast`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-engine --lib --no-fail-fast`
 Expected: 全绿。
 
 - [ ] **Step 5: 提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wildcard/WindInput
-rustfmt --edition 2024 --check wind_input/crates/wind-engine/src/mixed/engine.rs wind_input/crates/wind-engine/src/manager.rs
+cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow
+rustfmt --edition 2024 --check moodflow_input/crates/moodflow-engine/src/mixed/engine.rs moodflow_input/crates/moodflow-engine/src/manager.rs
 git diff --cached --name-status
-git commit -F - --only -- wind_input/crates/wind-engine/src/mixed/engine.rs wind_input/crates/wind-engine/src/manager.rs <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-engine/src/mixed/engine.rs moodflow_input/crates/moodflow-engine/src/manager.rs <<'EOF'
 feat(engine): 混输通配代理主码表，EngineManager 暴露通配入口
 
 P2 完成：引擎单测覆盖不自动上屏 / 不清空 / 全码注释 / 等长优先；
@@ -1608,12 +1608,12 @@ git show --stat HEAD
 
 ## P3 — 配置全链路、协调器裁决与冲突体检
 
-### Task 8: wind-config 字段全链路
+### Task 8: moodflow-config 字段全链路
 
 **Files:**
-- Modify: `wind_input/crates/wind-config/src/config.rs`（`CodetableGlobal` ~2068 追加两字段；`Default` ~2173；`resolved()` ~2210 在 `z_key_action` 折叠之后；`default_short_code_yield_level` 旁新增 `default_wildcard_key`、`parse_wildcard_key`；`impl CodetableGlobal` 内新增 `wildcard_char`；`mod tests` ~9484 追加用例）
-- Modify: `wind_input/crates/wind-config/src/schema.rs`（`CodeTableSpec` ~479 `z_key_action` 之后）
-- Modify: `wind_input/crates/wind-config/src/config_schema.rs`（`REGISTRY` ~233 `z_key_action` 之后；`schema_overridden_keys` ~897 之后）
+- Modify: `moodflow_input/crates/moodflow-config/src/config.rs`（`CodetableGlobal` ~2068 追加两字段；`Default` ~2173；`resolved()` ~2210 在 `z_key_action` 折叠之后；`default_short_code_yield_level` 旁新增 `default_wildcard_key`、`parse_wildcard_key`；`impl CodetableGlobal` 内新增 `wildcard_char`；`mod tests` ~9484 追加用例）
+- Modify: `moodflow_input/crates/moodflow-config/src/schema.rs`（`CodeTableSpec` ~479 `z_key_action` 之后）
+- Modify: `moodflow_input/crates/moodflow-config/src/config_schema.rs`（`REGISTRY` ~233 `z_key_action` 之后；`schema_overridden_keys` ~897 之后）
 - Modify: `data/config.toml`（`[schema.codetable]` 的 `z_key_action = ""` ~78 之后）
 - Test: `config.rs` 内联 `mod tests`；既有守门 `registry_covers_every_config_key` / `data_config_toml_covers_registry` / `data_config_toml_has_no_orphan_keys` / `overridden_keys_covers_every_schema_override_entry`
 
@@ -1621,7 +1621,7 @@ git show --stat HEAD
 - Produces:
   - `CodetableGlobal { pub wildcard: bool, pub wildcard_key: String, .. }`（`Default`：`false` / `"z"`）
   - `CodeTableSpec { pub wildcard: Option<bool>, pub wildcard_key: Option<String>, .. }`
-  - `pub fn parse_wildcard_key(s: &str) -> Option<char>`（`wind_config::config::parse_wildcard_key`）
+  - `pub fn parse_wildcard_key(s: &str) -> Option<char>`（`moodflow_config::config::parse_wildcard_key`）
   - `CodetableGlobal::wildcard_char(&self, schema_id: &str) -> Option<char>`（关闭 ⇒ `None`；非法 ⇒ `warn!` + `None`）
   - 注册表键 `schema.codetable.wildcard`（Bool）、`schema.codetable.wildcard_key`（Str）
 
@@ -1670,7 +1670,7 @@ git show --stat HEAD
 
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-config --lib codetable_wildcard`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-config --lib codetable_wildcard`
 Expected: 编译失败，`no field wildcard on type CodetableGlobal` / `cannot find function parse_wildcard_key`。
 
 - [ ] **Step 3: 最小实现**
@@ -1755,7 +1755,7 @@ pub fn parse_wildcard_key(s: &str) -> Option<char> {
     /// 通配输入开关（`None` = 跟随全局 `schema.codetable.wildcard`）。
     #[serde(default)]
     pub wildcard: Option<bool>,
-    /// 通配键（`None` = 跟随全局）。合法性见 `wind_config::config::parse_wildcard_key`。
+    /// 通配键（`None` = 跟随全局）。合法性见 `moodflow_config::config::parse_wildcard_key`。
     #[serde(default)]
     pub wildcard_key: Option<String>,
 ```
@@ -1790,24 +1790,24 @@ wildcard_key = "z"
 
 - [ ] **Step 4: 跑测试确认通过**
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-config --no-fail-fast`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-config --no-fail-fast`
 Expected: 全绿，含 `codetable_wildcard_folds_from_schema_and_validates_key`、`registry_covers_every_config_key`、`data_config_toml_covers_registry`、`data_config_toml_has_no_orphan_keys`、`data_config_toml_values_pass_validation`、`overridden_keys_covers_every_schema_override_entry`。
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-rpc --test wind_setting_assets`
-Expected: **预期红**（`capabilities_snapshot_matches_core` / `mock_config_has_every_preset_key` / `every_core_key_is_either_in_the_manifest_or_exempt` 报缺 `schema.codetable.wildcard*`），由 Task 12 在 wind-setting 侧转绿。记下失败条目名，Task 12 结束时逐条确认转绿。
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-rpc --test moodflow_setting_assets`
+Expected: **预期红**（`capabilities_snapshot_matches_core` / `mock_config_has_every_preset_key` / `every_core_key_is_either_in_the_manifest_or_exempt` 报缺 `schema.codetable.wildcard*`），由 Task 12 在 moodflow-setting 侧转绿。记下失败条目名，Task 12 结束时逐条确认转绿。
 
 - [ ] **Step 5: 提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wildcard/WindInput
-rustfmt --edition 2024 --check wind_input/crates/wind-config/src/config.rs wind_input/crates/wind-config/src/schema.rs wind_input/crates/wind-config/src/config_schema.rs
+cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow
+rustfmt --edition 2024 --check moodflow_input/crates/moodflow-config/src/config.rs moodflow_input/crates/moodflow-config/src/schema.rs moodflow_input/crates/moodflow-config/src/config_schema.rs
 git diff --cached --name-status
-git commit -F - --only -- wind_input/crates/wind-config/src/config.rs wind_input/crates/wind-config/src/schema.rs wind_input/crates/wind-config/src/config_schema.rs data/config.toml <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-config/src/config.rs moodflow_input/crates/moodflow-config/src/schema.rs moodflow_input/crates/moodflow-config/src/config_schema.rs data/config.toml <<'EOF'
 feat(config): 码表通配输入两项配置（wildcard / wildcard_key）
 
 全局基线 + 方案 [engine.codetable] 三态折叠；键须为单个字母或 ASCII 符号，
 数字与空格不可用，非法告警并视为关闭。注册表、方案覆盖反查、预置文件同步。
-wind_setting_assets 跨仓守门待 wind-setting 同步后转绿。
+moodflow_setting_assets 跨仓守门待 moodflow-setting 同步后转绿。
 EOF
 git show --stat HEAD
 ```
@@ -1819,7 +1819,7 @@ git show --stat HEAD
 > **控制者裁决（预检 #5）**：本任务新测试在实现前即绿，接受；`build_engine` 接线的真值由 **Task 10** 的集成用例钉住（非 Task 11），说明文字按此理解。
 
 **Files:**
-- Modify: `wind_input/crates/wind-engine/src/manager.rs`（`build_engine` 内 `CommitOptions { … }` ~5615：把 Task 6 的 `wildcard: None,` 改为真值；`mod tests` ~6733 追加用例，紧挨 `overlay_schema_does_not_inherit_global_codetable`）
+- Modify: `moodflow_input/crates/moodflow-engine/src/manager.rs`（`build_engine` 内 `CommitOptions { … }` ~5615：把 Task 6 的 `wildcard: None,` 改为真值；`mod tests` ~6733 追加用例，紧挨 `overlay_schema_does_not_inherit_global_codetable`）
 - Test: `manager.rs` 内联 `mod tests`
 
 **Interfaces:**
@@ -1834,7 +1834,7 @@ git show --stat HEAD
     #[test]
     fn wildcard_folds_from_schema_and_overlay_does_not_inherit() {
         use std::io::Write;
-        let base_dir = std::env::temp_dir().join("wind_eng_wildcard_fold");
+        let base_dir = std::env::temp_dir().join("moodflow_eng_wildcard_fold");
         let schemas = base_dir.join("schemas");
         let _ = std::fs::remove_dir_all(&base_dir);
         std::fs::create_dir_all(&schemas).unwrap();
@@ -1851,11 +1851,11 @@ git show --stat HEAD
             )
             .unwrap();
         }
-        let global = wind_config::CodetableGlobal {
+        let global = moodflow_config::CodetableGlobal {
             wildcard: true,
             ..Default::default()
         };
-        let ov = std::env::temp_dir().join("wind_eng_wildcard_fold_ov");
+        let ov = std::env::temp_dir().join("moodflow_eng_wildcard_fold_ov");
         let _ = std::fs::remove_dir_all(&ov);
         let key = |id: &str| {
             EngineManager::resolve_codetable(id, Some(&base_dir), &global, Some(&ov))
@@ -1870,7 +1870,7 @@ git show --stat HEAD
 
 - [ ] **Step 2: 跑测试确认失败 / 通过情况**
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-engine --lib wildcard_folds_from_schema`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-engine --lib wildcard_folds_from_schema`
 Expected: **本条会直接通过**——它锁的是 `resolve_codetable`（即 `codetable_settings()` 那条折叠点），在 Task 8 之后已成立。它的作用是给下一步的 `build_engine` 改动立一个「两处折叠点同判据」的基准；`build_engine` 的真值接线由 Task 11 的协调器集成用例（`wildcard_off_by_default_changes_nothing` 的开启组）钉住：本步不改 `build_engine` 的话那条会红。
 
 - [ ] **Step 3: 最小实现**
@@ -1885,16 +1885,16 @@ Expected: **本条会直接通过**——它锁的是 `resolve_codetable`（即 
 
 - [ ] **Step 4: 跑测试确认通过**
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-engine --no-fail-fast`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-engine --no-fail-fast`
 Expected: 全绿。
 
 - [ ] **Step 5: 提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wildcard/WindInput
-rustfmt --edition 2024 --check wind_input/crates/wind-engine/src/manager.rs
+cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow
+rustfmt --edition 2024 --check moodflow_input/crates/moodflow-engine/src/manager.rs
 git diff --cached --name-status
-git commit -F - --only -- wind_input/crates/wind-engine/src/manager.rs <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-engine/src/manager.rs <<'EOF'
 feat(engine): build_engine 按方案折叠注入通配键
 
 与 codetable_settings() 同一条折叠链（codetable_baseline + resolved），
@@ -1910,17 +1910,17 @@ git show --stat HEAD
 > **控制者裁决（预检 #8/#9）**：①「通配键是方案真实码元」单列一条告警，文案表达「该码元将被通配吞掉」，**仅当方案显式配置 `input_chars` 且含该键**时报；非首位冲突告警的归属照 `code_char_conflicts` 的细分写法（同一键不重复报成「会话键」与「次选键」两条）。② `wildcard_pattern` 的定义与其单测**移到 Task 11**（本任务提交时它尚无调用者，会出 dead_code 警告）。
 
 **Files:**
-- Create: `wind_input/crates/wind-coordinator/src/wildcard.rs`
-- Modify: `wind_input/crates/wind-coordinator/src/lib.rs`（模块表，按字母序插在 `pub(crate) mod preedit_cursor;` 附近：`pub(crate) mod wildcard;`）
-- Modify: `wind_input/crates/wind-coordinator/src/handle_lifecycle.rs`（`fn is_any_mode_trigger` ~89 改 `pub(crate) fn`）
-- Modify: `wind_input/crates/wind-coordinator/src/coordinator.rs`（`try_code_char_gate` ~5244 符号通配入口；`build` ~2764 `warn_code_char_conflicts()` 之后调 `warn_wildcard_conflicts()`）
-- Modify: `wind_input/crates/wind-coordinator/src/coordinator/message_handler.rs`（字母臂 `keymap::VK_A..=keymap::VK_Z` ~1587，在 `if !self.can_enter_buffer(&state, ch)` ~1633 之前）
-- Modify: `wind_input/crates/wind-coordinator/src/debug_support.rs`（追加 `debug_input_buffer`、`debug_candidate_triples`）
-- Create: `wind_input/crates/wind-coordinator/tests/codetable_wildcard.rs`
+- Create: `moodflow_input/crates/moodflow-coordinator/src/wildcard.rs`
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/lib.rs`（模块表，按字母序插在 `pub(crate) mod preedit_cursor;` 附近：`pub(crate) mod wildcard;`）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/handle_lifecycle.rs`（`fn is_any_mode_trigger` ~89 改 `pub(crate) fn`）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/coordinator.rs`（`try_code_char_gate` ~5244 符号通配入口；`build` ~2764 `warn_code_char_conflicts()` 之后调 `warn_wildcard_conflicts()`）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/coordinator/message_handler.rs`（字母臂 `keymap::VK_A..=keymap::VK_Z` ~1587，在 `if !self.can_enter_buffer(&state, ch)` ~1633 之前）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/debug_support.rs`（追加 `debug_input_buffer`、`debug_candidate_triples`）
+- Create: `moodflow_input/crates/moodflow-coordinator/tests/codetable_wildcard.rs`
 - Test: `tests/codetable_wildcard.rs`
 
 **Interfaces:**
-- Consumes: `EngineManager::active_wildcard_key`、`EngineManager::active_input_chars`、`EngineManager::codetable_settings`；`Coordinator::{bound_action_for, session_action_for, select_key_offset, select_char_index, manual_separator_key, has_code_prefix, is_any_mode_trigger, accumulate_code_char}`；`crate::key_convert::{punct_char, punct_source_vk}`；`wind_dict::WILDCARD_SLOT`
+- Consumes: `EngineManager::active_wildcard_key`、`EngineManager::active_input_chars`、`EngineManager::codetable_settings`；`Coordinator::{bound_action_for, session_action_for, select_key_offset, select_char_index, manual_separator_key, has_code_prefix, is_any_mode_trigger, accumulate_code_char}`；`crate::key_convert::{punct_char, punct_source_vk}`；`moodflow_dict::WILDCARD_SLOT`
 - Produces:
   - `pub(crate) enum WildcardDecision { Yield, Enter }`
   - `pub(crate) fn wildcard_decision(&self, buffer: &str, key: char) -> WildcardDecision`
@@ -1943,10 +1943,10 @@ git show --stat HEAD
 //! 与输出里有没有「跳过」。
 
 use std::path::PathBuf;
-use wind_bridge::handler::{KeyAction, KeyEventData, MessageHandler};
-use wind_config::Config;
-use wind_coordinator::Coordinator;
-use wind_ipc::protocol::{EVENT_KEY_DOWN, MOD_SHIFT};
+use moodflow_bridge::handler::{KeyAction, KeyEventData, MessageHandler};
+use moodflow_config::Config;
+use moodflow_coordinator::Coordinator;
+use moodflow_ipc::protocol::{EVENT_KEY_DOWN, MOD_SHIFT};
 
 fn data_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../build_dev/data")
@@ -2006,8 +2006,8 @@ fn wubi(wildcard: bool, key: &str) -> Config {
 }
 
 /// 真机出厂 `zz*` 标点短语的最小替身（同 input_flow.rs 的 `zz_system_phrases`）。
-fn zz_phrases() -> Vec<wind_phrase::PhraseSeed> {
-    let seed = |code: &str, text: &str| wind_phrase::PhraseSeed {
+fn zz_phrases() -> Vec<moodflow_phrase::PhraseSeed> {
+    let seed = |code: &str, text: &str| moodflow_phrase::PhraseSeed {
         code: code.into(),
         text: text.into(),
         weight: 0,
@@ -2150,7 +2150,7 @@ fn leading_z_yields_to_z_key_action() {
 
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-coordinator --test codetable_wildcard`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-coordinator --test codetable_wildcard`
 Expected: 编译失败，`no method named wildcard_conflicts found for struct Arc<Coordinator>`。
 
 - [ ] **Step 3: 最小实现**
@@ -2172,8 +2172,8 @@ Expected: 编译失败，`no method named wildcard_conflicts found for struct Ar
 use crate::coordinator::Coordinator;
 use crate::key_convert::{punct_char, punct_source_vk};
 use tracing::warn;
-use wind_dict::WILDCARD_SLOT;
-use wind_keys::keymap;
+use moodflow_dict::WILDCARD_SLOT;
+use moodflow_keys::keymap;
 
 /// 通配键此刻的去向。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2248,7 +2248,7 @@ impl Coordinator {
         let mut owners: Vec<&'static str> = Vec::new();
         if let Some(a) = self.session_action_for(vk, shift, true) {
             owners.push(match a {
-                wind_config::SessionAction::AuxCode(_) => "辅助码引导键",
+                moodflow_config::SessionAction::AuxCode(_) => "辅助码引导键",
                 _ => "翻页/高亮/上屏类会话键",
             });
         }
@@ -2327,7 +2327,7 @@ impl Coordinator {
 ```
 
 > 核对点：
-> - `BoundAction::is_enabled` 以 `wind-config` 现有签名为准（`handle_lifecycle.rs:397` 的 `z.is_enabled()` 即此方法）。
+> - `BoundAction::is_enabled` 以 `moodflow-config` 现有签名为准（`handle_lifecycle.rs:397` 的 `z.is_enabled()` 即此方法）。
 > - `CodeCharSet::contains` / `is_default_alpha` 以 `code_charset.rs` 现有签名为准（`code_char_conflicts` 已在用）。
 > - 「方案码元」这条同时满足 `wildcard_decision` 不因它让位（spec「照样按通配处理」），只告警。
 
@@ -2371,21 +2371,21 @@ impl Coordinator {
 
 - [ ] **Step 4: 跑测试确认通过**
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput/wind_input && time CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-coordinator --test codetable_wildcard -- --nocapture`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && time CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-coordinator --test codetable_wildcard -- --nocapture`
 Expected: 5 passed；输出里**没有**「跳过：五笔词库不存在」，测试段耗时 ≥ 1s。若出现「跳过」，先按 AGENTS.md 备好 `build_dev/data` 再判定（worktree 下 `build_dev/data` 要么全拷要么别放）。
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-coordinator --test input_flow --test codetable_input_chars`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-coordinator --test input_flow --test codetable_input_chars`
 Expected: 全绿、零断言修改（出厂 `wildcard = false` 零回归锁）。
 
 - [ ] **Step 5: 提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wildcard/WindInput
-git add -- wind_input/crates/wind-coordinator/src/wildcard.rs wind_input/crates/wind-coordinator/tests/codetable_wildcard.rs
-rustfmt --edition 2024 wind_input/crates/wind-coordinator/src/wildcard.rs wind_input/crates/wind-coordinator/tests/codetable_wildcard.rs
-rustfmt --edition 2024 --check wind_input/crates/wind-coordinator/src/lib.rs wind_input/crates/wind-coordinator/src/handle_lifecycle.rs wind_input/crates/wind-coordinator/src/coordinator.rs wind_input/crates/wind-coordinator/src/coordinator/message_handler.rs wind_input/crates/wind-coordinator/src/debug_support.rs
+cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow
+git add -- moodflow_input/crates/moodflow-coordinator/src/wildcard.rs moodflow_input/crates/moodflow-coordinator/tests/codetable_wildcard.rs
+rustfmt --edition 2024 moodflow_input/crates/moodflow-coordinator/src/wildcard.rs moodflow_input/crates/moodflow-coordinator/tests/codetable_wildcard.rs
+rustfmt --edition 2024 --check moodflow_input/crates/moodflow-coordinator/src/lib.rs moodflow_input/crates/moodflow-coordinator/src/handle_lifecycle.rs moodflow_input/crates/moodflow-coordinator/src/coordinator.rs moodflow_input/crates/moodflow-coordinator/src/coordinator/message_handler.rs moodflow_input/crates/moodflow-coordinator/src/debug_support.rs
 git diff --cached --name-status   # 只应有上面两个新文件（A）
-git commit -F - --only -- wind_input/crates/wind-coordinator/src/wildcard.rs wind_input/crates/wind-coordinator/tests/codetable_wildcard.rs wind_input/crates/wind-coordinator/src/lib.rs wind_input/crates/wind-coordinator/src/handle_lifecycle.rs wind_input/crates/wind-coordinator/src/coordinator.rs wind_input/crates/wind-coordinator/src/coordinator/message_handler.rs wind_input/crates/wind-coordinator/src/debug_support.rs <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-coordinator/src/wildcard.rs moodflow_input/crates/moodflow-coordinator/tests/codetable_wildcard.rs moodflow_input/crates/moodflow-coordinator/src/lib.rs moodflow_input/crates/moodflow-coordinator/src/handle_lifecycle.rs moodflow_input/crates/moodflow-coordinator/src/coordinator.rs moodflow_input/crates/moodflow-coordinator/src/coordinator/message_handler.rs moodflow_input/crates/moodflow-coordinator/src/debug_support.rs <<'EOF'
 feat(coordinator): 通配键按键裁决与冲突体检
 
 首位已绑定功能/模式/活码即让位；首位让位进来的字面通配键使整轮组码不作通配；
@@ -2402,9 +2402,9 @@ git show --stat HEAD
 > **控制者裁决（预检 #2/#6/#7/#9）**：① 本任务定义 `wildcard_pattern`（及其单测，自 Task 10 移入）。② `build_candidates` 排序后的**显示层去重**（`handle_candidate.rs` ~1502-1514 按 text）在有通配位时改为按 `(text, code)` 去重，并补集成用例：同字不同码（如简码与全码）在通配结果里两条都在。③ 通配记账**不改 `freq_code` 本身**，只在主输入路的上屏记账点对通配组码用 `c.code`；mix / 临拼缓冲与读侧调频不动。④ 有通配位时跳过 `short_code_yield`（出简让全）；shadow 与读侧调频保持现状。
 
 **Files:**
-- Modify: `wind_input/crates/wind-coordinator/src/handle_candidate.rs`（`build_candidates` ~1162：`let result = match pinyin_schema` ~1203 分流；短语块条件 ~1262；自动上屏复评 ~1717；清空复核 ~1766；短语自动上屏 ~1778；`freq_code` ~3350）
-- Modify: `wind_input/crates/wind-coordinator/src/coordinator.rs`（`accumulate_code_char` ~5072 的 `let top_code = …` ~5110；`char_is_literal_symbol` ~5364）
-- Create: `wind_input/crates/wind-coordinator/src/wildcard.rs` 内 `#[cfg(test)] mod tests`（记账码单测）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/handle_candidate.rs`（`build_candidates` ~1162：`let result = match pinyin_schema` ~1203 分流；短语块条件 ~1262；自动上屏复评 ~1717；清空复核 ~1766；短语自动上屏 ~1778；`freq_code` ~3350）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/coordinator.rs`（`accumulate_code_char` ~5072 的 `let top_code = …` ~5110；`char_is_literal_symbol` ~5364）
+- Create: `moodflow_input/crates/moodflow-coordinator/src/wildcard.rs` 内 `#[cfg(test)] mod tests`（记账码单测）
 - Test: `tests/codetable_wildcard.rs` 追加；`src/wildcard.rs` 单测
 
 **Interfaces:**
@@ -2597,7 +2597,7 @@ fn symbol_wildcard_listed_in_buffer_symbol_chars_still_queries() {
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
-    use wind_candidate::{Candidate, CandidateSource};
+    use moodflow_candidate::{Candidate, CandidateSource};
 
     use crate::coordinator::Coordinator;
 
@@ -2614,7 +2614,7 @@ mod tests {
             eprintln!("跳过：五笔词库不存在");
             return;
         }
-        let mut cfg = wind_config::Config::default();
+        let mut cfg = moodflow_config::Config::default();
         cfg.schema.available = vec!["wubi86".into()];
         cfg.schema.active = "wubi86".into();
         cfg.schema.codetable.wildcard = true;
@@ -2633,7 +2633,7 @@ mod tests {
 
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-coordinator --test codetable_wildcard; CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-coordinator --lib wildcard::tests`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-coordinator --test codetable_wildcard; CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-coordinator --lib wildcard::tests`
 Expected: FAIL 的有 `wildcard_off_by_default_changes_nothing`（开启组 `az` 无候选）、`multiple_wildcards_*`、`leading_wildcard_*`、`zz_phrases_survive_*`（对照组 `az` 无候选）、`wildcard_full_length_does_not_auto_commit`（`aaaz` 被满码空码清空）、`symbol_wildcard_listed_*`、`freq_code_under_wildcard_*`；`leading_z_yields_to_z_key_repeat` 与 `z_fallback_still_hijacks_*` 与 `wildcard_never_top_commits`（实现前 `aaaz` 无候选、顶码自然放弃）此时已绿（它们是护栏：锁住 Task 11 不得改坏）；Task 10 的五条仍绿。
 
 - [ ] **Step 3: 最小实现**
@@ -2739,20 +2739,20 @@ Expected: FAIL 的有 `wildcard_off_by_default_changes_nothing`（开启组 `az`
 
 - [ ] **Step 4: 跑测试确认通过**
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput/wind_input && time CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-coordinator --test codetable_wildcard -- --nocapture && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-coordinator --lib wildcard::tests -- --nocapture`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && time CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-coordinator --test codetable_wildcard -- --nocapture && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-coordinator --lib wildcard::tests -- --nocapture`
 Expected: 集成 14 passed，单测 1 passed；输出无「跳过」，集成耗时 ≥ 1s。
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-coordinator --no-fail-fast`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-coordinator --no-fail-fast`
 Expected: 全绿（`every_record_selection_call_goes_through_freq_code` 等守门不受影响；`input_flow` 零断言修改）。
 
 - [ ] **Step 5: 提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wildcard/WindInput
-rustfmt --edition 2024 wind_input/crates/wind-coordinator/src/wildcard.rs wind_input/crates/wind-coordinator/tests/codetable_wildcard.rs
-rustfmt --edition 2024 --check wind_input/crates/wind-coordinator/src/handle_candidate.rs wind_input/crates/wind-coordinator/src/coordinator.rs
+cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow
+rustfmt --edition 2024 moodflow_input/crates/moodflow-coordinator/src/wildcard.rs moodflow_input/crates/moodflow-coordinator/tests/codetable_wildcard.rs
+rustfmt --edition 2024 --check moodflow_input/crates/moodflow-coordinator/src/handle_candidate.rs moodflow_input/crates/moodflow-coordinator/src/coordinator.rs
 git diff --cached --name-status
-git commit -F - --only -- wind_input/crates/wind-coordinator/src/handle_candidate.rs wind_input/crates/wind-coordinator/src/coordinator.rs wind_input/crates/wind-coordinator/src/wildcard.rs wind_input/crates/wind-coordinator/tests/codetable_wildcard.rs <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-coordinator/src/handle_candidate.rs moodflow_input/crates/moodflow-coordinator/src/coordinator.rs moodflow_input/crates/moodflow-coordinator/src/wildcard.rs moodflow_input/crates/moodflow-coordinator/tests/codetable_wildcard.rs <<'EOF'
 feat(coordinator): 通配组码走 convert_wildcard，上屏三短路与记账
 
 短语/整句/混输拼音/英文混入不参与；自动上屏复评、满码清空复核、短语自动上屏、
@@ -2766,28 +2766,28 @@ git show --stat HEAD
 
 ## P4 — 设置端与文档
 
-### Task 12: wind-setting 两项设置 + 检入产物
+### Task 12: moodflow-setting 两项设置 + 检入产物
 
 > **控制者裁决（预检 #11）**：manifest 注释不得写「不与出厂键位冲突」（反引号是出厂临拼引导键），改为如实说明各选项与出厂键位的关系；方案对话框遇选项外值回显的问题与 `z_key_action` 现状相同，本计划不修。
 
 **Files:**
-- Modify: `../wind-setting/src/assets/settings_manifest.toml`（`schema.codetable.z_key_action` 条目 ~167-180 之后）
-- Modify: `../wind-setting/src/dialogs/schema_codetable.rs`（`SPEC_BEHAVIOR_FIELDS` ~87-108）
-- Modify（生成）: `../wind-setting/src/assets/pinyin_initials.txt`、`../wind-setting/src/assets/capabilities.snapshot.json`、`../wind-setting/src/mockdata/config.json`
-- Test: 邻仓 `manifest_keys_match_spec_fields`、`search::pinyin::tests::table_covers_every_title_char`、`uncovered_capability_keys_match_allowlist`；core 侧 `cargo test -p wind-rpc --test wind_setting_assets`
+- Modify: `../moodflow-setting/src/assets/settings_manifest.toml`（`schema.codetable.z_key_action` 条目 ~167-180 之后）
+- Modify: `../moodflow-setting/src/dialogs/schema_codetable.rs`（`SPEC_BEHAVIOR_FIELDS` ~87-108）
+- Modify（生成）: `../moodflow-setting/src/assets/pinyin_initials.txt`、`../moodflow-setting/src/assets/capabilities.snapshot.json`、`../moodflow-setting/src/mockdata/config.json`
+- Test: 邻仓 `manifest_keys_match_spec_fields`、`search::pinyin::tests::table_covers_every_title_char`、`uncovered_capability_keys_match_allowlist`；core 侧 `cargo test -p moodflow-rpc --test moodflow_setting_assets`
 
 **Interfaces:**
 - Consumes: Task 8 注册表键 `schema.codetable.wildcard` / `schema.codetable.wildcard_key`
 - Produces: 设置页「上屏行为 / 常用功能」两项；方案级对话框同步覆盖
 
-> 注：`../wind-setting` 没有 AGENTS.md，构建 / 测试命令以本仓 AGENTS.md「邻仓 wind-setting：交叉 + wine」一节为准（`dev.sh sk / st / sg`，在 WindInput 仓根执行）。方案对话框的 `make_sig`（`schema_codetable.rs:631`）只支持 `toggle / number / select / number_select`，故通配键用 `select`。
+> 注：`../moodflow-setting` 没有 AGENTS.md，构建 / 测试命令以本仓 AGENTS.md「邻仓 moodflow-setting：交叉 + wine」一节为准（`dev.sh sk / st / sg`，在 Moodflow 仓根执行）。方案对话框的 `make_sig`（`schema_codetable.rs:631`）只支持 `toggle / number / select / number_select`，故通配键用 `select`。
 
 - [ ] **Step 1: 写失败测试（先让守门变红）**
 
 在 `settings_manifest.toml` 的 `z_key_action` 条目之后加：
 
 ```toml
-# 通配输入（万能键）。首位 / 非首位的让位规则由 core 裁决（wind-coordinator/src/wildcard.rs），
+# 通配输入（万能键）。首位 / 非首位的让位规则由 core 裁决（moodflow-coordinator/src/wildcard.rs），
 # 键的合法性（单个字母或 ASCII 符号，数字与空格不可用）也由 core 校验，非法值告警并视为关闭。
 [[items]]
 key = "schema.codetable.wildcard"
@@ -2815,7 +2815,7 @@ options = [
 ]
 ```
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput && ./scripts/dev.sh st`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow && ./scripts/dev.sh st`
 Expected: FAIL —— `manifest_keys_match_spec_fields`（清单比 `SPEC_BEHAVIOR_FIELDS` 多两项）与 `table_covers_every_title_char`（label 里的「通」不在 `pinyin_initials.txt`）。
 
 - [ ] **Step 2: 补 `SPEC_BEHAVIOR_FIELDS`**
@@ -2834,20 +2834,20 @@ Expected: FAIL —— `manifest_keys_match_spec_fields`（清单比 `SPEC_BEHAVI
 表头写明「请勿手改」，按项目记忆的等价做法重算（本机无 pwsh）：
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wildcard/wind-setting
-. ../WindInput/scripts/lib/xwin-env.sh && setup_xwin_env
+cd /home/dufeng/develop/moodflow/wt-wildcard/moodflow-setting
+. ../Moodflow/scripts/lib/xwin-env.sh && setup_xwin_env
 cargo xwin test --target x86_64-pc-windows-msvc dump_title_chars -- --ignored --nocapture 2>&1 | grep -A1 '<<<TITLE_CHARS>>>' | tail -1 > /tmp/wct-wcard/title_chars.txt
 ```
 
-再按 `../WindInput/build_dev/data/pinyin_map.txt`（`U+XXXX: pīn,yīn` 格式）每字取前两读的首字母（零声母带调首字母归一 `ā→a` 等）、按字符码位排序写表，表头三行、第三行 `# 字数: N`。
+再按 `../Moodflow/build_dev/data/pinyin_map.txt`（`U+XXXX: pīn,yīn` 格式）每字取前两读的首字母（零声母带调首字母归一 `ā→a` 等）、按字符码位排序写表，表头三行、第三行 `# 字数: N`。
 Expected diff（只应有这两处）：在 `透 t` 之后插入 `通 t`（U+901A，读音 `tōng,tòng` ⇒ `t`），`# 字数: 334` → `# 字数: 335`。多出别的行说明语料或归一化走偏，重来。
 
 - [ ] **Step 4: 重生成检入产物并跑邻仓测试**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wildcard/WindInput
+cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow
 ./scripts/dev.sh sg
-cd ../wind-setting
+cd ../moodflow-setting
 # sg 会顺带把 appVersion 改成 docs/VERSION 的值——与本改动无关，还原它
 for f in src/assets/capabilities.snapshot.json src/mockdata/config.json; do
   old=$(git show HEAD:"$f" | grep -m1 '"appVersion"' || true)
@@ -2855,16 +2855,16 @@ for f in src/assets/capabilities.snapshot.json src/mockdata/config.json; do
   if [ -n "$old" ] && [ "$old" != "$new" ]; then sed -i "s|$new|$old|" "$f"; fi
 done
 git diff --stat
-cd ../WindInput && ./scripts/dev.sh st
-cd wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p wind-rpc --test wind_setting_assets
+cd ../Moodflow && ./scripts/dev.sh st
+cd moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-rpc --test moodflow_setting_assets
 ```
 
-Expected: `git diff --stat` 只列 5 个文件（manifest、schema_codetable.rs、pinyin_initials.txt、snapshot、mockdata）；`st` 全绿；`wind_setting_assets` 三条（Task 8 记下的）转绿。
+Expected: `git diff --stat` 只列 5 个文件（manifest、schema_codetable.rs、pinyin_initials.txt、snapshot、mockdata）；`st` 全绿；`moodflow_setting_assets` 三条（Task 8 记下的）转绿。
 
-- [ ] **Step 5: 提交（wind-setting 仓）**
+- [ ] **Step 5: 提交（moodflow-setting 仓）**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wildcard/wind-setting
+cd /home/dufeng/develop/moodflow/wt-wildcard/moodflow-setting
 git diff --cached --name-status
 git commit -F - --only -- src/assets/settings_manifest.toml src/dialogs/schema_codetable.rs src/assets/pinyin_initials.txt src/assets/capabilities.snapshot.json src/mockdata/config.json <<'EOF'
 feat(settings): 码表通配输入两项（开关 + 通配键）
@@ -2881,7 +2881,7 @@ git show --stat HEAD
 **Files:**
 - Modify: `docs/architecture/engine-candidate-pipeline.md`（§3.3 ~170 之后新增 §3.4；§12 源文件索引补 `wildcard.rs`）
 - Modify: `docs/design/codetable-wildcard.md`（头部状态行；新偏离追加 §9）
-- Modify: `../WindInputDocs/content/docs/settings/schema/codetable.mdx`（「常用功能」表 ~61-69 加一行；`### z 键引导功能` 小节之后新增小节）
+- Modify: `../MoodflowDocs/content/docs/settings/schema/codetable.mdx`（「常用功能」表 ~61-69 加一行；`### z 键引导功能` 小节之后新增小节）
 
 **Interfaces:** 无代码接口。
 
@@ -2892,7 +2892,7 @@ git show --stat HEAD
 
 - **入口分离**：`convert` 恒为字面语义（它另被 `has_code_prefix` / z 夺取当活码探针用）；
   通配走 `Engine::convert_wildcard(input, pattern, max)`，`pattern` 中作通配的位是
-  `wind_dict::WILDCARD_SLOT`。哪几位作通配由协调器 `wildcard_pattern` 按
+  `moodflow_dict::WILDCARD_SLOT`。哪几位作通配由协调器 `wildcard_pattern` 按
   `docs/design/codetable-wildcard.md` §3.3 从缓冲重算：首位让位进来的字面通配键使整轮不作通配。
 - **词库层**：`DictLayer::search_pattern`。DAT 逐位推进前沿（通配位遍历全部有效转移），
   等长档取满后余额交给多起点分支限界（`bnb_collect`）；BTreeMap / redb 按首个通配前的字面
@@ -2934,15 +2934,15 @@ git show --stat HEAD
 26 个字母都参与编码的方案，请在「通配键」里选反引号或问号。
 ```
 
-> 版本号：`<Since>` 取 `WindInputDocs/data/releases.json` 最新版本的下一个小版本（写本计划时最新为 0.123，故 `0.124`）；实施时若已发过 0.124 就顺延。
+> 版本号：`<Since>` 取 `MoodflowDocs/data/releases.json` 最新版本的下一个小版本（写本计划时最新为 0.123，故 `0.124`）；实施时若已发过 0.124 就顺延。
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInputDocs && pnpm install --frozen-lockfile && pnpm lint`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/MoodflowDocs && pnpm install --frozen-lockfile && pnpm lint`
 Expected: 通过（`check-mdx` 不报 Since 锚点与未发布标注位置）。
 
 - [ ] **Step 4: 提交（两个仓各自提交）**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wildcard/WindInput
+cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow
 git diff --cached --name-status
 git commit -F - --only -- docs/architecture/engine-candidate-pipeline.md docs/design/codetable-wildcard.md <<'EOF'
 docs(design): 码表通配输入落地——架构文档 §3.4 与设计稿回写偏离
@@ -2950,7 +2950,7 @@ docs(design): 码表通配输入落地——架构文档 §3.4 与设计稿回�
 convert 保持字面、通配走显式 convert_wildcard；首位字面通配键使整轮不作通配；
 上屏三短路落在协调器。
 EOF
-cd ../WindInputDocs
+cd ../MoodflowDocs
 git diff --cached --name-status
 git commit -F - --only -- content/docs/settings/schema/codetable.mdx <<'EOF'
 docs(settings): 码表方案新增「通配输入」说明
@@ -2965,17 +2965,17 @@ EOF
 
 - [ ] **Step 1: 全量测试**
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput/wind_input && time CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test --workspace --no-fail-fast 2>&1 | tee /tmp/wct-wcard/full.log | grep -E "^test result|FAILED|panicked" | tail -60`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && time CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test --workspace --no-fail-fast 2>&1 | tee /tmp/wct-wcard/full.log | grep -E "^test result|FAILED|panicked" | tail -60`
 Expected: 无 FAILED；按 `test result` 行求和，与开工前同命令的基线相比只多出本计划新增的用例数（本 worktree 已拷全 `build_dev/data`，基线取开工前实测值，见账本 Baseline 行）。`codetable_wildcard` 那一行耗时 ≥ 1s。
 
 - [ ] **Step 2: 编译门**
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput/wind_input && cargo check-headless && cd .. && ./scripts/dev.sh k`
-Expected: 均通过（新增代码零平台依赖；`wildcard.rs` 不引用 wind-ui）。
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && cargo check-headless && cd .. && ./scripts/dev.sh k`
+Expected: 均通过（新增代码零平台依赖；`wildcard.rs` 不引用 moodflow-ui）。
 
 - [ ] **Step 3: 占位与格式自查**
 
-Run: `cd /home/dufeng/develop/windinput/wt-wildcard/WindInput && git diff HEAD~12 --stat && git diff HEAD~12 | grep -nE "TODO|todo!|unimplemented!|\.only\(|#\[ignore" || echo clean`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow && git diff HEAD~12 --stat && git diff HEAD~12 | grep -nE "TODO|todo!|unimplemented!|\.only\(|#\[ignore" || echo clean`
 Expected: `clean`（`HEAD~12` 以实际提交数为准，范围只含本计划的提交）；`rustfmt --edition 2024 --check` 对本计划新建的两个文件无输出。
 
 ---
@@ -2994,7 +2994,7 @@ Expected: `clean`（`HEAD~12` 以实际提交数为准，范围只含本计划�
 
 ## 自查
 
-- **spec 覆盖**：§3.1 匹配语义 → Task 1/2/3/4/5（一通配一码元、多通配、等长优先 + 补全、上限 100、参与 / 不参与层）+ Task 6/7（整句 / 逆切分 / 混输 / 英文混入不参与）+ Task 11（短语不参与）。§3.2 上屏行为 → Task 6（引擎不给意向）+ Task 11（复评 / 清空 / 顶字 / 短语自动上屏短路、注释全码）。§3.3 按键裁决 → Task 10（首位 / 非首位 / 顺序铁律 / 冲突告警 / 真实码元告警）+ Task 11（首位字面整轮字面）。§3.4 进缓冲闸门 → Task 10（`try_code_char_gate` 符号、字母臂 `can_enter_buffer` 前）。§4 配置 → Task 8（五处同步 + 非法视为关闭）+ Task 9（`build_engine` 注入、两折叠点同判据）+ Task 12（wind-setting 四处）。§5 实现 → Task 1-11。§6 分期 → P1-P4 分组与各组末提交信息。§7 测试 → wind-dict 对拍（Task 2/3/4/5）、引擎 §3.2 逐行（Task 6）、协调器 §7 六条（Task 10/11）。§8 明确不做 → Global Constraints 与 Task 1 用例「短于 pattern 不匹配」。
+- **spec 覆盖**：§3.1 匹配语义 → Task 1/2/3/4/5（一通配一码元、多通配、等长优先 + 补全、上限 100、参与 / 不参与层）+ Task 6/7（整句 / 逆切分 / 混输 / 英文混入不参与）+ Task 11（短语不参与）。§3.2 上屏行为 → Task 6（引擎不给意向）+ Task 11（复评 / 清空 / 顶字 / 短语自动上屏短路、注释全码）。§3.3 按键裁决 → Task 10（首位 / 非首位 / 顺序铁律 / 冲突告警 / 真实码元告警）+ Task 11（首位字面整轮字面）。§3.4 进缓冲闸门 → Task 10（`try_code_char_gate` 符号、字母臂 `can_enter_buffer` 前）。§4 配置 → Task 8（五处同步 + 非法视为关闭）+ Task 9（`build_engine` 注入、两折叠点同判据）+ Task 12（moodflow-setting 四处）。§5 实现 → Task 1-11。§6 分期 → P1-P4 分组与各组末提交信息。§7 测试 → moodflow-dict 对拍（Task 2/3/4/5）、引擎 §3.2 逐行（Task 6）、协调器 §7 六条（Task 10/11）。§8 明确不做 → Global Constraints 与 Task 1 用例「短于 pattern 不匹配」。
 - **签名一致性**：`search_pattern(pattern: &str, wildcard: char, limit: usize, with_prefix: bool)` 在 `DictLayer` / `CompositeDict` / `DictManager` 返回 `Vec<Candidate>`，`CachedDict` / `CodetableDict` 返回 `Vec<DictHit>`，`WdatReader` 返回 `Vec<DictEntry>`；`convert_wildcard(input: &str, pattern: &str, max_candidates: usize) -> Option<ConvertResult>` 在 trait / 码表 / 混输 / `EngineManager` 四处一致；`wildcard_key() -> Option<char>` / `active_wildcard_key() -> Option<char>` 一致；`wildcard_char(&self, schema_id: &str) -> Option<char>` 在 Task 8 定义、Task 9 消费；`wildcard_pattern(&self, buffer: &str) -> Option<String>` 在 Task 10 定义、Task 11 消费；`WildcardDecision::{Yield, Enter}` 仅 Task 10 内与两个接线点使用。
 - **占位扫描**：全文无 TBD / TODO / 「类似任务 N」。依赖无法完全确认的内部细节处均写明核对点：Task 2 Step 3（循环体机械搬运的两处替换）、Task 6 Step 3（`build_engine` 的 `CommitOptions` 字面量需临时补字段）、Task 7 Step 1（`FakePinyin` / `MixConfig` 字段）、Task 10 Step 3（`BoundAction::is_enabled`、`CodeCharSet` 方法）、Task 11 Step 3（遮蔽变量与 `comment.rs` 的注释门控）、Task 13 Step 3（`<Since>` 版本号）。
-- **已知取舍**：Task 9 的新增单测在实现前即通过（它锁 `resolve_codetable`，`build_engine` 真值由 Task 11 集成用例钉住），已在该步说明；Task 8 结束到 Task 12 结束之间 `wind_setting_assets` 预期红，已在两处注明。
+- **已知取舍**：Task 9 的新增单测在实现前即通过（它锁 `resolve_codetable`，`build_engine` 真值由 Task 11 集成用例钉住），已在该步说明；Task 8 结束到 Task 12 结束之间 `moodflow_setting_assets` 预期红，已在两处注明。

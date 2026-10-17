@@ -1,11 +1,11 @@
-# 清风·绿：祖母绿色调（对齐 Claude Design 绿色）。
-# 覆盖 primary/accent_text/accent_soft + accent_menu + tooltip_accent（菜单高亮 700 阶绿），其余继承 _qingfeng。
-base = "_qingfeng"
+# Moodflow·绿：祖母绿色调（对齐 Claude Design 绿色）。
+# 覆盖 primary/accent_text/accent_soft + accent_menu + tooltip_accent（菜单高亮 700 阶绿），其余继承 _moodflow。
+base = "_moodflow"
 
 [meta]
-name = "清风·绿"
+name = "Moodflow·绿"
 version = "1.0"
-author = "清风输入法"
+author = "Moodflow 输入法"
 order = 2
 
 [colors]

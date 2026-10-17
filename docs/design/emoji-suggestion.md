@@ -72,7 +72,7 @@ ID	ID 🆔️ 🪪
 门: 0    門: 18        无: 0    無: 23       华: 0    華: 4
 ```
 
-**零简体条目。** 而本仓内部候选恒简体、只在出口转繁（`wind-transform/src/s2t.rs`，见
+**零简体条目。** 而本仓内部候选恒简体、只在出口转繁（`moodflow-transform/src/s2t.rs`，见
 `architecture` 与 NOTICE 的 OpenCC 条目）。不做繁简归一的话不是「差一点」，是完全不工作。
 
 归一**不必新引 T→S 方向的 octrie**：`.cache/opencc/dictionaries/STCharacters.txt` 反转即可
@@ -80,7 +80,7 @@ ID	ID 🆔️ 🪪
 
 ### 3.2 ⚠️ 必须钉在候选管线的最末端
 
-`build_candidates()`（`wind-coordinator/src/handle_candidate.rs:623`）的装配顺序：
+`build_candidates()`（`moodflow-coordinator/src/handle_candidate.rs:623`）的装配顺序：
 
 ```
 排序 → 按 text 去重(并入 merged_codes) → apply_filter → apply_freq_rerank
@@ -115,12 +115,12 @@ let [c] = &state.candidates[..] else { return None; };
 「短语打全码不再自动上屏、得按空格」，且只在该短语的文本恰好命中 emoji 表时发生。
 
 **引擎侧的 `decide_auto_commit` 天然免疫**：它按 `c.code == input` 筛码表子集判唯一
-（`wind-engine/src/codetable/engine.rs`），而 emoji 的 `code` 为空（见 3.2）。所以只需补
+（`moodflow-engine/src/codetable/engine.rs`），而 emoji 的 `code` 为空（见 3.2）。所以只需补
 短语这一处，并写测试钉住。
 
 ### 3.4 ⚠️ 不得全量载入内存
 
-`wind-dict/src/commentdict.rs` 的模块文档已经论证过同一件事，且点名了 emoji：
+`moodflow-dict/src/commentdict.rs` 的模块文档已经论证过同一件事，且点名了 emoji：
 
 > 注释库由用户自行挂载，容量**不可预知**——可能是几百条 emoji 名称，也可能是十万条级的英汉
 > 词典或字义库。**全解析进内存意味着容量直接变成常驻内存**，而注释是个可选的展示功能，不该
@@ -146,7 +146,7 @@ rime-emoji 是 **LGPL-3.0**，与本仓 MIT 不同。三种做法的分发物不
 - 发行版须随附 LGPL 全文与版权声明（GPL-3.0 §4「give all recipients a copy of this License」）。
 
 ⚠️ **现存缺口（与本功能独立，但同一条义务）**：`scripts/pack-installer.sh:118-128` 组装
-staging 时只放 exe/dll/`data/`/uninstall.exe，`build_dev/data/` 顶层与 `dist/WindInput.app.toml`
+staging 时只放 exe/dll/`data/`/uninstall.exe，`build_dev/data/` 顶层与 `dist/Moodflow.app.toml`
 均无任何 LICENSE/NOTICE。当前发行版已带着 GPL-3.0 的 rime-frost 产物与 LGPL-3.0 的 stroke
 码表，却未随附许可证副本。本阶段一并补上。
 
@@ -213,10 +213,10 @@ staging 时只放 exe/dll/`data/`/uninstall.exe，`build_dev/data/` 顶层与 `d
 |---|---|---|
 | mmap 零拷贝 + 排序数组二分 | `commentdict.rs`（367 行） | 常驻内存与库大小无关 |
 | 内容指纹（**非 mtime**）+ 解析语义版本 + tag | `cache_fp.rs`（465 行） | 何时该重建 |
-| 首次加载建缓存 / 不新鲜则重建 / **失败降级内存表** | `wind-reverse/src/lib.rs:669` | 首次运行转换 |
+| 首次加载建缓存 / 不新鲜则重建 / **失败降级内存表** | `moodflow-reverse/src/lib.rs:669` | 首次运行转换 |
 | `.tmp` → rename 原子写 | `write_comment_wcmt`（`commentdict.rs:167`） | 部署期竞态 |
 | 进程级 reader 共享池 | `reader_pool.rs`（366 行） | 同路径不重复映射 |
-| 挂载变更时清 `.wemj`/`.fp`/`.tmp` | `wind-reverse/src/lib.rs:729` | 换表不留垃圾 |
+| 挂载变更时清 `.wemj`/`.fp`/`.tmp` | `moodflow-reverse/src/lib.rs:729` | 换表不留垃圾 |
 
 ★ `cache_fp.rs` 明确要求：**不同种类的缓存各自持 tag**，免得共用一个语义版本号。`.wemj`
 必须用自己的 tag。
@@ -238,7 +238,7 @@ staging 时只放 exe/dll/`data/`/uninstall.exe，`build_dev/data/` 顶层与 `d
 ★ **`tail` 不是物理末尾**（2026-09-07 真机修正）。初版直接 `extend` 到列表尾，智能档下
 被排到生僻字之后：智能档只滤掉「同码位有常用字」的生僻字，孤儿码位的生僻字照常留在
 尾部，emoji 落在它们后面等于要翻好几页，形同没有。现在的落点判据与过滤器共用
-`wind_candidate::is_common_like`：最后一条常用候选（常用字 / 短语 / 命令 / 分组）之后、
+`moodflow_candidate::is_common_like`：最后一条常用候选（常用字 / 短语 / 命令 / 分组）之后、
 放宽补充段之前；全无常用候选时落到补充段之前的末尾，不抢首位。
 
 ⚠️ **`comment` 档暂时从设置页隐藏**（2026-09-07 真机结论）：注释区目前没有上屏入口，
@@ -306,36 +306,36 @@ categories = false            # emoji_category.txt 单独开关，出厂关
 
 5. 管线末端插入 + `is_emoji_suggestion` 标记位 + 四个消费点
 6. `phrase_auto_commit` 排除（3.3）
-7. 三种呈现形态 + 配置层 + 设置页（`../wind-setting`）
+7. 三种呈现形态 + 配置层 + 设置页（`../moodflow-setting`）
 
 ### 7.2 阶段 B 的实现落点
 
 | 落点 | 内容 |
 |---|---|
-| `wind-candidate/candidate.rs` | `is_emoji_suggestion` 标记位（语义只表达「这条是扩展来的」，不编码排序决策） |
-| `wind-config/config.rs` | `EmojiConfig`（serde 缺省与 `Default` 共用 `default_emoji_*` 函数） |
-| `wind-config/config_schema.rs` | 7 个键登记 + 两个 `Enum` 值域常量 |
-| `wind-coordinator/coordinator.rs` | `emoji_dict` / `emoji_spec` 字段、`sync_emoji_dict`、`load_emoji_dict`、值域告警 |
-| `wind-coordinator/handle_candidate.rs` | `plan_emoji_insertions`（纯函数）、`apply_emoji_suggestions`、`sole_non_emoji`、`record_selection_cand` |
-| `wind-coordinator/comment.rs` | `${emoji}` 变量（`emoji_comment_of`） |
-| `wind-transform/s2t.rs` | `Dict::convert_once`（单表替换，不走转换链） |
-| `../wind-setting` `settings_manifest.toml` | 7 项 UI 声明（label / hint / `enabled_when` 联动） |
+| `moodflow-candidate/candidate.rs` | `is_emoji_suggestion` 标记位（语义只表达「这条是扩展来的」，不编码排序决策） |
+| `moodflow-config/config.rs` | `EmojiConfig`（serde 缺省与 `Default` 共用 `default_emoji_*` 函数） |
+| `moodflow-config/config_schema.rs` | 7 个键登记 + 两个 `Enum` 值域常量 |
+| `moodflow-coordinator/coordinator.rs` | `emoji_dict` / `emoji_spec` 字段、`sync_emoji_dict`、`load_emoji_dict`、值域告警 |
+| `moodflow-coordinator/handle_candidate.rs` | `plan_emoji_insertions`（纯函数）、`apply_emoji_suggestions`、`sole_non_emoji`、`record_selection_cand` |
+| `moodflow-coordinator/comment.rs` | `${emoji}` 变量（`emoji_comment_of`） |
+| `moodflow-transform/s2t.rs` | `Dict::convert_once`（单表替换，不走转换链） |
+| `../moodflow-setting` `settings_manifest.toml` | 7 项 UI 声明（label / hint / `enabled_when` 联动） |
 
-★ **设置页的类型、值域与默认值是自动的**：`wind-rpc/capabilities.rs` 从
+★ **设置页的类型、值域与默认值是自动的**：`moodflow-rpc/capabilities.rs` 从
 `config_schema::REGISTRY` + 系统预置配置动态生成 capability 清单，登记即下发。
 `settings_manifest.toml` 只补 core 不该管的东西——中文 label、hint、分区与联动。
 
 ### 7.3 跨仓 worktree 的编译
 
-`wind-setting` 的 `Cargo.toml` 里 `wind-config = { path = "../WindInput/..." }` 指向的是
-WindInput **主工作区**，故在 worktree 里开发时设置页看不到新加的配置字段。用 Cargo 的
-`paths` 覆盖解决（`wind-setting-*/.cargo/config.toml`，加进该仓的 `info/exclude` 不入库）：
+`moodflow-setting` 的 `Cargo.toml` 里 `moodflow-config = { path = "../Moodflow/..." }` 指向的是
+Moodflow **主工作区**，故在 worktree 里开发时设置页看不到新加的配置字段。用 Cargo 的
+`paths` 覆盖解决（`moodflow-setting-*/.cargo/config.toml`，加进该仓的 `info/exclude` 不入库）：
 
 ```toml
-paths = ["D:/.../WindInput/.claude/worktrees/<名>/wind_input/crates/wind-config"]
+paths = ["D:/.../Moodflow/.claude/worktrees/<名>/moodflow_input/crates/moodflow-config"]
 ```
 
-`cargo metadata` 可验证是否生效（看 `wind-config` 解析到哪个 `manifest_path`）。
+`cargo metadata` 可验证是否生效（看 `moodflow-config` 解析到哪个 `manifest_path`）。
 
 ### 7.1 阶段 A 的实现落点（已完成，供阶段 B 接手）
 
@@ -345,14 +345,14 @@ paths = ["D:/.../WindInput/.claude/worktrees/<名>/wind_input/crates/wind-config
 | `scripts/pack-installer.sh` | staging 新增 `licenses/`（本仓 LICENSE + NOTICE.md） |
 | `.gitignore` / `NOTICE.md` | `data/emoji/` 不入库；NOTICE 记明「不加工、逐字副本」与未补全项 |
 | `gen_opencc.rs` | `compile_t2s_octrie`：反转 `STCharacters` 得 `TSCharactersDerived.octrie`（繁→简，繁简同形不入表，首次出现胜出） |
-| `wind-dict/src/emojidict.rs` | `.wemj` 格式（`EmojiReader` / `write_emoji_wemj`）、`parse_upstream`、`load_or_build` |
-| `wind-dict/src/cache_fp.rs` | `EMOJI_TAG`（★ 归一表须一并进指纹） |
-| `wind-dict/src/reader_pool.rs` | `open_emoji` + `EMOJI_POOL` |
+| `moodflow-dict/src/emojidict.rs` | `.wemj` 格式（`EmojiReader` / `write_emoji_wemj`）、`parse_upstream`、`load_or_build` |
+| `moodflow-dict/src/cache_fp.rs` | `EMOJI_TAG`（★ 归一表须一并进指纹） |
+| `moodflow-dict/src/reader_pool.rs` | `open_emoji` + `EMOJI_POOL` |
 
 阶段 B 的入口只有一个：
 
 ```rust
-wind_dict::emojidict::load_or_build(
+moodflow_dict::emojidict::load_or_build(
     &[data/emoji/emoji_word.txt, data/emoji/emoji_category.txt],  // 后者按 categories 开关决定是否传
     &[data/opencc/TSCharactersDerived.octrie],                     // 只进指纹，不解析
     <cache>/emoji/emoji.wemj,
@@ -360,7 +360,7 @@ wind_dict::emojidict::load_or_build(
 ) -> Option<Arc<EmojiReader>>
 ```
 
-★ `normalize` 用闭包注入而非直接依赖：`wind-dict` 不依赖 `wind-transform`，且测试可传恒等闭包。
+★ `normalize` 用闭包注入而非直接依赖：`moodflow-dict` 不依赖 `moodflow-transform`，且测试可传恒等闭包。
 ★ 失败返回 `None` = **功能不可用**，刻意不降级内存表（理由见 §3.4 与函数文档）。
 
 ★ 阶段划分的依据是**对工作树的诉求相反**：A 纯离线，隔离收益大、真机需求为零；B 高频部署
@@ -436,10 +436,10 @@ wind_dict::emojidict::load_or_build(
 
 | 症状 | 根因 | 修法 | 落点 |
 |---|---|---|---|
-| 含 emoji 的候选行比汉字行高，候选窗随之抖动 | 行高取 DirectWrite 自然度量＝行内所有回退字体里最大的 line metrics；雅黑 +5%、宋体 +17% | 每个 layout 钉 UNIFORM 行距，行高与基线都取基准字族自身的自然值（探针「中a」的 line metrics，按 (字号, 字重, 字族) 缓存；基线不可写成行高的固定比例，各字族 0.78～0.81 不等） | `wind-ui/text/dwrite.rs` `line_height_for`；macOS `coretext.rs` 同步改为只看基准字体度量 |
-| 1️⃣ 显示成「1」+ 空框 | 键帽序列三个码位被切进不同字体段，基准字体自带「1」，回退永不触发，连字不成 | `font_runs` 对 U+20E3 / U+FE0F 回溯改写，把基字连同选择符整体归入 emoji 段 | `wind-ui/text/script.rs`，仅 emoji 已声明时生效 |
+| 含 emoji 的候选行比汉字行高，候选窗随之抖动 | 行高取 DirectWrite 自然度量＝行内所有回退字体里最大的 line metrics；雅黑 +5%、宋体 +17% | 每个 layout 钉 UNIFORM 行距，行高与基线都取基准字族自身的自然值（探针「中a」的 line metrics，按 (字号, 字重, 字族) 缓存；基线不可写成行高的固定比例，各字族 0.78～0.81 不等） | `moodflow-ui/text/dwrite.rs` `line_height_for`；macOS `coretext.rs` 同步改为只看基准字体度量 |
+| 1️⃣ 显示成「1」+ 空框 | 键帽序列三个码位被切进不同字体段，基准字体自带「1」，回退永不触发，连字不成 | `font_runs` 对 U+20E3 / U+FE0F 回溯改写，把基字连同选择符整体归入 emoji 段 | `moodflow-ui/text/script.rs`，仅 emoji 已声明时生效 |
 | 🫜（Emoji 16.0）显示成缺字 | DirectWrite 内置回退区间表落后于 Segoe UI Emoji 字体文件 | Windows 出厂给 emoji 类注入 `Segoe UI Emoji` 指派 | `candidate_window::build_font_plan`；`emoji = []` 可关 |
-| 混输下关扩展词库要重启才生效 | `set_dict_enabled_live` 只翻 `engines[方案id]` 那一个实例，混输的成员子引擎内联构造、不入表 | 扇出到把它当成员的已加载混输方案，转发不到的失效待重建；`MixedEngine` 补 english 转发 | `wind-engine/manager.rs`、`mixed/engine.rs` |
+| 混输下关扩展词库要重启才生效 | `set_dict_enabled_live` 只翻 `engines[方案id]` 那一个实例，混输的成员子引擎内联构造、不入表 | 扇出到把它当成员的已加载混输方案，转发不到的失效待重建；`MixedEngine` 补 english 转发 | `moodflow-engine/manager.rs`、`mixed/engine.rs` |
 
 ★ **出厂 emoji 指派为什么写在代码里而不是 `data/config.toml`**：配置层写回不剔除「等于
 默认」的键，老用户的 config.toml 里已经躺着 `scripts = {}`，改出厂值对他们永远不生效。

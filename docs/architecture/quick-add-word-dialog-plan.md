@@ -2,19 +2,19 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: 用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐任务实现。步骤用 checkbox（`- [ ]`）跟踪。
 
-**Goal:** 让 `Ctrl+=→Ctrl+Enter` 与新增的 `Ctrl+Shift+=` 都能拉起一个独立的加词小窗（复用 wind-setting 词库加词对话框），支持 `--text/--code/--schema` 预填。
+**Goal:** 让 `Ctrl+=→Ctrl+Enter` 与新增的 `Ctrl+Shift+=` 都能拉起一个独立的加词小窗（复用 moodflow-setting 词库加词对话框），支持 `--text/--code/--schema` 预填。
 
-**Architecture:** core 侧新增 `open_add_word_dialog` 热键（默认 `ctrl+shift+equal`、仅中文），触发 `open_add_word_from_history`（不进加词模式、取最近输入预填），与已有 `Ctrl+Enter` 路径共用页面构造 → `open_settings("add-word …")`。wind-setting 侧解析 `--page add-word` 参数，走独立单例 app_id 起紧凑小窗，复用 `DictManagerState` 的加词对话框/出码/提交逻辑，关窗即退进程。
+**Architecture:** core 侧新增 `open_add_word_dialog` 热键（默认 `ctrl+shift+equal`、仅中文），触发 `open_add_word_from_history`（不进加词模式、取最近输入预填），与已有 `Ctrl+Enter` 路径共用页面构造 → `open_settings("add-word …")`。moodflow-setting 侧解析 `--page add-word` 参数，走独立单例 app_id 起紧凑小窗，复用 `DictManagerState` 的加词对话框/出码/提交逻辑，关窗即退进程。
 
-**Tech Stack:** Rust；core = wind-config + wind-coordinator（TSF/IPC 输入法核心）；wind-setting = windui（自研原生 GUI）；JSON-RPC over named pipe。
+**Tech Stack:** Rust；core = moodflow-config + moodflow-coordinator（TSF/IPC 输入法核心）；moodflow-setting = moodflowui（自研原生 GUI）；JSON-RPC over named pipe。
 
 ## Global Constraints
 
-- **两个 git 仓库**：core 改动在 `D:\Develop\workspace\windinput\WindInput`（分支 `feat/quick-add-word`，已建）；设置改动在**独立仓** `D:\Develop\workspace\windinput\wind-setting`（需先 `git checkout -b feat/quick-add-word`）。两仓各自提交。
+- **两个 git 仓库**：core 改动在 `D:\Develop\workspace\moodflow\Moodflow`（分支 `feat/quick-add-word`，已建）；设置改动在**独立仓** `D:\Develop\workspace\moodflow\moodflow-setting`（需先 `git checkout -b feat/quick-add-word`）。两仓各自提交。
 - 直开热键默认值（verbatim）：`open_add_word_dialog = "ctrl+shift+equal"`。
 - 直开热键策略：**仅中文模式**（`HOTKEY_POLICY_CHINESE_ONLY`），与 `add_word` 一致。
 - 加词默认权重（verbatim）：`1200`。
-- 加词小窗单例 app_id（verbatim）：`format!("wind_setting_addword{}", crate::mode::pipe_suffix())`。
+- 加词小窗单例 app_id（verbatim）：`format!("moodflow_setting_addword{}", crate::mode::pipe_suffix())`。
 - 加词小窗**不**调用 `LoadedState::fetch()`；只做最小 RPC（`schema.list` 一次 + 出码/提交按需）。
 - 暂不做「连续添加」；编码**不**自动重算（仅「出码」按钮手动触发）。
 - 提交信息不带 Co-Authored-By 与 AI trailer（Constraint/Confidence 等），用中文 conventional commit。
@@ -22,12 +22,12 @@
 
 ---
 
-## 仓库 A：core（WindInput，分支 feat/quick-add-word）
+## 仓库 A：core（Moodflow，分支 feat/quick-add-word）
 
 ### Task 1: 配置字段 open_add_word_dialog
 
 **Files:**
-- Modify: `wind_input/crates/wind-config/src/config.rs`（Hotkeys/KeysConfig 结构体 895-932、默认值 934-977、Default impl 978-995）
+- Modify: `moodflow_input/crates/moodflow-config/src/config.rs`（Hotkeys/KeysConfig 结构体 895-932、默认值 934-977、Default impl 978-995）
 - Modify: `data/config.toml`（`[hotkeys]` 段，约 160-163 行）
 
 **Interfaces:**
@@ -69,14 +69,14 @@ open_add_word_dialog = "ctrl+shift+equal"
 
 - [ ] **Step 5: 编译验证**
 
-Run: `cd wind_input && cargo build -p wind-config`
+Run: `cd moodflow_input && cargo build -p moodflow-config`
 Expected: 编译通过（无 “missing field open_add_word_dialog” 错误，说明 Default 已补齐）。
 
 - [ ] **Step 6: 提交**
 
 ```bash
-cd D:/Develop/workspace/windinput/WindInput
-git add wind_input/crates/wind-config/src/config.rs data/config.toml
+cd D:/Develop/workspace/moodflow/Moodflow
+git add moodflow_input/crates/moodflow-config/src/config.rs data/config.toml
 git commit -m "feat(addword): 新增 open_add_word_dialog 热键配置（默认 ctrl+shift+equal）"
 ```
 
@@ -85,8 +85,8 @@ git commit -m "feat(addword): 新增 open_add_word_dialog 热键配置（默认 
 ### Task 2: 热键编译注册（chinese-only 组）
 
 **Files:**
-- Modify: `wind_input/crates/wind-config/src/hotkey.rs`（CHINESE_ONLY key_down 组，约 119-131）
-- Modify: `wind_input/crates/wind-config/src/config_schema.rs`（keys 字段登记表，`keys.add_word` 约 181）
+- Modify: `moodflow_input/crates/moodflow-config/src/hotkey.rs`（CHINESE_ONLY key_down 组，约 119-131）
+- Modify: `moodflow_input/crates/moodflow-config/src/config_schema.rs`（keys 字段登记表，`keys.add_word` 约 181）
 
 **Interfaces:**
 - Consumes: `KeysConfig.open_add_word_dialog`（Task 1）。
@@ -112,7 +112,7 @@ git commit -m "feat(addword): 新增 open_add_word_dialog 热键配置（默认 
 
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `cd wind_input && cargo test -p wind-config open_add_word_dialog_registered -- --nocapture`
+Run: `cd moodflow_input && cargo test -p moodflow-config open_add_word_dialog_registered -- --nocapture`
 Expected: FAIL（action 未注册）。
 
 - [ ] **Step 3: 注册进 chinese-only 组**（hotkey.rs，`("add_word", &h.add_word),` 那行之后，约 122）
@@ -128,7 +128,7 @@ Expected: FAIL（action 未注册）。
 
 - [ ] **Step 4: 跑测试确认通过**
 
-Run: `cd wind_input && cargo test -p wind-config open_add_word_dialog_registered`
+Run: `cd moodflow_input && cargo test -p moodflow-config open_add_word_dialog_registered`
 Expected: PASS。
 
 - [ ] **Step 5: 登记 config_schema 字段**（config_schema.rs，`f("keys.add_word", Str),` 那行之后，约 181）
@@ -142,13 +142,13 @@ Expected: PASS。
 
 - [ ] **Step 6: 编译验证**
 
-Run: `cd wind_input && cargo build -p wind-config`
+Run: `cd moodflow_input && cargo build -p moodflow-config`
 Expected: 编译通过。
 
 - [ ] **Step 7: 提交**
 
 ```bash
-git add wind_input/crates/wind-config/src/hotkey.rs wind_input/crates/wind-config/src/config_schema.rs
+git add moodflow_input/crates/moodflow-config/src/hotkey.rs moodflow_input/crates/moodflow-config/src/config_schema.rs
 git commit -m "feat(addword): open_add_word_dialog 编译进 chinese-only 热键组 + config_schema 登记"
 ```
 
@@ -157,7 +157,7 @@ git commit -m "feat(addword): open_add_word_dialog 编译进 chinese-only 热键
 ### Task 3: handle_addword 抽公共构造 + open_add_word_from_history
 
 **Files:**
-- Modify: `wind_input/crates/wind-coordinator/src/handle_addword.rs`（`open_add_word_dialog` 285-314；测试 mod 412-619）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/handle_addword.rs`（`open_add_word_dialog` 285-314；测试 mod 412-619）
 
 **Interfaces:**
 - Produces:
@@ -193,7 +193,7 @@ git commit -m "feat(addword): open_add_word_dialog 编译进 chinese-only 热键
 
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `cd wind_input && cargo test -p wind-coordinator build_page_omits_empty_fields from_history_does_not`
+Run: `cd moodflow_input && cargo test -p moodflow-coordinator build_page_omits_empty_fields from_history_does_not`
 Expected: FAIL（`build_add_word_page` / `open_add_word_from_history` 未定义）。
 
 - [ ] **Step 3: 加纯函数 + 公共构造**（handle_addword.rs，`impl Coordinator` 块外顶层加纯函数；`open_add_word_dialog` 前加公共构造）
@@ -278,15 +278,15 @@ fn build_add_word_page(word: &str, code: &str, schema: &str) -> String {
 
 - [ ] **Step 6: 跑测试确认通过**
 
-Run: `cd wind_input && cargo test -p wind-coordinator build_page_omits_empty_fields from_history_does_not`
+Run: `cd moodflow_input && cargo test -p moodflow-coordinator build_page_omits_empty_fields from_history_does_not`
 Expected: PASS。
 
 - [ ] **Step 7: 回归 + 提交**
 
 ```bash
-cd wind_input && cargo test -p wind-coordinator handle_addword 2>&1 | tail -5
-cd D:/Develop/workspace/windinput/WindInput
-git add wind_input/crates/wind-coordinator/src/handle_addword.rs
+cd moodflow_input && cargo test -p moodflow-coordinator handle_addword 2>&1 | tail -5
+cd D:/Develop/workspace/moodflow/Moodflow
+git add moodflow_input/crates/moodflow-coordinator/src/handle_addword.rs
 git commit -m "feat(addword): 抽 build_add_word_page 公共构造 + 新增 open_add_word_from_history"
 ```
 
@@ -295,7 +295,7 @@ git commit -m "feat(addword): 抽 build_add_word_page 公共构造 + 新增 open
 ### Task 4: 热键分派
 
 **Files:**
-- Modify: `wind_input/crates/wind-coordinator/src/coordinator.rs`（key_down 匹配处，`if action == "add_word"` 分支 3239-3246）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/coordinator.rs`（key_down 匹配处，`if action == "add_word"` 分支 3239-3246）
 
 **Interfaces:**
 - Consumes: `open_add_word_from_history`（Task 3）、action 串 `"open_add_word_dialog"`（Task 2）。
@@ -320,26 +320,26 @@ git commit -m "feat(addword): 抽 build_add_word_page 公共构造 + 新增 open
 
 - [ ] **Step 2: 编译**
 
-Run: `cd wind_input && cargo build -p wind-coordinator`
+Run: `cd moodflow_input && cargo build -p moodflow-coordinator`
 Expected: 编译通过。
 
 - [ ] **Step 3: 全量测试回归**
 
-Run: `cd wind_input && cargo test 2>&1 | tail -15`
+Run: `cd moodflow_input && cargo test 2>&1 | tail -15`
 Expected: 与改动前一致（既有失败台账不新增；本功能相关测试 PASS）。
 
 - [ ] **Step 4: 提交**
 
 ```bash
-git add wind_input/crates/wind-coordinator/src/coordinator.rs
+git add moodflow_input/crates/moodflow-coordinator/src/coordinator.rs
 git commit -m "feat(addword): Ctrl+Shift+= 分派到 open_add_word_from_history（仅中文）"
 ```
 
 ---
 
-## 仓库 B：wind-setting（独立仓，需先建分支 feat/quick-add-word）
+## 仓库 B：moodflow-setting（独立仓，需先建分支 feat/quick-add-word）
 
-> 起点：`cd D:/Develop/workspace/windinput/wind-setting && git checkout -b feat/quick-add-word`
+> 起点：`cd D:/Develop/workspace/moodflow/moodflow-setting && git checkout -b feat/quick-add-word`
 
 ### Task 5: cli.rs 解析 --page add-word 参数
 
@@ -374,7 +374,7 @@ git commit -m "feat(addword): Ctrl+Shift+= 分派到 open_add_word_from_history�
 
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `cd wind-setting && cargo test parse_add_word_forms`
+Run: `cd moodflow-setting && cargo test parse_add_word_forms`
 Expected: FAIL（未定义）。
 
 - [ ] **Step 3: 实现**（cli.rs 顶层，`parse_protocol` 之后）
@@ -439,13 +439,13 @@ pub fn parse_add_word(argv: &[String]) -> Option<AddWordParams> {
 
 - [ ] **Step 4: 跑测试确认通过**
 
-Run: `cd wind-setting && cargo test parse_add_word_forms`
+Run: `cd moodflow-setting && cargo test parse_add_word_forms`
 Expected: PASS。
 
 - [ ] **Step 5: 提交**
 
 ```bash
-cd D:/Develop/workspace/windinput/wind-setting
+cd D:/Develop/workspace/moodflow/moodflow-setting
 git add src/cli.rs
 git commit -m "feat(addword): cli 解析 --page add-word 及 --text/--code/--schema"
 ```
@@ -495,7 +495,7 @@ git commit -m "feat(addword): cli 解析 --page add-word 及 --text/--code/--sch
 
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `cd wind-setting && cargo test prefill_selects_userdict prefill_matches_pinyin`
+Run: `cd moodflow-setting && cargo test prefill_selects_userdict prefill_matches_pinyin`
 Expected: FAIL（未定义）。
 
 - [ ] **Step 3: 实现**（state.rs，`open_add` 714 之后）
@@ -565,7 +565,7 @@ Expected: FAIL（未定义）。
 
 - [ ] **Step 4: 跑测试确认通过**
 
-Run: `cd wind-setting && cargo test prefill_selects_userdict prefill_matches_pinyin`
+Run: `cd moodflow-setting && cargo test prefill_selects_userdict prefill_matches_pinyin`
 Expected: PASS。
 
 - [ ] **Step 5: 提交**
@@ -617,8 +617,8 @@ pub fn close_on_hidden(visible: Signal<bool>) -> Element {
 
 - [ ] **Step 2: 编译验证**
 
-Run: `cd wind-setting && cargo build`
-Expected: 编译通过（`CloseOnHidden` 引用的 `Widget`/`EventCtx` 已在文件顶部 `use windui::core::{EventCtx, Widget};` 导入）。
+Run: `cd moodflow-setting && cargo build`
+Expected: 编译通过（`CloseOnHidden` 引用的 `Widget`/`EventCtx` 已在文件顶部 `use moodflowui::core::{EventCtx, Widget};` 导入）。
 
 - [ ] **Step 3: 提交**
 
@@ -652,13 +652,13 @@ pub(crate) fn load_schemas() -> Vec<SchemaInfo> {
 ```rust
 //! 快捷加词小窗 — 独立单例、紧凑窗、复用词库加词对话框，关窗即退进程。
 //!
-//! 与主设置窗用不同 app_id（`wind_setting_addword{suffix}`），互不劫持；自身单例，
+//! 与主设置窗用不同 app_id（`moodflow_setting_addword{suffix}`），互不劫持；自身单例，
 //! 连按只复用同一小窗重新预填。只做最小 RPC（schema.list 一次 + 出码/提交按需），
 //! 不走整页的 LoadedState::fetch。
 
 use std::rc::Rc;
 
-use windui::prelude::*;
+use moodflowui::prelude::*;
 
 use crate::cli::AddWordParams;
 use crate::pages::dict::dialogs::build_dict_dialogs;
@@ -689,7 +689,7 @@ pub fn run(params: AddWordParams) {
         .child(toast_sink(mgr.feedback))
         .child(close_on_hidden(mgr.edit_visible));
 
-    let app_id = format!("wind_setting_addword{}", crate::mode::pipe_suffix());
+    let app_id = format!("moodflow_setting_addword{}", crate::mode::pipe_suffix());
     // 二次启动：重新解析参数并预填，复用同一小窗（不新起进程）。
     let si_mgr = mgr.clone();
     App::new("添加用户词库", 460, 300)
@@ -708,7 +708,7 @@ pub fn run(params: AddWordParams) {
 }
 ```
 
-> 注：`DictManagerState` 是 `Clone`（Signal 为 Copy），闭包捕获用 `Rc` 或直接 clone 均可；此处用 `Rc` 以与二次启动闭包共享同一实例。若 windui `App` 无 `.theme(..)` 后再 `.bg(..)` 的顺序要求，参照 `main.rs` 现有链式顺序调整。
+> 注：`DictManagerState` 是 `Clone`（Signal 为 Copy），闭包捕获用 `Rc` 或直接 clone 均可；此处用 `Rc` 以与二次启动闭包共享同一实例。若 moodflowui `App` 无 `.theme(..)` 后再 `.bg(..)` 的顺序要求，参照 `main.rs` 现有链式顺序调整。
 
 - [ ] **Step 3: main.rs 早分支 + 声明 mod**（main.rs）
 
@@ -728,16 +728,16 @@ mod add_word_window;
     }
 ```
 
-> 放在 `protocol::self_heal_registration()` 之后即可（保持协议注册自愈）；务必在 `App::new("清风输入法设置", …)` 常规分支**之前** `return`。
+> 放在 `protocol::self_heal_registration()` 之后即可（保持协议注册自愈）；务必在 `App::new("Moodflow 输入法设置", …)` 常规分支**之前** `return`。
 
 - [ ] **Step 4: 编译**
 
-Run: `cd wind-setting && cargo build`
+Run: `cd moodflow-setting && cargo build`
 Expected: 编译通过。
 
 - [ ] **Step 5: 出图冒烟（无需 core）**
 
-Run: `cd wind-setting && $env:WIND_RPC_MOCK=1; cargo run -- --page add-word --text=你好 --code=nihao --schema=pinyin --screenshot "$env:TEMP/addword.png"`
+Run: `cd moodflow-setting && $env:MOODFLOW_RPC_MOCK=1; cargo run -- --page add-word --text=你好 --code=nihao --schema=pinyin --screenshot "$env:TEMP/addword.png"`
 Expected: 生成截图，显示「添加用户词库」对话框、编码框 `nihao`、词条 `你好`、权重 `1200`、「出码/取消/确定」按钮。
 （`--screenshot` 由 `screenshot_from_args` 支持——注意本分支未挂 `.screenshot_from_args()`；若需出图，Step 2 的 `App` 链在 `.content` 前补 `.screenshot_from_args()`。）
 
@@ -758,8 +758,8 @@ git commit -m "feat(addword): 独立加词小窗（独立单例 + 复用词库�
 
 Run:
 ```
-cd D:/Develop/workspace/windinput/WindInput/wind_input && cargo build
-cd D:/Develop/workspace/windinput/wind-setting && cargo build
+cd D:/Develop/workspace/moodflow/Moodflow/moodflow_input && cargo build
+cd D:/Develop/workspace/moodflow/moodflow-setting && cargo build
 ```
 Expected: 均通过。
 
@@ -784,7 +784,7 @@ Expected: 均通过。
 **Spec coverage：**
 - 设计 Part A-1（配置字段）→ Task 1；A-2（编译注册）→ Task 2；A-3（公共构造 + from_history）→ Task 3；A-4（分派）→ Task 4。
 - Part B-1（cli 解析）→ Task 5；B-3（复用词库逻辑）→ Task 6 + Task 8（prepare/复用对话框）；B-2（独立小窗）→ Task 8；B-4（单例隔离）→ Task 8（独立 app_id）；B-5（最小 IPC）→ Task 8（load_schemas 复用、跳过 LoadedState::fetch）；关窗即退 → Task 7 + Task 8。
-- 测试策略：core → Task 2/3 单测；wind-setting → Task 5/6 单测 + Task 8 出图冒烟 + Task 9 真机。
+- 测试策略：core → Task 2/3 单测；moodflow-setting → Task 5/6 单测 + Task 8 出图冒烟 + Task 9 真机。
 - 覆盖完整，无遗漏需求。
 
 **Placeholder scan：** 无 TBD/TODO；每个代码步骤含完整代码。仅 Task 2/6 有"若字段名/辅助与实际不符则按实际调整"的实现期提示（因目标文件个别私有符号名以运行期为准），非占位。

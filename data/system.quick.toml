@@ -1,6 +1,6 @@
-# WindInput 快捷输入格式表
+# Moodflow 快捷输入格式表
 #
-# 自定义：把本文件拷贝到 %APPDATA%\WindInput\system.quick.toml 后修改，
+# 自定义：把本文件拷贝到 %APPDATA%\Moodflow\system.quick.toml 后修改，
 # 重启输入法服务生效。用户目录那份整份生效，请在完整副本上改。
 #
 # 字段

@@ -10,10 +10,10 @@
   - 新增 RPC `schema.overrideSummary`，给出跨方案的覆盖汇总；
   - `schema.getConfig` 增补 `followedBehavior`，给出方案对话框里各项的跟随值；
   - 角标颜色的键拆开，并做迁移。
-- 设置端（wind-setting）复用现有的 `setting_row_override` / `override_control`，逐项整改。
+- 设置端（moodflow-setting）复用现有的 `setting_row_override` / `override_control`，逐项整改。
 - 最后写规则、扫一遍文案。
 
-**Tech Stack:** Rust；主仓在 `wind_input/` workspace 下原生测试；设置端 `../wind-setting` 走 xwin + wine（`./scripts/dev.sh sk|st|sg`）；文档站在 `../WindInputDocs`（mdx）。
+**Tech Stack:** Rust；主仓在 `moodflow_input/` workspace 下原生测试；设置端 `../moodflow-setting` 走 xwin + wine（`./scripts/dev.sh sk|st|sg`）；文档站在 `../MoodflowDocs`（mdx）。
 
 **Spec:** `docs/design/override-presentation.md`
 
@@ -24,8 +24,8 @@
 - 改已发布键的类型或语义，必须在 `Config::load` 链上加 Value 层迁移（`migrate_user_layer_value`），并同步 `prune_user_config` / `set_user_value` 两条路径（R4）。
 - 非 config.toml 的落点写回，一律登记 `SideCommitter`，不另加保存按钮（R2）。
 - 提交只用 `git commit -F - --only -- <自己的路径…>`，禁用 `git add -A` / `git add .` / `git commit -a` / `git stash`（本工作区常有并发会话）。
-- 主仓测试命令，在 `wind_input/` 下执行：`CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt TMPDIR=/tmp/wct-ovr cargo test -p <crate> <filter>`，之前先 `mkdir -p /tmp/wct-ovr`。依赖 `build_dev/data` 的集成测试缺数据时会静默跳过：耗时 0.0x 秒的「通过」算假绿。
-- 设置端测试：`./scripts/dev.sh st`，在 WindInput 仓根目录执行，无法按名过滤，整套约 1.6 秒。改了主仓的 REGISTRY 或 capabilities 后先跑 `./scripts/dev.sh sg` 重生成快照；重生成后 `appVersion` 那一行的 diff 不要提交。
+- 主仓测试命令，在 `moodflow_input/` 下执行：`CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt TMPDIR=/tmp/wct-ovr cargo test -p <crate> <filter>`，之前先 `mkdir -p /tmp/wct-ovr`。依赖 `build_dev/data` 的集成测试缺数据时会静默跳过：耗时 0.0x 秒的「通过」算假绿。
+- 设置端测试：`./scripts/dev.sh st`，在 Moodflow 仓根目录执行，无法按名过滤，整套约 1.6 秒。改了主仓的 REGISTRY 或 capabilities 后先跑 `./scripts/dev.sh sg` 重生成快照；重生成后 `appVersion` 那一行的 diff 不要提交。
 - 格式化只对自己改的文件跑：`rustfmt --edition 2021 <file>`。不跑 `cargo fmt --all`，它会改到并发会话未提交的文件。
 
 ## Review Focus
@@ -74,11 +74,11 @@ EOF
 ### Task 2: core · `theme.resolved` RPC
 
 **Files:**
-- Modify: `wind_input/crates/wind-coordinator/src/theme_query.rs`（新增 `ThemeFollowValues` 与 `Coordinator::theme_follow_values`）
-- Modify: `wind_input/crates/wind-coordinator/src/web_host.rs`（trait 加方法 + 转发 impl）
-- Modify: `wind_input/crates/wind-webdata/src/lib.rs`（`theme.*` 分发处约 :593 加一个分支 + `web_theme_resolved`）
-- Test: `wind_input/crates/wind-coordinator/src/theme_query.rs` 内 `#[cfg(test)]`；`wind_input/crates/wind-coordinator/tests/input_flow.rs` 追加一例
-- Modify: `../wind-setting/src/rpc.rs`（`mock_reply` 加一个分支）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/theme_query.rs`（新增 `ThemeFollowValues` 与 `Coordinator::theme_follow_values`）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/web_host.rs`（trait 加方法 + 转发 impl）
+- Modify: `moodflow_input/crates/moodflow-webdata/src/lib.rs`（`theme.*` 分发处约 :593 加一个分支 + `web_theme_resolved`）
+- Test: `moodflow_input/crates/moodflow-coordinator/src/theme_query.rs` 内 `#[cfg(test)]`；`moodflow_input/crates/moodflow-coordinator/tests/input_flow.rs` 追加一例
+- Modify: `../moodflow-setting/src/rpc.rs`（`mock_reply` 加一个分支）
 
 **Interfaces:**
 - Produces（core）：
@@ -107,7 +107,7 @@ EOF
 #[cfg(test)]
 mod follow_values_tests {
     use super::*;
-    use wind_theme::resolve::{Resolved, ResolvedBehavior};
+    use moodflow_theme::resolve::{Resolved, ResolvedBehavior};
 
     #[test]
     fn pager_display_maps_theme_behavior() {
@@ -145,7 +145,7 @@ mod follow_values_tests {
 ```
 
 - [ ] **Step 2: 确认测试失败。**
-  运行：`cd wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt TMPDIR=/tmp/wct-ovr cargo test -p wind-coordinator follow_values_tests`
+  运行：`cd moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt TMPDIR=/tmp/wct-ovr cargo test -p moodflow-coordinator follow_values_tests`
   预期：编译错误 `cannot find function follow_values_of`。
 
 - [ ] **Step 3: 实现。**
@@ -168,10 +168,10 @@ pub struct ThemeFollowValues {
     pub langbar_text: [Option<String>; 4],
 }
 
-/// 与 `wind_ui::candidate_window::pager_visible` 的「跟随主题」分支同一裁决。
-fn follow_values_of(theme_id: &str, r: &wind_theme::resolve::Resolved) -> ThemeFollowValues {
+/// 与 `moodflow_ui::candidate_window::pager_visible` 的「跟随主题」分支同一裁决。
+fn follow_values_of(theme_id: &str, r: &moodflow_theme::resolve::Resolved) -> ThemeFollowValues {
     let b = &r.behavior;
-    let hex = |c: Option<wind_theme::palette::Rgba>| {
+    let hex = |c: Option<moodflow_theme::palette::Rgba>| {
         c.map(|[r, g, b, _]| format!("#{r:02X}{g:02X}{b:02X}"))
     };
     let lt = &r.langbar_text;
@@ -200,7 +200,7 @@ impl Coordinator {
         let name = <Self as crate::web_host::WebDataHost>::current_theme_name(self);
         let is_dark = <Self as crate::web_host::WebDataHost>::current_theme_is_dark(self);
         let (id, resolved) = Self::load_theme_with_fallback(
-            |n| wind_theme::load_resolved_dirs(&dirs, n, is_dark).map(Box::new),
+            |n| moodflow_theme::load_resolved_dirs(&dirs, n, is_dark).map(Box::new),
             &name,
         )?;
         Some(follow_values_of(&id, &resolved))
@@ -208,7 +208,7 @@ impl Coordinator {
 }
 ```
 
-  `load_theme_with_fallback` 目前是 `handle_mode.rs` 里的私有 `fn`，要改成 `pub(crate) fn`。字段名以 `wind_theme::resolve` 的实际导出为准，`Rgba` 在 `wind_theme::palette`。
+  `load_theme_with_fallback` 目前是 `handle_mode.rs` 里的私有 `fn`，要改成 `pub(crate) fn`。字段名以 `moodflow_theme::resolve` 的实际导出为准，`Rgba` 在 `moodflow_theme::palette`。
 
 - [ ] **Step 4: 窄面 + 分发。**
 
@@ -223,11 +223,11 @@ fn theme_follow_values(&self) -> Option<crate::theme_query::ThemeFollowValues> {
 ```
 
 ```rust
-// wind-webdata/src/lib.rs，theme.* 分支内
+// moodflow-webdata/src/lib.rs，theme.* 分支内
 "theme.resolved" => Ok(serde_json::to_value(self.theme_follow_values())?),
 ```
 
-- [ ] **Step 5: 集成用例（真数据）。** 追加到 `wind-coordinator/tests/input_flow.rs`，照 `test_web_theme_preview_real` 的写法：
+- [ ] **Step 5: 集成用例（真数据）。** 追加到 `moodflow-coordinator/tests/input_flow.rs`，照 `test_web_theme_preview_real` 的写法：
 
 ```rust
 #[test]
@@ -243,9 +243,9 @@ fn test_web_theme_resolved_real() {
 
   再补一例覆盖 Review Focus 1：先把 `ui.theme.name` 设为一个不存在的 id，再调 `theme.resolved`，断言返回的 `themeId` 等于回落主题 id（在 `handle_mode.rs` 里查 `FALLBACK_THEME` 的值），并且 `fontSize > 0`。
 
-- [ ] **Step 6: 运行并确认全绿。** 执行 `cargo test -p wind-coordinator follow_values_tests test_web_theme_resolved`，输出里要看到这两个用例真的跑了，不是 skip。
+- [ ] **Step 6: 运行并确认全绿。** 执行 `cargo test -p moodflow-coordinator follow_values_tests test_web_theme_resolved`，输出里要看到这两个用例真的跑了，不是 skip。
 
-- [ ] **Step 7: 设置端 mock。** 在 `../wind-setting/src/rpc.rs` 的 `mock_reply` 里加一个分支：
+- [ ] **Step 7: 设置端 mock。** 在 `../moodflow-setting/src/rpc.rs` 的 `mock_reply` 里加一个分支：
 
 ```rust
 "theme.resolved" => json!({
@@ -255,17 +255,17 @@ fn test_web_theme_resolved_real() {
 }),
 ```
 
-- [ ] **Step 8: 格式化并提交。** 两个仓分开提交，主仓提交信息写 `feat(rpc): theme.resolved —— 设置端「跟随主题（值）」的数据源（R8.1）`；wind-setting 提交信息写 `test(mock): theme.resolved`。
+- [ ] **Step 8: 格式化并提交。** 两个仓分开提交，主仓提交信息写 `feat(rpc): theme.resolved —— 设置端「跟随主题（值）」的数据源（R8.1）`；moodflow-setting 提交信息写 `test(mock): theme.resolved`。
 
 ---
 
 ### Task 3: core · `schema.overrideSummary` 与 `followedBehavior`
 
 **Files:**
-- Modify: `wind_input/crates/wind-webdata/src/lib.rs`：分发处加 `"schema.overrideSummary"`；在 `web_schema_get_config`（约 :1409）里增补 `followedBehavior`，并登记 `READONLY_SIDECAR_FIELDS`（约 :4087）
-- Modify: `wind_input/crates/wind-config/src/config_schema.rs`：新增纯函数 `schema_overridden_keys(schema: &Schema) -> Vec<&'static str>`
-- Test: `config_schema.rs` 内单测；`wind-coordinator/tests/input_flow.rs` 追加一例
-- Modify: `../wind-setting/src/rpc.rs` mock
+- Modify: `moodflow_input/crates/moodflow-webdata/src/lib.rs`：分发处加 `"schema.overrideSummary"`；在 `web_schema_get_config`（约 :1409）里增补 `followedBehavior`，并登记 `READONLY_SIDECAR_FIELDS`（约 :4087）
+- Modify: `moodflow_input/crates/moodflow-config/src/config_schema.rs`：新增纯函数 `schema_overridden_keys(schema: &Schema) -> Vec<&'static str>`
+- Test: `config_schema.rs` 内单测；`moodflow-coordinator/tests/input_flow.rs` 追加一例
+- Modify: `../moodflow-setting/src/rpc.rs` mock
 
 **Interfaces:**
 - Produces：
@@ -316,7 +316,7 @@ fn overridden_keys_covers_every_schema_override_entry() { /* 为每个登记键�
 
   第三个用例的函数体要写全：遍历 `SCHEMA_OVERRIDES`，前缀型条目按 `CodeTableSpec` 字段名展开，每个键各构造一份 TOML。**先验证它能红**：临时从实现里删掉一个字段，确认测试失败后再恢复。（本仓记忆「护栏要先验可观测性」：下游对照可能和上游闸门是同一个不等式，恒空过。）
 
-- [ ] **Step 2: 确认测试失败。** 执行 `cargo test -p wind-config overridden_keys`，预期结果是找不到该函数（编译失败）。
+- [ ] **Step 2: 确认测试失败。** 执行 `cargo test -p moodflow-config overridden_keys`，预期结果是找不到该函数（编译失败）。
 
 - [ ] **Step 3: 实现 `schema_overridden_keys`。** 逐字段比对 `Option::is_some()`、`LayoutIntent::Follow`、`PunctIntent::Follow`，映射表写在函数旁边。字段清单以 `schema.rs:338-478`（CodeTableSpec）、`:300`（AuxCodeSpec）、`:714`（PunctSpec）、`:782`（CandidateSpec）为准。`input_chars` / `leading_chars` 以空串表示未设置。
 
@@ -330,7 +330,7 @@ fn web_schema_override_summary(&self) -> anyhow::Result<Value> {
     let mut out: serde_json::Map<String, Value> = serde_json::Map::new();
     for id in mgr.available_schemas() {          // 已排除定制版 hide
         let Some(s) = mgr.schema_merged(&id) else { continue };
-        for key in wind_config::config_schema::schema_overridden_keys(&s) {
+        for key in moodflow_config::config_schema::schema_overridden_keys(&s) {
             out.entry(key).or_insert_with(|| json!([]))
                .as_array_mut().unwrap().push(json!(id));
         }
@@ -345,7 +345,7 @@ fn web_schema_override_summary(&self) -> anyhow::Result<Value> {
 
 - [ ] **Step 6: 集成用例。** 覆盖 Review Focus 4：用真实数据构造一个码表方案，schema 文件自带 `top_code_commit`，override 层再写一次同一个键；断言 `overrideSummary["schema.codetable.top_code_commit"]` 里这个方案 id 只出现一次。再断言 `schema.getConfig` 返回的 `followedBehavior.layout` 是 `"horizontal"` 或 `"vertical"`。
 
-- [ ] **Step 7: 运行并确认全绿。** 执行 `cargo test -p wind-config overridden_keys && cargo test -p wind-coordinator override_summary`。
+- [ ] **Step 7: 运行并确认全绿。** 执行 `cargo test -p moodflow-config overridden_keys && cargo test -p moodflow-coordinator override_summary`。
 
 - [ ] **Step 8: 设置端 mock。** `mock_reply` 新增 `"schema.overrideSummary" => json!({"ui.candidate.layout": ["wubi86"]})`；`"schema.getConfig"` 的 mock 分支（约 :1646）补上 `followedBehavior` 字段。
 
@@ -356,10 +356,10 @@ fn web_schema_override_summary(&self) -> anyhow::Result<Value> {
 ### Task 4: core · 角标颜色拆键与迁移（F7）
 
 **Files:**
-- Modify: `wind_input/crates/wind-config/src/config.rs`：`LangBarBadge`（约 :5457）加字段 `alpha_light` / `alpha_dark`；`default_langbar_color_auto` 返回 `""`；`migrate_user_layer_value`（约 :7518）挂新的迁移函数；另加迁移函数与单测
-- Modify: `wind_input/crates/wind-coordinator/src/coordinator/langbar_icon.rs`：把 `parse_color`（:254-273）提取成不带 cfg 的纯函数 `badge_color_of(color: &str, alpha: Option<f32>) -> BadgeColor`，外层调用处改用它
-- Modify: `wind_input/data/config.toml`：`[ui.langbar]` 段的注释（:1413-1417）和三条 `[[ui.langbar.badges]]`（:1419-1441）
-- Modify: `../WindInputDocs/content/docs/guides/config/ui.mdx`（:456-468、:484-511）与 `../WindInputDocs/content/docs/settings/appearance/index.mdx`（:294-334）
+- Modify: `moodflow_input/crates/moodflow-config/src/config.rs`：`LangBarBadge`（约 :5457）加字段 `alpha_light` / `alpha_dark`；`default_langbar_color_auto` 返回 `""`；`migrate_user_layer_value`（约 :7518）挂新的迁移函数；另加迁移函数与单测
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/coordinator/langbar_icon.rs`：把 `parse_color`（:254-273）提取成不带 cfg 的纯函数 `badge_color_of(color: &str, alpha: Option<f32>) -> BadgeColor`，外层调用处改用它
+- Modify: `moodflow_input/data/config.toml`：`[ui.langbar]` 段的注释（:1413-1417）和三条 `[[ui.langbar.badges]]`（:1419-1441）
+- Modify: `../MoodflowDocs/content/docs/guides/config/ui.mdx`（:456-468、:484-511）与 `../MoodflowDocs/content/docs/settings/appearance/index.mdx`（:294-334）
 
 **Interfaces:**
 - Produces：
@@ -373,7 +373,7 @@ fn web_schema_override_summary(&self) -> anyhow::Result<Value> {
   }
   fn migrate_langbar_badge_colors_value(layer: &mut toml::Value)
   ```
-  （coordinator 内）`pub(crate) fn badge_color_of(color: &str, alpha: Option<f32>) -> wind_ui::langbar_icon::BadgeColor`
+  （coordinator 内）`pub(crate) fn badge_color_of(color: &str, alpha: Option<f32>) -> moodflow_ui::langbar_icon::BadgeColor`
 
 - [ ] **Step 1: 写失败测试（迁移）。** 照 `font_size_after_migration` 的真实链路写：
 
@@ -423,7 +423,7 @@ fn factory_badges_have_no_auto_and_no_alpha() {
 }
 ```
 
-- [ ] **Step 2: 确认测试失败。** 执行 `cargo test -p wind-config migrate_badge factory_badges`，预期结果是找不到字段 `alpha_light`。
+- [ ] **Step 2: 确认测试失败。** 执行 `cargo test -p moodflow-config migrate_badge factory_badges`，预期结果是找不到字段 `alpha_light`。
 
 - [ ] **Step 3: 实现。**
   - 结构体：加两个 `Option<f32>` 字段。重写 `color_light` 的文档注释：去掉「末两位 AA」那段，改成「`""` 与主字同色；透明度见 `alpha_light`」，同时保留「FF 切挖空档」的说明，把它挪到 alpha 字段上。
@@ -437,7 +437,7 @@ fn factory_badges_have_no_auto_and_no_alpha() {
   - `langbar_icon.rs`：`badge_color_of` 的逻辑是：空串得到 `BadgeColor::AUTO` 并带上 alpha；6 位 hex 经 `parse_hex` 得到 rgb 并带上 alpha。**为兼容定制层没迁移的旧写法，`auto` 和 8 位值仍要能读**（8 位时它自带的 alpha 优先于 `alpha` 参数），但只读不写。不带 cfg，写两例单测：`badge_color_of("", None)` 应得到 AUTO；`badge_color_of("#112233", Some(0.5))` 的 alpha 应为 0.5。
 
 - [ ] **Step 4: 运行测试。**
-  执行：`cargo test -p wind-config migrate_badge factory_badges langbar && cargo test -p wind-coordinator badge_color_of && cargo test -p wind-config data_config_toml`。
+  执行：`cargo test -p moodflow-config migrate_badge factory_badges langbar && cargo test -p moodflow-coordinator badge_color_of && cargo test -p moodflow-config data_config_toml`。
   预期全部通过，含 L1 与 L2 同源的守门测试。
 
 - [ ] **Step 5: 更新 `data/config.toml`。** 三条出厂规则保持现有色值；注释从 `auto` / 8 位的说明改为 `""` / `alpha_light` / `alpha_dark` 的说明。
@@ -456,7 +456,7 @@ fn factory_badges_have_no_auto_and_no_alpha() {
 ### Task 5: 设置端 · 辅助码改为勾选行（F1）
 
 **Files:**
-- Modify: `../wind-setting/src/dialogs/schema_manager.rs`：删除分段控件相关的 `AUX_CODE_MODES`（:231）、`aux_code_idx` / `aux_code_value`（:251-265），`SettingsSection::AuxCode` 的 UI（:4154-4170）改用两行 `setting_row_override`；种子（:2109-2120）与保存（:2371-2380）同步改
+- Modify: `../moodflow-setting/src/dialogs/schema_manager.rs`：删除分段控件相关的 `AUX_CODE_MODES`（:231）、`aux_code_idx` / `aux_code_value`（:251-265），`SettingsSection::AuxCode` 的 UI（:4154-4170）改用两行 `setting_row_override`；种子（:2109-2120）与保存（:2371-2380）同步改
 - Test: 同一文件 `mod tests`（:6077）；改写 :5742 / :5757 / :5777 三个现有用例
 
 **Interfaces:**
@@ -495,17 +495,17 @@ fn aux_follow_source_text_carries_global_value() {
 - [ ] **Step 4: 运行 `./scripts/dev.sh st`，预期全部通过。**
 
 - [ ] **Step 5: 目视。**
-  执行 `WIND_RPC_MOCK=1` 加 `--screenshot /tmp/wct-ovr/aux.png`，完整命令见 WindInput `AGENTS.md` 的 windui CLI 段；打开方案设置对话框的辅助码节。
+  执行 `MOODFLOW_RPC_MOCK=1` 加 `--screenshot /tmp/wct-ovr/aux.png`，完整命令见 Moodflow `AGENTS.md` 的 moodflowui CLI 段；打开方案设置对话框的辅助码节。
   检查：不勾选时右侧显示「开」，来源列为灰色的「跟随全局」。
 
-- [ ] **Step 6: 提交（wind-setting）。** `feat(schema): 辅助码改用勾选行并补 max_phrase_len —— 照 aux-code-settings-ui P3（R8.1）`
+- [ ] **Step 6: 提交（moodflow-setting）。** `feat(schema): 辅助码改用勾选行并补 max_phrase_len —— 照 aux-code-settings-ui P3（R8.1）`
 
 ---
 
 ### Task 6: 设置端 · 下拉「跟随」档带值（F2）与候选字体改勾选行（F3）
 
 **Files:**
-- Modify: `../wind-setting/src/dialogs/schema_manager.rs`：标点下拉（:4282）、候选排列下拉（:4290）、overlay 候选排列（:4260）、候选字体（:4305-4309，以及 :328-332、:2059、:2408-2412）
+- Modify: `../moodflow-setting/src/dialogs/schema_manager.rs`：标点下拉（:4282）、候选排列下拉（:4290）、overlay 候选排列（:4260）、候选字体（:4305-4309，以及 :328-332、:2059、:2408-2412）
 - Test: 同一文件 `mod tests`
 
 **Interfaces:**
@@ -537,7 +537,7 @@ fn font_unchecked_writes_null_not_empty_string() {
 fn follow_labels_reseeded_on_each_open() { /* 两次 open_settings_at_id，mock 两次返回不同的 followedBehavior.layout，断言第二次下拉首项文案随之变化 */ }
 ```
 
-  第三个用例的函数体参照 :5104 的写法：`ENV_LOCK` 加 `WIND_RPC_MOCK=1`，用 `mock_reply_with`（:428-435）按调用次数返回不同的值。
+  第三个用例的函数体参照 :5104 的写法：`ENV_LOCK` 加 `MOODFLOW_RPC_MOCK=1`，用 `mock_reply_with`（:428-435）按调用次数返回不同的值。
 
 - [ ] **Step 2: 运行 `./scripts/dev.sh st`，预期失败。**
 
@@ -547,14 +547,14 @@ fn follow_labels_reseeded_on_each_open() { /* 两次 open_settings_at_id，mock 
 
 - [ ] **Step 4: 运行 `./scripts/dev.sh st`，预期通过。目视检查本方案行为节。**
 
-- [ ] **Step 5: 提交（wind-setting）。** `feat(schema): 跟随档带值、候选字体改勾选行（R8.1/R8.2）`
+- [ ] **Step 5: 提交（moodflow-setting）。** `feat(schema): 跟随档带值、候选字体改勾选行（R8.1/R8.2）`
 
 ---
 
 ### Task 7: 设置端 · 「全部恢复跟随」的清理范围（F8）
 
 **Files:**
-- Modify: `../wind-setting/src/dialogs/schema_codetable.rs`（`reset` :607-617）
+- Modify: `../moodflow-setting/src/dialogs/schema_codetable.rs`（`reset` :607-617）
 - Test: 同一文件的 tests
 
 **Interfaces:**
@@ -576,17 +576,17 @@ fn reset_touches_only_keys_visible_for_this_engine() {
   - **绿**：说明被清的键全部可见，F8 按「无需改动」结案。保留这个用例作为护栏，并在设计文档 §4 的 F8 行写上「实测无隐藏键被清，已加护栏」。
   - **红**：有被清却不可见的键。把这些键从 reset 里移除，或者在「全部恢复跟随」的确认框里写明「另有 N 项界面未显示的设置也将恢复跟随」，然后再跑一次测试。
 
-- [ ] **Step 3: 提交（wind-setting，必要时附带主仓设计文档一行）。** `test(schema): 全部恢复跟随只清可见键 —— R8.5 护栏`
+- [ ] **Step 3: 提交（moodflow-setting，必要时附带主仓设计文档一行）。** `test(schema): 全部恢复跟随只清可见键 —— R8.5 护栏`
 
 ---
 
 ### Task 8: 设置端 · 外观页「跟随主题（值）」（F4 / F5）
 
 **Files:**
-- Modify: `../wind-setting/src/state.rs`：`LoadedState::fetch`（:2754-2808）并行拉取 `theme.resolved`；`apply_loaded`（:2028）写入新 signal `theme_follow: Signal<Option<ThemeFollow>>`；切换主题后重新拉取（在切主题写回处调同一个刷新函数）
-- Modify: `../wind-setting/src/manifest.rs`：`field_with`（:631-676）识别新的 manifest 属性 `follow = "theme"`，把行包成 `setting_row_override`
-- Modify: `../wind-setting/src/assets/settings_manifest.toml`：`ui.candidate.font_size`（:2445）、`ui.font.family`（:2455）、`ui.font.weight`（:2466）加 `follow = "theme"`；翻页栏（:2724）、页码（:2739）的空值选项文案改成动态文案
-- Modify: `../wind-setting/src/state.rs:2048-2058`：字体下拉首项「默认」改为不再出现（由勾选行表达跟随）
+- Modify: `../moodflow-setting/src/state.rs`：`LoadedState::fetch`（:2754-2808）并行拉取 `theme.resolved`；`apply_loaded`（:2028）写入新 signal `theme_follow: Signal<Option<ThemeFollow>>`；切换主题后重新拉取（在切主题写回处调同一个刷新函数）
+- Modify: `../moodflow-setting/src/manifest.rs`：`field_with`（:631-676）识别新的 manifest 属性 `follow = "theme"`，把行包成 `setting_row_override`
+- Modify: `../moodflow-setting/src/assets/settings_manifest.toml`：`ui.candidate.font_size`（:2445）、`ui.font.family`（:2455）、`ui.font.weight`（:2466）加 `follow = "theme"`；翻页栏（:2724）、页码（:2739）的空值选项文案改成动态文案
+- Modify: `../moodflow-setting/src/state.rs:2048-2058`：字体下拉首项「默认」改为不再出现（由勾选行表达跟随）
 - Test: `manifest.rs` tests、`state.rs` tests
 
 **Interfaces:**
@@ -650,15 +650,15 @@ fn theme_follow_missing_shows_plain_follow() {
 
 - [ ] **Step 5: 目视外观页「候选字体」「候选排版」两张卡。** 在 mock 下检查三行勾选行都显示「跟随主题（18 / 系统字体 / 默认字重的实际名）」；字重为 0 时显示「主题未指定」。
 
-- [ ] **Step 6: 提交（wind-setting）。** `feat(appearance): 字号/字体/字重改勾选行、翻页栏页码跟随档带主题值（R8.1/R8.3）`
+- [ ] **Step 6: 提交（moodflow-setting）。** `feat(appearance): 字号/字体/字重改勾选行、翻页栏页码跟随档带主题值（R8.1/R8.3）`
 
 ---
 
 ### Task 9: 设置端 · 语言栏主字与角标颜色（F6 / F7 设置端）
 
 **Files:**
-- Modify: `../wind-setting/src/dialogs/langbar_text_colors_dialog.rs`：`cell_text`（:58）在 `FollowTheme` 时带上主题色值；`fallback_color`（:28）优先取 `theme_follow.langbar_text[i]`
-- Modify: `../wind-setting/src/dialogs/langbar_badges_dialog.rs`：删除 `AUTO_COLOR`（:67）和按位长判断的逻辑（`badge_value_of` :492）；颜色格与透明度格分开，透明度用勾选行（未勾 = 跟随全局 `badge_alpha`）
+- Modify: `../moodflow-setting/src/dialogs/langbar_text_colors_dialog.rs`：`cell_text`（:58）在 `FollowTheme` 时带上主题色值；`fallback_color`（:28）优先取 `theme_follow.langbar_text[i]`
+- Modify: `../moodflow-setting/src/dialogs/langbar_badges_dialog.rs`：删除 `AUTO_COLOR`（:67）和按位长判断的逻辑（`badge_value_of` :492）；颜色格与透明度格分开，透明度用勾选行（未勾 = 跟随全局 `badge_alpha`）
 - Test: 两个文件各自的 tests
 
 **Interfaces:**
@@ -689,16 +689,16 @@ fn badge_alpha_unchecked_writes_null() {
   - 按钮「与主字同色」保留，写入 `""`，作为颜色这一维的「跟随」；
   - 按钮「跟随全局透明度」删掉，改成透明度勾选行：行里放滑块或数字框，`follow_text` 为 `跟随全局（{badge_alpha}）`。
 - [ ] **Step 4: 运行 `./scripts/dev.sh st`，预期通过；目视两个对话框。**
-- [ ] **Step 5: 提交（wind-setting）。** `feat(langbar): 主字色跟随档带主题色、角标透明度独立勾选行（R8.1/R8.4）`
+- [ ] **Step 5: 提交（moodflow-setting）。** `feat(langbar): 主字色跟随档带主题色、角标透明度独立勾选行（R8.1/R8.4）`
 
 ---
 
 ### Task 10: 设置端 · 全局页「已被 N 个方案覆盖」（F9）
 
 **Files:**
-- Modify: `../wind-setting/src/state.rs`：`LoadedState::fetch` 并行拉取 `schema.overrideSummary`，`apply_loaded` 写入 `override_summary: Signal<HashMap<String, Vec<String>>>`；方案对话框保存后刷新一次（在 `SideCommitter` 提交回调处）
-- Modify: `../wind-setting/src/widgets.rs`：`setting_row_schema_hint`（:341）/ `schema_hint_badge`（:301）改为接受 `Signal<String>` 提示，走 `info_badge(tip: Signal<String>, on_click)`（:188-268）
-- Modify: `../wind-setting/src/manifest.rs`：`field_with`（:647-668）传入该键的动态文案；`schema_hint_header_note`（:2224）的顶部说明同样加上已覆盖计数
+- Modify: `../moodflow-setting/src/state.rs`：`LoadedState::fetch` 并行拉取 `schema.overrideSummary`，`apply_loaded` 写入 `override_summary: Signal<HashMap<String, Vec<String>>>`；方案对话框保存后刷新一次（在 `SideCommitter` 提交回调处）
+- Modify: `../moodflow-setting/src/widgets.rs`：`setting_row_schema_hint`（:341）/ `schema_hint_badge`（:301）改为接受 `Signal<String>` 提示，走 `info_badge(tip: Signal<String>, on_click)`（:188-268）
+- Modify: `../moodflow-setting/src/manifest.rs`：`field_with`（:647-668）传入该键的动态文案；`schema_hint_header_note`（:2224）的顶部说明同样加上已覆盖计数
 - Test: `manifest.rs` tests
 
 **Interfaces:**
@@ -734,7 +734,7 @@ fn badge_text_truncates_after_three() {
   - 点击角标时调用 `schema_mgr.open_settings_at_id(ids[0])`。
   - 注意 widgets.rs:282-285 关于命中测试的警告。
 - [ ] **Step 4: 运行 `./scripts/dev.sh st`，预期通过；在 mock 下目视全局页的「候选排列」。**
-- [ ] **Step 5: 提交（wind-setting）。** `feat(settings): 全局页角标反查「已被 N 个方案覆盖」（R8.6）`
+- [ ] **Step 5: 提交（moodflow-setting）。** `feat(settings): 全局页角标反查「已被 N 个方案覆盖」（R8.6）`
 
 ---
 
@@ -745,15 +745,15 @@ fn badge_text_truncates_after_three() {
 - Modify: `docs/design/override-presentation.md`：状态行改为「已实施」，F1–F9 每行补上提交号
 
 - [ ] **Step 1: 扫描。**
-  `cd ../wind-setting && grep -n '默认（主题\|label = "默认"\|"默认"' src/assets/settings_manifest.toml src/state.rs src/dialogs/*.rs`
+  `cd ../moodflow-setting && grep -n '默认（主题\|label = "默认"\|"默认"' src/assets/settings_manifest.toml src/state.rs src/dialogs/*.rs`
   逐条判断语义，对照调研清单：
   - 以下几处**不要改**：`默认（水平）`（出厂行为）；`（默认：全拼）` / `（自动）`（有测试钉住）；hint 里「默认 72 小时」一类（指内置值）。
   - 字重下拉里的 `{value="0",label="默认"}` 在 Task 8 之后应已不再显示（跟随改由勾选行表达）。如果仍然作为选项存在，就删掉这一项。
 
 - [ ] **Step 2: 全量测试。**
-  - 主仓：`cd wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt TMPDIR=/tmp/wct-ovr cargo test -p wind-config -p wind-coordinator -p wind-webdata -p wind-rpc`。与开工前的通过数对比，失败数必须为 0。
+  - 主仓：`cd moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt TMPDIR=/tmp/wct-ovr cargo test -p moodflow-config -p moodflow-coordinator -p moodflow-webdata -p moodflow-rpc`。与开工前的通过数对比，失败数必须为 0。
   - 设置端：`./scripts/dev.sh st && ./scripts/dev.sh sk`。
-  - 两个仓都跑 clippy：主仓 `cargo clippy -p wind-config -p wind-coordinator -p wind-webdata -- -D warnings`。
+  - 两个仓都跑 clippy：主仓 `cargo clippy -p moodflow-config -p moodflow-coordinator -p moodflow-webdata -- -D warnings`。
 
 - [ ] **Step 3: 靶机验证的判据（交给人工）。** 靶机没有 GUI 自动化，需要人工按以下几条验证：
   1. 外观页字号切到「自定义」时，数字框显示主题字号而不是 0；

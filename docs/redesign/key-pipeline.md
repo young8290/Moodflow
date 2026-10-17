@@ -1,7 +1,7 @@
 # 按键管线 / 模式融合 / 符号流水线 / 全码策略 / redb 接线 —— 系统性重设计
 
-> 权威设计差分。证据取自 Go 版（仓库 `../WindInput`，引用 `file:line`）与 Rust 现状
-> （`wind_input/crates/wind-coordinator`）。配套已有：[engine.md] [dict.md] [store.md]
+> 权威设计差分。证据取自 Go 版（仓库 `../Moodflow`，引用 `file:line`）与 Rust 现状
+> （`moodflow_input/crates/moodflow-coordinator`）。配套已有：[engine.md] [dict.md] [store.md]
 > [coordinator.md] [config-schema.md] [frequency.md]。本篇聚焦**交互管线的架构统一**，
 > 是把零散模式标志、散落符号判定、基于 scheme 的全码逻辑，收敛为单点决策的目标态。
 
@@ -16,7 +16,7 @@ Rust 现状（`coordinator.rs`）：
 - **全码/上屏逻辑基于 scheme**（引擎层 per-scheme 配置）。但临时英文/临时拼音/URL/快捷输入/
   特殊模式下当前激活的不是普通 scheme，**"该用哪套全码/上屏配置"无明确归属** → 歧义。
 - **redb 未接线**：coordinator 仍用 legacy `FreqTracker`（存文件）+ `ShadowStore`（内存），
-  **无用户造词写路径**；redb 后端（`wind-store` 全套）建好但闲置。
+  **无用户造词写路径**；redb 后端（`moodflow-store` 全套）建好但闲置。
 
 ## 1. Go 参照架构（证据）
 
@@ -83,7 +83,7 @@ Go 中**各特殊模式自带引擎实例 + 自身配置，无 fallback**：
 
 ### 2.1 Processor trait + Decider（模式融合）
 
-新建 `wind-coordinator/src/pipeline/`（mod）：
+新建 `moodflow-coordinator/src/pipeline/`（mod）：
 
 ```rust
 /// 一个输入宿主/模式。正常码表/拼音输入也是一个 default processor。

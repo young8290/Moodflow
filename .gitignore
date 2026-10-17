@@ -27,7 +27,7 @@ scripts/sign.local.ps1
 docs/superpowers/
 
 # Swift 构建产物
-wind_macos/.build/
+moodflow_macos/.build/
 .swiftpm/
 build_debug/
 
@@ -49,15 +49,15 @@ data/emoji/
 __pycache__/
 *.pyc
 
-# 心晴：密钥与本地配置（任何真实 API 密钥都不得提交，产品书 14 第 4 节）
+# Moodflow：密钥与本地配置（任何真实 API 密钥都不得提交，产品书 14 第 4 节）
 secrets.toml
 secrets.bin
 *.key
 .env
 .env.*
-# 心晴：运行数据与 Hub 构建产物
+# Moodflow：运行数据与 Hub 构建产物
 *.db
 *.db-*
 recordings/
 node_modules/
-xinqing_hub/src-tauri/gen/
+moodflow_hub/src-tauri/gen/

@@ -43,18 +43,18 @@ for d in libc6 libstdc++6 libfcitx5core7 'fcitx5 (>= 5.0.14)'; do
 done
 
 # 关键文件
-for f in usr/lib/windinput/wind_input usr/lib/windinput/wind_setting \
-         usr/bin/windinput-setup \
-         usr/share/fcitx5/addon/windinput.conf usr/share/fcitx5/inputmethod/windinput.conf \
-         usr/share/applications/windinput-setting.desktop usr/share/mime/packages/windinput.xml \
-         usr/lib/windinput/data/compat.toml; do
+for f in usr/lib/moodflow/moodflow_input usr/lib/moodflow/moodflow_setting \
+         usr/bin/moodflow-setup \
+         usr/share/fcitx5/addon/moodflow.conf usr/share/fcitx5/inputmethod/moodflow.conf \
+         usr/share/applications/moodflow-setting.desktop usr/share/mime/packages/moodflow.xml \
+         usr/lib/moodflow/data/compat.toml; do
     [[ -e "$R/$f" ]] || bad "缺文件: $f"
 done
-addon="$(find "$R/usr/lib" -name libwindinput.so -path '*fcitx5*' | head -1)"
-[[ -n "$addon" ]] && ok "addon: ${addon#"$R"/}" || bad "缺 fcitx5 addon libwindinput.so"
+addon="$(find "$R/usr/lib" -name libmoodflow.so -path '*fcitx5*' | head -1)"
+[[ -n "$addon" ]] && ok "addon: ${addon#"$R"/}" || bad "缺 fcitx5 addon libmoodflow.so"
 
 # 词库完整性（同 dev.sh verify_dist_data 的口径，只取最能说明「下载/生成失败」的几个）
-D="$R/usr/lib/windinput/data"
+D="$R/usr/lib/moodflow/data"
 check_min() {
     local p="$D/$1" min="$2"
     if [[ ! -f "$p" ]]; then bad "词库缺失: $1"; return; fi
@@ -92,7 +92,7 @@ while IFS= read -r f; do
         ok "$rel ($desc, glibc ≤ ${top:-无})"
     fi
 done < <(find "$R" -type f \( -perm /111 -o -name '*.so*' \))
-(( n >= 3 )) || bad "只找到 $n 个 ELF（期望 wind_input / wind_setting / libwindinput.so）"
+(( n >= 3 )) || bad "只找到 $n 个 ELF（期望 moodflow_input / moodflow_setting / libmoodflow.so）"
 
 # 权限
 # 先取结果再判断：`find | grep -q` 在 pipefail 下，grep 一匹配就退出、find 吃 SIGPIPE(141)，

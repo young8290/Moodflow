@@ -4,7 +4,7 @@
 //! 单个请求可以用请求头 `X-Mock-Scenario` 覆盖。网关的集成测试直接调用 [`serve`] 在进程内起服务。
 //!
 //! 注意：产品书没有给出 Jev 的线上请求/响应格式，这里的 `/v1/systemone` 采用与
-//! `xinqing-hub-core` 网关类型一致的结构（questions + state → answers）。拿到 Jev 接口文档后，
+//! `moodflow-hub-core` 网关类型一致的结构（questions + state → answers）。拿到 Jev 接口文档后，
 //! 由 C 在网关的 JevClient 中做格式转换，本工具同步调整。
 
 use std::net::SocketAddr;

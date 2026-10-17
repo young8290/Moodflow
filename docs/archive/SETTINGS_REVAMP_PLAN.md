@@ -6,7 +6,7 @@
 
 已决策（用户拍板）：
 - Schema 形式：**独立声明式注册表**（手写集中声明，struct 反向对照校验）
-- CLI 形态：**`wind_input config` 子命令**（不另造 wind_cli.exe）
+- CLI 形态：**`moodflow_input config` 子命令**（不另造 moodflow_cli.exe）
 - key 重命名（6 域规范化）：**延后**，先做地基；保持现有 key 路径，重命名留到 alias 迁移机制就绪后单独一批
 
 关键事实（探查结论，避免返工）：
@@ -17,9 +17,9 @@
 ---
 
 ## Stage 1: Schema 注册表地基 + 修复 TOML/struct 漂移
-**Goal**: 在 wind-config 新增声明式字段注册表（key/类型/默认/域/合法值/needs_restart/label/desc），并修齐 TOML 与 struct 的 13 处漂移。
+**Goal**: 在 moodflow-config 新增声明式字段注册表（key/类型/默认/域/合法值/needs_restart/label/desc），并修齐 TOML 与 struct 的 13 处漂移。
 **Success Criteria**:
-- `wind-config/src/schema.rs` 提供 `fn registry() -> &'static [ConfigField]`，覆盖全部现有 key。
+- `moodflow-config/src/schema.rs` 提供 `fn registry() -> &'static [ConfigField]`，覆盖全部现有 key。
 - 编译期测试：遍历注册表，断言每个 key 在 `Config` 默认值里可解析、类型与声明一致（struct ↔ 注册表零漂移）。
 - 13 个孤立字段：补齐 struct 字段 **或** 从 `data/config.toml` 删除（按"是否真生效"逐个裁决，删除项写明理由）。
 **Tests**:
@@ -27,11 +27,11 @@
 - `schema_types_match_defaults`：每条声明的 ty/default 与 Config::default() 实际值一致。
 - `no_orphan_toml_keys`：加载 data/config.toml，每个叶子 key 都能在注册表中找到。
 **Status**: Complete
-- 新增 `wind-config/src/config_schema.rs`：`FieldType`/`ConfigField`/`registry()`（127 字段声明）+ `config_leaf_keys()` 展开助手。
+- 新增 `moodflow-config/src/config_schema.rs`：`FieldType`/`ConfigField`/`registry()`（127 字段声明）+ `config_leaf_keys()` 展开助手。
 - 4 个 TDD 测试全绿：`leaf_keys_drills_tables_and_keeps_arrays_maps_as_leaves` / `registry_covers_every_config_key`（127）/ `data_config_toml_has_no_orphan_keys` / `registry_types_match_default_values`。
 - 修复漂移：从 `data/config.toml` 删除 **33 个**孤立键（实测比预估的 13 多；全部经 grep 确认无 .rs 消费——含主题层同名键 always_show_pager/show_page_number/vertical_max_width/border_radius 属 theme.yaml，非 config）。
 - 范围说明：Stage 1 仅声明 key+type（含 ~12 处 Enum 合法值）；domain/label/desc/needs_restart 留待消费方（Stage 3 CLI / Stage 4 GUI）按需补。
-- wind-config 全套 29 测试绿，cargo fmt 已跑（格式与逻辑应分提交）。
+- moodflow-config 全套 29 测试绿，cargo fmt 已跑（格式与逻辑应分提交）。
 
 ## Stage 2: core 端校验 + RPC 补字段级读/描述
 **Goal**: setItems 进来按 schema 校验；新增 `config.schema` 和 `config.getItem` 两个 RPC。
@@ -45,27 +45,27 @@
 - `get_item_returns_single_value`。
 - 回归：现有 Native 保存流程仍通过。
 **Status**: Complete
-- `wind-config/src/config_schema.rs` 新增 `validate(key, &toml::Value)` + `ValidateError`（UnknownKey/TypeMismatch/EnumOutOfRange），Float 字段宽松接受整数；5 个 TDD 校验单测。
-- `wind-rpc/src/dispatch.rs`：`set_items` 改两遍式（先全量校验，全过才落盘——杜绝部分写入/静默失效）；新增 `config.schema`（`{fields:[{key,type,options?}]}`）与 `config.getItem`（`{key,value}`，含三层合并、未知键报错）。
-- 5 个 dispatch 测试（3 reject + schema 列举 + getItem 已知/未知）；reject 走校验前置不写盘，已实测 `~/.config/WindInput` 无污染。
-- `config.setItems` 公开行为对既有合法输入不变（向后兼容 Native/webview）；wind-config 36 + wind-rpc 15 测试绿，fmt 已跑。
+- `moodflow-config/src/config_schema.rs` 新增 `validate(key, &toml::Value)` + `ValidateError`（UnknownKey/TypeMismatch/EnumOutOfRange），Float 字段宽松接受整数；5 个 TDD 校验单测。
+- `moodflow-rpc/src/dispatch.rs`：`set_items` 改两遍式（先全量校验，全过才落盘——杜绝部分写入/静默失效）；新增 `config.schema`（`{fields:[{key,type,options?}]}`）与 `config.getItem`（`{key,value}`，含三层合并、未知键报错）。
+- 5 个 dispatch 测试（3 reject + schema 列举 + getItem 已知/未知）；reject 走校验前置不写盘，已实测 `~/.config/Moodflow` 无污染。
+- `config.setItems` 公开行为对既有合法输入不变（向后兼容 Native/webview）；moodflow-config 36 + moodflow-rpc 15 测试绿，fmt 已跑。
 
-## Stage 3: wind_input config CLI 子命令
+## Stage 3: moodflow_input config CLI 子命令
 **Goal**: 主程序新增 `config` 子命令，作 RPC 瘦客户端；core 不在运行时降级为直接读写 config.toml。
 **Success Criteria**:
-- `wind_input config get <key>` / `set <key> <value>` / `list [--domain D]` / `describe <key>` / `export` / `import <file>` 可用。
+- `moodflow_input config get <key>` / `set <key> <value>` / `list [--domain D]` / `describe <key>` / `export` / `import <file>` 可用。
 - `set` 走 `config.setItems` 单元素；`list`/`describe` 吃 `config.schema`；`import` 批量 setItems。
 - core 离线时 `set/get` 直接走 `Config::set_user_value` / 读 config.toml（复用现有 API）。
 **Tests**:
 - CLI 集成测试：set 后 get 回读一致；set 非法 enum 报错；list 输出含全部域。
 - core 离线路径冒烟测试。
 **Status**: Complete
-- `wind-rpc/src/client.rs`：最小同步 RPC 客户端 `client::call(suffix, method, params)`（连 ctrl 通道，连不上即 Err）。
-- `wind-config/src/config_schema.rs`：新增 `leaf_entries()`（任意 TOML 表拍平为逐字段，供 import）。
+- `moodflow-rpc/src/client.rs`：最小同步 RPC 客户端 `client::call(suffix, method, params)`（连 ctrl 通道，连不上即 Err）。
+- `moodflow-config/src/config_schema.rs`：新增 `leaf_entries()`（任意 TOML 表拍平为逐字段，供 import）。
 - `apps/service/src/config_cli.rs`：`list [前缀]` / `describe` / `get` / `set` / `export` / `import`；list/describe/get/export 纯本地，set/import 优先 RPC 热重载、core 未运行离线直写；写入前按注册表 `validate`；`parse_value` 按类型解析 CLI 字符串。
 - `main.rs`：`config` 子命令在服务启动前拦截（先于 init_logger，无日志噪音）。
 - 端到端冒烟实测（新二进制）：list 前缀过滤 / describe 枚举可选值 / get / 三类 reject(exit 1) / 沙箱(XDG_CONFIG_HOME)set→get 往返均通过；真实用户配置零污染、无残留进程。
-- 测试：wind-config 37 + wind-rpc 15 + wind_service 4（config_cli parse/format 单测）全绿，fmt 已跑。
+- 测试：moodflow-config 37 + moodflow-rpc 15 + moodflow_service 4（config_cli parse/format 单测）全绿，fmt 已跑。
 
 **Goal**: 让当前主用的 webview 与 Stage 1-3 的严格 core 兼容，并防 cross-language 漂移。
 **背景**: 实测前端 `config-keys.json`(137 键) vs registry(127) 漂移——**35 个前端键不在 registry**（=删除的 33 孤立键 + `hotkeys.enter_special_mode`/`features.quick_input.trigger_keys`），这些键本就从未生效（旧 core 也静默丢弃）。注：agent 误报「pinyin 15 键被拒」——已核实 pinyin 全在 registry，无事。
@@ -73,10 +73,10 @@
 **Success Criteria / 已完成**:
 - `dispatch.rs` set_items：未知/类型/枚举错的项**跳过并记入响应 `skipped`**（含 `applied` 计数），合法项照常写——webview 不再因一个旧字段整批保存失败；malformed item(无 key) 仍硬错误；落盘 IO 失败仍硬错误。响应加 `applied`/`skipped` 向后兼容（前端只读 needsRestart）。
 - `config_cli.rs` apply_items：防御性呈现 skipped，全跳过(applied=0)视为失败 exit1。
-- `wind-rpc/manifest.rs` schema_binding 新增 `frontend_config_keys_known_to_core`：前端 config-keys.json 每键须 ∈ registry 或 `FRONTEND_AHEAD_ALLOWLIST`(35 键,注释指向 deferred 文档)；新增前端键不在二者即红。
+- `moodflow-rpc/manifest.rs` schema_binding 新增 `frontend_config_keys_known_to_core`：前端 config-keys.json 每键须 ∈ registry 或 `FRONTEND_AHEAD_ALLOWLIST`(35 键,注释指向 deferred 文档)；新增前端键不在二者即红。
 - 3 个 set_items 测试由 reject 改为 skip 断言（TDD RED→GREEN）。
 **Status**: Complete（核心+CI 校验）；**剩余可选**：前端 toast 呈现 skipped(让用户知道改了已废弃字段)、GeneralPage 拼音保存只 console.error 无 toast(既有小 bug)、前端清理 35 死字段(用户选择保留,未做)。
-**Tests**: wind-config 37 + wind-rpc 16 + wind_service 4 全绿。
+**Tests**: moodflow-config 37 + moodflow-rpc 16 + moodflow_service 4 全绿。
 
 ## Stage 4-orig（暂停）: Native 补齐缺失页面
 
@@ -109,13 +109,13 @@
 
 | 层 | 位置 | 职责 | 范围 |
 |---|---|---|---|
-| 解析真相 | `wind-config/src/config.rs`（struct + serde） | 运行时 key→字段自动映射 | 全部 |
-| 类型/校验真相 | `wind-config/src/config_schema.rs` `REGISTRY` | key+type+enum；core 校验 + CLI | 全部 127 |
-| 展示真相 | `wind_input/data/settings/manifest.toml`（经 `system.manifest` RPC，`wind-rpc/src/manifest.rs`） | label/group/section/widget/options/min-max/enabled_when | UI 精选子集 |
+| 解析真相 | `moodflow-config/src/config.rs`（struct + serde） | 运行时 key→字段自动映射 | 全部 |
+| 类型/校验真相 | `moodflow-config/src/config_schema.rs` `REGISTRY` | key+type+enum；core 校验 + CLI | 全部 127 |
+| 展示真相 | `moodflow_input/data/settings/manifest.toml`（经 `system.manifest` RPC，`moodflow-rpc/src/manifest.rs`） | label/group/section/widget/options/min-max/enabled_when | UI 精选子集 |
 
 绑定测试：
 - registry ↔ struct：**Stage 1 已绑**（coverage/type/orphan）。
-- manifest ↔ registry：**已绑**（`wind-rpc/src/manifest.rs` schema_binding 测试）——① 每个 manifest `item.key` ∈ registry；② 控件 type 与 registry 类型相容；③ select `options` 值集 ⊆ registry `Enum`。后续可据 manifest 的 options 反向把 registry 里保守标 `Str` 的键升级为 `Enum`（如 `input.enter_behavior`/`filter_mode`/`pinyin_separator`/`s2t.variant`）。
+- manifest ↔ registry：**已绑**（`moodflow-rpc/src/manifest.rs` schema_binding 测试）——① 每个 manifest `item.key` ∈ registry；② 控件 type 与 registry 类型相容；③ select `options` 值集 ⊆ registry `Enum`。后续可据 manifest 的 options 反向把 registry 里保守标 `Str` 的键升级为 `Enum`（如 `input.enter_behavior`/`filter_mode`/`pinyin_separator`/`s2t.variant`）。
 
 已修 bug：manifest `ui.status_tip.{offset_x,offset_y,schema_name_style}` → `ui.status_indicator.*`（原前缀错误，web 调状态气泡这几项被 serde 静默丢弃、不生效）。由 manifest↔registry 测试 RED→修→GREEN 驱动。
 
@@ -127,7 +127,7 @@
 ## 设计补充（来自第二轮讨论）
 
 ### 跨项目共享 config 定义：用运行时 schema RPC，不做编译期共享
-- **进程内消费者**（core、`wind_input config` CLI 子命令）直接 link `wind-config`，引用 `registry()`/`field()`。
+- **进程内消费者**（core、`moodflow_input config` CLI 子命令）直接 link `moodflow-config`，引用 `registry()`/`field()`。
 - 结论：`config.schema` RPC（Stage 2 新增）即跨项目契约；不让 native/webview 为拿 key 而硬依赖 core crate。
 
 ### key → Config 的映射机制：写"哑"、读"serde 自动"
@@ -160,21 +160,21 @@
 
 ## 命名空间隔离（与 Go 旧项目不冲突）—— 已就绪，沿用 debug 变体
 
-决策：**保留 `WindInput` 基础 token**（Go 仅 alpha，Rust 最终全面顶替）；过渡期用既有 `debug_variant` 作内测渠道；**仅隔离不迁移**。
+决策：**保留 `Moodflow` 基础 token**（Go 仅 alpha，Rust 最终全面顶替）；过渡期用既有 `debug_variant` 作内测渠道；**仅隔离不迁移**。
 
 经核实，debug 变体已在**所有命名空间轴**与 Go release 完全隔离，无需新增工作：
 
 | 轴 | release（最终顶替 Go） | debug 变体（内测渠道） | 证据 |
 |---|---|---|---|
-| TSF CLSID / Profile / 显示属性 GUID | `99C2EE3x` 系 | `99C2DEB x` 系 | `wind_tsf/src/Globals.cpp:18-60`（`#ifdef WIND_DEBUG_VARIANT`）|
-| 核心 exe | `wind_input.exe` | `wind_input_debug.exe` | `wind_tsf/src/IPCClient.cpp:398-401` |
-| 管道 | `wind_input{_ctrl,_events}` | `wind_input_debug{_ctrl,_events}` | `service/main.rs:18-22` `PIPE_SUFFIX` |
-| 互斥量 | `Global\WindInputIMEService` | `Global\WindInput_debugIMEService` | `service/main.rs:271` |
-| 配置/状态目录 | `%APPDATA%\WindInput\`、`%LOCALAPPDATA%\WindInput\` | `…\WindInputDebug\` | `wind-config/config.rs:1282` |
-| DLL / 输出目录 | `wind_tsf.dll` / `build/` | `wind_tsf_debug.dll` / `build_debug/` | `wind_tsf/CMakeLists.txt:8`、`Makefile:45-48` |
+| TSF CLSID / Profile / 显示属性 GUID | `99C2EE3x` 系 | `99C2DEB x` 系 | `moodflow_tsf/src/Globals.cpp:18-60`（`#ifdef MOODFLOW_DEBUG_VARIANT`）|
+| 核心 exe | `moodflow_input.exe` | `moodflow_input_debug.exe` | `moodflow_tsf/src/IPCClient.cpp:398-401` |
+| 管道 | `moodflow_input{_ctrl,_events}` | `moodflow_input_debug{_ctrl,_events}` | `service/main.rs:18-22` `PIPE_SUFFIX` |
+| 互斥量 | `Global\MoodflowIMEService` | `Global\Moodflow_debugIMEService` | `service/main.rs:271` |
+| 配置/状态目录 | `%APPDATA%\Moodflow\`、`%LOCALAPPDATA%\Moodflow\` | `…\MoodflowDebug\` | `moodflow-config/config.rs:1282` |
+| DLL / 输出目录 | `moodflow_tsf.dll` / `build/` | `moodflow_tsf_debug.dll` / `build_debug/` | `moodflow_tsf/CMakeLists.txt:8`、`Makefile:45-48` |
 
 要点：
-- 本计划的 config/state **格式改造均在内测期进行，只落到 `WindInputDebug` 域；Go 的 `WindInput` 数据零风险**。
+- 本计划的 config/state **格式改造均在内测期进行，只落到 `MoodflowDebug` 域；Go 的 `Moodflow` 数据零风险**。
 - 不做旧配置迁移导入（仅隔离不迁移）。
 - cutover 细节（release 顶替时）：加载器读到 Go 遗留旧格式 config.toml 时靠 serde 默认值兜底不崩、旧字段忽略；安装器可选清空旧文件。无需为迁移写代码。
 

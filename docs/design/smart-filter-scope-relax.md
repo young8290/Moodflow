@@ -17,7 +17,7 @@
 
 ### 2.1 ⚠️ 与全码自动上屏直接冲突
 
-`decide_auto_commit`（`wind-engine/src/codetable/engine.rs:114`）数的是 **`code == input` 的精确
+`decide_auto_commit`（`moodflow-engine/src/codetable/engine.rs:114`）数的是 **`code == input` 的精确
 候选，超过一个即否决上屏**：
 
 ```rust
@@ -194,7 +194,7 @@ if exact.next().is_some() { return None; }  // 多个精确匹配，不自动上
 
 **已实施**（1135 测试通过）：
 
-- ✅ `FilterOutcome{kept, filtered}`：过滤器交出被滤集（`wind-candidate/src/filter.rs`）；
+- ✅ `FilterOutcome{kept, filtered}`：过滤器交出被滤集（`moodflow-candidate/src/filter.rs`）；
 - ✅ `Candidate::is_scope_filtered` + `decide_auto_commit` 排除（**护栏**，含反向对照测试）；
 - ✅ 临时放宽：`State::scope_relaxed` + 末页翻页触发（`try_relax_scope_on_page_end`）+
   追加末尾（`apply_filter`）+ 前缀标注 + 词频重排排除（`take_while` 截到首个放宽候选）+

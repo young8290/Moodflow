@@ -9,7 +9,7 @@
 | 角色 | 路径 | 谁写 |
 |---|---|---|
 | 安装目录（自带） | `<exe目录>/data/`，即 `Config::data_dir()` | 随程序发布，升级时整体替换 |
-| 用户目录（覆盖） | `Config::user_config_dir()`，正常模式为 `%APPDATA%\WindInput[Dev]`；便携模式与 `datadir.conf` 会改写它，见 `wind-config/src/variant.rs` | 用户手工放置、设置页写入、方案包导入 |
+| 用户目录（覆盖） | `Config::user_config_dir()`，正常模式为 `%APPDATA%\Moodflow[Dev]`；便携模式与 `datadir.conf` 会改写它，见 `moodflow-config/src/variant.rs` | 用户手工放置、设置页写入、方案包导入 |
 
 ---
 
@@ -85,7 +85,7 @@
 | 字根字体 | `schemas/` 下，由 `[engine.chaizi].font_path` 指定 | A | `resource` | 同上 |
 | 常用字表 | `schemas/common_chars.txt` | A | `resource` | `coordinator.rs` → `resolve_schema_resource` |
 | 双拼布局 | `schemas/shuangpin/{layout}.toml` | A | `shuangpin` | `EngineManager::scan_shuangpin_layouts` |
-| 主题 | `themes/{id}/theme.toml` | A | `theme` | `wind_theme::theme::find_theme_dir` |
+| 主题 | `themes/{id}/theme.toml` | A | `theme` | `moodflow_theme::theme::find_theme_dir` |
 | 系统短语种子 | `system.phrases.toml` | A | `data` | `coordinator.rs` → `resolve_data_file` |
 | 快捷输入格式表 | `system.quick.toml` | A | `data` | `coordinator.rs` → `resolve_data_file` |
 | 拼音读音表 | `pinyin_map.txt` | A | `data` | `coordinator.rs` → `resolve_data_file` |
@@ -105,7 +105,7 @@
 `Config::log_user_override(kind, rel, path, shadowed)`：
 
 ```
-用户覆盖生效[data]: system.phrases.toml → C:\Users\x\AppData\Roaming\WindInput\system.phrases.toml
+用户覆盖生效[data]: system.phrases.toml → C:\Users\x\AppData\Roaming\Moodflow\system.phrases.toml
 ```
 
 一条 `grep 用户覆盖生效` 即可列出当前生效的全部覆盖。
@@ -131,7 +131,7 @@
   这三处的路径在 `Coordinator::new` 时一次解析定死，后续（如系统短语的重读）沿用同一路径。
   即启动时若用户目录没有覆盖文件，运行期间新放一份不会被发现。
 
-词库缓存（`.wdat`）按**源文件内容指纹**校验（`wind-dict/src/cache_fp.rs`），指纹含内容不含
+词库缓存（`.wdat`）按**源文件内容指纹**校验（`moodflow-dict/src/cache_fp.rs`），指纹含内容不含
 路径，因此用户覆盖的同名词库与自带词库内容不同 → 指纹不同 → 正确重建。副作用是二者共用
 同一缓存落点，来回切换会互相踩、反复重建；是性能问题，不影响正确性。
 
@@ -144,8 +144,8 @@
    解析函数是对的，错的总是调用方绕过了它。`common_chars.txt`、`pinyin_map.txt`、
    `unigram_path` 三处都栽在这上面，且失败是静默的（找不到就退化，不报错）。
 3. **两处均不存在时告警**：解析返回 `None` 说明连自带文件都缺了，属于部署损坏，必须 `warn`。
-4. **接线要有端到端测试**：纯函数单测证明不了接线。`crates/wind-config/tests/user_override.rs`
-   用 `WIND_DATADIR_CONF` 把用户目录重定向到临时目录，真调公开 API。
+4. **接线要有端到端测试**：纯函数单测证明不了接线。`crates/moodflow-config/tests/user_override.rs`
+   用 `MOODFLOW_DATADIR_CONF` 把用户目录重定向到临时目录，真调公开 API。
    ⚠️ 该测试文件只能有一个 `#[test]`——`user_config_dir()` 经 OnceLock 缓存，同一进程内
    多个测试会争抢环境变量，先跑的把用户目录定死，后跑的静默测到错误的目标。
 

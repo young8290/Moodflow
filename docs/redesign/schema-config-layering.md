@@ -10,12 +10,12 @@
 > 同时 `[[schema.special_modes]]` 瘦身为 `{ schema, trigger_keys }`，`id/name/short_name` 从被引用方案
 > 文件派生（`schema_name` / `schema_icon_label` / `effective_id`），消除与方案文件的重复。
 >
-> 状态：**已实现并通过全量测试**（wind-config/engine/coordinator 改造 + data 清理；build/test/clippy/fmt 绿）。
+> 状态：**已实现并通过全量测试**（moodflow-config/engine/coordinator 改造 + data 清理；build/test/clippy/fmt 绿）。
 > 本项目未发布，**不考虑旧配置迁移**。
 > 实现补记：`temp_max_entries` 经核查为**完全未接入的死配置**（`evict_temp_words` 无生产调用方），
-> 故仅从配置删除，store 侧无需常量化；`single_code_input/complete` 已接入 `wind-engine` 码表引擎。
+> 故仅从配置删除，store 侧无需常量化；`single_code_input/complete` 已接入 `moodflow-engine` 码表引擎。
 > 关联：`docs/redesign/config-schema.md`（配置总览）、`docs/redesign/frequency.md`（调频）、
-> `wind-config/src/{config,schema,config_schema}.rs`、`wind-engine/src/manager.rs`。
+> `moodflow-config/src/{config,schema,config_schema}.rs`、`moodflow-engine/src/manager.rs`。
 
 ## 1. 目标
 
@@ -36,8 +36,8 @@ config.toml ───────────────── 全局公共  [s
 schema_overrides/{id}.toml ── 方案覆盖（仅码表；带开关；设置页 saveConfig 写入；深合并到 base schema）
 ```
 
-- `schema_overrides/` 机制已存在：`%APPDATA%/WindInput/schema_overrides/{id}.toml`，
-  读方案时深合并到基础 `.schema.toml` 之上（见 `wind-engine/src/manager.rs::read_schema`）。
+- `schema_overrides/` 机制已存在：`%APPDATA%/Moodflow/schema_overrides/{id}.toml`，
+  读方案时深合并到基础 `.schema.toml` 之上（见 `moodflow-engine/src/manager.rs::read_schema`）。
   本次后该目录只承载：**码表行为覆盖**（带开关）、**词库启停**、**双拼布局**。
 - 全局层走三层合并（代码默认 L1 → `data/config.toml` L2 → 用户 `config.toml` L3），现状已支持。
 
@@ -204,7 +204,7 @@ input.temp_pinyin.*
 开关只管码表的"行为字段"；词库启停、双拼布局这类 override 始终生效。
 决策 B 让 `.schema.toml` 无行为默认，故解析塌缩成两层，无"作者默认 vs 用户全局"优先级冲突。
 
-## 5. 结构体设计（Rust，wind-config）
+## 5. 结构体设计（Rust，moodflow-config）
 
 ```rust
 // ── 全局公共（config.rs，进 Config.schema）──
@@ -270,7 +270,7 @@ struct CodetableOverride {
    （否则 `registry_covers_every_config_key` / `data_config_toml_has_no_orphan_keys` 两个测试红）。
    方案 override（`SchemeOverride`）不进此注册表，需独立校验。
 2. **`schema.rs`**：`CodeTableSpec` / `PinyinSpec` / `EngineSpec`（删 filter_mode）/ `MixedSpec` / `LearningSpec` 删字段；新增 `SchemeOverride` 系列结构。
-3. **`wind-engine/src/manager.rs`**：
+3. **`moodflow-engine/src/manager.rs`**：
    - `read_schema` 深合并逻辑：行为字段已不在 `Schema`，改为单独解析码表 `SchemeOverride` 并与全局 `Config.schema.codetable` 合成 effective 配置。
    - `freq_cache`（`schema_id -> FreqSettings`）改为按引擎类型（码表/拼音）取全局，不再 per-schema。
    - `code_commit: Mutex<CodeCommitConfig>` 缓存改为 `schema.codetable` 全局。
@@ -280,8 +280,8 @@ struct CodetableOverride {
 5. **`data/config.toml`**：写入 `[schema.codetable]` / `[schema.mix]` / 各 frequency/auto_* 段出厂默认
    （含 wubi86 偏好，如 top_code_commit=true——wubi86 是主力码表方案，其偏好即全局默认）。
 6. **`data/schemas/*.schema.toml`**：删除所有迁出字段（行为 / learning / engine.filter_mode / freq_strategy 等）。
-7. **`wind-store`**：`temp_max_entries` 降为常量。
-8. **设置 UI（wind_setting_native）**：码表分"全局公共 + 方案覆盖（带开关）"两区；拼音/混输仅全局区。
+7. **`moodflow-store`**：`temp_max_entries` 降为常量。
+8. **设置 UI（moodflow_setting_native）**：码表分"全局公共 + 方案覆盖（带开关）"两区；拼音/混输仅全局区。
 9. **legacy 清理**：`auto_commit_unique` / `candidate_sort_mode` / `user_frequency` / `short_code_first` / `candidate_order` 删除。
 
 ## 7. 实现期再核对（非阻塞）
@@ -290,10 +290,10 @@ struct CodetableOverride {
 
 ## 8. 实现顺序建议
 
-1. wind-config 结构体改造（config.rs 新增全局结构 + schema.rs 瘦身 + 新增 SchemeOverride）。
+1. moodflow-config 结构体改造（config.rs 新增全局结构 + schema.rs 瘦身 + 新增 SchemeOverride）。
 2. config_schema.rs 注册表 + data/config.toml 同步（先让两个对照测试绿）。
 3. data/schemas/*.schema.toml 清理迁出字段。
-4. wind-engine manager.rs 解析链改造（effective 配置合成 + freq_cache/code_commit 缓存口径）。
-5. wind-store temp_max_entries 常量化。
+4. moodflow-engine manager.rs 解析链改造（effective 配置合成 + freq_cache/code_commit 缓存口径）。
+5. moodflow-store temp_max_entries 常量化。
 6. 设置 UI 适配（码表全局区+方案覆盖区 / 拼音·混输仅全局区）。
-7. 全量 `wind_input/scripts/dev.sh ci` 把关。
+7. 全量 `moodflow_input/scripts/dev.sh ci` 把关。

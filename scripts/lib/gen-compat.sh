@@ -22,14 +22,14 @@ case "$PLATFORM" in
     linux)
         NAME="Linux"
         PROC_DOC='Linux 上 `process` 匹配的是 Fcitx5 上报的程序名（InputContext::program()，通常是可执行文件名，
-# 小写，如 "firefox"、"code"），不带 .exe。用户规则写在 ~/.config/WindInput/compat.toml，
+# 小写，如 "firefox"、"code"），不带 .exe。用户规则写在 ~/.config/Moodflow/compat.toml，
 # 也可以在设置里的「应用兼容性」页添加。'
         ;;
     macos)
         NAME="macOS"
         PROC_DOC='macOS 上 `process` 匹配的是 IMKit 上报的 bundle identifier（client.bundleIdentifier()，
 # 如 "com.tencent.xinwechat"、"com.microsoft.VSCode"），不带 .exe。用户规则写在
-# ~/Library/Application Support/WindInput/compat.toml，也可以在设置里的「应用兼容性」页添加。'
+# ~/Library/Application Support/Moodflow/compat.toml，也可以在设置里的「应用兼容性」页添加。'
         ;;
     *) echo "平台只支持 linux / macos，收到: $PLATFORM" >&2; exit 2 ;;
 esac

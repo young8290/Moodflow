@@ -1,6 +1,0 @@
-/* English fallback strings. */
-
-CFBundleName        = "WindInput";
-CFBundleDisplayName = "WindInput";
-
-"to.feng.inputmethod.WindInput.mode" = "WindInput";

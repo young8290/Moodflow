@@ -1,7 +1,7 @@
 # 快捷输入格式表（system.quick.toml）
 
 快捷输入（`;` 模式）的日期 / 数字 / 金额 / 计算候选，此前格式与顺序全部硬编码在
-`wind-quick-input` 里。本设计把「渲染成什么样」外置为一张格式表，随程序发布，
+`moodflow-quick-input` 里。本设计把「渲染成什么样」外置为一张格式表，随程序发布，
 用户可在配置目录放同名文件整份覆盖。
 
 **定位：出厂行为与改造前逐条等价，普通用户完全无感。**
@@ -91,26 +91,26 @@ text = "{amt(unit='圆', zheng='false')}"   # 偏离出厂时：函数 + 命名�
 ### 依赖方向（硬约束，不可违反）
 
 ```
-wind-quick-input（零 wind-* 依赖：解析 + 基础转换 + $ 模板引擎 + QuickValues）
+moodflow-quick-input（零 moodflow-* 依赖：解析 + 基础转换 + $ 模板引擎 + QuickValues）
         ↑                                        ↑
-   wind-phrase（$ 模板引擎的另一个消费者）        │
+   moodflow-phrase（$ 模板引擎的另一个消费者）        │
         ↑                                        │
-        └──── wind-coordinator（分发 + QuickCtx）─┘
+        └──── moodflow-coordinator（分发 + QuickCtx）─┘
                      ↓
-               wind-cmdbar（quick 函数族，经 EvalContext::quick_var 取值）
+               moodflow-cmdbar（quick 函数族，经 EvalContext::quick_var 取值）
 ```
 
 两条关键约束：
 
-- `wind-quick-input` **绝不反向调用 cmdbar**（会成环）。表达式求值由宿主经
+- `moodflow-quick-input` **绝不反向调用 cmdbar**（会成环）。表达式求值由宿主经
   `ExprEval` 回调注入，分发点在 coordinator——它本来就同时依赖两者。
-- `wind-cmdbar` **也不依赖 wind-quick-input**。quick 函数不做解析，只经
+- `moodflow-cmdbar` **也不依赖 moodflow-quick-input**。quick 函数不做解析，只经
   `EvalContext::quick_var(name)` 取宿主已解析好的量，再做纯字符串加工（补零、
   换分隔符、替换单位）。`quick_var` 有默认实现（返回 `None`），故加这个方法
   不惊动任何既有实现者。
 
-`$` 模板引擎（`$name` / `${name}` / `$$` 转义）从 `wind-phrase` 下沉到
-`wind-quick-input::template`，两处共用同一份解析：变量名解析规则若在两个文件里不一致，
+`$` 模板引擎（`$name` / `${name}` / `$$` 转义）从 `moodflow-phrase` 下沉到
+`moodflow-quick-input::template`，两处共用同一份解析：变量名解析规则若在两个文件里不一致，
 「用户学一次」的前提就不成立。phrase 侧只保留自己的变量 resolver（时间源）。
 
 ### 注册表与作用域
@@ -164,7 +164,7 @@ cmdbar `quick` 函数族与表达式路径、启动预检、农历（§10）。�
 （表达式是给用户的，出厂不用），故零回归闸门覆盖的就是全部出厂行为。
 
 设置页已落地（见 §11.1）：core 侧 `quick.*` 十二个 RPC + 视图口径 + 导入导出编解码，
-GUI 在 `wind-setting` 仓（词库页第二个全局域）。能调序、启停、单条/整表恢复、导入导出，
+GUI 在 `moodflow-setting` 仓（词库页第二个全局域）。能调序、启停、单条/整表恢复、导入导出，
 以及新增/编辑/删除**自己的**格式条目（出厂条目的模板不可改，只能停用）。
 
 未做：`s2t`/`pinyin` 依赖 cmdbar 补实现；24 节气（需第二套数据，与农历表同量级）。
@@ -196,7 +196,7 @@ GUI 在 `wind-setting` 仓（词库页第二个全局域）。能调序、启停
 
 ## 10. 农历
 
-`wind-quick-input::lunar`。出厂在日期候选后追加两条（`农历四月廿九` / `丙午年四月廿九`），
+`moodflow-quick-input::lunar`。出厂在日期候选后追加两条（`农历四月廿九` / `丙午年四月廿九`），
 另供短语层的 `$L*` 使用（绑当前时间）。
 
 ### 算不查表
@@ -351,7 +351,7 @@ disabled = ["date.basic"]
 
 ## 11.1 设置页（词库管理 → 快捷输入）
 
-格式表是**全局**的（键只到 kind，不带方案），故在 `wind-setting` 的词库管理里与「快捷短语」
+格式表是**全局**的（键只到 kind，不带方案），故在 `moodflow-setting` 的词库管理里与「快捷短语」
 并列为第二个全局域，而不是挂在某个方案下。
 
 ### 两种口径：候选看到什么 vs 用户能管什么
@@ -427,7 +427,7 @@ disabled = ["date.basic"]
 | `quick.import` | `content,strategy?` | `{moved,disabled,formats,skipped}` |
 
 `kind` 一律收字符串并在 `WebDataHost` 的实现里解析（未知类别报「未知的快捷输入类别: xxx」），
-这样 `wind-webdata` 不必为一个枚举去依赖 `wind-quick-input`。
+这样 `moodflow-webdata` 不必为一个枚举去依赖 `moodflow-quick-input`。
 
 ★ `user` 与 `adjusted` **不是一回事**，设置页按前者分流行级权限：出厂条目被调序过也是
 `adjusted`，但它只能停用、能「恢复默认」；用户条目反过来——能改模板、能真删，而它没有
@@ -466,7 +466,7 @@ disabled = ["date.basic"]
 `(id, position)`」同源：换机导入后，出厂新增的格式仍会自然生效；导出完整表则把当前版本的
 出厂内容固化进文件，日后升级新增的写法**在导入后永远不出现**，而用户完全无从察觉。
 
-文件是 `[[formats]]` + `[[adjust]]` 的 TOML（编解码在 `wind_quick_input::user_file`），
+文件是 `[[formats]]` + `[[adjust]]` 的 TOML（编解码在 `moodflow_quick_input::user_file`），
 序列化手写以便带头部注释、解析走 serde。两个易漏点：
 
 - **含单引号的模板必须改用双引号**：`{amt(unit='圆')}` 是出厂就有的写法，而 TOML 单引号
@@ -566,7 +566,7 @@ override 过它，就必须选一个——留用户的旧值（用户永远看�
 相同，不合并要把同样的 17 行出两遍）。一次列全而不是只列当前选中的那类，另一个好处是用户
 能直接看到「年月那类没有农历变量」这种最容易写错的地方。
 
-#### 设置页的两处 windui 陷阱（均由 `io_dialogs_build_and_layout` 抓住）
+#### 设置页的两处 moodflowui 陷阱（均由 `io_dialogs_build_and_layout` 抓住）
 
 - **类别选项不能在构建期算好**：对话框只构建一次，而那一刻列表数据还没加载，选项会被永久
   冻结成空的。`Element::segmented` 的 `debug_assert!(!opts.is_empty())` 当场炸；换成容忍空

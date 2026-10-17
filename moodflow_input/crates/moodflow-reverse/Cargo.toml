@@ -1,0 +1,12 @@
+[package]
+name = "moodflow-reverse"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+moodflow-utils = { path = "../moodflow-utils" }
+moodflow-dict = { path = "../moodflow-dict" }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

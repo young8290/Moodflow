@@ -1,14 +1,14 @@
-# 心晴的 Cargo workspace（Hub、XQP、开发工具）。输入法核心是 wind_input/ 下另一个 workspace，
+# Moodflow 的 Cargo workspace（Hub、MFP、开发工具）。输入法核心是 moodflow_input/ 下另一个 workspace，
 # 两者互不包含（docs/adr/0007）。
 [workspace]
 resolver = "2"
-exclude = ["wind_input", "wind_linux", "wind_macos"]
+exclude = ["moodflow_input", "moodflow_linux", "moodflow_macos"]
 members = [
-    "crates/xqp",
-    "xinqing_hub/core",
-    "xinqing_hub/gateway",
-    "xinqing_hub/src-tauri",
-    "tools/xq-sim",
+    "crates/mfp",
+    "moodflow_hub/core",
+    "moodflow_hub/gateway",
+    "moodflow_hub/src-tauri",
+    "tools/mf-sim",
     "tools/mock-ai",
     "tools/typer",
     "tools/db-grep",

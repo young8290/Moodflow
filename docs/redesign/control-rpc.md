@@ -1,6 +1,6 @@
-# 重设计：core 内嵌 HTTP 控制/配置 API（wind-webapi）
+# 重设计：core 内嵌 HTTP 控制/配置 API（moodflow-webapi）
 
-> **架构已变更（2026-06-19）**：原"控制 RPC 服务端（命名管道 + JSON-RPC 帧 + 新建 wind-control crate）"方案**已弃用**。改为 **core(`apps/service`) 内嵌 HTTP 服务**，GUI 与远程 Web 共用同一套 HTTP API，不再有独立的 RPC 控制协议。本文档已更新为**实现态**。
+> **架构已变更（2026-06-19）**：原"控制 RPC 服务端（命名管道 + JSON-RPC 帧 + 新建 moodflow-control crate）"方案**已弃用**。改为 **core(`apps/service`) 内嵌 HTTP 服务**，GUI 与远程 Web 共用同一套 HTTP API，不再有独立的 RPC 控制协议。本文档已更新为**实现态**。
 >
 
 ## 1. 为什么是 HTTP 而非 RPC（决策演进）
@@ -15,11 +15,11 @@
 
 ## 2. 现状（已实现，2026-06-19）
 
-新建 crate **`wind-webapi`**，由 `apps/service` 内嵌启动。`cargo test -p wind-webapi` 9/9 通过；真实浏览器 e2e（web↔core）验证 manifest 渲染 + config 读写 + 特性门控全绿。
+新建 crate **`moodflow-webapi`**，由 `apps/service` 内嵌启动。`cargo test -p moodflow-webapi` 9/9 通过；真实浏览器 e2e（web↔core）验证 manifest 渲染 + config 读写 + 特性门控全绿。
 
 ```
-crates/wind-webapi/
-├── Cargo.toml          deps: axum, tokio, serde_json, toml, anyhow, tracing, uuid, wind-ipc, wind-config
+crates/moodflow-webapi/
+├── Cargo.toml          deps: axum, tokio, serde_json, toml, anyhow, tracing, uuid, moodflow-ipc, moodflow-config
 └── src/
     ├── lib.rs          serve() + build_router() + CoreStatus trait + 9 个契约测试
     ├── session.rs      WebState：清单缓存 / 端口 / 按需 Web token（短时效）/ control{suffix}.json
@@ -27,13 +27,13 @@ crates/wind-webapi/
     ├── rpc.rs          /api/rpc 分发：system.* / config.*
     ├── security.rs     /api/* 与 /local/* 两套中间件（token/Origin/CORS/PNA / 拒浏览器）
     └── local.rs        /local/* 处理（GUI 专用：info / web-config open|close）
-    examples/dev_server.rs  无 core 的联调用 stub server（WIND_DEV=1 打印带 token 的 URL）
+    examples/dev_server.rs  无 core 的联调用 stub server（MOODFLOW_DEV=1 打印带 token 的 URL）
 ```
 
 ## 3. 架构与端点
 
-- 内嵌在 `apps/service`：`Coordinator` 就绪后 `runtime.spawn(wind_webapi::serve(status, variant))`。**仅监听 loopback** `127.0.0.1:<随机端口>`，端口写入 `%LOCALAPPDATA%/WindInput/control{suffix}.json` 供 GUI 发现。
-- **`CoreStatus` trait 解耦**：wind-webapi **不依赖 wind-coordinator/wind-ui**，运行时状态（`is_chinese_mode`/`active_schema_id`/`apply_config`）由宿主经 trait 注入（service 用 `WebStatus` 适配 `Coordinator`）。因此 wind-webapi 可在任意平台独立编译/联调。
+- 内嵌在 `apps/service`：`Coordinator` 就绪后 `runtime.spawn(moodflow_webapi::serve(status, variant))`。**仅监听 loopback** `127.0.0.1:<随机端口>`，端口写入 `%LOCALAPPDATA%/Moodflow/control{suffix}.json` 供 GUI 发现。
+- **`CoreStatus` trait 解耦**：moodflow-webapi **不依赖 moodflow-coordinator/moodflow-ui**，运行时状态（`is_chinese_mode`/`active_schema_id`/`apply_config`）由宿主经 trait 注入（service 用 `WebStatus` 适配 `Coordinator`）。因此 moodflow-webapi 可在任意平台独立编译/联调。
 - 端点两层：
 
 | 端点 | 用途 |
@@ -45,8 +45,8 @@ crates/wind-webapi/
 
 ## 4. 连接与安全模型
 
-- **协议字段统一为 `version`**（`wind-ipc/rpc.rs` 的 `Request` 已去除 `#[serde(rename="v")]`；双边一致，避免 v 歧义）。
-- **`/api/*`**：默认拒绝；用户点"打开网页配置"→ core 签发短时效 token + 临时放行 `https://setting.windinput.com` Origin（开发期放行 `http://localhost:*`/`127.0.0.1:*`）。逐请求校验 `X-WindInput-Token` + Origin 白名单 + CORS（含 `Access-Control-Allow-Private-Network: true` 处理 Chrome PNA 预检）。
+- **协议字段统一为 `version`**（`moodflow-ipc/rpc.rs` 的 `Request` 已去除 `#[serde(rename="v")]`；双边一致，避免 v 歧义）。
+- **`/api/*`**：默认拒绝；用户点"打开网页配置"→ core 签发短时效 token + 临时放行 `https://setting.windinput.com` Origin（开发期放行 `http://localhost:*`/`127.0.0.1:*`）。逐请求校验 `X-Moodflow-Token` + Origin 白名单 + CORS（含 `Access-Control-Allow-Private-Network: true` 处理 Chrome PNA 预检）。
 - **`/local/*`**：带 `Origin`（即浏览器跨源）一律 403，仅放行本机非浏览器客户端（GUI 的 ureq/同类）。
 - "按需"= 浏览器暴露窗口按需（token + Origin），而非端口物理开关——loopback 端口常开给本地 GUI，Web 通道按需授权、可即时撤销。
 
@@ -67,9 +67,9 @@ crates/wind-webapi/
 ## 7. 待补（后续里程碑）
 
 - 其余命名空间接真后端：`Store` 的 user_words/freq/shadow/temp 已实现可直接接线；`phrases.rs`/`stats.rs` 仍空壳需落地；schema 需 SchemaInfo 聚合 + 覆盖层。
-- **config 热重载**：草稿已设计（`Coordinator` 的 `config`→`RwLock<Arc<ConfigBundle>>` + `install_config`/`reload_user_config`，轻字段即时生效、引擎结构性变更标 `needsRestart`），待 `wind-ui` 在非 Windows 可编译后接入并验证。
+- **config 热重载**：草稿已设计（`Coordinator` 的 `config`→`RwLock<Arc<ConfigBundle>>` + `install_config`/`reload_user_config`，轻字段即时生效、引擎结构性变更标 `needsRestart`），待 `moodflow-ui` 在非 Windows 可编译后接入并验证。
 - **事件推送**：`GET /api/events`(SSE) 尚未实现（web 端有订阅，当前 CORS 失败属预期）。
 
 ## 8. 验证
 
-`cargo test -p wind-webapi`（9 个契约测试：形状 + 安全行为）；web 端 `pnpm test`（zod 契约，mock + 真实 core 双层）；真实浏览器 e2e（chrome-headless-shell + Playwright，`WindInputSetting/web-e2e.mjs`）。
+`cargo test -p moodflow-webapi`（9 个契约测试：形状 + 安全行为）；web 端 `pnpm test`（zod 契约，mock + 真实 core 双层）；真实浏览器 e2e（chrome-headless-shell + Playwright，`MoodflowSetting/web-e2e.mjs`）。

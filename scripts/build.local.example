@@ -6,7 +6,7 @@
 # Linux 上编出来的东西按下述理由不能用, 安静地回落只会产出一堆废品。
 #
 # ── 为什么 Linux 不能自己编 ────────────────────────────────────────────────
-# clang / cargo-xwin 交叉编出的 xinqing_tsf.dll 在带安全加固的宿主 (企业微信 / TIM / QQ /
+# clang / cargo-xwin 交叉编出的 moodflow_tsf.dll 在带安全加固的宿主 (企业微信 / TIM / QQ /
 # UU浏览器) 里 COM 激活失败, 同 commit 的原生 MSVC 版正常 —— A/B 实测把唯一变量锁定在
 # 工具链上 (6dbc8595)。两份 DLL 的 PE 安全元数据 (DllCharacteristics/SafeSEH) 逐位相同,
 # 差异落在【代码生成层】, 换 cargo-xwin 的用法或版本都无效, 也不是 32 位专有问题。
@@ -22,26 +22,26 @@
 # ── 必填 ──────────────────────────────────────────────────────────────────
 
 # 编译机 SSH 目标。不设 = 所有构建类命令直接报错。
-WIND_BUILD_REMOTE="user@192.0.2.10"
+MOODFLOW_BUILD_REMOTE="user@192.0.2.10"
 
 # 编译机上的仓库路径。会被本机源码【镜像】覆盖同步 (见下方陷阱), 不存在则自动创建。
 # 正斜杠写法 (scp/ssh 目标路径的惯例); 脚本会在需要时自行转反斜杠。
-WIND_BUILD_ROOT="C:/build/WindInput"
+MOODFLOW_BUILD_ROOT="C:/build/Moodflow"
 
 # ── 可选 ──────────────────────────────────────────────────────────────────
 
 # 编译机上用哪个 PowerShell 跑 dev.ps1。默认 pwsh (7.x); 只有 5.1 时改成 powershell。
-# WIND_BUILD_PS="powershell"
+# MOODFLOW_BUILD_PS="powershell"
 
 # 需要一并同步的伴生仓 (与产品仓平级的目录名, 空格分隔)。
-# ⚠️ wind-setting 必须连 wind-ui-rust 一起列 —— 它是 path 依赖
-#    (windui = { path = "../wind-ui-rust" }), 仓不在就直接「系统找不到指定的路径
+# ⚠️ moodflow-setting 必须连 moodflow-ui-rust 一起列 —— 它是 path 依赖
+#    (moodflowui = { path = "../moodflow-ui-rust" }), 仓不在就直接「系统找不到指定的路径
 #    (os error 3)」, 而且不会有任何更明确的提示。
-# WIND_BUILD_SIBLINGS="wind-setting wind-ui-rust wind-portable wind-installer"
+# MOODFLOW_BUILD_SIBLINGS="moodflow-setting moodflow-ui-rust moodflow-portable moodflow-installer"
 
 # ── 临时覆盖 (环境变量, 不写进本文件) ──────────────────────────────────────
 #
-#   WIND_NO_REMOTE=1 ./scripts/dev.sh k
+#   MOODFLOW_NO_REMOTE=1 ./scripts/dev.sh k
 #       跳过远程。对 k/check、l/clippy、t/test 无影响 (它们本来就在本机跑);
 #       对构建类命令会直接报错而不是回落 —— 这是刻意的, 理由见文件头。
 #
@@ -62,7 +62,7 @@ WIND_BUILD_ROOT="C:/build/WindInput"
 #
 # ⚠️ 编译机与 Windows 本机共用同一个互斥锁文件 (<仓库路径>.buildlock), 两条路会互相
 #    排队。锁被 Ctrl+C 中断卡死时, 手动清:
-#      ssh <目标> "del C:\build\WindInput.buildlock"
+#      ssh <目标> "del C:\build\Moodflow.buildlock"
 #
 # ⚠️ 签名不在编译机上做 —— 证书会话只在 Windows 本机。远程回传的安装包/便携包是
 #    【未签名】的, 只能自测。发版链路: dev.sh 1 → dev.sh stage → scp 到本机 →

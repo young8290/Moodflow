@@ -6,7 +6,7 @@
 提交：主仓 `d9dced54` / `698673f9` / `cb5468e0` / `8abda3b8` / `14110a89` / `9c6ece6d`；
 设置仓 `cf51bb3` / `188eb50` / `efe29af` / `c38ff5c` / `fd9f6cf` / `dd7ac04`；
 文档站 `199d8ef` / `513f9a7` / `a6dd310` / `a6eef47`。
-起因：工具栏当前是硬编码的 `[方案][标点][全半角]([简繁])[设置]`（`wind-ui/src/toolbar.rs:355` 的
+起因：工具栏当前是硬编码的 `[方案][标点][全半角]([简繁])[设置]`（`moodflow-ui/src/toolbar.rs:355` 的
 `fn cells`），用户既不能关掉不用的格，也不能加自己的入口（如一个「符」按钮打开系统字符映射表）。
 
 本文定两件事：**内置条目的显隐与排序**（common 档，设置页可视化编辑）、
@@ -33,7 +33,7 @@
 > 顺序带语义的 StrList 注意：GUI `checkbox_group` 恒按声明顺序写回，用户手排的顺序会被
 > 静默改写——要么把声明顺序钉成语义，要么上列表编辑器，**不得两不管**。
 
-本需求走「上列表编辑器」这一侧，且**控件是现成的**：`wind-setting/src/dialogs/field_dialogs.rs:271`
+本需求走「上列表编辑器」这一侧，且**控件是现成的**：`moodflow-setting/src/dialogs/field_dialogs.rs:271`
 的 `build_toggle_rows_dialog`（开关决定有无 + 拖拽手柄决定顺序，`order: Signal<Vec<String>>`
 是顺序真相源），当前已被快捷输入的 `schema.mix_modes` 成员管理使用（`manifest.rs:2290`）。
 另有 `schema_manager.rs:2727` 的 `reordered_enabled_order` 是带单测的双区拖拽纯函数内核。
@@ -112,10 +112,10 @@ enabled = true                      # 缺省 true
 ### 3.2 协议
 
 ```rust
-// wind-ui-types/src/command.rs，与 SetToolbarVertical 并列
+// moodflow-ui-types/src/command.rs，与 SetToolbarVertical 并列
 SetToolbarLayout(Vec<ToolbarItem>),
 
-// wind-ui-types/src/toolbar.rs
+// moodflow-ui-types/src/toolbar.rs
 pub enum ToolbarItem {
     Mode,
     Punct,
@@ -129,7 +129,7 @@ pub enum ToolbarItem {
 ```
 
 **字符串解析在协调器做，不在 UI 做。** UI 侧不该懂配置键的取值——它收到的已经是一份
-「按顺序渲染这些东西」的声明。这同时让 `wind-ui-types` 保持纯数据（不引入配置依赖，
+「按顺序渲染这些东西」的声明。这同时让 `moodflow-ui-types` 保持纯数据（不引入配置依赖，
 headless / Android 侧照常编译）。
 
 ⚠️ `ToolbarAction::Custom(u8)` 的载荷**必须是 `u8` 而不是 `String`**：`ToolbarAction` 是
@@ -143,13 +143,13 @@ headless / Android 侧照常编译）。
 
 | 端 | 处置 |
 |---|---|
-| Windows `wind-ui/src/manager.rs:864` | 加 match 分支。⚠️ **缺分支编译过但静默无效**（`wind-ui/AGENTS.md`） |
-| macOS `manager_macos.rs:506` | 有 `other =>` 兜底，**无需改代码**；但 `wind_macos/AGENTS.md` 的「与 Windows 的功能差距」表要加一行 |
+| Windows `moodflow-ui/src/manager.rs:864` | 加 match 分支。⚠️ **缺分支编译过但静默无效**（`moodflow-ui/AGENTS.md`） |
+| macOS `manager_macos.rs:506` | 有 `other =>` 兜底，**无需改代码**；但 `moodflow_macos/AGENTS.md` 的「与 Windows 的功能差距」表要加一行 |
 | Android / headless | `ToolbarItem` 是纯数据，无平台代码；无工具栏窗口，命令被忽略 |
 
 ### 3.4 渲染侧改动
 
-`wind-ui/src/toolbar.rs`：
+`moodflow-ui/src/toolbar.rs`：
 
 - `fn cells(state: &ToolbarState) -> Vec<Cell>` → `fn cells(&self, state)`，读 `self.layout`。
 - 分隔线规则从 `i == 0 || is_settings` 扩为：**首格前 + 首个 `Custom` 前 + `Settings` 前**
@@ -163,9 +163,9 @@ headless / Android 侧照常编译）。
 
 ### 4.1 判据
 
-本仓已有一套完整的动作 DSL（`wind-cmdbar/src/funcs/action.rs`）：
+本仓已有一套完整的动作 DSL（`moodflow-cmdbar/src/funcs/action.rs`）：
 `open`（ShellExecute 语义，URL / 程序 / 文件通吃）、`proc.run`（带 `cwd` / `verb=runas` /
-`show=min` 具名参数与**取值白名单校验**）、`proc.shell`、`key.tap` / `key.seq`、`wind.cli`、
+`show=min` 具名参数与**取值白名单校验**）、`proc.shell`、`key.tap` / `key.seq`、`moodflow.cli`、
 `clip.copy`、`web.search`。
 
 协调器侧执行入口是 `handle_cmdbar.rs:65` 的 `run_command_candidate(src, input)`，它已经带好了：
@@ -202,7 +202,7 @@ ToolbarAction::Custom(i) => {
 ### 4.3 能力面自动变宽（是红利，不是范围蔓延）
 
 复用带来的直接结果：用户不止能「链接到系统中的应用」，还能配
-`web.search("baidu", ...)`、`wind.cli("schema switch wubi86")`（一键切方案）、
+`web.search("baidu", ...)`、`moodflow.cli("schema switch wubi86")`（一键切方案）、
 `key.tap("Ctrl+Shift+P")`。这些都是同一套已测试的实现，零额外代码。
 
 ---
@@ -219,7 +219,7 @@ ToolbarAction::Custom(i) => {
 ### 5.2 处置：加载期截断 + 日志告警
 
 按显示宽度计算（CJK 计 2、ASCII 计 1），> 2 则截断到 2 并 `warn!`。落在配置加载期
-（`wind-config`），而非渲染期——「写错了要有线索」是这条的全部目的。
+（`moodflow-config`），而非渲染期——「写错了要有线索」是这条的全部目的。
 
 默认几何下 1 个汉字 ≈ 15px、2 个 ASCII ≈ 15px，都在 30px 格内有富余，截断后不会溢出。
 
@@ -276,7 +276,7 @@ ToolbarAction::Custom(i) => {
 - **用 Warning 而不是 Danger**：Danger 在预览列表里已表示「这条有错、不会应用」，
   混色会让「合法但有风险」看着像「导入失败」。
 
-`RISKY_KEYS`（`wind-config/src/patch.rs`）是这类键的登记处。⚠️ **日后再加能执行程序 /
+`RISKY_KEYS`（`moodflow-config/src/patch.rs`）是这类键的登记处。⚠️ **日后再加能执行程序 /
 改写启动项一类的配置键时必须登记**，判据不是「这个键危不危险」，而是「一份陌生片段
 写了它之后，用户的某次寻常操作会不会变成执行对方给的代码」。守门测试保证名单里的键
 真在 REGISTRY 里（否则那条提示永远不会触发）。
@@ -316,19 +316,19 @@ ToolbarAction::Custom(i) => {
 
 | 文件 | 改动 |
 |---|---|
-| `wind-config/src/config.rs:3155` | `ToolbarConfig` 加 `items: Vec<String>` + `buttons: Vec<ToolbarButtonSpec>`；`TOOLBAR_ITEM_KEYS` 常量；label 截断 |
-| `wind-config/src/config_schema.rs:430` | REGISTRY 补 `ui.toolbar.items`（`StrList`）、`ui.toolbar.buttons`（`StructList`）。⚠️ `registry_covers_every_config_key` 强制全键覆盖，漏登记必红 |
+| `moodflow-config/src/config.rs:3155` | `ToolbarConfig` 加 `items: Vec<String>` + `buttons: Vec<ToolbarButtonSpec>`；`TOOLBAR_ITEM_KEYS` 常量；label 截断 |
+| `moodflow-config/src/config_schema.rs:430` | REGISTRY 补 `ui.toolbar.items`（`StrList`）、`ui.toolbar.buttons`（`StructList`）。⚠️ `registry_covers_every_config_key` 强制全键覆盖，漏登记必红 |
 | `data/config.toml` | L2 补键（`data_config_toml_covers_registry` 会拦）。⚠️ `buttons` 参照 `ui.comment_dicts` 的先例，大概率登记进「不写进预置文件」的豁免表（`config_schema.rs:823`） |
-| `wind-ui-types/src/toolbar.rs` | 加 `ToolbarItem` |
-| `wind-ui-types/src/command.rs:96` | 加 `SetToolbarLayout` |
-| `wind-ui-types/src/menu.rs:8` | `ToolbarAction` 加 `Custom(u8)` |
-| `wind-coordinator/src/coordinator.rs:3297` | `apply_ui_config` 解析 items + 下发 |
-| `wind-coordinator/src/handle_menu.rs:1697` | `mouse_toolbar` 加 `Custom` 分支（含那个 `unreachable!()`） |
-| `wind-ui/src/manager.rs:864` | 新命令的 match 分支 |
-| `wind-ui/src/toolbar.rs:355,513` | `cells()` 改实例方法；分隔线规则 |
-| `wind_macos/AGENTS.md` | 功能差距表加一行 |
+| `moodflow-ui-types/src/toolbar.rs` | 加 `ToolbarItem` |
+| `moodflow-ui-types/src/command.rs:96` | 加 `SetToolbarLayout` |
+| `moodflow-ui-types/src/menu.rs:8` | `ToolbarAction` 加 `Custom(u8)` |
+| `moodflow-coordinator/src/coordinator.rs:3297` | `apply_ui_config` 解析 items + 下发 |
+| `moodflow-coordinator/src/handle_menu.rs:1697` | `mouse_toolbar` 加 `Custom` 分支（含那个 `unreachable!()`） |
+| `moodflow-ui/src/manager.rs:864` | 新命令的 match 分支 |
+| `moodflow-ui/src/toolbar.rs:355,513` | `cells()` 改实例方法；分隔线规则 |
+| `moodflow_macos/AGENTS.md` | 功能差距表加一行 |
 
-### 8.2 设置仓（wind-setting）
+### 8.2 设置仓（moodflow-setting）
 
 - `settings_manifest.toml:2341`（section「工具栏」）加 `ui.toolbar.items`，形态 =
   宿主行 + `opens_dialog`，对话框复用 `build_toggle_rows_dialog`。
@@ -339,7 +339,7 @@ ToolbarAction::Custom(i) => {
 - ⚠️ `manifest.rs:3413` 的 `toolbar_items_hidden_on_macos` 断言了工具栏各键的平台可见性，
   新键要决定 `platform` 并同步这条测试。
 
-### 8.3 文档站（WindInputDocs）
+### 8.3 文档站（MoodflowDocs）
 
 `guides/config` 参考页 + `settings` 用法页两处，缺一不可（§R7）。
 
@@ -364,7 +364,7 @@ P1 的设置页对话框只列内置 5 项；custom 项进对话框要等 P2 落
 ## 十、测试要点
 
 - **纯函数优先**：items 字符串 → `Vec<ToolbarItem>` 的解析要抽成纯函数（含未知键 / 悬空
-  引用 / 空列表三条），在 `wind-config` 或协调器里单测——`toolbar.rs` 的渲染部分在非 Windows
+  引用 / 空列表三条），在 `moodflow-config` 或协调器里单测——`toolbar.rs` 的渲染部分在非 Windows
   上是 mock，覆盖不到（`bar_layout` 被抽成纯函数就是这个理由，见其文档）。
 - **`s2t` 合取**要有一条测试：`items` 含 `s2t` 但 `s2t_shown = false` 时不出现。
 - **label 截断**按显示宽度而非 `chars().count()`：`"AB"` 保留、`"符号"` 截成 `"符"`。
@@ -394,14 +394,14 @@ P1 的设置页对话框只列内置 5 项；custom 项进对话框要等 P2 落
 ### 11.3 tooltip 已从方案中移除
 
 §2.1 原本给 `[[ui.toolbar.buttons]]` 设计了 `tooltip` 字段，实施时发现
-**工具栏根本没有悬停提示机制**（`wind-ui` 的 tooltip 窗口绑在候选窗上，是编码
+**工具栏根本没有悬停提示机制**（`moodflow-ui` 的 tooltip 窗口绑在候选窗上，是编码
 反查用的）。加一个渲染端消费不了的字段等于给用户一个配了永远没反应的旋钮，
 故整个字段删除。要做提示得先给工具栏做悬停窗口，那是独立的一件事。
 
 ### 11.4 设置页控件会**静默降级**成占位符
 
 §8.2 只写了「manifest 加项 + 复用 `build_toggle_rows_dialog`」，漏了一处：
-`wind-setting` 的控件渲染有**两处分派**——`build_dialog_body`（对话框主体）与
+`moodflow-setting` 的控件渲染有**两处分派**——`build_dialog_body`（对话框主体）与
 `build_control`（行内控件）。只加前者时，capability 校验照样过、741 条测试全绿，
 界面上那一行却是 `[类型名?]` 灰字占位符。
 
@@ -477,7 +477,7 @@ lexer 里，在设置页重实现一遍就是同一套语法两处实现、迟�
 
 ⚠️ 第一版测试没抓住这条：变异掉 writer 里的调用，测试照绿——它们测的是零件
 （`merge_preserving_foreign` 本身），不是组合（writer 有没有用它）。而 writer 挂在
-`AppState` 上、需要 windui 运行时立不起来，端到端测不了。折中是把组合逻辑抽成
+`AppState` 上、需要 moodflowui 运行时立不起来，端到端测不了。折中是把组合逻辑抽成
 `ordered_pairs_write_value`，让「怎么组合」只有一份实现且被测到。
 
 ### 12.5 置灰 → toast
@@ -488,7 +488,7 @@ lexer 里，在设置页重实现一遍就是同一套语法两处实现、迟�
 
 ### 12.6 DPI：启动的程序继承了**宿主**的感知级别
 
-见 `wind_tsf/src/TextService.cpp` 的 `SetShellExecCallback` 注释与 memory 条目
+见 `moodflow_tsf/src/TextService.cpp` 的 `SetShellExecCallback` 注释与 memory 条目
 `project_child_process_dpi_inheritance`。要点：`proc.run` 经 TSF DLL 执行
 `ShellExecuteW`，而 DLL 注入在宿主进程里 ⇒ 被启动的程序继承的是**用户当时所在那个
 宿主的** DPI 上下文，同一个按钮在不同程序里点会有不同表现。修法是调用前后临时降为
@@ -582,20 +582,20 @@ UI 只回报「点在哪一格上」这个它独有的事实——同 §3.2 的�
 1. **`window.rs` 的鼠标消息白名单**。`wnd_proc` 只把列进去的 `msg` 转发给
    `on_message`。`ToolbarMouse` 里写好 `WM_MBUTTONUP` 分支照样收不到消息。
    ⇒ 加新鼠标交互先看那份名单。（同族：`manager.rs` 缺 `UiCommand` 分支、
-   `wind-ui/AGENTS.md` 记的那条。）
+   `moodflow-ui/AGENTS.md` 记的那条。）
 
 2. **设置页 `options` 与 core 值域脱节**。`TOOLBAR_ITEM_KEYS` 加了 `soft_keyboard`，
    而 `settings_manifest.toml` 的选项列表没跟 ⇒ 那一格在设置页里**根本不存在**：
    出厂显示它时用户关不掉，出厂不显示时用户只能手写 TOML。两个方向都无声。
    ★ `capabilities` 那几道守门查不出来——它们只问「这个 **key** 登记了没有」，而
    `ui.toolbar.items` 这个 key 一直好端端登记着，**缺的是它值域里的一员**。
-   ⇒ 已补 `toolbar_item_options_cover_core_value_domain`（wind-setting）。
+   ⇒ 已补 `toolbar_item_options_cover_core_value_domain`（moodflow-setting）。
 
 3. **守门测试的值域检查漏了合法的语法修饰**。出厂改用 `-s2t` 后，**两个仓的两条守门
    同时假红**，都指向一个不存在的问题：
 
-   - `toolbar_items_l1_matches_l2`（wind-config）：按裸键名比对 ⇒ 判 `-s2t` 未登记。
-   - `checkbox_group_options_cover_factory_values`（wind-setting）：出厂值不在清单
+   - `toolbar_items_l1_matches_l2`（moodflow-config）：按裸键名比对 ⇒ 判 `-s2t` 未登记。
+   - `checkbox_group_options_cover_factory_values`（moodflow-setting）：出厂值不在清单
      `options` 里 ⇒ 报「会被设置页吃掉、打开就判脏」。
 
    ★ 根因是**「`-` 前缀是值域自带的语法」这件事只写在 core 的类型注释里**，而校验散在
@@ -618,7 +618,7 @@ UI 只回报「点在哪一格上」这个它独有的事实——同 §3.2 的�
 而下游的早返回不归你管。
 
 **② 单测写了进程外的全局状态。** `save_softkeyboard_page` → `Config::state_dir()` 是
-`%LOCALAPPDATA%\WindInput[Dev]`，单测构造的协调器照样走得到：跑一次 `cargo test` 就改掉
+`%LOCALAPPDATA%\Moodflow[Dev]`，单测构造的协调器照样走得到：跑一次 `cargo test` 就改掉
 开发者本机的 `last_softkeyboard_page`，还会与**正在运行的服务**抢同一个 `state.toml`
 （两边都是 load-modify-save，一次丢更新就吞掉刚存好的 `toolbar_positions`）。
 
@@ -644,13 +644,13 @@ UI 只回报「点在哪一格上」这个它独有的事实——同 §3.2 的�
 按 label 查找、换成任意排列都绿；纵条锚点的贴格没生效（`Side` 读的是 `bottom`，我只传了
 `y`），而代码看着是对的。两处都补了直接断言那个性质的测试。
 
-## 十三、心晴：天气格（`xinqing`）
+## 十三、Moodflow：天气格（`moodflow`）
 
-心晴的工具栏天气按钮（产品书 07 FR-ENT-02）作为一个内置项加进来，键名 `xinqing`，出厂排在齿轮前。
+Moodflow 的工具栏天气按钮（产品书 07 FR-ENT-02）作为一个内置项加进来，键名 `moodflow`，出厂排在齿轮前。
 
 - **状态走 `ToolbarState`**：天气、未读小圆点、淡显都是随 Hub 下发变化的动态状态，符合 §3.1 的分界；
-  `ToolbarState::xinqing` 为 `None` 时（心晴功能关着、没装心晴组件）这一格不产格。
-- **不会自锁**：这一格不是心晴开关的唯一入口，重新开启在主菜单“心晴”分组里。
-- **兜底**：`items = ["xinqing"]` 再关掉心晴会走到空展开，由 §11.1 那道回落接住。
-- **右键**：暂停 / 恢复感知、情绪看板，末尾照例挂“更多…”；没装心晴组件时回落主菜单。
-- 设置仓的工具栏条目对话框（§8.2）不在本仓，心晴的设置界面由 Hub 承担。
+  `ToolbarState::moodflow` 为 `None` 时（Moodflow 功能关着、没装 Moodflow 组件）这一格不产格。
+- **不会自锁**：这一格不是 Moodflow 开关的唯一入口，重新开启在主菜单“Moodflow”分组里。
+- **兜底**：`items = ["moodflow"]` 再关掉 Moodflow 会走到空展开，由 §11.1 那道回落接住。
+- **右键**：暂停 / 恢复感知、情绪看板，末尾照例挂“更多…”；没装 Moodflow 组件时回落主菜单。
+- 设置仓的工具栏条目对话框（§8.2）不在本仓，Moodflow 的设置界面由 Hub 承担。

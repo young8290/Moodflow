@@ -12,8 +12,8 @@
 # ★ 本钩子拦不住的（别指望它等价于 CI）：
 #   - macOS job：`#[cfg(target_os = "macos")]` 下的定位/截图/主题/热键都是大段独有实现，
 #     在 Windows/Linux 上根本不参与编译。只能靠 CI 或 macOS 验证机。
-#   - `cargo check -p wind-mobile --target aarch64-linux-android`
-#   - cargo tree 依赖边断言（android 闭包无 wind-ui / 无 C 依赖）
+#   - `cargo check -p moodflow-mobile --target aarch64-linux-android`
+#   - cargo tree 依赖边断言（android 闭包无 moodflow-ui / 无 C 依赖）
 #   - TSF DLL 交叉编译（需 clang-19 + MSVC SDK）
 #
 # ⚠ 已知取舍：clippy 查的是**工作区当前状态**，不是你正在推的那些提交。
@@ -23,7 +23,7 @@
 set -e
 
 ROOT="$(git rev-parse --show-toplevel)"
-WS="$ROOT/wind_input"      # cargo workspace 根（== dev.sh 的 PROJECT_ROOT）
+WS="$ROOT/moodflow_input"      # cargo workspace 根（== dev.sh 的 PROJECT_ROOT）
 
 if ! command -v cargo >/dev/null 2>&1; then
     echo "[pre-push] 未找到 cargo，无法做本地 CI 校验。" >&2
@@ -79,7 +79,7 @@ fi
 # ---- 3. fmt：只查这次推的 .rs ----
 #
 # 与 .githooks/pre-commit 同款做法和同款参数，理由见那边的长注释：
-# --edition 必须与 workspace 一致（wind_input/Cargo.toml 的 edition = "2024"），
+# --edition 必须与 workspace 一致（moodflow_input/Cargo.toml 的 edition = "2024"），
 # skip_children=true 防止顺着 `mod` 把别人写到一半的子模块一起拦下。
 rs="$(printf '%s\n' "$relevant" | grep -E '\.rs$' || true)"
 bad=""
@@ -94,7 +94,7 @@ if [ -n "$bad" ]; then
     echo ""
     echo "[pre-push] 以下待推文件格式不符："
     printf '%s' "$bad"
-    echo "  修复: cd wind_input && cargo fmt"
+    echo "  修复: cd moodflow_input && cargo fmt"
     echo "  跳过: git push --no-verify"
     echo ""
     exit 1

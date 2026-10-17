@@ -5,10 +5,10 @@
 
     pet.json         清单：id、displayName、description、spritesheetPath（与 Codex 的 pet.json 字段相同）
     spritesheet.png  标准精灵图：8 列 × 9 行，每格 192 × 208，透明底；身体按晴天色上色。导入别处时照样能用
-    body.png         只有身体（含手脚）的蒙版，白色不透明；小组件用它按当前天气色（--xq-w-*）给身体上色
+    body.png         只有身体（含手脚）的蒙版，白色不透明；小组件用它按当前天气色（--mf-w-*）给身体上色
     lines.png        身体以外的部分：描边、五官、影子、汗滴、星星等；叠在上了色的身体上面
 
-九行依次是 Codex 的九种状态（帧数 / 一轮时长与 Codex 相同，见 xinqing_hub/src/windows/widget/pet.ts）：
+九行依次是 Codex 的九种状态（帧数 / 一轮时长与 Codex 相同，见 moodflow_hub/src/windows/widget/pet.ts）：
 
     0 idle 6   1 running-right 8   2 running-left 8   3 waving 4   4 jumping 5
     5 failed 8 6 waiting 6         7 running 6        8 review 6
@@ -33,7 +33,7 @@ COLS, ROWS = 8, 9
 CW, CH = 192, 208
 SS = 4  # 超采样倍数
 
-# 颜色与设计令牌一致（tokens.css 浅色）：身体用 --xq-w-sunny，线条用 --xq-text-1
+# 颜色与设计令牌一致（tokens.css 浅色）：身体用 --mf-w-sunny，线条用 --mf-text-1
 SUNNY = (0xF6, 0xC3, 0x44, 255)
 INK = (0x2B, 0x2A, 0x28, 255)
 CHEEK = (0xF2, 0x8C, 0x7A, 110)
@@ -337,7 +337,7 @@ def main() -> None:
     manifest = {
         "id": "qingqing",
         "displayName": "晴晴",
-        "description": "心晴的小精灵，身体颜色跟着当前的“心情天气”变。",
+        "description": "Moodflow 的小精灵，身体颜色跟着当前的“心情天气”变。",
         "spritesheetPath": "spritesheet.png",
     }
     (OUT / "pet.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

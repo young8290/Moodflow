@@ -119,11 +119,11 @@ dict.rev(text, n, format="${...}")          → 自定义版式
 
 | 层 | 职责 |
 |---|---|
-| `wind-cmdbar` `fn_dict_rev_named` | 挑第 n 个字（按 rune）、填默认模板、校验参数 |
+| `moodflow-cmdbar` `fn_dict_rev_named` | 挑第 n 个字（按 rune）、填默认模板、校验参数 |
 | `EvalContext::reverse_lookup` | 纯粹的能力注入面 |
-| `wind-coordinator` `reverse_render` | 反查取值 + 模板渲染 |
+| `moodflow-coordinator` `reverse_render` | 反查取值 + 模板渲染 |
 
-**渲染必须在 coordinator 侧**，因为 `wind-cmdbar` 刻意零 `wind-*` 依赖，够不着模板渲染器
+**渲染必须在 coordinator 侧**，因为 `moodflow-cmdbar` 刻意零 `moodflow-*` 依赖，够不着模板渲染器
 （`comment.rs`）与反查表。在 cmdbar 里另写一份占位符替换，就会变成同一套模板语法的第二份
 实现 —— 而 `comment.rs` 那份带着可选段 `{}`、`${a|b}` 取首非空、空变量吞空白这些细微语义，
 两份必然漂移。
