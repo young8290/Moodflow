@@ -221,7 +221,7 @@ Moodflow 已注册 `IMMERSIVESUPPORT`，UI-less 候选已实施（`docs/design/g
 
 ### 3.7 Android 键盘细节（P3 对照清单）
 
-Android 平台仓不在本仓，现状需到那边核对。XSIME Android 已验证、值得对照的做法：
+Android 工程尚未并入本仓（§4.1），现状需迁入后核对。XSIME Android 已验证、值得对照的做法：
 
 - 标点表**一份数据、多端共用**，用同一个夹具文件在两端测试（Moodflow 可用 `moodflow-assoc` 的
   `punct` 模块承担这个角色）；中文下 123/符号页输出全角标点，但保留半角 `.` 给小数；
@@ -253,7 +253,25 @@ Android 平台仓不在本仓，现状需到那边核对。XSIME Android 已验�
 | 设置界面 | 邻仓 `moodflow-setting`（新增配置键要跑 `wind_setting_assets` 对账） | 平台仓设置页 |
 
 `moodflow-mobile` 只新增**与绑定框架无关**的能力（Buffer/剪贴板/矩阵的门面方法）；
-UniFFI 类型投影仍在平台仓。
+UniFFI 类型投影仍在 Android 工程里。
+
+### 4.1 仓库与分支：照 XSIME，单仓单主线
+
+XSIME 的 Android 端在主仓 `platforms/android/`，与其他平台共用 `main`，只开短期功能分支；
+每个平台有自己的 CI 工作流（按路径过滤触发）、自己的 `VERSION` 和自己的标签（`android-v*`、
+`windows-v*`），Android 发布标记为非 latest，不抢占主发布页。本仓照此执行：
+
+- **Android 工程并入本仓**，放根目录 `moodflow_android/`，与 `moodflow_tsf/`、`moodflow_macos/` 对位；
+  不再维护独立的 Android 平台仓。核心一改坏 Android，在同一个 PR 里就会红，而不是几天后在
+  另一个仓库才发现（`moodflow-mobile` 模块文档里记的正是这个代价）。
+- **不设长期平台分支**：所有平台都合入 `main`，功能在短期分支上开发，合并后删除分支。
+- **CI 按路径触发**：新增 Android 工作流，路径过滤覆盖 `moodflow_android/**`、`moodflow_input/crates/`
+  中 Android 依赖闭包内的 crate，以及共享夹具；Windows 工作流同理只看自己的路径。
+- **版本与标签按平台独立**：产品版本仍以 `docs/VERSION` 为唯一真源；Android 另设
+  `moodflow_android/VERSION`，主次版本号必须与产品版本一致，补丁号可独立递增且不低于产品版本的补丁号；
+  标签用 `android-vX.Y.Z`，发布时不设为 latest。
+- **前提**：Android 工程源码目前不在本会话可访问的任何 GitHub 仓库里，需要先把源码推上来，
+  再整体迁入 `moodflow_android/`，并同步更新 AGENTS.md 的仓库地图与构建命令。
 
 ## 5. 阶段与验收
 
@@ -291,8 +309,7 @@ Buffer 是 AI/翻译二批的地基；并击风险最高（TSF keyup），放最
 
 ## 8. 待定问题
 
-1. Android 平台仓（MoodflowAndroid）不在本仓，P3 的 UI 工作要在那边开分支；是否需要先把
-   `moodflow-mobile` 的接口变更单独发版？
+1. ~~Android 平台仓是否独立~~ **已定（2026-10-17）：照 XSIME 的做法，单仓单主线**，见 §4.1。
 2. 剪贴板历史在 Windows 上是否要做成全局快捷键（跨输入法可用）？XSIME 的做法是唤出时先切到
    自己的输入法，这在 Windows 上需要 TSF 激活配置文件，复杂度高，首批建议只在 Moodflow 为当前
    输入法时可用。
