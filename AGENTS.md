@@ -47,6 +47,7 @@
 | `moodflow-manifest` | 安装数据逐文件 SHA-256 清单：打包时生成 `data/manifest.json`（拒收用户库、build/、sync/、符号链接），安装/解包时复核；工具 `moodflow-tools --bin data_manifest` | — |
 | `moodflow-plugin-api` | 插件清单、能力与设置声明（纯数据 + 校验，ADR 0054）：逐键扩展点不得联网、内容包不得声明代码能力、升级新增能力需重新同意 | — |
 | `moodflow-plugin-host` | L1 沙箱插件宿主（wasmi 纯解释器，portable-dispatch）：按能力放行 `mf` 宿主函数、加载时检查导入、每次调用限步数与内存、连续失败自动停用、密码框/无痕等场景不调用插件 | — |
+| `moodflow-market` | 插件市场客户端（不联网，只处理字节）：Ed25519 签名索引校验、可用更新与撤回、安装包哈希/身份/解压安全/安全资产检查、按版本原子安装与卸载 | — |
 | `moodflow-aux-code` | 辅助码过滤：拼音后追加字形辅助码，按字形裁减候选字词（**出厂关闭**，`schema.pinyin.aux_code.enabled`） | [AGENTS.md](moodflow_input/crates/moodflow-aux-code/AGENTS.md) |
 | `moodflow-punct` | 标点转换纯逻辑（中英标点/全半角/数字后智能） | — |
 | `moodflow-transform` | 文本变换：标点、全角、自动配对、简繁 | — |
