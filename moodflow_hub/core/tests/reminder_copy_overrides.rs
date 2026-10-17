@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 #[test]
 fn reminder_override_keeps_subjects_actions_and_rejects_broken_fields() {
-    let user = std::env::temp_dir().join(format!("xq-reminder-copy-{}", std::process::id()));
+    let user = std::env::temp_dir().join(format!("mf-reminder-copy-{}", std::process::id()));
     std::fs::create_dir_all(&user).unwrap();
     let dirs = TemplateDirs {
         factory: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../hub_templates"),

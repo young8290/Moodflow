@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 #[test]
 fn fallback_override_renders_optional_data_and_rejects_broken_syntax() {
-    let user = std::env::temp_dir().join(format!("xq-letter-fallback-{}", std::process::id()));
+    let user = std::env::temp_dir().join(format!("mf-letter-fallback-{}", std::process::id()));
     std::fs::create_dir_all(&user).unwrap();
     let mut dirs = TemplateDirs {
         factory: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../hub_templates"),

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 #[test]
 fn blank_copy_overrides_without_changing_safety_title_and_invalid_copy_falls_back() {
-    let user = std::env::temp_dir().join(format!("xq-diary-blank-{}", std::process::id()));
+    let user = std::env::temp_dir().join(format!("mf-diary-blank-{}", std::process::id()));
     std::fs::create_dir_all(&user).unwrap();
     let dirs = TemplateDirs {
         factory: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../hub_templates"),

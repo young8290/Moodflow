@@ -13,7 +13,7 @@ struct Fixture(TemplateDirs);
 impl Fixture {
     fn new() -> Self {
         let user = std::env::temp_dir().join(format!(
-            "xq-letter-{}-{}",
+            "mf-letter-{}-{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));

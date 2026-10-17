@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 #[test]
 fn schedule_and_todo_prompts_override_independently() {
-    let user = std::env::temp_dir().join(format!("xq-extract-{}", std::process::id()));
+    let user = std::env::temp_dir().join(format!("mf-extract-{}", std::process::id()));
     std::fs::create_dir_all(user.join("prompts")).unwrap();
     let mut dirs = TemplateDirs {
         factory: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../hub_templates"),
@@ -52,7 +52,7 @@ fn schedule_and_todo_prompts_override_independently() {
 
 #[test]
 fn recognizer_override_checks_bounds_regexes_and_falls_back() {
-    let user = std::env::temp_dir().join(format!("xq-patterns-{}", std::process::id()));
+    let user = std::env::temp_dir().join(format!("mf-patterns-{}", std::process::id()));
     std::fs::create_dir_all(&user).unwrap();
     let mut dirs = TemplateDirs {
         factory: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../hub_templates"),

@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 #[test]
 fn ordinary_chat_and_modes_override_independently_while_safe_prompt_stays_factory() {
-    let user = std::env::temp_dir().join(format!("xq-chat-overrides-{}", std::process::id()));
+    let user = std::env::temp_dir().join(format!("mf-chat-overrides-{}", std::process::id()));
     std::fs::create_dir_all(user.join("prompts")).unwrap();
     let mut dirs = TemplateDirs {
         factory: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../hub_templates"),
