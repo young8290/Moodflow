@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 #[test]
 fn rewrite_override_validates_required_fields_and_falls_back() {
-    let user = std::env::temp_dir().join(format!("xq-rewrite-{}", std::process::id()));
+    let user = std::env::temp_dir().join(format!("mf-rewrite-{}", std::process::id()));
     std::fs::create_dir_all(user.join("prompts")).unwrap();
     let mut dirs = TemplateDirs {
         factory: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../hub_templates"),
