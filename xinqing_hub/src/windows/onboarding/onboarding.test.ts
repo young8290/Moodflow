@@ -253,7 +253,7 @@ describe('首次引导', () => {
     const w = mountApp()
     await flushPromises()
     await w.findAll('button')[1]!.trigger('click')
-    expect(w.text()).toContain('心晴的陪伴功能暂时只面向成年人')
+    expect(w.text()).toContain('Moodflow 的陪伴功能暂时只面向成年人')
     expect(w.find('input[type=checkbox]').exists()).toBe(false)
     await w.find('button').trigger('click')
     expect(mocks.close).toHaveBeenCalled()

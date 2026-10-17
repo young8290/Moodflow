@@ -146,10 +146,10 @@ describe('设置中心', () => {
     const w = await openAbout()
     expect(w.find('h1').text()).toBe('隐私与关于')
     const text = w.text()
-    expect(text).toContain('心晴基于开源项目清风输入法（WindInput，MIT 协议）开发，为非官方版本。')
+    expect(text).toContain('Moodflow 基于开源项目清风输入法（WindInput，MIT 协议）开发，为非官方版本。')
     expect(text).toContain('本产品不提供任何医疗诊断或治疗。')
     expect(w.find('.version').text()).toBe('版本 0.1.0')
-    expect(w.find('[role=img]').attributes('aria-label')).toBe('心晴')
+    expect(w.find('[role=img]').attributes('aria-label')).toBe('Moodflow')
   })
 
   it('开源许可列表：清风 MIT 全文与第三方资源声明都随包带着', async () => {

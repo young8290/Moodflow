@@ -1372,7 +1372,7 @@ function Deploy-Full ([string]$profile = "release") {
         $exe = Join-Path $targetDir "xinqing_core$suffix.exe"
         Start-Process -FilePath $exe; Gray "  - 已启动 xinqing_core$suffix.exe"
         Say "`n系统安装完成 ($profile) → $targetDir"
-        Say "提示: 按 Win+Space 切换到心晴输入法$(if($suffix){' (Dev)'})。"
+        Say "提示: 按 Win+Space 切换到Moodflow 输入法$(if($suffix){' (Dev)'})。"
         return $true
     }
     finally {
@@ -1770,8 +1770,8 @@ function Set-TomlKeysInSection ([string]$text, [string]$section, [hashtable]$kv)
 # 不会被 packer 递归打进包)。GUID 必须与 wind_tsf\src\Globals.cpp 一致 (dev=DEB0/DEB1, release=EE30/EE31)。
 function New-InstallerConfig ([string]$profile, [string]$outdir, [string]$cfgPath, [string]$assetsDir) {
     if ($profile -eq "dev") {
-        $id = "XinQingDev"; $disp = "心晴输入法 (开发版)"; $mainExe = "xinqing_core_dev.exe"
-        $menu = "心晴输入法 (开发版)"; $title = "心晴输入法 (开发版) 安装向导"; $proto = "xinqingdev"
+        $id = "XinQingDev"; $disp = "Moodflow 输入法 (开发版)"; $mainExe = "xinqing_core_dev.exe"
+        $menu = "Moodflow 输入法 (开发版)"; $title = "Moodflow 输入法 (开发版) 安装向导"; $proto = "xinqingdev"
         $settingExe = "wind_setting_dev.exe"
         # 心晴：Hub 还没有 dev 变体，两个变体都是 xinqing_hub
         $procs = '["wind_setting_dev", "wind_portable", "xinqing_core_dev", "xinqing_hub"]'
@@ -1779,8 +1779,8 @@ function New-InstallerConfig ([string]$profile, [string]$outdir, [string]$cfgPat
         $clsid = "{EF62DEB0-5ECF-413A-A476-48D1F29E827C}"; $prof = "{EF62DEB1-5ECF-413A-A476-48D1F29E827C}"
         $dllX64 = "xinqing_tsf_dev.dll"; $dllX86 = "xinqing_tsf_x86_dev.dll"; $outName = "XinQingDev-Setup"
     } else {
-        $id = "XinQing"; $disp = "心晴输入法"; $mainExe = "xinqing_core.exe"
-        $menu = "心晴输入法"; $title = "心晴输入法 安装向导"; $proto = "xinqing"
+        $id = "XinQing"; $disp = "Moodflow 输入法"; $mainExe = "xinqing_core.exe"
+        $menu = "Moodflow 输入法"; $title = "Moodflow 输入法 安装向导"; $proto = "xinqing"
         $settingExe = "wind_setting.exe"
         $procs = '["wind_setting", "wind_portable", "xinqing_core", "xinqing_hub"]'
         $acl   = '["xinqing_tsf.dll", "xinqing_tsf_x86.dll"]'
@@ -1828,7 +1828,7 @@ function New-InstallerConfig ([string]$profile, [string]$outdir, [string]$cfgPat
 id                = "$id"
 display_name      = "$disp"
 version           = "$Version"
-publisher         = "心晴输入法 项目"
+publisher         = "Moodflow 输入法 项目"
 description       = "懂你心情的 AI 输入陪伴"
 main_exe          = "$mainExe"
 setting_exe       = "$settingExe"

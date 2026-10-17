@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "心晴",
+  "productName": "Moodflow",
   "mainBinaryName": "xinqing_hub",
   "version": "0.1.0",
   "identifier": "com.xinqing.hub",
@@ -19,7 +19,7 @@
       {
         "label": "widget",
         "url": "widget/index.html",
-        "title": "心晴",
+        "title": "Moodflow",
         "width": 300,
         "height": 312,
         "resizable": false,
@@ -56,7 +56,7 @@
       {
         "label": "settings",
         "url": "settings/index.html",
-        "title": "心晴设置",
+        "title": "Moodflow 设置",
         "width": 880,
         "height": 620,
         "minWidth": 760,
@@ -66,7 +66,7 @@
       {
         "label": "onboarding",
         "url": "onboarding/index.html",
-        "title": "欢迎使用心晴",
+        "title": "欢迎使用 Moodflow",
         "width": 560,
         "height": 640,
         "resizable": false,
@@ -78,7 +78,7 @@
       {
         "label": "cards",
         "url": "cards/index.html",
-        "title": "心晴提醒",
+        "title": "Moodflow 提醒",
         "width": 320,
         "height": 220,
         "resizable": false,

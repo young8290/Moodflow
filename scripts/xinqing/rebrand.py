@@ -121,7 +121,7 @@ RULES: list[Rule] = [
     Rule(
         "display-name",
         "清风输入法",
-        "心晴输入法",
+        "Moodflow 输入法",
         [
             "wind_tsf/include/Globals.h",
             "wind_tsf/src/LangBarItemButton.cpp",
@@ -144,7 +144,7 @@ RULES: list[Rule] = [
         ["scripts/dev.ps1"],
     ),
     Rule("ps-dir", r"(?<=Program Files\\)WindInput", "XinQing", ["scripts/dev.ps1"]),
-    Rule("ps-display", r'(?<=["\'= ])清风输入法|(?<=切换到)清风输入法', "心晴输入法", ["scripts/dev.ps1"]),
+    Rule("ps-display", r'(?<=["\'= ])清风输入法|(?<=切换到)清风输入法', "Moodflow 输入法", ["scripts/dev.ps1"]),
     Rule("ps-proto", r'"windinput(dev)?"', r'"xinqing\1"', ["scripts/dev.ps1", "config/app.toml"]),
     # 产物名（03 第 5.1 节）：wind_tsf[_x86][_dev].dll → xinqing_tsf…，wind_input[_dev].exe → xinqing_core…。
     # cargo 的 bin 名与 crate 名不动，构建脚本把 target 里的 wind_input.exe 复制成 xinqing_core.exe，

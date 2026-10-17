@@ -79,7 +79,7 @@ pub struct Inputs {
 pub fn build(i: &Inputs) -> Vec<(&'static str, String)> {
     let pretty = |v: serde_json::Value| serde_json::to_string_pretty(&v).unwrap_or_default();
     let readme = format!(
-        "心晴运行信息，生成于 {}。\n\
+        "Moodflow 运行信息，生成于 {}。\n\
          用来排查问题，不含数据库、密钥、AI 服务地址、设置内容和任何你写的文字。\n\
          包含：{}\n",
         i.generated,

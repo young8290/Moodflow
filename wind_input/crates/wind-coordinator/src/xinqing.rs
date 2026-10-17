@@ -305,9 +305,9 @@ impl Coordinator {
         self.notify_toolbar();
         self.show_toast(
             if next {
-                "已开启心晴功能"
+                "已开启 Moodflow 功能"
             } else {
-                "已关闭心晴功能"
+                "已关闭 Moodflow 功能"
             },
             ToastPosition::BottomCenter,
             ToastKind::Info,
@@ -360,7 +360,7 @@ impl Coordinator {
         } else {
             retry_hub();
             self.show_toast(
-                "心晴组件未运行，正在重新启动",
+                "Moodflow 组件未运行，正在重新启动",
                 ToastPosition::BottomCenter,
                 ToastKind::Info,
             );
@@ -404,7 +404,7 @@ impl Coordinator {
         };
         if !self.rt().config.xinqing.enabled {
             return vec![
-                leaf("开启心晴功能", MenuCmd::XinqingToggleEnabled, true),
+                leaf("开启 Moodflow 功能", MenuCmd::XinqingToggleEnabled, true),
                 MenuItemSpec::separator(),
             ];
         }
@@ -428,12 +428,12 @@ impl Coordinator {
                 MenuCmd::XinqingTogglePause,
                 true,
             ),
-            leaf("心晴设置", MenuCmd::XinqingOpen(3), linked),
-            leaf("关闭心晴功能", MenuCmd::XinqingToggleEnabled, true),
+            leaf("Moodflow 设置", MenuCmd::XinqingOpen(3), linked),
+            leaf("关闭 Moodflow 功能", MenuCmd::XinqingToggleEnabled, true),
         ];
         if !linked {
             v.push(leaf(
-                "心晴组件未运行，点击重试",
+                "Moodflow 组件未运行，点击重试",
                 MenuCmd::XinqingRetryHub,
                 true,
             ));
@@ -451,9 +451,9 @@ impl Coordinator {
         self.notify_toolbar();
         self.show_toast(
             if on {
-                "心晴已暂停感知"
+                "Moodflow 已暂停感知"
             } else {
-                "心晴已恢复感知"
+                "Moodflow 已恢复感知"
             },
             ToastPosition::BottomCenter,
             ToastKind::Info,

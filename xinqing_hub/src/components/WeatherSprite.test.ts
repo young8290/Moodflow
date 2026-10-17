@@ -26,7 +26,7 @@ describe('WeatherSprite（lottie）', () => {
   it('读屏名称形如“心晴：多云”，lottie 画的 SVG 对读屏隐藏', () => {
     const w = mount(WeatherSprite, { props: { weather: 'cloudy' } })
     expect(w.attributes('role')).toBe('img')
-    expect(w.attributes('aria-label')).toBe('心晴：多云')
+    expect(w.attributes('aria-label')).toBe('Moodflow：多云')
     expect(w.find('.host').attributes('aria-hidden')).toBe('true')
   })
 

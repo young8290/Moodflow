@@ -1,7 +1,7 @@
 # ============================================================================
 #  WindInput 安装器清单（供 wind-packer 使用）
 # ============================================================================
-#  本文件归属 WindInput 仓库，描述心晴输入法的完整安装配置。
+#  本文件归属 WindInput 仓库，描述Moodflow 输入法的完整安装配置。
 #
 #  动态字段由构建脚本通过 CLI 参数注入，无需修改本文件：
 #    wind-packer build \
@@ -13,14 +13,14 @@
 
 [app]
 id              = "XinQing"
-display_name    = "心晴输入法"
+display_name    = "Moodflow 输入法"
 version         = "0.0.0"           # 构建时由 --version 覆盖，此处为占位
-publisher       = "心晴输入法 项目"
+publisher       = "Moodflow 输入法 项目"
 description     = "懂你心情的 AI 输入陪伴"
 main_exe        = "xinqing_core.exe"
 setting_exe     = "wind_setting.exe"
-start_menu_folder = "心晴输入法"
-window_title    = "心晴输入法 安装向导"
+start_menu_folder = "Moodflow 输入法"
+window_title    = "Moodflow 输入法 安装向导"
 url_protocol    = "xinqing"
 agreement_url   = ""
 portable_marker = "portable_mode"
@@ -164,7 +164,7 @@ user_data_label     = "删除心晴数据、用户词库和配置数据"
 cache_label         = "清除本地词库缓存"
 delete_data_confirm = "将永久删除 {path} 下的所有词库和配置数据，以及心晴的心情记录、日程、对话和设置，卸载后无法恢复。\n心晴数据不在备份范围内。\n\n确定要勾选删除吗？"
 # 心晴：完成页提示（11 第 155 行）
-finish_note         = "按 Win + Space 切换到心晴输入法\n从开始菜单打开「心晴」，和晴晴聊聊"
+finish_note         = "按 Win + Space 切换到Moodflow 输入法\n从开始菜单打开「心晴」，和晴晴聊聊"
 
 # ── 打包参数 ──────────────────────────────────────────────────────────────────
 # source_dir 和 version 由构建脚本通过 CLI 覆盖；此处为本地开发默认值。
@@ -180,10 +180,10 @@ icon        = "../assets/installer.ico"
 
 # ── PE 资源版本信息（供 wind-packer 在打包期注入安装程序/卸载程序的详细信息）──
 [package.version_info]
-company_name      = "心晴输入法项目"
-file_description  = "心晴输入法安装程序"
+company_name      = "Moodflow 输入法项目"
+file_description  = "Moodflow 输入法安装程序"
 # file_version      = "0.0.0.0"       # 缺省时自动读取 app.version (会被 CLI --version 覆盖并格式化为4位)
-product_name      = "心晴输入法"
+product_name      = "Moodflow 输入法"
 # product_version   = "0.0.0.0"       # 缺省时自动读取 app.version (会被 CLI --version 覆盖并格式化为4位)
-copyright         = "Copyright (C) 心晴输入法"
+copyright         = "Copyright (C) Moodflow 输入法"
 # original_filename = "WindInput-Setup.exe" # 缺省时自动生成

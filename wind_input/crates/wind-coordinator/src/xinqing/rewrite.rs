@@ -88,7 +88,7 @@ fn fail_text(r: RewriteFailReason) -> &'static str {
         RewriteFailReason::Timeout => "暂时改写不了，稍后再试",
         RewriteFailReason::Invalid => "这段话不太好改，换个说法试试？",
         RewriteFailReason::Budget => "今天的改写次数用完了",
-        RewriteFailReason::NoConsent => "要先在心晴里同意“温柔改写”",
+        RewriteFailReason::NoConsent => "要先在 Moodflow 里同意“温柔改写”",
         RewriteFailReason::Offline => "晴晴暂时连不上网络，改写不了",
         RewriteFailReason::Crisis => CRISIS_TIP,
     }
@@ -193,13 +193,13 @@ impl Coordinator {
         if !t.rewrite_enabled() {
             let tip = if !t.is_linked() {
                 retry_hub();
-                "心晴组件未运行，正在重新启动"
+                "Moodflow 组件未运行，正在重新启动"
             } else if t.paused() {
                 "已暂停感知，暂时不能改写"
             } else if !t.rewrite_consented() {
                 // Hub 那边会问一次同意（10 第 2.5 节 cfg.rewrite）
                 t.send_open(OpenTarget::Settings);
-                "要先在心晴里同意“温柔改写”"
+                "要先在 Moodflow 里同意“温柔改写”"
             } else {
                 // 密码框、名单里的应用、安全桌面
                 "这里不能使用温柔改写"

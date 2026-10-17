@@ -248,8 +248,8 @@ fn coordinator_events_reach_hub() {
         "情绪看板",
         "待确认日程与待办（2）",
         "暂停感知",
-        "心晴设置",
-        "关闭心晴功能",
+        "Moodflow 设置",
+        "关闭 Moodflow 功能",
     ] {
         assert!(labels.iter().any(|l| l == want), "缺 {want}：{labels:?}");
     }
@@ -736,7 +736,7 @@ fn coordinator_events_reach_hub() {
     assert_eq!(phase(), None);
     assert_eq!(
         tips(&ui),
-        vec![("要先在心晴里同意“温柔改写”".to_string(), 2500)]
+        vec![("要先在 Moodflow 里同意“温柔改写”".to_string(), 2500)]
     );
 
     // Hub 正常退出（发 bye）：守护不重拉，菜单出现“点击重试”，点了才再拉起
@@ -754,7 +754,7 @@ fn coordinator_events_reach_hub() {
     assert_eq!(launches.load(Ordering::SeqCst), 1, "Hub 自己退出不重拉");
     let labels = coord.debug_main_menu_labels();
     assert!(
-        labels.iter().any(|l| l == "心晴组件未运行，点击重试"),
+        labels.iter().any(|l| l == "Moodflow 组件未运行，点击重试"),
         "{labels:?}"
     );
     coord.debug_run_menu_cmd(MenuCmd::XinqingRetryHub);
@@ -785,7 +785,7 @@ fn coordinator_events_reach_hub() {
     assert_eq!(user_enabled(&user), Some(false));
     wait_until(|| guard.state() == GuardState::Idle);
     let labels = coord.debug_main_menu_labels();
-    assert!(labels.iter().any(|l| l == "开启心晴功能"), "{labels:?}");
+    assert!(labels.iter().any(|l| l == "开启 Moodflow 功能"), "{labels:?}");
     assert!(!labels.iter().any(|l| l == "和晴晴聊聊"));
     assert_eq!(
         coord.debug_xinqing_toolbar_cell(),

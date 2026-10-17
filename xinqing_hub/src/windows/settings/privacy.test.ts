@@ -65,7 +65,7 @@ describe('设置中心 · 隐私（FR-SET-09）', () => {
     mocks.dataDeleteMood.mockReset().mockImplementation(() => ok(42))
     mocks.dataImport.mockReset().mockImplementation(() => ok({ added: 120, skipped: 3, tables: 9 }))
     mocks.appRestart.mockReset().mockResolvedValue(undefined)
-    mocks.open.mockReset().mockResolvedValue('/backup/心晴数据-20261001.zip')
+    mocks.open.mockReset().mockResolvedValue('/backup/Moodflow 数据-20261001.zip')
   })
 
   it('采集内容说明与引导页是同一张表', async () => {
@@ -173,14 +173,14 @@ describe('设置中心 · 隐私（FR-SET-09）', () => {
     await g.find('button').trigger('click')
     await flushPromises()
     expect(mocks.open).toHaveBeenCalledWith(expect.objectContaining({ multiple: false }))
-    expect(g.text()).toContain('/backup/心晴数据-20261001.zip')
+    expect(g.text()).toContain('/backup/Moodflow 数据-20261001.zip')
     const radios = g.findAll('input[type=radio]')
     expect((radios[0]!.element as HTMLInputElement).checked).toBe(true)
     await radios[1]!.setValue(true)
     await g.find('input[type=checkbox]').setValue(true)
     await g.find('button.primary').trigger('click')
     await flushPromises()
-    expect(mocks.dataImport).toHaveBeenCalledWith('/backup/心晴数据-20261001.zip', 'overwrite', true)
+    expect(mocks.dataImport).toHaveBeenCalledWith('/backup/Moodflow 数据-20261001.zip', 'overwrite', true)
     expect(g.find('[role=status]').text()).toBe(t('privacy.import_done', { added: 120, skipped: 3 }))
     await g.findAll('button').at(-1)!.trigger('click')
     expect(mocks.appRestart).toHaveBeenCalledOnce()
@@ -199,7 +199,7 @@ describe('设置中心 · 隐私（FR-SET-09）', () => {
     await flushPromises()
     await g.find('button.primary').trigger('click')
     await flushPromises()
-    expect(mocks.dataImport).toHaveBeenCalledWith('/backup/心晴数据-20261001.zip', 'merge', false)
+    expect(mocks.dataImport).toHaveBeenCalledWith('/backup/Moodflow 数据-20261001.zip', 'merge', false)
     expect(g.find('[role=alert]').text()).toBe(t('error.import_checksum'))
   })
 
@@ -275,14 +275,14 @@ describe('设置中心 · 隐私（FR-SET-09）', () => {
     await flushPromises()
     expect(mocks.dataExport).not.toHaveBeenCalled()
 
-    mocks.save.mockResolvedValueOnce('D:\\备份\\心晴数据.zip')
+    mocks.save.mockResolvedValueOnce('D:\\备份\\Moodflow 数据.zip')
     await btn().trigger('click')
     await flushPromises()
     const opts = mocks.save.mock.calls[1]![0]
-    expect(opts.defaultPath).toMatch(/^心晴数据-\d{8}\.zip$/)
+    expect(opts.defaultPath).toMatch(/^Moodflow 数据-\d{8}\.zip$/)
     expect(opts.filters[0].extensions).toEqual(['zip'])
-    expect(mocks.dataExport).toHaveBeenCalledWith('D:\\备份\\心晴数据.zip')
-    expect(w.find('.done').text()).toBe(t('error.export_done', { path: 'D:\\备份\\心晴数据.zip' }))
+    expect(mocks.dataExport).toHaveBeenCalledWith('D:\\备份\\Moodflow 数据.zip')
+    expect(w.find('.done').text()).toBe(t('error.export_done', { path: 'D:\\备份\\Moodflow 数据.zip' }))
   })
 
   it('导出失败给出可读的原因，不显示错误码', async () => {

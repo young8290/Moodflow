@@ -39,7 +39,7 @@ describe('隐私说明全文（产品书 21 第 1 节）', () => {
   })
 
   it('随包的说明有 11 个小节，处理信息表与保留期限表都在', () => {
-    expect(NOTICE[0]).toEqual({ kind: 'h1', text: '心晴隐私说明' })
+    expect(NOTICE[0]).toEqual({ kind: 'h1', text: 'Moodflow 隐私说明' })
     expect(NOTICE.filter((b) => b.kind === 'h2')).toHaveLength(11)
     const tables = NOTICE.filter((b) => b.kind === 'table')
     expect(tables).toHaveLength(2)
@@ -52,7 +52,7 @@ describe('隐私说明全文（产品书 21 第 1 节）', () => {
     ;(d.element as HTMLDetailsElement).open = true
     await d.trigger('toggle')
     await flushPromises()
-    expect(w.find('.doc .title').text()).toBe('心晴隐私说明')
+    expect(w.find('.doc .title').text()).toBe('Moodflow 隐私说明')
     expect(w.findAll('.doc h5')).toHaveLength(11)
     expect(w.text()).toContain('12356')
   })

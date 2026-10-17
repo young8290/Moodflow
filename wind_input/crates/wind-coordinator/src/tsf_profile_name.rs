@@ -60,9 +60,9 @@ const LANGID_SUBKEY: &str = "0x00000804";
 /// 同一性质的约定——那边也是照抄 `Globals.cpp` 的 GUID。
 fn real_name() -> &'static str {
     if wind_config::variant::is_dev() {
-        "心晴输入法 (开发版)"
+        "Moodflow 输入法 (开发版)"
     } else {
-        "心晴输入法"
+        "Moodflow 输入法"
     }
 }
 

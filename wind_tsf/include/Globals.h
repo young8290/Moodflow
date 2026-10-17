@@ -175,11 +175,11 @@ extern const GUID c_guidDisplayAttributeConverted;
 
 // 输入法名称
 #ifdef WIND_DEV_VARIANT
-#define TEXTSERVICE_NAME        L"心晴输入法 (开发版)"
-#define TEXTSERVICE_DESC        L"心晴输入法 Dev (XinQingDev)"
+#define TEXTSERVICE_NAME        L"Moodflow 输入法 (开发版)"
+#define TEXTSERVICE_DESC        L"Moodflow 输入法 Dev (XinQingDev)"
 #else
-#define TEXTSERVICE_NAME        L"心晴输入法"
-#define TEXTSERVICE_DESC        L"心晴输入法 (XinQing)"
+#define TEXTSERVICE_NAME        L"Moodflow 输入法"
+#define TEXTSERVICE_DESC        L"Moodflow 输入法 (XinQing)"
 #endif
 #define TEXTSERVICE_ICON_INDEX  0
 
