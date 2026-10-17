@@ -55,7 +55,7 @@ pub struct MaskedSide {
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum SecretsError {
-    #[error("{0} 的地址必须以 http:// 或 https:// 开头")]
+    #[error("{0} 的地址必须以 https:// 开头（本机地址可以用 http://）")]
     BadUrl(&'static str),
     #[error("{0} 的模型名不能为空")]
     EmptyModel(&'static str),
@@ -176,11 +176,33 @@ fn llm_models(models: &[String]) -> Vec<String> {
     }
 }
 
+/// 正式版只接受 `https://`，`http://` 只放行回环地址（ADR 0012 评审意见第 1 条，09 SEC-02）：密钥和特征不能明文出网，
+/// 本机 mock-ai（`http://127.0.0.1:18080`）与本机服务照常可用；调试构建不限制。
+const ALLOW_ANY_HTTP: bool = cfg!(debug_assertions);
+
 fn check_url(side: &'static str, url: &str) -> Result<(), SecretsError> {
+    check_url_with(side, url, ALLOW_ANY_HTTP)
+}
+
+/// `http://` 后面是不是回环主机（`127.0.0.1`、`localhost`、`[::1]`，可带端口和路径）。
+fn is_loopback(rest: &str) -> bool {
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    let host = match authority.strip_prefix('[') {
+        Some(v6) => v6.split(']').next().map(|h| format!("[{h}]")),
+        None => authority.split(':').next().map(str::to_string),
+    };
+    matches!(
+        host.as_deref().map(str::to_ascii_lowercase).as_deref(),
+        Some("127.0.0.1" | "localhost" | "[::1]")
+    )
+}
+
+fn check_url_with(side: &'static str, url: &str, allow_any_http: bool) -> Result<(), SecretsError> {
     let u = url.trim();
-    let rest = u
-        .strip_prefix("https://")
-        .or_else(|| u.strip_prefix("http://"));
+    let rest = u.strip_prefix("https://").or_else(|| {
+        u.strip_prefix("http://")
+            .filter(|r| allow_any_http || is_loopback(r))
+    });
     match rest {
         Some(host) if !host.is_empty() && !host.chars().any(char::is_whitespace) => Ok(()),
         _ => Err(SecretsError::BadUrl(side)),
@@ -291,6 +313,20 @@ api_key = ""
         let s = AiSecrets::from_toml("[llm]\nbase_url = \"http://127.0.0.1:18080/v1\"\n").unwrap();
         assert_eq!(s.to_config().llm.unwrap().models, DEFAULT_MODELS);
         assert_eq!(s.masked().llm.unwrap().key_tail, None);
+    }
+
+    #[test]
+    fn release_builds_accept_https_and_loopback_http_only() {
+        let ok = |u: &str| check_url_with("Jev", u, false).is_ok();
+        assert!(ok("https://jev.example/v1"));
+        assert!(ok("http://127.0.0.1:18080/v1"));
+        assert!(ok("http://localhost"));
+        assert!(ok("http://[::1]:8080"));
+        assert!(!ok("http://jev.example/v1"));
+        assert!(!ok("http://127.0.0.1.evil.example/v1"));
+        assert!(!ok("http://localhost.evil.example"));
+        assert!(check_url_with("Jev", "http://jev.example/v1", true).is_ok());
+        assert_eq!(ALLOW_ANY_HTTP, cfg!(debug_assertions));
     }
 
     #[test]

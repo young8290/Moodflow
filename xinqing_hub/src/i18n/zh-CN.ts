@@ -282,7 +282,7 @@ export const zhCN = {
   "error.delete_confirm": "输入“删除”两个字，确认删除全部心晴数据",
   "error.withdraw_notice": "已经发送给第三方服务的数据，我们无法从对方那里撤回。",
   "error.restart_banner": "部分设置需要重启输入法后生效",
-  "error.ai_config_invalid": "地址要以 http:// 或 https:// 开头，模型名也不能空着，改一下再保存吧。",
+  "error.ai_config_invalid": "地址要以 https:// 开头（本机测试可以用 http://），模型名也不能空着，改一下再保存吧。",
   "error.ai_secrets_unsupported": "这台电脑上没法加密保存密钥，晴晴先用离线模式陪着你。",
   "error.ime_unavailable": "输入法还没启动，启动后就能在这里改输入法设置。",
   "error.memory_full": "晴晴最多记住 50 件事，先删掉几件再让我记吧。",
