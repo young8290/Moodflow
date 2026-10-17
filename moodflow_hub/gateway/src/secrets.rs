@@ -61,6 +61,9 @@ pub enum SecretsError {
     EmptyModel(&'static str),
     #[error("AI 配置无法解析：{0}")]
     Parse(String),
+    /// 换了服务主机却没重新填写密钥：旧密钥不能发给新地址（ADR 0055）。
+    #[error("{0} 的服务地址换了，需要重新填写密钥")]
+    KeyRequired(&'static str),
 }
 
 impl AiSecrets {
@@ -117,18 +120,29 @@ impl AiSecrets {
 
     /// 用户在设置页保存：没有重新填写密钥（`None`）的一侧沿用旧密钥，界面因此永远不需要拿到明文密钥。
     /// 某一侧整个为 `None` 表示清除这一侧（之后这一侧走离线降级）。
-    pub fn merged_onto(mut self, old: &AiSecrets) -> Self {
+    ///
+    /// **只在服务主机不变时沿用**（同协议、同主机、同端口；路径、模型可以改）。主机变了而密钥留空，
+    /// 返回 [`SecretsError::KeyRequired`]：填错一个中转地址不能把旧密钥发出去（ADR 0055，修订 ADR 0012 第 3 条）。
+    pub fn merged_onto(mut self, old: &AiSecrets) -> Result<Self, SecretsError> {
         if let (Some(new), Some(old)) = (&mut self.jev, &old.jev)
             && new.api_key.is_none()
+            && old.api_key.is_some()
         {
+            if !same_origin(&new.base_url, &old.base_url) {
+                return Err(SecretsError::KeyRequired("Jev"));
+            }
             new.api_key = old.api_key.clone();
         }
         if let (Some(new), Some(old)) = (&mut self.llm, &old.llm)
             && new.api_key.is_none()
+            && old.api_key.is_some()
         {
+            if !same_origin(&new.base_url, &old.base_url) {
+                return Err(SecretsError::KeyRequired("大模型"));
+            }
             new.api_key = old.api_key.clone();
         }
-        self
+        Ok(self)
     }
 
     pub fn masked(&self) -> MaskedSecrets {
@@ -166,6 +180,39 @@ impl AiSecrets {
             caps: Vec::new(),
         }
     }
+}
+
+/// 协议 + 主机 + 端口（小写，缺省端口按协议补齐）。解析不出来时返回 `None`，按「不同」处理。
+fn origin(url: &str) -> Option<(String, String, u16)> {
+    let (scheme, rest) = url.trim().split_once("://")?;
+    let scheme = scheme.to_ascii_lowercase();
+    let authority = rest.split(['/', '?', '#']).next()?;
+    let authority = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
+    let (host, port) = if let Some(v6) = authority.strip_prefix('[') {
+        let (h, tail) = v6.split_once(']')?;
+        (h.to_owned(), tail.strip_prefix(':').map(str::to_owned))
+    } else {
+        match authority.rsplit_once(':') {
+            Some((h, p)) => (h.to_owned(), Some(p.to_owned())),
+            None => (authority.to_owned(), None),
+        }
+    };
+    let port = match port {
+        Some(p) => p.parse().ok()?,
+        None => match scheme.as_str() {
+            "https" => 443,
+            "http" => 80,
+            _ => return None,
+        },
+    };
+    if host.is_empty() {
+        return None;
+    }
+    Some((scheme, host.to_ascii_lowercase(), port))
+}
+
+fn same_origin(a: &str, b: &str) -> bool {
+    matches!((origin(a), origin(b)), (Some(x), Some(y)) if x == y)
 }
 
 fn llm_models(models: &[String]) -> Vec<String> {
@@ -285,17 +332,71 @@ models   = ["m1", "m2"]
         let new = AiSecrets::from_toml(
             r#"
 [llm]
-base_url = "https://other.example/v1"
+base_url = "https://llm.example/v2"
 api_key = ""
 "#,
         )
         .unwrap()
-        .merged_onto(&old);
+        .merged_onto(&old)
+        .unwrap();
         assert!(new.jev.is_none(), "没提交 Jev 一侧表示清除");
         let llm = new.llm.unwrap();
-        assert_eq!(llm.api_key.unwrap().masked(), "••••abcd", "空密钥沿用旧值");
-        assert_eq!(llm.base_url, "https://other.example/v1");
+        assert_eq!(
+            llm.api_key.unwrap().masked(),
+            "••••abcd",
+            "同主机改路径：空密钥沿用旧值"
+        );
+        assert_eq!(llm.base_url, "https://llm.example/v2");
         assert!(llm.models.is_empty());
+    }
+
+    #[test]
+    fn new_host_without_a_key_is_refused() {
+        let old = AiSecrets::from_toml(EXAMPLE).unwrap();
+        let new = AiSecrets::from_toml(
+            r#"
+[llm]
+base_url = "https://evil.example/v1"
+api_key = ""
+"#,
+        )
+        .unwrap();
+        assert!(matches!(
+            new.merged_onto(&old),
+            Err(SecretsError::KeyRequired("大模型"))
+        ));
+        let with_key = AiSecrets::from_toml(
+            r#"
+[llm]
+base_url = "https://evil.example/v1"
+api_key = "sk-new-9999"
+"#,
+        )
+        .unwrap()
+        .merged_onto(&old)
+        .unwrap();
+        assert_eq!(
+            with_key.llm.unwrap().api_key.unwrap().masked(),
+            "••••9999",
+            "新主机带了新密钥就照常保存"
+        );
+    }
+
+    #[test]
+    fn origin_compares_scheme_host_and_port() {
+        assert!(same_origin(
+            "https://A.example/v1",
+            "https://a.example:443/v2"
+        ));
+        assert!(!same_origin("https://a.example", "http://a.example"));
+        assert!(!same_origin("https://a.example", "https://a.example:8443"));
+        assert!(!same_origin(
+            "https://a.example.evil.com",
+            "https://a.example"
+        ));
+        assert!(!same_origin("https://user@b.example", "https://a.example"));
+        assert!(same_origin("http://[::1]:8080/x", "http://[::1]:8080"));
+        assert!(!same_origin("not a url", "not a url"));
     }
 
     #[test]
