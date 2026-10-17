@@ -1453,8 +1453,12 @@ name = "moodflow-mobile"
 version = "0.1.0"
 dependencies = [
  "moodflow-bridge",
+ "moodflow-buffer",
+ "moodflow-chord",
+ "moodflow-clipboard",
  "moodflow-config",
  "moodflow-coordinator",
+ "moodflow-engine",
  "moodflow-host",
  "moodflow-ipc",
  "moodflow-keys",
