@@ -120,6 +120,8 @@ pub enum SettingItem {
     ResearchId,
     /// Hub 的全局快捷键（FR-ENT-04），如 `ctrl+alt+q`；空串表示不设（[`super::hotkey::accepts`]，ADR 0036）
     Hotkey,
+    /// 桌宠编号（ADR 0044）：小写字母、数字、`-`、`_`，1–48 字（[`super::pet::valid_id`]）
+    PetId,
 }
 
 pub const PHONE_MAX_CHARS: usize = 24;
@@ -145,6 +147,7 @@ impl SettingItem {
                         .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_'))
             }
             SettingItem::Hotkey => super::hotkey::accepts(s),
+            SettingItem::PetId => super::pet::valid_id(s),
         }
     }
 }
@@ -182,6 +185,22 @@ pub const KEYS: &[KeySpec] = &[
         key: "widget.autohide",
         kind: Kind::Bool,
         default: || false.into(),
+    },
+    // 桌宠（ADR 0044）：小组件的身体用哪只宠物、多大、要不要在屏幕底边走来走去。编号找不到时用内置的晴晴
+    KeySpec {
+        key: "pet.id",
+        kind: Kind::Text(SettingItem::PetId),
+        default: || super::pet::BUILTIN_ID.into(),
+    },
+    KeySpec {
+        key: "pet.size",
+        kind: Kind::Choice(&["small", "medium", "large"]),
+        default: || "medium".into(),
+    },
+    KeySpec {
+        key: "pet.roam",
+        kind: Kind::Bool,
+        default: || true.into(),
     },
     // 晴天收集（FR-REV-04，P2）：关闭后不显示晴天值与装扮，解锁记录清空（D-30）
     KeySpec {

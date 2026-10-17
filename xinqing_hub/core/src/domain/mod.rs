@@ -19,6 +19,7 @@ pub mod fusion;
 pub mod hotkey;
 pub mod letter;
 pub mod notify;
+pub mod pet;
 pub mod pulse;
 pub mod reminder;
 pub mod research;

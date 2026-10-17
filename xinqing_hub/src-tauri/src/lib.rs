@@ -20,6 +20,7 @@ mod ime_events;
 mod letter;
 mod notify;
 mod paths;
+mod pets;
 mod procs;
 mod pulse;
 mod research;
@@ -80,6 +81,11 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::collection_get,
             commands::collection_equip,
             commands::running_apps,
+            pets::pet_list,
+            pets::pet_sheet,
+            pets::pet_import,
+            pets::pet_discover,
+            pets::pet_remove,
             commands::focus_start,
             commands::focus_stop,
             commands::focus_status,

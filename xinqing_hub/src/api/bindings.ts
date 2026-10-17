@@ -110,6 +110,16 @@ export const commands = {
 	collectionEquip: (item: string | null) => typedError<CollectionView, UiError>(__TAURI_INVOKE("collection_equip", { item })),
 	/**  正在运行的程序名（只有可执行文件名，去掉系统进程、按名字排序），给设置页的程序名单当候选。 */
 	runningApps: () => __TAURI_INVOKE<string[]>("running_apps"),
+	/**  内置的晴晴加上导入的宠物。 */
+	petList: () => typedError<PetInfo[], UiError>(__TAURI_INVOKE("pet_list")),
+	/**  小组件要画的那只宠物；找不到或读不出来就用内置的晴晴。 */
+	petSheet: (id: string) => typedError<PetSheet, UiError>(__TAURI_INVOKE("pet_sheet", { id })),
+	/**  导入宠物（设置页“导入宠物…”或一键导入）。同编号的旧宠物被替换；不能顶替内置的晴晴。 */
+	petImport: (path: string) => typedError<PetInfo, UiError>(__TAURI_INVOKE("pet_import", { path })),
+	/**  Codex 与 petdex 里装过的宠物。 */
+	petDiscover: () => typedError<PetCandidate[], UiError>(__TAURI_INVOKE("pet_discover")),
+	/**  删掉一只导入的宠物；正在用的话换回晴晴。 */
+	petRemove: (id: string) => typedError<null, UiError>(__TAURI_INVOKE("pet_remove", { id })),
 	/**  开始专注（FR-RST-10），时长 10–120 分钟；已经在专注时报错。 */
 	focusStart: (minutes: number) => typedError<FocusStatus, UiError>(__TAURI_INVOKE("focus_start", { minutes })),
 	/**  结束专注（随时可以，不做任何评价），返回这次的小结；没在专注时为空。小结也会以 `focus:done` 推送。 */
@@ -925,6 +935,41 @@ export type NetLogView = {
 	tokens_out: number | null,
 };
 
+/**  别的应用里装过、可以一键导入的宠物 */
+export type PetCandidate = {
+	/**  宠物文件夹，原样交回 `pet_import` */
+	path: string,
+	id: string,
+	name: string,
+	/**  `codex` 或 `petdex` */
+	source: string,
+	/**  已经导入过同一个编号 */
+	imported: boolean,
+};
+
+/**  设置页列表里的一只宠物 */
+export type PetInfo = {
+	id: string,
+	name: string,
+	description: string,
+	/**  内置的晴晴（不能删除，身体随天气变色） */
+	builtin: boolean,
+	/**  精灵图版本：1 是 9 行，2 是 11 行 */
+	version: number,
+};
+
+/**  小组件画宠物要的东西。图片以 data URL 给出（CSP 允许 `img-src data:`）。 */
+export type PetSheet = {
+	id: string,
+	builtin: boolean,
+	version: number,
+	/**  标准精灵图 */
+	sheet: string,
+	/**  内置宠物的身体蒙版与线条，两层叠起来就能按天气给身体上色；导入的宠物没有 */
+	body: string | null,
+	lines: string | null,
+};
+
 /**  一次按键。 */
 export type Pulse = {
 	/**  Hub 收到这一键的时刻（Unix 毫秒） */
@@ -1192,7 +1237,9 @@ export type SettingItem =
  */
 "research_id" | 
 /**  Hub 的全局快捷键（FR-ENT-04），如 `ctrl+alt+q`；空串表示不设（[`super::hotkey::accepts`]，ADR 0036） */
-"hotkey";
+"hotkey" | 
+/**  桌宠编号（ADR 0044）：小写字母、数字、`-`、`_`，1–48 字（[`super::pet::valid_id`]） */
+"pet_id";
 
 /**  设置项的值。只有这四种形态，对应 [`Kind`]；以 JSON 文本落库（`true` / `0.8` / `"system"` / `["22:00-07:00"]`）。 */
 export type SettingValue = boolean | number | string | string[];
