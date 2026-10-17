@@ -15,7 +15,6 @@ use moodflow_hub_core::domain::safety::CrisisLexicon;
 use moodflow_hub_core::domain::settings;
 use moodflow_hub_core::domain::validate::BannedWords;
 use moodflow_hub_core::infra::store::Db;
-use moodflow_hub_core::infra::templates::TemplateDirs;
 use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 
@@ -31,17 +30,14 @@ pub struct Chat(pub Option<Arc<ChatService>>);
 
 /// 须在 `AppState`、`Arc<Ai>`、`Sensing` 都托管之后调用。
 pub fn start(app: &AppHandle) {
-    let loaded = paths::templates_dir()
-        .ok_or_else(|| anyhow::anyhow!("找不到 hub_templates"))
-        .and_then(|dir| {
-            let dirs = TemplateDirs::factory_only(dir);
-            Ok((
-                ChatPrompts::load(&dirs)?,
-                ChatCopy::load(&dirs)?,
-                BannedWords::load(&dirs)?,
-                CrisisLexicon::load(&dirs)?,
-            ))
-        });
+    let loaded = paths::hub_template_dirs().and_then(|dirs| {
+        Ok((
+            ChatPrompts::load(&dirs)?,
+            ChatCopy::load(&dirs)?,
+            BannedWords::load(&dirs)?,
+            CrisisLexicon::load(&dirs)?,
+        ))
+    });
     let service = match loaded {
         Ok((prompts, copy, banned, lex)) => Some(Arc::new(ChatService::new(
             Arc::new(ShellPort { app: app.clone() }),

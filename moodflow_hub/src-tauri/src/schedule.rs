@@ -54,7 +54,34 @@ pub struct ScheduleCopy {
 
 #[derive(Deserialize)]
 struct RawCopy {
+    version: u32,
     schedule: ScheduleCopy,
+}
+
+impl ScheduleCopy {
+    fn load(dirs: &TemplateDirs) -> anyhow::Result<Self> {
+        let banned = BannedWords::load(dirs)?;
+        Ok(dirs.load_with_fallback("ui_copy.toml", |path| {
+            let raw: RawCopy = read_toml(path)?;
+            if raw.version == 0
+                || raw.schedule.ics_description.trim().is_empty()
+                || banned
+                    .find(
+                        &raw.schedule.ics_description,
+                        moodflow_hub_core::domain::validate::Scene::Other,
+                    )
+                    .is_some()
+            {
+                return Err(
+                    moodflow_hub_core::infra::templates::TemplateError::Invalid {
+                        file: "ui_copy.toml",
+                        reason: "日程导出说明版本或正文校验失败",
+                    },
+                );
+            }
+            Ok(raw.schedule)
+        })?)
+    }
 }
 
 /// 须在 `AppState`、`Arc<Ai>`、`Sensing`、`Notifier` 都托管之后调用。模板加载失败时识别不启动（记日志），
@@ -62,17 +89,20 @@ struct RawCopy {
 pub fn start(app: &AppHandle) {
     app.manage(MissedStash::default());
     let dirs = paths::templates_dir().map(TemplateDirs::factory_only);
-    let copy = dirs
+    let copy_dirs = paths::hub_template_dirs().ok().or_else(|| dirs.clone());
+    let copy = copy_dirs
         .as_ref()
-        .and_then(|d| read_toml::<RawCopy>(&d.factory_path("ui_copy.toml")).ok())
-        .map(|r| r.schedule)
+        .and_then(|d| ScheduleCopy::load(d).ok())
         .unwrap_or_default();
     app.manage(copy);
 
     let (cmds, cmd_rx) = mpsc::channel(16);
     app.manage(Reminders { cmds });
-    match dirs.as_ref().map(ReminderCopy::load) {
-        Some(Ok(copy)) => {
+    let reminder_copy = paths::hub_template_dirs()
+        .or_else(|error| dirs.clone().ok_or(error))
+        .and_then(|d| Ok(ReminderCopy::load(&d)?));
+    match reminder_copy {
+        Ok(copy) => {
             let service = ReminderService::new(
                 Arc::new(ShellPort { app: app.clone() }),
                 crate::sim::clock(),
@@ -80,19 +110,16 @@ pub fn start(app: &AppHandle) {
             );
             tauri::async_runtime::spawn(service.run(cmd_rx));
         }
-        Some(Err(e)) => crate::hlog!("日程提醒不可用：{e}"),
-        None => crate::hlog!("日程提醒不可用：找不到 hub_templates"),
+        Err(e) => crate::hlog!("日程提醒不可用：{e}"),
     }
 
-    let loaded = dirs
-        .ok_or_else(|| anyhow::anyhow!("找不到 hub_templates"))
-        .and_then(|d| {
-            Ok((
-                ScheduleRecognizer::load(&d)?,
-                ExtractPrompts::load(&d)?,
-                BannedWords::load(&d)?,
-            ))
-        });
+    let loaded = paths::hub_template_dirs().and_then(|d| {
+        Ok((
+            ScheduleRecognizer::load(&d)?,
+            ExtractPrompts::load(&d)?,
+            BannedWords::load(&d)?,
+        ))
+    });
     match loaded {
         Ok((recognizer, prompts, banned)) => {
             let service = Arc::new(ScheduleService::new(
