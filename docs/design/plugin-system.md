@@ -1,7 +1,7 @@
 # 插件系统与插件市场
 
 > 状态：**设计稿**（2026-10-17），尚未开工。目标：让 Moodflow 像 Obsidian 一样可扩展、有插件市场，
-> Windows 与 Android 同一份插件包可用。动手前须先立 ADR（§9）。
+> Windows 与 Android 同一份插件包可用。信任模型与开放边界已定为 [ADR 0054](../adr/0054-插件信任模型与开放边界.md)。
 > 参考：Obsidian 社区插件机制；XSIME 的插件平台（`PluginPlatform.swift`、`OfficialPluginPackage.swift`、
 > `PLUGIN-CONFIGURATION.md`、`Catalog/buffer-plugins.json`）；本仓
 > [XSIME 吸收计划](xsime-feature-port-plan.md)。
