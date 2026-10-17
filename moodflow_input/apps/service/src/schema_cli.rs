@@ -50,6 +50,10 @@ pub fn run(args: &[String]) -> i32 {
             },
             _ => return usage_err("dict list|enable|disable ..."),
         },
+        Some("import-rime") => match (args.get(1), args.get(2)) {
+            (Some(zip), Some(out)) => cmd_import_rime(zip, out),
+            _ => return usage_err("import-rime <Rime 方案 zip> <输出目录>"),
+        },
         Some("help") | Some("--help") | Some("-h") | None => {
             print_usage();
             return 0;
@@ -81,7 +85,8 @@ fn print_usage() {
          rebuild                           强制重建全部词库缓存（下次使用各方案时按源重新生成）\n  \
          dict list <方案id>                列出方案的词库及启用状态\n  \
          dict enable <方案id> <词库id>...  启用分类/扩展词库（可多个，即时生效）\n  \
-         dict disable <方案id> <词库id>... 停用分类/扩展词库（可多个，即时生效）"
+         dict disable <方案id> <词库id>... 停用分类/扩展词库（可多个，即时生效）\n  \
+         import-rime <zip> <输出目录>      把 Rime 方案包转换成 .wpkg（离线，不需要服务在线），再从设置页导入"
     );
 }
 
@@ -257,6 +262,33 @@ fn cmd_dict_toggle(id: &str, dict_ids: &[String], enable: bool) -> anyhow::Resul
             "（方案未加载，下次使用时生效）"
         };
         println!("✓ {id}: 词库 {did} 已{verb}{note}");
+    }
+    Ok(0)
+}
+
+/// 离线转换：Rime 方案 ZIP → 每套方案一个 `.wpkg`，并列出无法等价转换的内容。
+fn cmd_import_rime(zip: &str, out: &str) -> anyhow::Result<i32> {
+    use moodflow_transfer::rime_import::{convert, read_zip, write_wpkg};
+    let (files, sha, pre) = read_zip(std::path::Path::new(zip))?;
+    let conv = convert(&files, sha, pre)?;
+    let out = std::path::Path::new(out);
+    std::fs::create_dir_all(out)?;
+    println!("源包 SHA-256: {}", conv.source_sha256);
+    for s in &conv.schemes {
+        let path = out.join(format!("{}.wpkg", s.id));
+        write_wpkg(s, &path)?;
+        println!(
+            "已生成 {}（{}，{} 个文件）",
+            path.display(),
+            s.name,
+            s.files.len()
+        );
+    }
+    if !conv.diagnostics.is_empty() {
+        println!("\n以下内容未转换或被忽略：");
+        for d in &conv.diagnostics {
+            println!("  - {d:?}");
+        }
     }
     Ok(0)
 }
