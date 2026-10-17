@@ -183,3 +183,15 @@ network = []                          # 逐键插件不需要也拿不到网络
    第二套插件界面，建议先只用 `PanelView`。
 4. **WIT 组件模型 vs. 手写 ABI**：组件模型类型更好、工具链更成熟，但 wasmi 对组件模型的支持程度需要
    M0 时实测；不行就退回手写的极简 ABI（JSON 进出）。
+
+## 10. 进度（2026-10-17）
+
+| 阶段 | 已完成 | 尚缺 |
+|---|---|---|
+| M0 立约 | ADR 0054 | — |
+| M1 | `moodflow-plugin-api`：清单、能力、设置声明及校验（13 个单测） | 扩展点 trait 接入协调器，并把快捷输入、命令函数、文本变换改为经注册表接入；内容包按类型交给现有加载器 |
+| M2 | `moodflow-plugin-host`：wasmi 沙箱、`mf` 宿主函数按能力放行、步数与内存上限、连续失败停用、隐私场景不调用（12 个单测）；`plugin_tool check/pack` | 协调器在按键路径上调用插件；设置页按声明渲染 |
+| M3 | `moodflow-market`：签名索引、更新与撤回、安装包检查、原子安装（9 个单测）；`plugin_tool sign` | `moodflow-plugins` 索引仓库与审核 CI、正式签名密钥（须线下生成并保管，公钥写入客户端）、Windows 设置程序与 Android 的插件页 |
+
+已确认的实现细节：wasmi 必须用 `portable-dispatch`（尾调用分派在带 debug 断言的构建里会因死循环插件爆栈）；
+市场 crate 的 `zip` 只开 `deflate`，Android 闭包不带 C 依赖。
