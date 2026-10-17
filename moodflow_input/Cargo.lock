@@ -1494,6 +1494,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "moodflow-plugin-registry"
+version = "0.1.0"
+dependencies = [
+ "moodflow-market",
+ "moodflow-plugin-api",
+ "moodflow-plugin-host",
+ "serde",
+ "serde_json",
+ "tracing",
+ "wat",
+]
+
+[[package]]
 name = "moodflow-punct"
 version = "0.1.0"
 dependencies = [
