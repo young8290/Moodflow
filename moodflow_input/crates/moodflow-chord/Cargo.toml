@@ -1,0 +1,12 @@
+[package]
+name = "moodflow-chord"
+version.workspace = true
+edition.workspace = true
+
+# 纯逻辑：键位方案格式与校验、并击结算。须过 cargo check-android。
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

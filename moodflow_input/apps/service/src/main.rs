@@ -495,6 +495,10 @@ fn main() {
         coord_for_restart_toast.notify_schema_degradation(&active);
     }
 
+    // 用户词库打不开 ⇒ 提示一次。协调器此时已退化为不落盘，不说的话用户只会发现
+    // 「学过的词又没了」（XSIME 吸收计划 §3.2）。
+    coord_for_restart_toast.notify_store_unavailable();
+
     // 10. 阻塞主线程，直到菜单触发"重启服务"
     //
     // macOS 例外：主线程改跑 CFRunLoop。Carbon 全局热键的事件只投递到**主线程**的

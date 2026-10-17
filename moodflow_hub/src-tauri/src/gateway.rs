@@ -91,12 +91,13 @@ impl Ai {
         (c.source, c.masked.clone())
     }
 
-    /// 设置页保存（`secrets_set`）：没有重新填写的密钥沿用已保存的那份，两侧都清空时删除文件；
+    /// 设置页保存（`secrets_set`）：没有重新填写的密钥在主机不变时沿用已保存的那份，两侧都清空时删除文件；
     /// 保存成功后按优先级重新选配置并换掉网关。
     pub fn save(&self, new: AiSecrets) -> Result<(), SecretsStoreError> {
         new.validate()?;
         let saved = self.store.load().ok().flatten().unwrap_or_default();
-        let merged = new.merged_onto(&saved);
+        // 换了主机却没重新填密钥 ⇒ 拒绝保存（ADR 0055），旧密钥不发给新地址。
+        let merged = new.merged_onto(&saved)?;
         if merged.is_empty() {
             self.store.clear()?;
         } else {
@@ -333,8 +334,17 @@ mod tests {
             assert_eq!(source, Source::Saved);
             assert_eq!(masked.llm.unwrap().key_tail.as_deref(), Some("••••5678"));
         }
-        // 再次保存时不填密钥：沿用已保存的那份
-        let mut again = llm("https://llm2.example/v1");
+        // 换了主机却不填密钥：拒绝保存，旧密钥不发给新地址（ADR 0055）
+        let mut other_host = llm("https://llm2.example/v1");
+        other_host.llm.as_mut().unwrap().api_key = None;
+        assert!(matches!(
+            ai.save(other_host),
+            Err(SecretsStoreError::Invalid(
+                moodflow_hub_gateway::SecretsError::KeyRequired(_)
+            ))
+        ));
+        // 同一主机只改路径、不填密钥：沿用已保存的那份
+        let mut again = llm("https://llm.example/v2");
         again.llm.as_mut().unwrap().api_key = None;
         ai.save(again).unwrap();
         let saved = SecretStore::new(&d).load().unwrap().unwrap();

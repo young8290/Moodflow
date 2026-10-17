@@ -1294,6 +1294,9 @@ pub struct Coordinator {
     pub(crate) engine_mgr: EngineManager,
     /// redb 持久化存储（用户词/临时词/词频/影子规则）；None=无持久化（headless 测试）。
     pub(crate) store: Option<Arc<Store>>,
+    /// 有用户目录却打不开 `userdata.redb`：本次运行学到的词、词频与短语都不会保存。
+    /// 只用于向用户提示（[`Coordinator::notify_store_unavailable`]），绝不据此删除或重建原库。
+    pub(crate) store_unavailable: bool,
     /// 标点转换器（引号左右状态）
     pub(crate) punct: Mutex<PunctuationConverter>,
     /// 智能符号模式待命态（同键连按删中文标点改英文）
@@ -2257,6 +2260,9 @@ impl Coordinator {
         store: Option<Arc<Store>>,
         override_dir: Option<std::path::PathBuf>,
     ) -> Arc<Self> {
+        // 有用户目录而 store 为 None ＝ 打开失败（open_user_store 只 warn 后退化为不落盘）。
+        // 无用户目录（部分 headless 测试）不算失败。
+        let store_unavailable = user_dir.is_some() && store.is_none();
         // 注入 redb Store：码表引擎注册用户词/临时词层，用户词进候选合并。
         // override_dir 为 None 时由 EngineManager 取默认（用户配置目录下的 schema_overrides）。
         let engine_mgr = match override_dir {
@@ -2636,6 +2642,7 @@ impl Coordinator {
             rt: std::sync::RwLock::new(std::sync::Arc::new(bundle)),
             ui_tx,
             engine_mgr,
+            store_unavailable,
             store,
             punct: Mutex::new(punct_conv),
             capslock_hook: Mutex::new(None),
@@ -4678,6 +4685,31 @@ impl Coordinator {
         drop(rt);
         let _ = self.ui_tx.send(UiCommand::ShowToast {
             text,
+            position: ToastPosition::BottomCenter,
+            kind: ToastKind::Error,
+            duration_ms: 8000,
+            accent: None,
+        });
+        true
+    }
+
+    /// 用户数据库是否可用（设置页、Android 宿主据此常驻显示提示）。
+    pub fn user_store_available(&self) -> bool {
+        !self.store_unavailable
+    }
+
+    /// 用户数据库打不开时提示一次（XSIME 吸收计划 §3.2）。
+    ///
+    /// 此前只在日志里 `warn!`，协调器静默退化为不落盘：用户照常打字，学到的词却从此不保存，
+    /// 直到有人翻日志。提示只说后果和该怎么做，不含任何词条内容；原库**不删除、不重建**。
+    pub fn notify_store_unavailable(&self) -> bool {
+        if !self.store_unavailable {
+            return false;
+        }
+        let _ = self.ui_tx.send(UiCommand::ShowToast {
+            text:
+                "用户词库打不开，本次学到的词和短语不会保存\n原文件未改动，请先备份用户目录再排查"
+                    .to_owned(),
             position: ToastPosition::BottomCenter,
             kind: ToastKind::Error,
             duration_ms: 8000,

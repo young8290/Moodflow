@@ -1,0 +1,20 @@
+[package]
+name = "moodflow-market"
+version.workspace = true
+edition.workspace = true
+
+# 插件市场客户端（docs/design/plugin-system.md §7）：签名索引校验、可用更新与撤回、
+# 安装包检查与原子安装。不联网：取索引与下载由宿主做，这里只处理字节。须过 cargo check-android。
+[dependencies]
+moodflow-plugin-api = { path = "../moodflow-plugin-api" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+[dev-dependencies]
+ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
+
+[lints]
+workspace = true

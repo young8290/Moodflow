@@ -1,0 +1,12 @@
+[package]
+name = "moodflow-clipboard"
+version.workspace = true
+edition.workspace = true
+
+# 纯逻辑：剪贴板历史的条目、去重、保留与查找。采集由平台事件注入，存储由调用方落盘。须过 cargo check-android。
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

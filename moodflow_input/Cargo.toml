@@ -25,6 +25,13 @@ members = [
     "crates/moodflow-aux-code",
     "crates/moodflow-punct",
     "crates/moodflow-assoc",
+    "crates/moodflow-buffer",
+    "crates/moodflow-chord",
+    "crates/moodflow-clipboard",
+    "crates/moodflow-manifest",
+    "crates/moodflow-plugin-api",
+    "crates/moodflow-plugin-host",
+    "crates/moodflow-market",
     "crates/moodflow-coordinator",
     "crates/moodflow-webdata",
     "crates/moodflow-rpc",
@@ -71,6 +78,8 @@ anyhow = "1"
 thiserror = "2"
 # Database
 redb = "2"
+# 逐文件 SHA-256（导入包标识、安装数据清单）。纯 Rust。
+sha2 = "0.10"
 # 字素簇分割（UAX #29）。常用字覆盖要能登记「用户看到的一个图形」——⚽️ 是两个码位、
 # 👨‍👩‍👧 是五个、🇨🇳 是两个区域指示符、1️⃣ 是三个，屏幕上都只有一个图形，分辨不出差别的
 # 用户理应都能设。⛔ 别改回自己列举 ZWJ/变体选择符规则：issue #83 的教训就是逐条列举

@@ -1,0 +1,20 @@
+[package]
+name = "moodflow-plugin-host"
+version.workspace = true
+edition.workspace = true
+
+# L1 沙箱插件宿主（ADR 0054）：wasmi 纯解释器执行 WASM，按清单能力放行宿主函数，
+# portable-dispatch：循环分派而非尾调用分派，任何优化级别下都不会因递归爆栈（dev 的依赖是 opt-level 2
+# 但带 debug 断言，尾调用不保证被优化成跳转，死循环插件会把宿主线程的栈耗尽）。
+# 每次调用有执行步数与内存上限，连续超限自动停用。纯 Rust、无 JIT，须过 cargo check-android。
+[dependencies]
+moodflow-plugin-api = { path = "../moodflow-plugin-api" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+wasmi = { version = "2", default-features = false, features = ["std", "validate", "stable", "portable-dispatch"] }
+
+[dev-dependencies]
+wat = "1"
+
+[lints]
+workspace = true

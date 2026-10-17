@@ -41,6 +41,13 @@
 | `moodflow-transfer` | 导入导出/备份还原底座：Bundle（manifest + zip）聚合打包与 Merge 合并策略（编解码在 moodflow-store）；方案包 `.wpkg` 与主题包 `.wtheme` 的格式定义都在这里 | — |
 | `moodflow-quick-input` | 快捷输入的内置候选来源（纯逻辑）：`quick_input.calc` 算式（含幂 `^`）/ `.date` 日期年月 / `.number` 数字金额；另定义 `.repeat`（重复上屏，由协调器实现）的成员 id。开关与优先级 = `mix_modes.members` 的有无与顺序 | — |
 | `moodflow-reverse` | 候选反查：五笔编码/拆字/拼音读音（悬停 tooltip） | — |
+| `moodflow-buffer` | Buffer 上屏前文本工作台（纯逻辑、零依赖）：块编辑、目标绑定与投递授权、两段式投递、容量上限；设计见 `docs/design/buffer.md` | — |
+| `moodflow-chord` | 并击输入（纯逻辑）：键位方案 JSON 格式与校验（草稿/应用两级）、同批与先左后右的结算、组合 → 拼音片段 | — |
+| `moodflow-clipboard` | 剪贴板历史（纯逻辑）：文本/链接条目、去重置顶、收藏、按保留期与条数清理、搜索、JSON 快照；采集由平台事件注入，正文不进日志 | — |
+| `moodflow-manifest` | 安装数据逐文件 SHA-256 清单：打包时生成 `data/manifest.json`（拒收用户库、build/、sync/、符号链接），安装/解包时复核；工具 `moodflow-tools --bin data_manifest` | — |
+| `moodflow-plugin-api` | 插件清单、能力与设置声明（纯数据 + 校验，ADR 0054）：逐键扩展点不得联网、内容包不得声明代码能力、升级新增能力需重新同意 | — |
+| `moodflow-plugin-host` | L1 沙箱插件宿主（wasmi 纯解释器，portable-dispatch）：按能力放行 `mf` 宿主函数、加载时检查导入、每次调用限步数与内存、连续失败自动停用、密码框/无痕等场景不调用插件 | — |
+| `moodflow-market` | 插件市场客户端（不联网，只处理字节）：Ed25519 签名索引校验、可用更新与撤回、安装包哈希/身份/解压安全/安全资产检查、按版本原子安装与卸载 | — |
 | `moodflow-aux-code` | 辅助码过滤：拼音后追加字形辅助码，按字形裁减候选字词（**出厂关闭**，`schema.pinyin.aux_code.enabled`） | [AGENTS.md](moodflow_input/crates/moodflow-aux-code/AGENTS.md) |
 | `moodflow-punct` | 标点转换纯逻辑（中英标点/全半角/数字后智能） | — |
 | `moodflow-transform` | 文本变换：标点、全角、自动配对、简繁 | — |

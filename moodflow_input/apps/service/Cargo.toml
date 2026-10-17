@@ -28,6 +28,7 @@ moodflow-engine = { path = "../../crates/moodflow-engine" }
 moodflow-ui = { path = "../../crates/moodflow-ui" }
 moodflow-theme = { path = "../../crates/moodflow-theme" }
 moodflow-rpc = { path = "../../crates/moodflow-rpc" }
+moodflow-transfer = { path = "../../crates/moodflow-transfer" }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 tracing-appender = { workspace = true }

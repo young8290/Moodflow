@@ -768,7 +768,14 @@ function Verify-DistData ([string]$outdir = $BuildDir) {
         ErrMsg "请排查 gen-data 的下载/生成 (词库源、网络、gen_opencc/gen_dict)。"
         return $false
     }
-    Say "发布数据校验通过 ✓"; return $true
+    Say "发布数据校验通过 ✓"
+    # 逐文件 SHA-256 清单 (XSIME 吸收计划 §3.4): 安装/解包时据此复核。
+    # 用户库、build\、sync\、符号链接混进出厂数据会让这一步失败。
+    Push-Location $ProjectRoot
+    try { cargo run -q -p moodflow-tools --bin data_manifest -- build $data; $manifestOk = ($LASTEXITCODE -eq 0) }
+    finally { Pop-Location }
+    if (-not $manifestOk) { ErrMsg "生成数据清单失败 (出厂数据被污染? 见上方输出)"; return $false }
+    return $true
 }
 
 # ---------- 全构建 (1 / d1) ----------

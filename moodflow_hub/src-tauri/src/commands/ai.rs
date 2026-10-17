@@ -309,6 +309,9 @@ impl From<SecretsStoreError> for UiError {
             SecretsStoreError::Invalid(SecretsError::BadUrl(_) | SecretsError::EmptyModel(_)) => {
                 UiError::new("ai.config_invalid", "error.ai_config_invalid")
             }
+            SecretsStoreError::Invalid(SecretsError::KeyRequired(_)) => {
+                UiError::new("ai.key_required", "error.ai_key_required")
+            }
             SecretsStoreError::Unsupported => {
                 UiError::new("ai.secrets_unsupported", "error.ai_secrets_unsupported")
             }
@@ -437,6 +440,8 @@ mod tests {
     fn invalid_config_maps_to_a_user_message() {
         let e: UiError = SecretsStoreError::Invalid(SecretsError::BadUrl("Jev")).into();
         assert_eq!(e.message_key, "error.ai_config_invalid");
+        let e: UiError = SecretsStoreError::Invalid(SecretsError::KeyRequired("大模型")).into();
+        assert_eq!(e.message_key, "error.ai_key_required");
         let e: UiError = SecretsStoreError::Unsupported.into();
         assert_eq!(e.code, "ai.secrets_unsupported");
     }

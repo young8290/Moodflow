@@ -8,6 +8,7 @@ pub mod charclass;
 pub mod charset_registry;
 pub mod common;
 pub mod filter;
+pub mod matrix;
 pub mod shadow;
 pub mod store;
 

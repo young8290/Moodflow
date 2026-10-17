@@ -24,6 +24,7 @@ pub mod scorer;
 pub mod shuangpin;
 pub mod spelling;
 pub mod syllable;
+pub mod t9;
 pub mod viterbi;
 
 use crate::engine::{BoundaryResolution, ConvertOptions, ConvertResult, Engine, EngineType};

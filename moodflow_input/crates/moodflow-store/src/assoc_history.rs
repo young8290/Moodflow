@@ -12,7 +12,13 @@
 use crate::freq::{FreqRecord, dec_freq, enc_freq};
 use crate::store::{ASSOC_HIST, Store};
 use crate::user_words::{enc_key, now_secs, split_key};
-use redb::ReadableTable;
+use redb::{ReadableTable, ReadableTableMetadata};
+
+/// 每个上文最多记几条联想词（与 XSIME 一致）。超出时淘汰 (count, last_used) 最低的。
+pub const MAX_PER_CONTEXT: usize = 8;
+/// 整张表的条数上限（约等于 XSIME 的 600 个上文 × 8）。超出时按最久未用淘汰到 90%。
+/// 此前这张表只增不减，常年使用会无限增长（XSIME 吸收计划 §3.8）。
+pub const MAX_TOTAL: u64 = 4_800;
 
 impl Store {
     /// 记一次「在 `context` 之后选了联想 `word`」：count++、last_used = now。
@@ -34,6 +40,10 @@ impl Store {
                     key.as_str(),
                     enc_freq(count.saturating_add(1), now).as_slice(),
                 )?;
+                prune_context(&mut t, schema, context, &key)?;
+                if t.len()? > MAX_TOTAL {
+                    prune_total(&mut t, &key)?;
+                }
             }
             txn.commit()?;
             Ok(())
@@ -181,6 +191,60 @@ impl Store {
     }
 }
 
+/// 同一上文超过 [`MAX_PER_CONTEXT`] 条时，淘汰 (count, last_used) 最低的；刚选的那条不淘汰。
+fn prune_context(
+    t: &mut redb::Table<&str, &[u8]>,
+    schema: &str,
+    context: &str,
+    keep: &str,
+) -> anyhow::Result<()> {
+    let scan = format!("{schema}\u{0}{context}\u{0}");
+    let mut rows: Vec<(String, FreqRecord)> = Vec::new();
+    for item in t.range(scan.as_str()..)? {
+        let (k, v) = item?;
+        let key = k.value();
+        if !key.starts_with(&scan) {
+            break;
+        }
+        if let Some(rec) = dec_freq(v.value()) {
+            rows.push((key.to_string(), rec));
+        }
+    }
+    if rows.len() <= MAX_PER_CONTEXT {
+        return Ok(());
+    }
+    rows.sort_by(|a, b| {
+        (b.0 == keep, b.1.count, b.1.last_used).cmp(&(a.0 == keep, a.1.count, a.1.last_used))
+    });
+    for (k, _) in rows.into_iter().skip(MAX_PER_CONTEXT) {
+        t.remove(k.as_str())?;
+    }
+    Ok(())
+}
+
+/// 整表超过 [`MAX_TOTAL`] 时按最久未用淘汰到 90%；刚选的那条不淘汰。
+fn prune_total(t: &mut redb::Table<&str, &[u8]>, keep: &str) -> anyhow::Result<()> {
+    let mut rows: Vec<(i64, String)> = Vec::new();
+    for item in t.iter()? {
+        let (k, v) = item?;
+        if k.value() == keep {
+            continue;
+        }
+        let last = dec_freq(v.value()).map_or(0, |r| r.last_used);
+        rows.push((last, k.value().to_string()));
+    }
+    let target = (MAX_TOTAL * 9 / 10) as usize;
+    let total = rows.len() + 1;
+    if total <= target {
+        return Ok(());
+    }
+    rows.sort();
+    for (_, k) in rows.into_iter().take(total - target) {
+        t.remove(k.as_str())?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -209,6 +273,58 @@ mod tests {
         assert_eq!(got, vec![("荷枪实弹".into(), 3), ("荷花".into(), 1)]);
         assert_eq!(s.assoc_history("wb", "荷", 1).unwrap().len(), 1);
         assert!(s.list_data_schemas().unwrap().contains(&"py".to_string()));
+    }
+
+    #[test]
+    fn each_context_keeps_at_most_eight_and_never_drops_the_new_pick() {
+        let s = store("cap_ctx");
+        for i in 0..MAX_PER_CONTEXT {
+            for _ in 0..3 {
+                s.record_assoc_pick("wb", "我", &format!("我{i}")).unwrap();
+            }
+        }
+        s.record_assoc_pick("wb", "我", "我新").unwrap();
+        let got = s.assoc_history("wb", "我", 0).unwrap();
+        assert_eq!(got.len(), MAX_PER_CONTEXT);
+        assert!(
+            got.iter().any(|(w, _)| w == "我新"),
+            "刚选的即使次数最少也保留"
+        );
+        // 其他上文不受影响
+        s.record_assoc_pick("wb", "你", "你好").unwrap();
+        assert_eq!(s.assoc_history("wb", "你", 0).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn whole_table_is_pruned_by_least_recent_use() {
+        let s = store("cap_total");
+        // 批量导入超过上限的旧记录（导入本身不剪枝，下一次选择时剪）。
+        let mut lines = String::new();
+        for i in 0..=MAX_TOTAL {
+            lines.push_str(&format!(
+                "{{\"context\":\"c{i}\",\"text\":\"w{i}\",\"count\":1,\"last_used\":{i}}}\n"
+            ));
+        }
+        s.import_assoc_history_jsonl("wb", &lines).unwrap();
+        s.record_assoc_pick("wb", "新", "新词").unwrap();
+        let left = s.export_assoc_history_jsonl("wb").unwrap().lines().count() as u64;
+        assert!(left <= MAX_TOTAL * 9 / 10, "剪到 90% 以内，实际 {left}");
+        assert_eq!(
+            s.assoc_history("wb", "新", 0).unwrap().len(),
+            1,
+            "刚选的保留"
+        );
+        assert!(
+            s.assoc_history("wb", "c0", 0).unwrap().is_empty(),
+            "最久未用的先淘汰"
+        );
+        assert_eq!(
+            s.assoc_history("wb", &format!("c{MAX_TOTAL}"), 0)
+                .unwrap()
+                .len(),
+            1,
+            "最近用过的保留"
+        );
     }
 
     #[test]
