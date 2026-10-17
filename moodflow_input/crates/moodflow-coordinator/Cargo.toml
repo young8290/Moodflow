@@ -31,6 +31,8 @@ moodflow-softkeyboard = { path = "../moodflow-softkeyboard" }
 moodflow-reverse = { path = "../moodflow-reverse" }
 moodflow-aux-code = { path = "../moodflow-aux-code" }
 moodflow-punct = { path = "../moodflow-punct" }
+# 剪贴板历史（纯逻辑，handle_clipboard 接入）
+moodflow-clipboard = { path = "../moodflow-clipboard" }
 # Moodflow：核心侧 MFP 服务端（纯 Rust，无 C 依赖，不影响 Android 闭包）
 moodflow-tap = { path = "../moodflow-tap" }
 unicode-segmentation = { workspace = true }

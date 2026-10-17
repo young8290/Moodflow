@@ -28,6 +28,7 @@ pub mod handle_assoc;
 pub mod handle_aux_code;
 pub mod handle_candidate;
 pub mod handle_charset;
+pub(crate) mod handle_clipboard;
 pub mod handle_cmdbar;
 #[cfg(ext_presenter)]
 pub mod handle_cmdbar_macos;

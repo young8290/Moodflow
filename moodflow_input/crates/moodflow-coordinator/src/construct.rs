@@ -116,6 +116,9 @@ impl Coordinator {
         // 不依赖 IME 激活——全局热键的语义就是在本输入法未激活时也生效。
         coordinator.sync_global_hotkeys();
 
+        // 剪贴板历史监听（clipboard.enabled）与插件注册表。
+        coordinator.sync_extensions();
+
         // CapsLock 全局钩子：仅当 keys.session_actions 里配了 capslock 才安装。
         // （动作消费线程已在内部构造函数里起好，见那里。）
         coordinator.sync_capslock_hook();

@@ -2011,6 +2011,8 @@ pub struct Coordinator {
     /// 按应用方案（compat.toml `schema`）的运行时态：全局方案、`@remember` 记忆表等，
     /// 见 `coordinator/app_schema.rs`。
     pub(crate) app_schema: app_schema::AppSchemaState,
+    /// 剪贴板历史（`handle_clipboard`）。
+    pub(crate) clipboard: crate::handle_clipboard::ClipboardState,
 }
 
 /// 拆字资产当前生效状态：库的解析后绝对路径 + 已下发的字根字体（路径, DWrite 家族名）。
@@ -2790,6 +2792,10 @@ impl Coordinator {
             input_diag_frozen: std::sync::atomic::AtomicBool::new(false),
             input_diag_topmost: std::sync::atomic::AtomicBool::new(true),
             app_schema: app_schema::AppSchemaState::new(global_schema_init, app_schemas_init),
+            clipboard: crate::handle_clipboard::ClipboardState::open(
+                user_dir.as_deref(),
+                &config.clipboard,
+            ),
         });
         // CapsLock 钩子的动作消费线程。钩子回调只做非阻塞投递（它超时会被系统静默移除且
         // 无从察觉），真正的动作在这里执行，可安全加锁。未装钩子时它一直阻塞在 channel 上。
@@ -4319,6 +4325,7 @@ impl Coordinator {
                 // 方向由线程自己在下一拍读到配置后退出，不必在这里管。
                 self.ensure_fullscreen_watch();
                 self.sync_global_hotkeys(); // keys.global_hotkeys 增删/改键即时生效
+                self.sync_extensions(); // 剪贴板历史开关/上限、插件启用列表即时生效
                 self.sync_direct_switch_hotkey(); // keys.activate_ime 改键/清空即时生效
                 // capslock 绑定的增删即时生效：配上才装全局钩子，删掉立刻卸载。
                 self.sync_capslock_hook();
@@ -6823,6 +6830,9 @@ impl Coordinator {
             UiEvent::CandidateFlipped(v) => self
                 .candidate_flipped
                 .store(v, std::sync::atomic::Ordering::Relaxed),
+            UiEvent::ClipboardChanged { text, sensitive } => {
+                self.on_clipboard_changed(&text, sensitive)
+            }
         }
     }
 
@@ -7355,7 +7365,7 @@ impl Coordinator {
     ///
     /// (0,0) 当哨兵而非合法坐标：主显示器左上角虽是合法位置，但宿主「没有坐标」时报的也是它，
     /// 两者不可区分；判为无效只损失「光标恰在主屏左上角」这一像素级罕见情形。
-    fn resolve_caret_for_ui(&self, cx: i32, cy: i32, ch: i32) -> (i32, i32, i32, bool) {
+    pub(crate) fn resolve_caret_for_ui(&self, cx: i32, cy: i32, ch: i32) -> (i32, i32, i32, bool) {
         let valid = Self::caret_is_valid(cx, cy, ch);
         let mut lv = self
             .last_valid_caret
@@ -7808,6 +7818,10 @@ impl Coordinator {
             }
             "toggle_toolbar" => {
                 self.toggle_toolbar();
+                true
+            }
+            "clipboard_panel" => {
+                self.show_clipboard_panel();
                 true
             }
             "open_settings" => {

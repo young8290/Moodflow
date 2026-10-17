@@ -1333,6 +1333,7 @@ dependencies = [
  "moodflow-aux-code",
  "moodflow-bridge",
  "moodflow-candidate",
+ "moodflow-clipboard",
  "moodflow-cmdbar",
  "moodflow-config",
  "moodflow-dict",

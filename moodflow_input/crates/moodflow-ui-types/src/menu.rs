@@ -63,6 +63,14 @@ pub enum CandidateOp {
 /// 功能主菜单命令（对齐 Go 统一菜单）
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MenuCmd {
+    /// 剪贴板面板：粘贴第 N 条（序号对应打开面板时的快照）。
+    ClipboardPaste(u16),
+    /// 剪贴板面板：收藏 / 取消收藏第 N 条。
+    ClipboardTogglePin(u16),
+    /// 剪贴板面板：删除第 N 条。
+    ClipboardRemove(u16),
+    /// 剪贴板面板：清空未收藏的条目。
+    ClipboardClear,
     /// 切到英文模式
     SchemaEnglish,
     /// 选择第 N 个输入方案
@@ -249,7 +257,8 @@ impl MenuKind {
     /// 4000+ 明暗｜5000+ 候选窗首显｜6000+ 初始中英｜7000+ 初始标点｜8000+ 诊断 HUD 分区｜
     /// 9000+ 自动配对｜10000+ 语言栏图标角标形状｜11000+ 软键盘面｜12000+ 候选窗定位｜
     /// 13000+ 忽略宿主关闭输入法｜14000+ 密码框强制英文｜15000+ 按应用方案｜
-    /// 16000+ 按应用状态气泡定位｜17000+ 按应用状态气泡兜底位置｜18000+ 按应用整条规则启用 / 禁用。
+    /// 16000+ 按应用状态气泡定位｜17000+ 按应用状态气泡兜底位置｜18000+ 按应用整条规则启用 / 禁用｜
+    /// 19000+ 剪贴板粘贴｜20000+ 剪贴板收藏｜21000+ 剪贴板删除。
     pub fn to_menu_id(self) -> i32 {
         match self {
             MenuKind::Separator | MenuKind::Submenu | MenuKind::Label => 0,
@@ -299,6 +308,10 @@ impl MenuKind {
                 MenuCmd::TooltipCommitSection => 134,
                 MenuCmd::TooltipCopyLine => 135,
                 MenuCmd::TooltipCommitLine => 136,
+                MenuCmd::ClipboardClear => 137,
+                MenuCmd::ClipboardPaste(i) => 19000 + i as i32,
+                MenuCmd::ClipboardTogglePin(i) => 20000 + i as i32,
+                MenuCmd::ClipboardRemove(i) => 21000 + i as i32,
                 MenuCmd::MoodflowTogglePause => 900,
                 MenuCmd::MoodflowRetryHub => 901,
                 MenuCmd::MoodflowToggleEnabled => 902,
@@ -372,6 +385,10 @@ impl MenuKind {
             134 => MenuCmd::TooltipCommitSection,
             135 => MenuCmd::TooltipCopyLine,
             136 => MenuCmd::TooltipCommitLine,
+            137 => MenuCmd::ClipboardClear,
+            19000..=19999 => MenuCmd::ClipboardPaste((id - 19000) as u16),
+            20000..=20999 => MenuCmd::ClipboardTogglePin((id - 20000) as u16),
+            21000..=21999 => MenuCmd::ClipboardRemove((id - 21000) as u16),
             900 => MenuCmd::MoodflowTogglePause,
             901 => MenuCmd::MoodflowRetryHub,
             902 => MenuCmd::MoodflowToggleEnabled,
