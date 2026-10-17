@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 在无 root 的机器上搭 wind_linux（Fcitx5 addon）的开发 / 测试环境。幂等，可重复执行。
+# 在无 root 的机器上搭 moodflow_linux（Fcitx5 addon）的开发 / 测试环境。幂等，可重复执行。
 #
 # 做法：apt-get download 取 .deb → dpkg -x 解到用户前缀，**不往 /usr 写任何东西**。
 # 依赖闭包按 `apt-cache depends --recurse` 求，只下本机「未安装」的那部分。
@@ -7,13 +7,13 @@
 #
 # 用法：
 #   scripts/linux/bootstrap-sdk.sh            # 装到默认前缀
-#   WIND_LINUX_SDK=/some/dir scripts/linux/bootstrap-sdk.sh
+#   MOODFLOW_LINUX_SDK=/some/dir scripts/linux/bootstrap-sdk.sh
 #   eval "$(scripts/linux/bootstrap-sdk.sh env)"   # 只打印环境变量（供 shell 引入）
 #
-# 装好后的环境变量由 `env` 子命令打印；scripts/linux/e2e.sh 与 wind_linux 的构建会自行 source。
+# 装好后的环境变量由 `env` 子命令打印；scripts/linux/e2e.sh 与 moodflow_linux 的构建会自行 source。
 set -euo pipefail
 
-SDK="${WIND_LINUX_SDK:-$HOME/.local/opt/fcitx5-sdk}"
+SDK="${MOODFLOW_LINUX_SDK:-$HOME/.local/opt/fcitx5-sdk}"
 ROOT="$SDK/root"          # dpkg -x 的解包根（内含 usr/…）
 DEBS="$SDK/debs"          # 下载的 .deb 缓存
 VENV="$SDK/venv"          # cmake 所在的 python venv
@@ -28,7 +28,7 @@ SEED_PKGS=(
     libxcb1-dev libxcb-shm0-dev libxcb-render0-dev libxcb-shape0-dev
 )
 
-# 让 Xvfb-wind 找得到 xkbcomp（见下文「Xvfb 启动时」一段）。/tmp 重启即清，故每次都补。
+# 让 Xvfb-moodflow 找得到 xkbcomp（见下文「Xvfb 启动时」一段）。/tmp 重启即清，故每次都补。
 xvfb_shim() {
     [[ -L /tmp/wlx || ! -e /tmp/wlx ]] && ln -sfn "$ROOT/usr/bin" /tmp/wlx
 }
@@ -36,7 +36,7 @@ xvfb_shim() {
 print_env() {
     local lib="$ROOT/usr/lib/$MULTIARCH"
     cat <<EOF
-export WIND_LINUX_SDK="$SDK"
+export MOODFLOW_LINUX_SDK="$SDK"
 export PATH="$SDK/bin:$VENV/bin:$ROOT/usr/bin:\$PATH"
 export PKG_CONFIG_PATH="$lib/pkgconfig:$ROOT/usr/lib/pkgconfig:$ROOT/usr/share/pkgconfig\${PKG_CONFIG_PATH:+:\$PKG_CONFIG_PATH}"
 export CMAKE_PREFIX_PATH="$ROOT/usr\${CMAKE_PREFIX_PATH:+:\$CMAKE_PREFIX_PATH}"
@@ -123,9 +123,9 @@ fi
 # Xvfb 启动时按写死的 `/usr/bin` 去找 xkbcomp（键盘表编译器），没 root 装不到那里。
 # 复制一份 Xvfb，把那个字符串原地改成同样 8 字节的 `/tmp/wlx`，再由 `xvfb_shim` 把
 # /tmp/wlx 软链到解包根的 usr/bin。xkb 数据目录走 Xvfb 自带的 `-xkbdir` 参数，不用改。
-if [[ -x "$ROOT/usr/bin/Xvfb" && ! -x "$SDK/bin/Xvfb-wind" ]]; then
+if [[ -x "$ROOT/usr/bin/Xvfb" && ! -x "$SDK/bin/Xvfb-moodflow" ]]; then
     mkdir -p "$SDK/bin"
-    python3 - "$ROOT/usr/bin/Xvfb" "$SDK/bin/Xvfb-wind" <<'PY'
+    python3 - "$ROOT/usr/bin/Xvfb" "$SDK/bin/Xvfb-moodflow" <<'PY'
 import sys
 src, dst = sys.argv[1], sys.argv[2]
 data = open(src, "rb").read()
@@ -133,7 +133,7 @@ old, new = b"\0/usr/bin\0", b"\0/tmp/wlx\0"
 assert data.count(old) >= 1, "Xvfb 里没找到 /usr/bin 字符串，版本变了？"
 open(dst, "wb").write(data.replace(old, new))
 PY
-    chmod +x "$SDK/bin/Xvfb-wind"
+    chmod +x "$SDK/bin/Xvfb-moodflow"
 fi
 
 # ── 5. cmake + e2e 用的 DBus 客户端库（venv + pip）─────────────────────

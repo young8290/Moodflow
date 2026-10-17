@@ -133,7 +133,7 @@ direct = true         # 可选；不写 = 跟随全局
 - 非 UTF-8 文件：日志明确告警「请转存为 UTF-8」并产出空表。全仓无 GBK 解码依赖，不为这一个文件引入 `encoding_rs`；
 - 文档写明两条。
 
-## 9. 设置端（wind-setting）
+## 9. 设置端（moodflow-setting）
 
 - 全局：「输入 → 候选行为 → 辅助码」下加「直接辅助码」一行，`enabled_when` 启用辅助码；悬停提示「仅双拼」；
 - 方案：辅助码卡片加 R8.1 勾选行「本方案直接辅助码」，**只在双拼方案显示**；计入「全部恢复跟随」与「已自定义 N 项」；
@@ -144,14 +144,14 @@ direct = true         # 可选；不写 = 跟随全局
 | 期 | 仓 | 内容 | 提交 |
 |---|---|---|---|
 | 1 | 主仓 | 配置；码表一行多码；切分、筛选、排序、上屏；组码区 | `9af1e83c`、`d49a8f6b`、`0d693d91`、`9cc246d3`、`a3867b6b`、`2c79ed58`、`ce71d704`；审查修复 `ccb85297`、`7a31c45e`、`e0f5ca65`、`d3faec1e` |
-| 2 | wind-setting | 设置端两行 | wind-setting `212acf8` |
-| 3 | 文档站 | 拼音设置页「直接辅助码」小节、配置参考 `direct`、码表格式 | WindInputDocs `bc8d1be` |
+| 2 | moodflow-setting | 设置端两行 | moodflow-setting `212acf8` |
+| 3 | 文档站 | 拼音设置页「直接辅助码」小节、配置参考 `direct`、码表格式 | MoodflowDocs `bc8d1be` |
 
 GH#129 / t181 回帖在发版后。
 
 ## 11. 验收
 
-**纯函数单测**（wind-aux-code）：切分（奇 / 偶 / < 3 键 / 含 `'` / 前缀不成音节）；§5 匹配表逐格一例；
+**纯函数单测**（moodflow-aux-code）：切分（奇 / 偶 / < 3 键 / 含 `'` / 前缀不成音节）；§5 匹配表逐格一例；
 `max_phrase_len`；§6 排序三种情况与无命中；一行多码与非 UTF-8 告警。
 
 **协调器**（小码表夹具）：`direct` 关 / `enabled` 关 / 全拼 / 引导键态中四种不生效；选中命中项组码清空、
@@ -170,9 +170,9 @@ GH#129 / t181 回帖在发版后。
 
 ## 12. 实施记录（第 1 期）与本文的出入
 
-**落点**：纯逻辑 `wind-aux-code/src/direct.rs`（切分 / 资格 / 任意字匹配 / 并入，常量
+**落点**：纯逻辑 `moodflow-aux-code/src/direct.rs`（切分 / 资格 / 任意字匹配 / 并入，常量
 `ODD_KEEP_TOP_MIN_SYLLABLES = 3`、`EVEN_KEEP_FULL_COVER = 2`）；协调器
-`wind-coordinator/src/handle_direct_aux.rs`（`build_candidates` 在 `apply_shadow` 前调
+`moodflow-coordinator/src/handle_direct_aux.rs`（`build_candidates` 在 `apply_shadow` 前调
 `apply_direct_aux`）；双拼整音节判定 `Engine::shuangpin_full_syllable_count`；配置
 `AuxCodeGlobal::direct` / `AuxCodeSpec::direct` → `AuxCodeSettings::direct`（已折叠「enabled 总闸 + 只认
 双拼」，全拼写了告警一次）；`getConfig.followedBehavior` 补 `auxDirect` 供第 2 期。

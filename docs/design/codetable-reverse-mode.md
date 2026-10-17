@@ -23,7 +23,7 @@
 
 - 配置：`schema.codetable.wildcard_single_only`（bool，默认 `false`）。
 - 作用面：行内通配、B 的反查模式（两处都走 `convert_wildcard`）。
-- 判据：候选 `text` 恰好 1 个字素簇（`wind_candidate::single_markable_char` / UAX #29，**禁用 `chars().count()`**，见 issue #83）。
+- 判据：候选 `text` 恰好 1 个字素簇（`moodflow_candidate::single_markable_char` / UAX #29，**禁用 `chars().count()`**，见 issue #83）。
 - 时机：在引擎 `convert_wildcard` 内、**截断上限之前**过滤，否则首批 100 条被词组占满、单字不足。
   `WILDCARD_RESULT_LIMIT`/首批上限对过滤后的数量计。
 - 混输方案：只作用于通配那一侧（`merge_wildcard` 的 wildcard 分支），字面 `convert` 与拼音候选不动。
@@ -95,9 +95,9 @@
 
 ## 5. 设置与文档
 
-- wind-config：`wildcard_single_only`、`lookup_disabled_dicts`（均 schema.codetable 下）、`input.reverse.{enabled,candidate_layout}`、`BoundAction::Reverse`。（已改，见 §9：`enabled` 已删，`lookup_disabled_dicts` 挪到 `input.reverse`。）
-- wind-setting：manifest 三处新项（`dev.sh sg/st` 生成并跑测试）；注意 label 会撞拼音检索表（memory）。
-- WindInputDocs：`codetable.mdx` 通配输入节补 A/C；新增反查模式说明；`pnpm lint`。
+- moodflow-config：`wildcard_single_only`、`lookup_disabled_dicts`（均 schema.codetable 下）、`input.reverse.{enabled,candidate_layout}`、`BoundAction::Reverse`。（已改，见 §9：`enabled` 已删，`lookup_disabled_dicts` 挪到 `input.reverse`。）
+- moodflow-setting：manifest 三处新项（`dev.sh sg/st` 生成并跑测试）；注意 label 会撞拼音检索表（memory）。
+- MoodflowDocs：`codetable.mdx` 通配输入节补 A/C；新增反查模式说明；`pnpm lint`。
 - `codetable-wildcard.md` 顶部范围声明与 §8 加指向本文的一句。
 - 测试：真实词库（wubi86 / wubi86_pinyin，`wubi86_xzqy` 为未启用样本）验收：
   A（`azz` 仅单字）、B（首位通配、Esc 退出、触发键冲突让位）、C（开关前后 `xzqy` 内字条可见性、普通候选不变）。
@@ -124,7 +124,7 @@
 ### 8.1 实施前读码落定
 
 1. **A「截断之前过滤」用加倍重取实现**：词库层 `DictManager::search_pattern` 自己按 `limit` 分档截断，引擎拿到的已是截断后的列表。
-   不改 wind-dict 的 `DictLayer` 接口，在引擎 `wildcard_query` 内加倍重取：过滤后不够 `limit` 且词库未取尽时 `fetch` ×2 重查，直到够数 / 取尽 / 到硬上限
+   不改 moodflow-dict 的 `DictLayer` 接口，在引擎 `wildcard_query` 内加倍重取：过滤后不够 `limit` 且词库未取尽时 `fetch` ×2 重查，直到够数 / 取尽 / 到硬上限
    `WILDCARD_RESULT_LIMIT`。与生僻字模式「准入下推 + 不足则加大重取」同构；仅单字关时只查一轮，与原实现逐条相同。
    验收串用 `azzz`（`a???` 等长 4066 条、单字 1342、权重前 100 条里只有 38 个单字），不用 `azz`（`a??` 318 条全是单字，测不出截断先后）。
 2. **命名**：本仓「shadow」已专指候选调整，spec 的「影子层」在代码里叫 `DisabledDictLayers`（`codetable/disabled_dicts.rs`），候选标记叫 `Candidate::from_disabled_dict`。

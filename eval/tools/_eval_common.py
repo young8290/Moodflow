@@ -1,4 +1,4 @@
-"""Shared helpers for XinQing's offline evaluation commands."""
+"""Shared helpers for Moodflow's offline evaluation commands."""
 
 from __future__ import annotations
 

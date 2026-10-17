@@ -1,7 +1,7 @@
 # 配置设计规则指引
 
 状态：规则汇编（2026-08）。§R5（受众分级）为已定方向、未全部实施；§R8 已实施（2026-09-25，见 `docs/design/override-presentation.md`）；其余为对现状规则的收拢与固化。
-本文收拢此前散在 `wind-config/AGENTS.md`、`docs/config-key-migration.md`、
+本文收拢此前散在 `moodflow-config/AGENTS.md`、`docs/config-key-migration.md`、
 `docs/architecture/user-override.md`、`docs/redesign/schema-config-layering.md`、
 `docs/archive/SETTINGS_REVAMP_PLAN.md` 等处的配置规则，作为后续功能迭代加配置项时的单一入口。
 细节与本文冲突时，以被引用的专项文档为准并回改本文。
@@ -101,7 +101,7 @@ GUI 一切非 config.toml 落点的写回统一登记 `SideCommitter`，禁止�
 - 不做预设 profile（「新手/高级模式」整体切换）——会重新引入第三层裁决的雷区。
 - 方案对话框内部不做二级分级（对话框已是 advanced 语境）。
 
-## R6 设置 UI 规则（wind-setting）
+## R6 设置 UI 规则（moodflow-setting）
 
 - 折叠机制收敛为两种，其余视为语法糖或冻结项：
   1. **宿主行 + 附属对话框**：宿主控件任意（toggle / select / number），可选置灰条件
@@ -123,7 +123,7 @@ GUI 一切非 config.toml 落点的写回统一登记 `SideCommitter`，禁止�
   5. 设置仓 `uncovered_capability_keys_match_allowlist` → 接进 manifest 或登记
      `UNCOVERED_BY_DESIGN` 并写明理由（判据：写得出理由才登记，写不出就留红）。
 
-## R7 文档规则（WindInputDocs）
+## R7 文档规则（MoodflowDocs）
 
 - 三层结构，各司其职，不互相替代：
   1. start（入门）：面向 common 档，任务导向；

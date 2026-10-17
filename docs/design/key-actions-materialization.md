@@ -3,7 +3,7 @@
 `keys.key_actions` 从「每次加载都由 `trigger_keys` 折算出来的派生表」升级为**唯一真相源**，
 出厂绑定在服务首次启动时一次性写进用户层。此后用户删掉一个绑定就是真的删掉了。
 
-- 落点：`Config::materialize_key_actions()`（`wind-config/src/config.rs`），
+- 落点：`Config::materialize_key_actions()`（`moodflow-config/src/config.rs`），
   服务启动流程 `apps/service/src/main.rs` 的 D3 步调用。
 - 标记：`keys.key_actions_materialized`（版本号，0 = 未物化）。
 - 相关：[key-resolver-unification.md](key-resolver-unification.md)（五c 全局层收编）、
@@ -24,13 +24,13 @@
 | 1 | 出厂绑定住在 L2 | `data/config.toml` 的 `[input.temp_pinyin] trigger_keys = ["backtick"]` |
 | 2 | 每次 `load()` 都折算进 `key_actions` | `migrate_trigger_keys_into_key_actions()`，由 `normalize()` 调用 |
 | 3 | 折算的唯一守卫是 `contains_key` | 它区分不了「用户配过别的」与「**用户删掉了它**」 |
-| 4 | 设置页只写 `key_actions`，从不写 `trigger_keys` | wind-setting `manifest.rs` 的 `build_dialog_button_key_action` |
+| 4 | 设置页只写 `key_actions`，从不写 `trigger_keys` | moodflow-setting `manifest.rs` 的 `build_dialog_button_key_action` |
 
 于是：用户在设置页取消勾选 → 用户层 `key_actions` 里那条**真的被删了** → 下次 `load()` 时
 用户层没写过 `trigger_keys`，深合并回落 L2 的 `["backtick"]` → 折算发现 `key_actions` 里
 没有 `backtick` → **重新插回去**。
 
-「没有变更」来自 wind-setting `state.rs` 的乐观更新：保存成功后 `base_config = current_config`。
+「没有变更」来自 moodflow-setting `state.rs` 的乐观更新：保存成功后 `base_config = current_config`。
 设置页认为自己已经保存成「无 backtick」，而 core 实际生效的是折算复活后的值——**设置页的
 本地状态与 core 的生效值发生认知分裂**，用户再点一次保存就看到「没有变更」。
 
@@ -121,7 +121,7 @@ bug 原样复现。**备份能否带走「我删过它」这个意图，是本�
 
 它降级为**出厂声明处**：设置页的「恢复默认」按钮读的是 `config.getDefaults`
 （`system_preset_value` = L1 ⊕ L2），那条路**不跑 `normalize()`**，所以出厂绑定只在被折算的
-那一侧看得见（wind-setting `manifest.rs::key_action_defaults` 的文档已载明）。删掉 L2 那份，
+那一侧看得见（moodflow-setting `manifest.rs::key_action_defaults` 的文档已载明）。删掉 L2 那份，
 「恢复默认」会变成「全部取消勾选」——而清空 `trigger_keys` 正是 core 认定的「禁用该功能」。
 
 ## 5. 范围
@@ -136,7 +136,7 @@ bug 原样复现。**备份能否带走「我删过它」这个意图，是本�
 
 ### Android
 
-`wind-mobile` 不走 `apps/service/src/main.rs`，**不跑物化**，标记恒为 0 ⇒ 折算照旧，行为与
+`moodflow-mobile` 不走 `apps/service/src/main.rs`，**不跑物化**，标记恒为 0 ⇒ 折算照旧，行为与
 本次改动前完全一致。移动端没有「设置页删触发键」这个入口，暴露面小；要补钩子是独立话题。
 守门测试 `unmaterialized_config_still_folds_trigger_keys` 锁住这条路径不被误删。
 
@@ -148,7 +148,7 @@ bug 原样复现。**备份能否带走「我删过它」这个意图，是本�
 
 ## 7. 守门测试
 
-均在 `wind-config/src/config.rs` 的 `mod tests`：
+均在 `moodflow-config/src/config.rs` 的 `mod tests`：
 
 | 测试 | 锁住什么 |
 |---|---|
@@ -159,6 +159,6 @@ bug 原样复现。**备份能否带走「我删过它」这个意图，是本�
 | `already_materialized_only_trusts_explicit_version` | 幂等判据只认显式版本号，不做「看起来像迁过了」的推断 |
 
 ⚠️ `materialize_key_actions()` 本身**不可直接单测**：它依赖 `user_config_dir()`，直接测会写
-用户真实的 `%APPDATA%\WindInput\config.toml`（本仓已有前科：`cargo test -p wind-coordinator`
+用户真实的 `%APPDATA%\Moodflow\config.toml`（本仓已有前科：`cargo test -p moodflow-coordinator`
 曾真写 `schema.active`）。**本函数会删键，代价比那次更大。** 故判定抽成纯函数
 `materialize_into` / `already_materialized`，IO 留在外层——与 `prune_redundant` 同一策略。

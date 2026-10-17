@@ -1,0 +1,75 @@
+[package]
+name = "moodflow-coordinator"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+moodflow-utils = { path = "../moodflow-utils" }
+moodflow-ipc = { path = "../moodflow-ipc" }
+moodflow-bridge = { path = "../moodflow-bridge" }
+moodflow-config = { path = "../moodflow-config" }
+moodflow-host = { path = "../moodflow-host" }
+moodflow-store = { path = "../moodflow-store" }
+moodflow-dict = { path = "../moodflow-dict" }
+# ⚠ 勿加 moodflow-transfer/fontdb：它们随 webdata 独立进了 moodflow-webdata（依赖方向
+# webdata → coordinator），是 Android 闭包免 C 依赖（check-android 免 NDK）的关键。
+moodflow-engine = { path = "../moodflow-engine" }
+moodflow-assoc = { path = "../moodflow-assoc" }
+moodflow-candidate = { path = "../moodflow-candidate" }
+moodflow-transform = { path = "../moodflow-transform" }
+moodflow-theme = { path = "../moodflow-theme" }
+# 表现层协议类型（UiCommand/UiEvent 等）；数据类型一律从这里引，moodflow-ui 只供
+# 桌面构造路径的运行期能力（UiManager/剪贴板/macOS forwarder），由 desktop-ui
+# feature 门控——`--no-default-features` 即 headless/Android 形态。
+moodflow-ui-types = { path = "../moodflow-ui-types" }
+moodflow-ui = { path = "../moodflow-ui", optional = true }
+moodflow-cmdbar = { path = "../moodflow-cmdbar" }
+moodflow-phrase = { path = "../moodflow-phrase" }
+moodflow-keys = { path = "../moodflow-keys" }
+moodflow-quick-input = { path = "../moodflow-quick-input" }
+moodflow-softkeyboard = { path = "../moodflow-softkeyboard" }
+moodflow-reverse = { path = "../moodflow-reverse" }
+moodflow-aux-code = { path = "../moodflow-aux-code" }
+moodflow-punct = { path = "../moodflow-punct" }
+# Moodflow：核心侧 MFP 服务端（纯 Rust，无 C 依赖，不影响 Android 闭包）
+moodflow-tap = { path = "../moodflow-tap" }
+unicode-segmentation = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }
+chrono = "0.4"
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+# Moodflow：局部追加 StationsAndDesktops，判断输入桌面是不是安全桌面（moodflow.rs）
+windows = { workspace = true, features = ["Win32_System_StationsAndDesktops"] }
+# DirectSwitchHotkeys 注册表同步（direct_switch.rs）
+winreg = "0.52"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# 系统明暗探测（theme_style.rs 读全局偏好 AppleInterfaceStyle）
+core-foundation-sys = "0.8"
+
+[features]
+default = ["desktop-ui"]
+# 桌面渲染路径：UiManager/剪贴板直通/macOS forwarder。关掉即 headless/Android
+# 形态——生产构造器 `new` 不可用，走 `new_headless_with_ui` + 注入 HostServices。
+desktop-ui = ["dep:moodflow-ui"]
+# Linux 外部宿主（Fcitx5 addon）形态：见 build.rs 的 `ext_presenter` 别名。默认关。
+linux-host = ["desktop-ui", "moodflow-ui/linux-host", "moodflow-bridge/linux-host"]
+
+[dev-dependencies]
+# tests/ 的数据域 RPC 断言经 moodflow-webdata（dev 环允许）
+moodflow-webdata = { path = "../moodflow-webdata" }
+moodflow-config = { path = "../moodflow-config" }
+moodflow-host = { path = "../moodflow-host" }
+moodflow-keys = { path = "../moodflow-keys" }
+moodflow-ui-types = { path = "../moodflow-ui-types" }
+moodflow-bridge = { path = "../moodflow-bridge" }
+moodflow-ipc = { path = "../moodflow-ipc" }
+# Moodflow：tests/moodflow_tap.rs 扮演 Hub 收发 MFP 帧
+mfp = { path = "../../../crates/mfp" }
+
+[lints]
+workspace = true

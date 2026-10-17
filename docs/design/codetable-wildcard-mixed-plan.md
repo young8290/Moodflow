@@ -6,7 +6,7 @@
 
 **Architecture:** 引擎侧 `MixedEngine::convert_wildcard` = 字面 `convert(input)` ⊕ `primary.convert_wildcard(pattern)`，在新函数 `merge_wildcard` 里按来源分口径去重、按「通配等长 → 字面 → 通配更长」的存活次序带拼音保底截断；新增 `Engine::wildcard_code_length`（混输取主码表码长，**不**代理 `max_code_length`）与 `Engine::wildcard_mixes_pinyin`。显示序：`Candidate` 新增 `is_wildcard` 标记，`source_tier` 把「通配 + 等长」的码表候选放进档 0（与码表精确同档），非通配候选的档位逐字不变。协调器：`wildcard_lead_yields` 在混输下首位一律让位、`wildcard_pattern` 混输超码长整串字面、新增 `wildcard_pattern_of(state)` 在拼音分段续转态给 `None`，`build_candidates` 把分段续转分支排到通配分支之前。
 
-**Tech Stack:** Rust workspace（wind-candidate / wind-engine / wind-coordinator）+ wind-setting 仓（设置说明）+ WindInputDocs 仓（文档站）
+**Tech Stack:** Rust workspace（moodflow-candidate / moodflow-engine / moodflow-coordinator）+ moodflow-setting 仓（设置说明）+ MoodflowDocs 仓（文档站）
 
 **Spec:** `docs/design/codetable-wildcard.md` **§10（五笔拼音混输下的调度，binding）**；§3（行为契约）、§9（修订记录）为背景。
 
@@ -23,10 +23,10 @@
 - 通配码长：新增专门取值 `wildcard_code_length`（混输 = 主码表 `max_code_length`）；**不给 `MixedEngine` 代理 `max_code_length`**（会连带改 `phrase_auto_commit_min_len`，`handle_candidate.rs:1968-1971`）。
 - 记账：码表候选记全码（`main_freq_code`），拼音候选照旧。组合区显示原始缓冲，通配键按原样显示。
 - 关闭通配 ⇒ 一切与现状逐键相同；开通配但串里没有通配键 ⇒ 与关闭时逐键相同。
-- 提交纪律：禁止 `git add -A` / `git add .` / `git commit -a` / `git stash`；新文件先 `git add -- <path>`；提交一律 `git commit -F - --only -- <自己的路径…>`；提交前 `git diff --cached --name-status` 核对暂存区、提交后 `git show --stat HEAD` 核对文件数。**任何提交都不带 `wind_input/Cargo.lock`**。每次提交前 `git -C <仓> branch --show-current` 须为 `feat/wildcard-mixed`。
-- 路径：一切改动都在 `/home/dufeng/develop/windinput/wt-wcmix/{WindInput,wind-setting,WindInputDocs}` 下；**绝不**碰 `/home/dufeng/develop/windinput/{WindInput,wind-setting,WindInputDocs}`。
+- 提交纪律：禁止 `git add -A` / `git add .` / `git commit -a` / `git stash`；新文件先 `git add -- <path>`；提交一律 `git commit -F - --only -- <自己的路径…>`；提交前 `git diff --cached --name-status` 核对暂存区、提交后 `git show --stat HEAD` 核对文件数。**任何提交都不带 `moodflow_input/Cargo.lock`**。每次提交前 `git -C <仓> branch --show-current` 须为 `feat/wildcard-mixed`。
+- 路径：一切改动都在 `/home/dufeng/develop/moodflow/wt-wcmix/{Moodflow,moodflow-setting,MoodflowDocs}` 下；**绝不**碰 `/home/dufeng/develop/moodflow/{Moodflow,moodflow-setting,MoodflowDocs}`。
 - 格式化：禁止 `cargo fmt` / `cargo fmt --all`；只对自己改过的文件跑 `rustfmt --edition 2024 --check <file>`，其 diff 只落在自己 hunk 内才去掉 `--check` 执行，否则按 diff 手工采纳自己那几处。
-- 测试环境：cargo 一律在 `wind_input/` 下、带 `CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix`（先 `mkdir -p /tmp/wct-wcmix`；路径要短，别用 scratchpad）；全量跑加 `--no-fail-fast`。wind-setting 的 `dev.sh sg / st` 带 `CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix-ws`。
+- 测试环境：cargo 一律在 `moodflow_input/` 下、带 `CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix`（先 `mkdir -p /tmp/wct-wcmix`；路径要短，别用 scratchpad）；全量跑加 `--no-fail-fast`。moodflow-setting 的 `dev.sh sg / st` 带 `CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix-ws`。
 - 集成测试依赖 `build_dev/data`，缺失时静默跳过而计数照绿——以 `--test codetable_wildcard` 耗时 ≥ 1s 且输出无「跳过」为数据在位判据。
 - 日志：`info!` 不得含用户输入 / 候选。
 
@@ -44,18 +44,18 @@
 
 | 文件 | 动作 | 职责 |
 |---|---|---|
-| `wind_input/crates/wind-candidate/src/candidate.rs` | Modify | `Candidate::is_wildcard` 字段 + `Default`；`source_tier` 通配等长进档 0；新增 `mod wildcard_tier_tests` |
-| `wind_input/crates/wind-engine/src/codetable/engine.rs` | Modify | `convert_wildcard` 给结果置 `is_wildcard = true`；单测 |
-| `wind_input/crates/wind-engine/src/engine.rs` | Modify | `Engine::wildcard_code_length` / `Engine::wildcard_mixes_pinyin` 默认实现 |
-| `wind_input/crates/wind-engine/src/mixed/engine.rs` | Modify | `MixedEngine::merge_wildcard`；`convert_wildcard` 两路合并；两个新访问器；Task 3 放开 `wildcard_key`；单测与 `FakePinyinTable` |
-| `wind_input/crates/wind-engine/src/manager.rs` | Modify | `active_wildcard_code_length` / `active_wildcard_mixes_pinyin` |
-| `wind_input/crates/wind-coordinator/src/wildcard.rs` | Modify | `last_seg_is_pinyin`、`wildcard_pattern_of`、`wildcard_mixed_overflow`；`wildcard_enters` / `wildcard_past_full` / `wildcard_lead_yields` / `wildcard_pattern` 改判据；单测 |
-| `wind_input/crates/wind-coordinator/src/handle_candidate.rs` | Modify | `build_candidates` 续转判据复用 `last_seg_is_pinyin`、续转分支先于通配分支、改用 `wildcard_pattern_of` |
-| `wind_input/crates/wind-coordinator/src/coordinator.rs` | Modify | `accumulate_code_char` 顶字短路改用 `wildcard_pattern_of` |
-| `wind_input/crates/wind-coordinator/tests/codetable_wildcard.rs` | Modify | 删 `mixed_pinyin_scheme_ignores_wildcard`，加 §10 真实数据用例 |
-| `../wind-setting/src/assets/settings_manifest.toml` | Modify | `schema.codetable.wildcard` 的 hint |
-| `../wind-setting/src/assets/capabilities.snapshot.json`、`../wind-setting/src/mockdata/config.json` | Modify（生成，若有变化） | `dev.sh sg` 重生成 |
-| `../WindInputDocs/content/docs/settings/schema/codetable.mdx` | Modify | 「通配输入」小节的混输说明 |
+| `moodflow_input/crates/moodflow-candidate/src/candidate.rs` | Modify | `Candidate::is_wildcard` 字段 + `Default`；`source_tier` 通配等长进档 0；新增 `mod wildcard_tier_tests` |
+| `moodflow_input/crates/moodflow-engine/src/codetable/engine.rs` | Modify | `convert_wildcard` 给结果置 `is_wildcard = true`；单测 |
+| `moodflow_input/crates/moodflow-engine/src/engine.rs` | Modify | `Engine::wildcard_code_length` / `Engine::wildcard_mixes_pinyin` 默认实现 |
+| `moodflow_input/crates/moodflow-engine/src/mixed/engine.rs` | Modify | `MixedEngine::merge_wildcard`；`convert_wildcard` 两路合并；两个新访问器；Task 3 放开 `wildcard_key`；单测与 `FakePinyinTable` |
+| `moodflow_input/crates/moodflow-engine/src/manager.rs` | Modify | `active_wildcard_code_length` / `active_wildcard_mixes_pinyin` |
+| `moodflow_input/crates/moodflow-coordinator/src/wildcard.rs` | Modify | `last_seg_is_pinyin`、`wildcard_pattern_of`、`wildcard_mixed_overflow`；`wildcard_enters` / `wildcard_past_full` / `wildcard_lead_yields` / `wildcard_pattern` 改判据；单测 |
+| `moodflow_input/crates/moodflow-coordinator/src/handle_candidate.rs` | Modify | `build_candidates` 续转判据复用 `last_seg_is_pinyin`、续转分支先于通配分支、改用 `wildcard_pattern_of` |
+| `moodflow_input/crates/moodflow-coordinator/src/coordinator.rs` | Modify | `accumulate_code_char` 顶字短路改用 `wildcard_pattern_of` |
+| `moodflow_input/crates/moodflow-coordinator/tests/codetable_wildcard.rs` | Modify | 删 `mixed_pinyin_scheme_ignores_wildcard`，加 §10 真实数据用例 |
+| `../moodflow-setting/src/assets/settings_manifest.toml` | Modify | `schema.codetable.wildcard` 的 hint |
+| `../moodflow-setting/src/assets/capabilities.snapshot.json`、`../moodflow-setting/src/mockdata/config.json` | Modify（生成，若有变化） | `dev.sh sg` 重生成 |
+| `../MoodflowDocs/content/docs/settings/schema/codetable.mdx` | Modify | 「通配输入」小节的混输说明 |
 | `docs/architecture/engine-candidate-pipeline.md` | Modify | §3.4 混输段落 |
 | `docs/design/codetable-wildcard.md` | Modify | 头部状态行；实施中若有新偏离追加 §9 |
 
@@ -66,8 +66,8 @@
 - [ ] **Step 0: 记全量基线**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcmix/WindInput && git status --short --branch && git log --oneline -1
-cd wind_input && mkdir -p /tmp/wct-wcmix && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test --workspace --no-fail-fast 2>&1 | tee /tmp/wct-wcmix/baseline.log | grep -E "^test result" | awk '{p+=$4; f+=$6} END {print "passed="p, "failed="f}'
+cd /home/dufeng/develop/moodflow/wt-wcmix/Moodflow && git status --short --branch && git log --oneline -1
+cd moodflow_input && mkdir -p /tmp/wct-wcmix && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test --workspace --no-fail-fast 2>&1 | tee /tmp/wct-wcmix/baseline.log | grep -E "^test result" | awk '{p+=$4; f+=$6} END {print "passed="p, "failed="f}'
 ```
 
 Expected: 分支 `feat/wildcard-mixed`、工作区干净；记下 `passed=` / `failed=` 两个数（Task 6 对照用）。`failed` 非 0 时先把失败名单记进账本，它们不属于本计划。
@@ -77,8 +77,8 @@ Expected: 分支 `feat/wildcard-mixed`、工作区干净；记下 `passed=` / `f
 ## Task 1: `Candidate::is_wildcard` 与 `source_tier` 通配等长进档 0
 
 **Files:**
-- Modify: `wind_input/crates/wind-candidate/src/candidate.rs`（字段加在 `is_direct_aux` ~448 之后；`impl Default for Candidate` ~587 `is_direct_aux: false,` 之后；`source_tier` ~1089 `CodeTable if c.code == input => 0,` 之后；文件末尾加测试模块）
-- Modify: `wind_input/crates/wind-engine/src/codetable/engine.rs`（`convert_wildcard` 的 `.map` 闭包 ~921-927；`mod tests` 末尾加用例）
+- Modify: `moodflow_input/crates/moodflow-candidate/src/candidate.rs`（字段加在 `is_direct_aux` ~448 之后；`impl Default for Candidate` ~587 `is_direct_aux: false,` 之后；`source_tier` ~1089 `CodeTable if c.code == input => 0,` 之后；文件末尾加测试模块）
+- Modify: `moodflow_input/crates/moodflow-engine/src/codetable/engine.rs`（`convert_wildcard` 的 `.map` 闭包 ~921-927；`mod tests` 末尾加用例）
 - Test: 上述两文件内联测试
 
 **Interfaces:**
@@ -175,8 +175,8 @@ mod wildcard_tier_tests {
 - [ ] **Step 2: 跑，确认红**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcmix/WindInput/wind_input && mkdir -p /tmp/wct-wcmix
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p wind-candidate wildcard_tier_tests
+cd /home/dufeng/develop/moodflow/wt-wcmix/Moodflow/moodflow_input && mkdir -p /tmp/wct-wcmix
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p moodflow-candidate wildcard_tier_tests
 ```
 
 Expected: 编译失败，`error[E0560]: struct \`Candidate\` has no field named \`is_wildcard\``。
@@ -211,9 +211,9 @@ Expected: 编译失败，`error[E0560]: struct \`Candidate\` has no field named 
 - [ ] **Step 4: 跑，确认绿 + 全 workspace 编译**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcmix/WindInput/wind_input
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p wind-candidate wildcard_tier_tests
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p wind-engine --lib wildcard_results_carry_is_wildcard
+cd /home/dufeng/develop/moodflow/wt-wcmix/Moodflow/moodflow_input
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p moodflow-candidate wildcard_tier_tests
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p moodflow-engine --lib wildcard_results_carry_is_wildcard
 CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo check --workspace --tests
 ```
 
@@ -222,11 +222,11 @@ Expected: 3 个用例通过；`cargo check` 无错误。核对点：若 `check` 
 - [ ] **Step 5: 格式与提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcmix/WindInput
-rustfmt --edition 2024 --check wind_input/crates/wind-candidate/src/candidate.rs wind_input/crates/wind-engine/src/codetable/engine.rs
+cd /home/dufeng/develop/moodflow/wt-wcmix/Moodflow
+rustfmt --edition 2024 --check moodflow_input/crates/moodflow-candidate/src/candidate.rs moodflow_input/crates/moodflow-engine/src/codetable/engine.rs
 git -C . branch --show-current
 git diff --cached --name-status
-git commit -F - --only -- wind_input/crates/wind-candidate/src/candidate.rs wind_input/crates/wind-engine/src/codetable/engine.rs <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-candidate/src/candidate.rs moodflow_input/crates/moodflow-engine/src/codetable/engine.rs <<'EOF'
 feat(candidate): 通配等长结果在来源档位里与码表精确同档
 
 Candidate 新增 is_wildcard（只由码表 convert_wildcard 置位），source_tier 对
@@ -242,9 +242,9 @@ git show --stat HEAD
 ## Task 2: 引擎——通配码长访问器与混输两路合并
 
 **Files:**
-- Modify: `wind_input/crates/wind-engine/src/engine.rs`（trait `Engine` 的 `convert_wildcard` 默认实现 ~394-401 之后）
-- Modify: `wind_input/crates/wind-engine/src/mixed/engine.rs`（`impl MixedEngine` 里 `truncate_with_pinyin_quota` 之后加 `merge_wildcard`；`impl Engine for MixedEngine` ~837-850；`mod tests` 里改写 `wildcard_off_when_pinyin_present` ~2434-2469，新增夹具与用例）
-- Modify: `wind_input/crates/wind-engine/src/manager.rs`（`active_wildcard_key` ~2607-2609 之后）
+- Modify: `moodflow_input/crates/moodflow-engine/src/engine.rs`（trait `Engine` 的 `convert_wildcard` 默认实现 ~394-401 之后）
+- Modify: `moodflow_input/crates/moodflow-engine/src/mixed/engine.rs`（`impl MixedEngine` 里 `truncate_with_pinyin_quota` 之后加 `merge_wildcard`；`impl Engine for MixedEngine` ~837-850；`mod tests` 里改写 `wildcard_off_when_pinyin_present` ~2434-2469，新增夹具与用例）
+- Modify: `moodflow_input/crates/moodflow-engine/src/manager.rs`（`active_wildcard_key` ~2607-2609 之后）
 
 **Interfaces:**
 - Consumes: Task 1 的 `Candidate::is_wildcard`（仅测试断言）；`MixedEngine::truncate_with_pinyin_quota(cands: &mut Vec<Candidate>, max_candidates: usize)`（已有）
@@ -320,7 +320,7 @@ git show --stat HEAD
     }
 
     fn slot(p: &str) -> String {
-        p.replace('?', &wind_dict::WILDCARD_SLOT.to_string())
+        p.replace('?', &moodflow_dict::WILDCARD_SLOT.to_string())
     }
 
     /// spec §10：字面混输 ⊕ 主码表通配。引擎次序 = 存活优先级：通配等长 → 字面 → 通配更长。
@@ -430,8 +430,8 @@ git show --stat HEAD
 - [ ] **Step 2: 跑，确认红**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcmix/WindInput/wind_input
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p wind-engine --lib mixed::engine::tests::wildcard
+cd /home/dufeng/develop/moodflow/wt-wcmix/Moodflow/moodflow_input
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p moodflow-engine --lib mixed::engine::tests::wildcard
 ```
 
 Expected: 编译失败，`error[E0599]: no method named \`wildcard_code_length\``（及 `wildcard_mixes_pinyin`）。
@@ -568,9 +568,9 @@ Expected: 编译失败，`error[E0599]: no method named \`wildcard_code_length\`
 - [ ] **Step 4: 跑，确认绿 + 混输模块回归**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcmix/WindInput/wind_input
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p wind-engine --lib mixed::
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p wind-coordinator --test codetable_wildcard
+cd /home/dufeng/develop/moodflow/wt-wcmix/Moodflow/moodflow_input
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p moodflow-engine --lib mixed::
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p moodflow-coordinator --test codetable_wildcard
 ```
 
 Expected: `mixed::` 全绿（含 4 条新用例）；`codetable_wildcard` 全绿（`wildcard_key` 未放开，协调器行为不变）、耗时 ≥ 1s。
@@ -578,11 +578,11 @@ Expected: `mixed::` 全绿（含 4 条新用例）；`codetable_wildcard` 全绿
 - [ ] **Step 5: 格式与提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcmix/WindInput
-rustfmt --edition 2024 --check wind_input/crates/wind-engine/src/engine.rs wind_input/crates/wind-engine/src/mixed/engine.rs wind_input/crates/wind-engine/src/manager.rs
+cd /home/dufeng/develop/moodflow/wt-wcmix/Moodflow
+rustfmt --edition 2024 --check moodflow_input/crates/moodflow-engine/src/engine.rs moodflow_input/crates/moodflow-engine/src/mixed/engine.rs moodflow_input/crates/moodflow-engine/src/manager.rs
 git -C . branch --show-current
 git diff --cached --name-status
-git commit -F - --only -- wind_input/crates/wind-engine/src/engine.rs wind_input/crates/wind-engine/src/mixed/engine.rs wind_input/crates/wind-engine/src/manager.rs <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-engine/src/engine.rs moodflow_input/crates/moodflow-engine/src/mixed/engine.rs moodflow_input/crates/moodflow-engine/src/manager.rs <<'EOF'
 feat(engine): 混输通配两路合并与通配专用码长
 
 MixedEngine::convert_wildcard 在有拼音子引擎时 = 字面 convert ⊕ 主码表通配，
@@ -601,10 +601,10 @@ git show --stat HEAD
 ## Task 3: 协调器——混输三种字面情形、续转先于通配、放开混输通配键
 
 **Files:**
-- Modify: `wind_input/crates/wind-coordinator/src/wildcard.rs`（`wildcard_enters` ~45-49、`wildcard_past_full` ~79-82、`wildcard_lead_yields` ~89 函数体开头、`wildcard_pattern` ~160-163；新增 `last_seg_is_pinyin`、`wildcard_mixed_overflow`、`wildcard_pattern_of`；`mod tests` 追加）
-- Modify: `wind_input/crates/wind-coordinator/src/handle_candidate.rs`（`build_candidates` ~1181-1219）
-- Modify: `wind_input/crates/wind-coordinator/src/coordinator.rs`（`accumulate_code_char` 顶字短路 ~5128）
-- Modify: `wind_input/crates/wind-engine/src/mixed/engine.rs`（`wildcard_key` ~837-842；Task 2 用例里那条「仍关闭」断言）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/wildcard.rs`（`wildcard_enters` ~45-49、`wildcard_past_full` ~79-82、`wildcard_lead_yields` ~89 函数体开头、`wildcard_pattern` ~160-163；新增 `last_seg_is_pinyin`、`wildcard_mixed_overflow`、`wildcard_pattern_of`；`mod tests` 追加）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/handle_candidate.rs`（`build_candidates` ~1181-1219）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/coordinator.rs`（`accumulate_code_char` 顶字短路 ~5128）
+- Modify: `moodflow_input/crates/moodflow-engine/src/mixed/engine.rs`（`wildcard_key` ~837-842；Task 2 用例里那条「仍关闭」断言）
 - Test: `wildcard.rs` 内联 `mod tests`
 
 **Interfaces:**
@@ -674,7 +674,7 @@ git show --stat HEAD
             raw_code: "wo".into(),
             code: "wo".into(),
             text: "我".into(),
-            source: wind_candidate::CandidateSource::Pinyin,
+            source: moodflow_candidate::CandidateSource::Pinyin,
             boundary: 0,
             learn: None,
         });
@@ -705,9 +705,9 @@ git show --stat HEAD
 - [ ] **Step 2: 跑，确认红**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcmix/WindInput/wind_input
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p wind-coordinator --lib wildcard::tests
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p wind-engine --lib wildcard_code_length_is_primary_max
+cd /home/dufeng/develop/moodflow/wt-wcmix/Moodflow/moodflow_input
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p moodflow-coordinator --lib wildcard::tests
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p moodflow-engine --lib wildcard_code_length_is_primary_max
 ```
 
 Expected: coordinator 编译失败 `error[E0599]: no method named \`wildcard_pattern_of\``；engine 那条断言失败（`left: None, right: Some('z')`）。
@@ -718,7 +718,7 @@ Expected: coordinator 编译失败 `error[E0599]: no method named \`wildcard_pat
 
 ```rust
     /// 混输代理主码表的通配键（spec §10：码长内两路同查）。哪几位作通配、何时整串字面
-    /// 由协调器裁决（首位 / 超码长 / 拼音分段续转，见 `wind-coordinator/src/wildcard.rs`）。
+    /// 由协调器裁决（首位 / 超码长 / 拼音分段续转，见 `moodflow-coordinator/src/wildcard.rs`）。
     fn wildcard_key(&self) -> Option<char> {
         self.primary.wildcard_key()
     }
@@ -848,10 +848,10 @@ pub(crate) fn last_seg_is_pinyin(state: &State) -> bool {
 - [ ] **Step 4: 跑，确认绿 + 协调器回归**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcmix/WindInput/wind_input
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p wind-coordinator --lib wildcard::tests
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p wind-engine --lib mixed::
-time CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p wind-coordinator --no-fail-fast --test codetable_wildcard --test input_flow --test mix_repeat_no_freq --test commit_highlighted_key --test top_commit_learn 2>&1 | grep -E "^test result|FAILED|panicked|跳过"
+cd /home/dufeng/develop/moodflow/wt-wcmix/Moodflow/moodflow_input
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p moodflow-coordinator --lib wildcard::tests
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p moodflow-engine --lib mixed::
+time CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p moodflow-coordinator --no-fail-fast --test codetable_wildcard --test input_flow --test mix_repeat_no_freq --test commit_highlighted_key --test top_commit_learn 2>&1 | grep -E "^test result|FAILED|panicked|跳过"
 ```
 
 Expected: 全绿；输出无「跳过」。`mixed_pinyin_scheme_ignores_wildcard` 此时仍绿（`hanzi` 超码长整串字面，与关闭时相同），由 Task 4 替换。若 `input_flow` 的混输用例转红，说明某处混输行为在「串里没有 z」时也变了——回查 `wildcard_lead_yields` 的提前返回是否误伤了非通配键路径（它只在 `wildcard_decision` 里被调用）。
@@ -859,11 +859,11 @@ Expected: 全绿；输出无「跳过」。`mixed_pinyin_scheme_ignores_wildcard
 - [ ] **Step 5: 格式与提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcmix/WindInput
-rustfmt --edition 2024 --check wind_input/crates/wind-coordinator/src/wildcard.rs wind_input/crates/wind-coordinator/src/handle_candidate.rs wind_input/crates/wind-coordinator/src/coordinator.rs wind_input/crates/wind-engine/src/mixed/engine.rs
+cd /home/dufeng/develop/moodflow/wt-wcmix/Moodflow
+rustfmt --edition 2024 --check moodflow_input/crates/moodflow-coordinator/src/wildcard.rs moodflow_input/crates/moodflow-coordinator/src/handle_candidate.rs moodflow_input/crates/moodflow-coordinator/src/coordinator.rs moodflow_input/crates/moodflow-engine/src/mixed/engine.rs
 git -C . branch --show-current
 git diff --cached --name-status
-git commit -F - --only -- wind_input/crates/wind-coordinator/src/wildcard.rs wind_input/crates/wind-coordinator/src/handle_candidate.rs wind_input/crates/wind-coordinator/src/coordinator.rs wind_input/crates/wind-engine/src/mixed/engine.rs <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-coordinator/src/wildcard.rs moodflow_input/crates/moodflow-coordinator/src/handle_candidate.rs moodflow_input/crates/moodflow-coordinator/src/coordinator.rs moodflow_input/crates/moodflow-engine/src/mixed/engine.rs <<'EOF'
 feat(coordinator): 五笔拼音混输下开通配——码长内两路同查，三种情形整串字面
 
 混输首位一律字面（z 是拼音声母，不再靠 zz* 短语让位）；整串超过主码表码长整串字面；
@@ -879,7 +879,7 @@ git show --stat HEAD
 ## Task 4: 真实数据集成用例（wubi86_pinyin）
 
 **Files:**
-- Modify: `wind_input/crates/wind-coordinator/tests/codetable_wildcard.rs`（删除 `mixed_pinyin_scheme_ignores_wildcard` ~332-365 整条含 doc；在 `// ─── 候选管线（Task 11）` 分隔行之前插入新的一节）
+- Modify: `moodflow_input/crates/moodflow-coordinator/tests/codetable_wildcard.rs`（删除 `mixed_pinyin_scheme_ignores_wildcard` ~332-365 整条含 doc；在 `// ─── 候选管线（Task 11）` 分隔行之前插入新的一节）
 
 **Interfaces:**
 - Consumes: `Coordinator::new_headless`、`debug_all_candidate_texts`、`debug_candidate_triples`、`debug_input_buffer`、`debug_install_phrases`、`select_candidate(index)`（绝对下标，`candidate_pull.rs:95`）；文件内已有 `data_dir` / `dict_ready` / `press` / `wubi` / `zz_phrases`
@@ -1099,8 +1099,8 @@ fn mixed_without_wildcard_key_is_identical_to_off() {
 - [ ] **Step 2: 跑**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcmix/WindInput/wind_input
-time CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p wind-coordinator --test codetable_wildcard -- --nocapture 2>&1 | grep -E "^test |test result|跳过|panicked"
+cd /home/dufeng/develop/moodflow/wt-wcmix/Moodflow/moodflow_input
+time CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p moodflow-coordinator --test codetable_wildcard -- --nocapture 2>&1 | grep -E "^test |test result|跳过|panicked"
 ```
 
 Expected: 全绿、无「跳过」、耗时 ≥ 1s。核对点（真实数据相关，红了先查数据再查实现）：
@@ -1110,11 +1110,11 @@ Expected: 全绿、无「跳过」、耗时 ≥ 1s。核对点（真实数据相
 - [ ] **Step 3: 格式与提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcmix/WindInput
-rustfmt --edition 2024 --check wind_input/crates/wind-coordinator/tests/codetable_wildcard.rs
+cd /home/dufeng/develop/moodflow/wt-wcmix/Moodflow
+rustfmt --edition 2024 --check moodflow_input/crates/moodflow-coordinator/tests/codetable_wildcard.rs
 git -C . branch --show-current
 git diff --cached --name-status
-git commit -F - --only -- wind_input/crates/wind-coordinator/tests/codetable_wildcard.rs <<'EOF'
+git commit -F - --only -- moodflow_input/crates/moodflow-coordinator/tests/codetable_wildcard.rs <<'EOF'
 test(coordinator): 五笔拼音混输下通配的真实数据用例
 
 gz 出二码字；hanz 通配与拼音并存；hanzi / xianzai 与关闭时相同；zhang 首位字面
@@ -1130,15 +1130,15 @@ git show --stat HEAD
 ## Task 5: 设置说明、文档站、架构文档、spec 状态
 
 **Files:**
-- Modify: `../wind-setting/src/assets/settings_manifest.toml`（`key = "schema.codetable.wildcard"` 条目的 `hint` ~191）
-- Modify（生成，若有变化）: `../wind-setting/src/assets/capabilities.snapshot.json`、`../wind-setting/src/mockdata/config.json`
-- Modify: `../WindInputDocs/content/docs/settings/schema/codetable.mdx`（`### 通配输入` 小节 ~99-105 的列表）
+- Modify: `../moodflow-setting/src/assets/settings_manifest.toml`（`key = "schema.codetable.wildcard"` 条目的 `hint` ~191）
+- Modify（生成，若有变化）: `../moodflow-setting/src/assets/capabilities.snapshot.json`、`../moodflow-setting/src/mockdata/config.json`
+- Modify: `../MoodflowDocs/content/docs/settings/schema/codetable.mdx`（`### 通配输入` 小节 ~99-105 的列表）
 - Modify: `docs/architecture/engine-candidate-pipeline.md`（§3.4 ~183-205）
 - Modify: `docs/design/codetable-wildcard.md`（头部状态行 ~7）
 
 **Interfaces:** 无代码接口。
 
-- [ ] **Step 1: wind-setting hint**
+- [ ] **Step 1: moodflow-setting hint**
 
 把 hint 行末的 `五笔拼音混输方案不生效"` 改为：
 
@@ -1151,17 +1151,17 @@ git show --stat HEAD
 - [ ] **Step 2: 重生成产物、还原 appVersion、跑邻仓测试**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcmix/WindInput
+cd /home/dufeng/develop/moodflow/wt-wcmix/Moodflow
 CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix-ws ./scripts/dev.sh sg
-cd ../wind-setting
+cd ../moodflow-setting
 for f in src/assets/capabilities.snapshot.json src/mockdata/config.json; do
   old=$(git show HEAD:"$f" | grep -m1 '"appVersion"' || true)
   new=$(grep -m1 '"appVersion"' "$f" || true)
   if [ -n "$old" ] && [ "$old" != "$new" ]; then sed -i "s|$new|$old|" "$f"; fi
 done
 git diff --stat
-cd ../WindInput && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix-ws ./scripts/dev.sh st
-cd wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p wind-rpc --test wind_setting_assets
+cd ../Moodflow && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix-ws ./scripts/dev.sh st
+cd moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p moodflow-rpc --test wind_setting_assets
 ```
 
 Expected: `git diff --stat` 只列 manifest，外加 snapshot / mockdata 中**因 hint 文本**产生的差异（若二者不含 hint，则只有 manifest 一个文件）；`st` 全绿；`wind_setting_assets` 全绿。label 未改，`pinyin_initials.txt` 不应变化——变了说明生成器取词范围与预期不符，停下回报。
@@ -1184,7 +1184,7 @@ Expected: `git diff --stat` 只列 manifest，外加 snapshot / mockdata 中**�
 Run:
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcmix/WindInputDocs && pnpm install --frozen-lockfile && pnpm lint
+cd /home/dufeng/develop/moodflow/wt-wcmix/MoodflowDocs && pnpm install --frozen-lockfile && pnpm lint
 ```
 
 Expected: 通过。
@@ -1227,7 +1227,7 @@ Expected: 通过。
 - [ ] **Step 5: 三个仓各自提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcmix/wind-setting
+cd /home/dufeng/develop/moodflow/wt-wcmix/moodflow-setting
 git branch --show-current
 git diff --cached --name-status
 # 路径以 Step 2 `git diff --stat` 实际列出的为准；未变化的生成文件不要列
@@ -1238,7 +1238,7 @@ docs(settings): 通配输入说明改为五笔拼音混输下的实际行为
 EOF
 git show --stat HEAD
 
-cd ../WindInputDocs
+cd ../MoodflowDocs
 git branch --show-current
 git diff --cached --name-status
 git commit -F - --only -- content/docs/settings/schema/codetable.mdx <<'EOF'
@@ -1246,7 +1246,7 @@ docs(settings): 通配输入补五笔拼音混输下的行为
 EOF
 git show --stat HEAD
 
-cd ../WindInput
+cd ../Moodflow
 git branch --show-current
 git diff --cached --name-status
 git commit -F - --only -- docs/architecture/engine-candidate-pipeline.md docs/design/codetable-wildcard.md <<'EOF'
@@ -1264,7 +1264,7 @@ git show --stat HEAD
 - [ ] **Step 1: 全量测试**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcmix/WindInput/wind_input
+cd /home/dufeng/develop/moodflow/wt-wcmix/Moodflow/moodflow_input
 time CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test --workspace --no-fail-fast 2>&1 | tee /tmp/wct-wcmix/full.log | grep -E "^test result|FAILED|panicked" | tail -60
 grep -E "^test result" /tmp/wct-wcmix/full.log | awk '{p+=$4; f+=$6} END {print "passed="p, "failed="f}'
 ```
@@ -1274,7 +1274,7 @@ Expected: `failed` 与开工前基线相同（基线为 0 则为 0）；`passed`
 - [ ] **Step 2: 编译门**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcmix/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix cargo check-headless
+cd /home/dufeng/develop/moodflow/wt-wcmix/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix cargo check-headless
 cd .. && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix ./scripts/dev.sh k
 ```
 
@@ -1283,22 +1283,22 @@ Expected: 均通过。
 - [ ] **Step 3: 占位与提交范围自查**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-wcmix/WindInput
+cd /home/dufeng/develop/moodflow/wt-wcmix/Moodflow
 base=$(git merge-base HEAD main)
 git log --oneline "$base"..HEAD
 git diff "$base"..HEAD --stat
 git diff "$base"..HEAD | grep -nE "^\+.*(TODO|todo!|unimplemented!|#\[ignore\]|\.only\()" || echo clean
-git diff "$base"..HEAD --name-only | grep -x "wind_input/Cargo.lock" && echo "!! Cargo.lock 被提交" || echo "lock ok"
+git diff "$base"..HEAD --name-only | grep -x "moodflow_input/Cargo.lock" && echo "!! Cargo.lock 被提交" || echo "lock ok"
 ```
 
-Expected: `clean`、`lock ok`；`--stat` 只含本计划文件结构表里 WindInput 仓的那些文件（加本计划文件本身，若控制者另行提交）。
+Expected: `clean`、`lock ok`；`--stat` 只含本计划文件结构表里 Moodflow 仓的那些文件（加本计划文件本身，若控制者另行提交）。
 
 ---
 
 ## spec 待澄清（写计划时对照真实代码发现）
 
 1. **§10 分段续转的测试对照测不到续转规则**：`wo` 上屏后剩 `aizhongguo`（10 码）已超码长，走「超码长整串字面」即可通过，续转规则删掉也照绿。本计划另加 `woaizi` → `aizi`（Task 4）。续转判据的落点：`handle_candidate.rs:1181-1184`（原内联判据）→ `wildcard.rs` `last_seg_is_pinyin`。
-2. **「通配等长与码表精确同档」在显示序里本就成立，真正会破的是调频**：`candidate_display_order` 里 `cmp_exact_first` 在 `source_tier` 之前（`wind-candidate/src/candidate.rs:898-899`），等长通配 `is_exact_code = true`、拼音候选恒 false，关调频时等长通配天然在最前。`source_tier` 只在 `freq_rerank::freq_tier`（`wind-engine/src/freq_rerank.rs:82`，调频首要键）与英文领位 `leads_as_exact`（`wind-coordinator/src/handle_candidate.rs:128`）起决定作用。本计划的档 0 改动因此同样作用于**纯码表**通配：此前开调频时等长与更长补全同在档 2，used-first 可把更长补全提到等长之前（违背 §3.1「等长优先」）；改后等长在档 0。需控制者确认这一顺带修正可接受。
+2. **「通配等长与码表精确同档」在显示序里本就成立，真正会破的是调频**：`candidate_display_order` 里 `cmp_exact_first` 在 `source_tier` 之前（`moodflow-candidate/src/candidate.rs:898-899`），等长通配 `is_exact_code = true`、拼音候选恒 false，关调频时等长通配天然在最前。`source_tier` 只在 `freq_rerank::freq_tier`（`moodflow-engine/src/freq_rerank.rs:82`，调频首要键）与英文领位 `leads_as_exact`（`moodflow-coordinator/src/handle_candidate.rs:128`）起决定作用。本计划的档 0 改动因此同样作用于**纯码表**通配：此前开调频时等长与更长补全同在档 2，used-first 可把更长补全提到等长之前（违背 §3.1「等长优先」）；改后等长在档 0。需控制者确认这一顺带修正可接受。
 3. **§10「字面串走原混输转换」与短语短路冲突**：协调器在有 pattern 时整体跳过短语（`handle_candidate.rs:1273`），混输码长内含非首位 `z` 的串（如用户短语 `dazi`）开通配后短语消失，而「原混输转换」字面上包含协调器合并的短语。本计划按 §3.1「短语不参与」保留短路，未让字面半边带短语；若要带，需另议短路粒度。
 4. **§10「组合区显示原始缓冲」与高亮跟随**：本计划 `preedit_display = input`，但 `preedit_pinyin` 沿用字面结果（`MixedEngine::convert_wildcard`），高亮到拼音候选时组合区显示拼音拆分（如 `a'zi`），与关闭通配时高亮同一候选一致。若 §10 的本意是任何高亮下都显示原始缓冲，把 `preedit_pinyin` 置空即可。
 5. **无拼音子引擎的混输（`secondary = None`）也受通配码长影响**：该情形此前 `active_max_code_length()` 为 0、「满码后字面」从不触发；改用 `wildcard_code_length` 后与纯码表一致（`aaaa` + `z` 顶字）。§10 未提，按 §3.3 满码规则处理。

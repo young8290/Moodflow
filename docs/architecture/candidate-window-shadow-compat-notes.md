@@ -57,7 +57,7 @@ QQ 那个弹出搜索框会检测自己是否被其它窗口遮挡，**判据看
 
 ## 诊断脚手架
 
-`wind_tsf` 侧留有一组二分开关，出厂全关、零行为影响，配置落点与 TSF 日志同一个文件
+`moodflow_tsf` 侧留有一组二分开关，出厂全关、零行为影响，配置落点与 TSF 日志同一个文件
 `<日志根>\tsf_log_config`（`<日志根>` 便携部署为 `<安装根>\localdata\logs`，否则 `%LOCALAPPDATA%\<变体>\logs`）：
 
 ```
@@ -68,9 +68,9 @@ diag_no_ui_element
 
 改完存盘后按 **Ctrl+Shift+F12** 立即重读（该热键原本只导出环形缓冲日志，现顺带重读配置）。
 ⚠ 该热键**出厂关闭**，同一个配置文件里要先写一行 `dump_hotkey=1` 才有它——而这一行本身
-只在宿主进程启动时读，所以第一次得重启宿主。默认关的理由见 `wind_tsf/AGENTS.md` 的
+只在宿主进程启动时读，所以第一次得重启宿主。默认关的理由见 `moodflow_tsf/AGENTS.md` 的
 File Logging 一节：它排在所有吃键闸门之前，开着就等于对所有用户抢走这个组合键。
-当前档位会当场以 `[WindInput diag: ...]` 打到焦点处，同时写进日志的 `compat.diag` 行。
+当前档位会当场以 `[Moodflow diag: ...]` 打到焦点处，同时写进日志的 `compat.diag` 行。
 `CTextService::ActivateEx` 也会重读一次，所以切走输入法再切回同样生效。
 
 ⚠ **别在被测的弹出框里按 Ctrl+Shift+F12** —— 它往焦点处插入文本的动作本身可能改变被测状态。

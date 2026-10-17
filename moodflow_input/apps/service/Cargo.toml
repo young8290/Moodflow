@@ -1,0 +1,52 @@
+[package]
+name = "moodflow_service"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "moodflow_input"
+path = "src/main.rs"
+
+[build-dependencies]
+# 仅 Windows 目标嵌入图标/版本信息/manifest（DPI 感知等）
+winresource = "0.1"
+
+[features]
+default = []
+# Linux 发行形态：协调器/UI/桥接全部按外部宿主（Fcitx5 addon）呈现。
+linux-host = ["moodflow-coordinator/linux-host", "moodflow-ui/linux-host", "moodflow-bridge/linux-host"]
+
+[dependencies]
+moodflow-ipc = { path = "../../crates/moodflow-ipc" }
+moodflow-coordinator = { path = "../../crates/moodflow-coordinator" }
+moodflow-webdata = { path = "../../crates/moodflow-webdata" }
+moodflow-bridge = { path = "../../crates/moodflow-bridge" }
+moodflow-config = { path = "../../crates/moodflow-config" }
+moodflow-store = { path = "../../crates/moodflow-store" }
+moodflow-dict = { path = "../../crates/moodflow-dict" }
+moodflow-engine = { path = "../../crates/moodflow-engine" }
+moodflow-ui = { path = "../../crates/moodflow-ui" }
+moodflow-theme = { path = "../../crates/moodflow-theme" }
+moodflow-rpc = { path = "../../crates/moodflow-rpc" }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-appender = { workspace = true }
+file-rotate = { workspace = true }
+chrono = "0.4"
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# 单例（flock）
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

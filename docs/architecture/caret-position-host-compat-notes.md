@@ -126,7 +126,7 @@ QQ 的 reported compStart 正常且稳定，但同一按键后会先后出现：
 那类「宿主自绘候选、数据侧调不动」是**完全不同**的两件事，别套那边的结论
 （见 `../design/game-compat-tsf-uielement.md`）。
 
-2026-09-12 真机日志（`wind_tsf.PathOfExile.47636.log`）里两个坐标**整场一个像素都没变过**：
+2026-09-12 真机日志（`moodflow_tsf.PathOfExile.47636.log`）里两个坐标**整场一个像素都没变过**：
 
 | 量 | 值 | 判定 |
 |---|---|---|
@@ -182,7 +182,7 @@ CaretEditSession: IMM32 probe hwnd=0x... cand=1 style=0x... client=(x,y) screen=
 ⚠️ 与 F 类症状相似但**根子完全不同，别混**：F 类给的是**固定垃圾值**（整场不变），无解；
 G 类给的是**正确但残缺**的矩形，能修，而且已经修了。分辨方法：看坐标随输入**变不变**。
 
-2026-09-13 真机日志（`wind_tsf.NRC-Win64-Shipping.*.log`）的规律：
+2026-09-13 真机日志（`moodflow_tsf.NRC-Win64-Shipping.*.log`）的规律：
 
 ```
 GetTextExt failed hr=0x80040505                    ← selection（零长度）→ TS_E_NOLAYOUT
@@ -199,7 +199,7 @@ Composition rect (1353,1647,1399,1647) w=46 h=0    ← 组合整体（非零长�
 **已实施**（`CaretEditSession.cpp` 的「★★ 二级降级」）：caret 与组合起点都拿不到、但组合整体
 矩形有效（宽>0）时，用它的左上角当 caret，高度依次由两个来源决定：
 
-1. `WIND_DEFAULT_CARET_HEIGHT` 按**宿主视角**的 DPI 换算（`GetDpiForWindow`）。⚠ 必须取宿主
+1. `MOODFLOW_DEFAULT_CARET_HEIGHT` 按**宿主视角**的 DPI 换算（`GetDpiForWindow`）。⚠ 必须取宿主
    视角而非主屏真值：`GetTextExt` 的坐标就在宿主的感知级别下，宿主 unaware 时它回 96、坐标也是
    虚拟化的 96dpi，正好不该缩放；套用 `LangBarItemButton` 抬高线程感知级别那套反而错。
    实测该宿主 200% 缩放 ⇒ 40px，而补 20 个设备像素只有真实行高一半，候选窗会压住正在输入的那行。
@@ -284,7 +284,7 @@ caret，这家给的是**货真价实的范围矩形**（`w` 从 14 长到 39）
 **已实施**：按「前台窗口是否铺满 **caret 所在那块屏**」在 `rcMonitor` / `rcWork` 之间选。
 桌面行为一字未变，只有全屏那一种情形多出任务栏那条高度。
 
-★ 判据收口在 `wind-keys::foreground::foreground_covers_monitor`，**不要在别处重写**：几何比较
+★ 判据收口在 `moodflow-keys::foreground::foreground_covers_monitor`，**不要在别处重写**：几何比较
 只是它的一半，后面两道守卫才是它能用的原因，而那两道都是实测命中后补上的——
 
 - **DWM cloaked**：实测命中 ClickToDo 的 `IslandWindow`、**TextInputHost 的 `CoreWindow`**
@@ -326,7 +326,7 @@ B 屏的任务栏。
 
 ## 四、日志判据速查
 
-服务端日志（`%LOCALAPPDATA%\WindInputDev\logs\wind_input.log`，`level=debug`）里，一次首显必然
+服务端日志（`%LOCALAPPDATA%\MoodflowDev\logs\moodflow_input.log`，`level=debug`）里，一次首显必然
 命中下面某一行，据此即可判定走了哪条路，不必对着 TSF 日志比时间戳：
 
 ```
@@ -397,17 +397,17 @@ caret_probe → 拒绝: 该宿主 composition rect 恒陈旧，改用组合前�
 
 | 位置 | 作用 |
 |---|---|
-| `wind-coordinator/src/coordinator/first_show.rs` | 首显闸门、兜底 timer、`absorb_probe_coords` |
-| `wind-coordinator/src/coordinator/message_handler.rs` | `handle_caret_update` / `handle_caret_probe` |
-| `wind-coordinator/src/coordinator.rs` | `notify_ui_update` 里的位置计算与逃生口 |
-| `wind-config/src/app_compat.rs` | per-app 规则（`first_show_mode`、`caret_use_top`、`stale_probe_guard`、`composition_start_pair_guard`） |
+| `moodflow-coordinator/src/coordinator/first_show.rs` | 首显闸门、兜底 timer、`absorb_probe_coords` |
+| `moodflow-coordinator/src/coordinator/message_handler.rs` | `handle_caret_update` / `handle_caret_probe` |
+| `moodflow-coordinator/src/coordinator.rs` | `notify_ui_update` 里的位置计算与逃生口 |
+| `moodflow-config/src/app_compat.rs` | per-app 规则（`first_show_mode`、`caret_use_top`、`stale_probe_guard`、`composition_start_pair_guard`） |
 | `data/compat.toml` | 出厂 per-app 规则 |
-| `wind_tsf/src/CaretEditSession.cpp` | 两级降级（组合起点 / 组合整体矩形）、`GetScreenExt` 越界校验、IMM32 候选位置探测 |
-| `wind_tsf/src/TextService.cpp` | `OnAsyncCaretRectReady`、probe 发送与 caret source 标记 |
-| `wind-ui/src/candidate_window.rs` | `place_window`：上下翻转决策与垂直可用区（见 §二·五） |
-| `wind-keys/src/foreground.rs` | `foreground_covers_monitor`：铺满显示器判据 + cloaked / shell 两道守卫（**唯一实现**，勿重写） |
+| `moodflow_tsf/src/CaretEditSession.cpp` | 两级降级（组合起点 / 组合整体矩形）、`GetScreenExt` 越界校验、IMM32 候选位置探测 |
+| `moodflow_tsf/src/TextService.cpp` | `OnAsyncCaretRectReady`、probe 发送与 caret source 标记 |
+| `moodflow-ui/src/candidate_window.rs` | `place_window`：上下翻转决策与垂直可用区（见 §二·五） |
+| `moodflow-keys/src/foreground.rs` | `foreground_covers_monitor`：铺满显示器判据 + cloaked / shell 两道守卫（**唯一实现**，勿重写） |
 
-> ⚠ 用户层 `%APPDATA%\WindInputDev\compat.toml` 的合并语义通常是「同名进程**整条**覆盖系统层」。
+> ⚠ 用户层 `%APPDATA%\MoodflowDev\compat.toml` 的合并语义通常是「同名进程**整条**覆盖系统层」。
 > 排查「出厂规则不生效」时先看用户层有没有该进程的条目——菜单改回「跟随全局」曾会留下只剩
 > `process` 的空壳条目，把出厂规则整条屏蔽掉（已修：写盘时剔除空壳）。
 > `composition_start_pair_guard` 是协议级安全例外：用户层未写时继承出厂值，显式

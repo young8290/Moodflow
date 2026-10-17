@@ -5,10 +5,10 @@
 
 | 仓库 | 角色 |
 |---|---|
-| WindInput（主仓） | 格式实现（`wind-transfer/src/scheme.rs`）、片段校验与应用（wind-config / wind-webdata RPC） |
-| wind-setting | 导入 UI、内容侦测分派、`windinput://` 协议与 `.wpkg` 关联 |
-| WindInputTools | web 打包 / 导出工具（生成端，须严格按本规格产出） |
-| WindInputDocs | cookbook 分发（片段代码块 + 一键导入链接） |
+| Moodflow（主仓） | 格式实现（`moodflow-transfer/src/scheme.rs`）、片段校验与应用（moodflow-config / moodflow-webdata RPC） |
+| moodflow-setting | 导入 UI、内容侦测分派、`moodflow://` 协议与 `.wpkg` 关联 |
+| MoodflowTools | web 打包 / 导出工具（生成端，须严格按本规格产出） |
+| MoodflowDocs | cookbook 分发（片段代码块 + 一键导入链接） |
 
 跨仓契约无编译期约束，改动本规格必须同步四仓（参照 `datadir.conf` 的教训：单向契约、静默漂移）。
 
@@ -25,7 +25,7 @@
 ### 2.1 定义
 
 - 合法的 TOML 文本，键为 config.toml 的点分路径展开形式（表结构或点分键均可，语义等价）。
-- 键域 = `wind-config/src/config_schema.rs` 的 `REGISTRY` 登记键 ∪ 「合法但不登记」显式白名单（注释模板等刻意不进 REGISTRY 的 `Option<T>` 键；名单落在 wind-config，须配守门测试防腐烂，与 `ABSENT_FROM_DATA_CONFIG` 同族待遇）。
+- 键域 = `moodflow-config/src/config_schema.rs` 的 `REGISTRY` 登记键 ∪ 「合法但不登记」显式白名单（注释模板等刻意不进 REGISTRY 的 `Option<T>` 键；名单落在 moodflow-config，须配守门测试防腐烂，与 `ABSENT_FROM_DATA_CONFIG` 同族待遇）。
 
 ### 2.2 应用语义（新增）
 
@@ -79,7 +79,7 @@
 
 ### 3.1 现状（方案包 v2）
 
-- zip，条目名 = schemas 根相对路径（零层级，导入零改写落到 `%APPDATA%\WindInput\schemas\`）。
+- zip，条目名 = schemas 根相对路径（零层级，导入零改写落到 `%APPDATA%\Moodflow\schemas\`）。
 - `package.toml`（`PACKAGE_META_NAME`）可选；缺失时按「根目录存在 `*.schema.toml`」识别。现有字段：
   - `[package]` app_version / platform / created_at / format_version（§3.2）/ title / description（§2.3）
   - `[schema]` id / version
@@ -172,7 +172,7 @@ content = '''…词库原文…'''
 5. 其余合法 TOML 文本（文件或剪贴板）→ 配置片段流程。
 6. 均不匹配 → 明确报错，不猜。
 
-生成端（WindInputTools / 手工打包）必须保证产物落进规则 2 或 3，否则视为无效包。
+生成端（MoodflowTools / 手工打包）必须保证产物落进规则 2 或 3，否则视为无效包。
 
 ## 5. 安全要求
 
@@ -180,7 +180,7 @@ content = '''…词库原文…'''
 - **既有取舍（2026-08-19 审查记录，接受不改）**：①批量落盘是逐文件 tmp+rename——单文件原子，批内**不**原子，中途失败已写入的前序文件不回滚（与 §3.3「文件与片段两步非原子」同哲学：如实报错优于伪原子）；②同批内大小写不同的重复路径（Windows 不区分大小写）不做归并检测，Merge 策略下第二个按冲突呈现、Replace 策略下后写覆盖先写。
 - **限额**（新增，数值待定）：下载体积上限、解压后总量与条目数上限、下载超时。
 - **确认对话框最低内容**（不可减配，任何入口一致）：来源（域名或文件路径）、方案 id 与版本、文件数与体积、与现有文件的冲突数、`config_patch` 将改动的键（当前值 → 新值）逐键列出。
-- **协议来源策略**：`windinput://` 的 `url` 参数限官方域白名单 + https（现状已限 https）。本地文件 / 剪贴板不限来源——能力越强的内容走越窄的门（片段仅能改登记键 → 最开放；协议一键到达 → 最紧）。
+- **协议来源策略**：`moodflow://` 的 `url` 参数限官方域白名单 + https（现状已限 https）。本地文件 / 剪贴板不限来源——能力越强的内容走越窄的门（片段仅能改登记键 → 最开放；协议一键到达 → 最紧）。
 
 ## 6. 版本与兼容
 

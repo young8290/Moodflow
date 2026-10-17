@@ -10,7 +10,7 @@
 # 两个脚本写同一个 $XWIN_BIN 目录。若各自维护一份软链逻辑，后跑的会覆盖先跑的。
 # 曾因此长期发版失败：pack-installer.sh 复制了一份，却把 clang-cl/lld-link/llvm-rc/
 # llvm-lib/llvm-dlltool 五个名字一律软链到 clang，覆盖掉 dev.sh 建立的正确映射；
-# 于是 wind-installer 的 zstd-sys 拿 clang 当归档器，报
+# 于是 moodflow-installer 的 zstd-sys 拿 clang 当归档器，报
 #     llvm-lib: error: unknown argument: '-nologo'
 # （前缀是 llvm-lib 只因 clang 打印 argv[0]）。主仓构建先跑故成功，安装器打包后跑故失败，
 # 同一 job 内同版本 zstd-sys 一成一败，正是这个覆盖顺序造成的。
@@ -20,13 +20,13 @@
 # ============================================================================
 
 XWIN_BIN="${XWIN_BIN:-$HOME/.local/xwin-bin}"
-WIND_LLVM_VER="${WIND_LLVM_VER:-19}"   # MSVC STL 要求 clang≥19；可覆盖切到 20
+MOODFLOW_LLVM_VER="${MOODFLOW_LLVM_VER:-19}"   # MSVC STL 要求 clang≥19；可覆盖切到 20
 
 # 宿主脚本未提供 err() 时的纯文本兜底（pack-installer.sh 没有带颜色的输出函数）
 command -v err >/dev/null 2>&1 || err() { printf '[ERROR] %s\n' "$*" >&2; }
 
 setup_xwin_env() {
-    local v="$WIND_LLVM_VER"
+    local v="$MOODFLOW_LLVM_VER"
     if ! command -v "clang-$v" >/dev/null 2>&1; then
         err "未找到 clang-$v;请安装 clang-$v lld-$v llvm-$v(MSVC STL 要求 clang≥19)。"
         return 1

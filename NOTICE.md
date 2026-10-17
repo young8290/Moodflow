@@ -1,6 +1,6 @@
 # 第三方资源声明
 
-清风输入法 (WindInput) 使用了以下第三方资源，在此表示感谢并声明其许可证信息。
+Moodflow 输入法使用了以下第三方资源，在此表示感谢并声明其许可证信息。
 
 ## 词库与数据资源
 
@@ -36,7 +36,7 @@ gitignore），用于生成词库数据文件，其各自适用原项目的许�
 - **使用的文件**: `wubi86_jidian.dict.yaml`（主码表）、
   `wubi86_jidian_extra.dict.yaml`（扩展词库）、
   `wubi86_jidian_extra_district.dict.yaml`（行政区域词库）
-- **加工方式**: 由 `wind-tools/gen_dict` 处理后写入构建产物 `data/schemas/wubi86/`：
+- **加工方式**: 由 `moodflow-tools/gen_dict` 处理后写入构建产物 `data/schemas/wubi86/`：
   主码表按 unigram 词频重新赋权排序、单字提权，并按简码级别分层；扩展词库按字符
   类型拆分为 extra / emoji / english / symbols 四个文件；行政区域词库原样透传
   （仅清理头部的 librime `sort:` 键）。条目文本本身未作增删改
@@ -65,7 +65,7 @@ gitignore），用于生成词库数据文件，其各自适用原项目的许�
 
 #### Unicode CLDR / Unicode emoji 数据（研究用，未纳入发行版）
 
-- **用途**: emoji 中文名称，供 `wind-tools/gen_emoji_names` 研究「按语义用五笔
+- **用途**: emoji 中文名称，供 `moodflow-tools/gen_emoji_names` 研究「按语义用五笔
   编码检索 emoji」（输入 `khgf` 出 ⚽）。**当前功能未启用**，其产物既不入库
   也不进发行版，仅在本机 `.cache/` 下用于评估
 - **仓库/来源**:
@@ -101,7 +101,7 @@ gitignore），用于生成词库数据文件，其各自适用原项目的许�
 - **仓库**: https://github.com/rime/rime-stroke
 - **许可证**: **LGPL-3.0**
 - **使用的文件**: `stroke.dict.yaml`（`字<TAB>笔画码`，h/s/p/n/z 表横竖撇捺折）
-- **加工方式**: 由 `wind-tools/gen_aux_code` 按常用字集裁剪后写出两份构建产物，
+- **加工方式**: 由 `moodflow-tools/gen_aux_code` 按常用字集裁剪后写出两份构建产物，
   字集与每字的码序逐一相同。**码本身不作任何改动**（同字多码保留上游行序 = 优先级）。
   裁剪字集见下方 hanzi-chars 条目
   - `data/schemas/aux_code/stroke.txt`：剥去 YAML 头、`<TAB>` 转 `=`（辅助码表格式）
@@ -211,8 +211,8 @@ Apache-2.0（极点五笔码表）与 Unicode-3.0（Unicode CLDR，当前仅研�
 均为宽松许可证，允许修改后再分发，其加工产物可直接包含在本仓库中，
 无 copyleft 传染性。
 
-## 本项目自身的名称与标识
+## 本项目的来源
 
-本项目的 logo（`pic/logo.png`）与应用图标为原创图形作品，不在 MIT 许可证的
-授权范围内。关于项目名称「清风输入法」「WindInput」的使用，
-详见 [BRANDING.md](BRANDING.md)。
+Moodflow 的输入法部分基于开源输入法项目 WindInput（https://github.com/huanfeng/WindInput，MIT 许可证），
+原项目的版权声明与许可全文保留在 [LICENSE](LICENSE) 中。Moodflow 的 logo 与应用图标是本项目自己的，
+未使用原项目的 logo。

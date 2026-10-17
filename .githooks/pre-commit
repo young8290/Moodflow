@@ -19,7 +19,7 @@ if [ -z "$files" ]; then
 fi
 
 # 用 rustfmt 而不是 cargo fmt：后者没有「只格式化指定文件」的入口。
-# ⚠️ edition 必须与 workspace 一致（wind_input/Cargo.toml 的 edition = "2024"）；
+# ⚠️ edition 必须与 workspace 一致（moodflow_input/Cargo.toml 的 edition = "2024"）；
 # 漏传会按 2015 解析，把合规文件误报成不合规。改 workspace edition 时这里要跟着改。
 #
 # ⚠️ `skip_children=true` 同样不可省：rustfmt 默认**跟进 `mod` 子模块**，于是查一个
@@ -44,7 +44,7 @@ if [ -n "$bad" ]; then
     echo "  以下暂存文件格式不符："
     printf '%s' "$bad"
     echo ""
-    echo "  修复: cd wind_input && cargo fmt"
+    echo "  修复: cd moodflow_input && cargo fmt"
     echo ""
     exit 1
 fi

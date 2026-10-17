@@ -2,7 +2,7 @@
 
 > 记录 `GUID_COMPARTMENT_KEYBOARD_OPENCLOSE` 该怎么用，以及本仓曾把它钉死为 1 所衍生的
 > **四个独立缺陷与九道补丁判据**。2026-08-04 全天排查 gvim / DBX(WebView) 中英切换异常的产物。
-> 涉及 `wind_tsf/src/TextService.cpp`（`OnChange` / `_SetOpenCloseCompartment`）与 `KeyEventSink.cpp`。
+> 涉及 `moodflow_tsf/src/TextService.cpp`（`OnChange` / `_SetOpenCloseCompartment`）与 `KeyEventSink.cpp`。
 >
 > ⚠ **本文档推翻了此前代码注释里长期存在的多条结论**，被推翻的部分在下文显式标注为「✗ 旧说法」。
 > 读到旧注释与本文冲突时，以本文为准。

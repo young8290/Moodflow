@@ -129,7 +129,7 @@ C2-22 原文只说了「异步」，这一层是本设计补的。
 代价是草稿**只支持精确码召回、不支持简拼**——而草稿的定位就是「你刚打过的，用同样的码再打
 一次就出来」，简拼召回等它转正进 `temp_words` 之后自然就有。
 ★ 这条在 trait 层面是免费的：`DictLayer::search_abbrev` 的默认实现就是返回空，
-且文档注明「不回退全表扫」（`wind-dict/src/layer.rs:46`）。
+且文档注明「不回退全表扫」（`moodflow-dict/src/layer.rs:46`）。
 
 ### 4.2 表结构
 
@@ -154,7 +154,7 @@ C2-22 原文只说了「异步」，这一层是本设计补的。
 那条注释反复提醒过的坑。
 
 **层的挂载**：新增 `LayerType`，数值排在 `Temp = 2` 之后（现有 `Logic=0 / User=1 / Temp=2 /
-Cell=3 / System=4`，`wind-dict/src/layer.rs:12`），经 `DictManager::register_layer` 挂进引擎的
+Cell=3 / System=4`，`moodflow-dict/src/layer.rs:12`），经 `DictManager::register_layer` 挂进引擎的
 `CompositeDict`。⚠️ `merge_search` 跨层同 `(code,text)` 会**继承更高的 weight**
 （`composite.rs:121`）——草稿不存 weight，此处要确认它不会把别层的词意外抬权。
 

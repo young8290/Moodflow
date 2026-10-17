@@ -1,16 +1,16 @@
-# WindInput — Go → Rust 迁移计划
+# Moodflow — Go → Rust 迁移计划
 
 ## 目标
 
-将 WindInput 的 Go 核心服务（`wind_input/`）完整迁移到 Rust，以实现：
+将 Moodflow 的 Go 核心服务（`moodflow_input/`）完整迁移到 Rust，以实现：
 - **内存占用大幅降低**（消除 GC 开销、紧凑数据结构、mmap 零拷贝）
 - **保持 100% 协议兼容**（TSF DLL 和设置前端无需修改）
 - **保持功能等价**（所有输入法行为完全一致）
 
 ## 不变的部分
 
-- `wind_tsf/` — C++ TSF DLL（消费端，逻辑不改动）。**已迁入本仓库并纳入交叉编译链路**（MinGW，
-  `dev.sh tsf` / `wind_tsf/Makefile`）；仅加可移植性垫片，业务逻辑保持不变。见 `docs/redesign/tsf-migration.md`。
+- `moodflow_tsf/` — C++ TSF DLL（消费端，逻辑不改动）。**已迁入本仓库并纳入交叉编译链路**（MinGW，
+  `dev.sh tsf` / `moodflow_tsf/Makefile`）；仅加可移植性垫片，业务逻辑保持不变。见 `docs/redesign/tsf-migration.md`。
 - `data/` — 配置/码表/主题数据文件
 - `installer/`、`scripts/` — 构建/安装脚本（适配 Rust 构建）
 
@@ -33,10 +33,10 @@
 ## 模块结构
 
 ```
-WindInput/
+Moodflow/
 ├── Cargo.toml                    # workspace root
 ├── crates/
-│   ├── wind-ipc/                 # IPC 协议定义 + 编解码
+│   ├── moodflow-ipc/                 # IPC 协议定义 + 编解码
 │   │   ├── src/
 │   │   │   ├── lib.rs
 │   │   │   ├── protocol.rs       # 命令码、Header、Payload 结构体
@@ -44,7 +44,7 @@ WindInput/
 │   │   │   └── rpc.rs            # JSON-RPC 协议（设置前端通信用）
 │   │   └── Cargo.toml
 │   │
-│   ├── wind-bridge/              # Named Pipe 服务器 + 共享内存
+│   ├── moodflow-bridge/              # Named Pipe 服务器 + 共享内存
 │   │   ├── src/
 │   │   │   ├── lib.rs
 │   │   │   ├── server.rs                 # 请求-响应管道服务
@@ -57,7 +57,7 @@ WindInput/
 │   │   │   └── deferred.rs                # 延迟处理器
 │   │   └── Cargo.toml
 │   │
-│   ├── wind-config/              # 配置系统
+│   ├── moodflow-config/              # 配置系统
 │   │   ├── src/
 │   │   │   ├── lib.rs
 │   │   │   ├── config.rs         # Config 结构体 + 三层合并
@@ -67,7 +67,7 @@ WindInput/
 │   │   │   └── runtime_state.rs  # 运行时状态持久化
 │   │   └── Cargo.toml
 │   │
-│   ├── wind-store/               # 数据库层
+│   ├── moodflow-store/               # 数据库层
 │   │   ├── src/
 │   │   │   ├── lib.rs
 │   │   │   ├── store.rs          # Store 核心（redb）
@@ -80,7 +80,7 @@ WindInput/
 │   │   │   └── migration.rs
 │   │   └── Cargo.toml
 │   │
-│   ├── wind-dict/                # 词典系统
+│   ├── moodflow-dict/                # 词典系统
 │   │   ├── src/
 │   │   │   ├── lib.rs
 │   │   │   ├── composite.rs      # CompositeDict 多层词典
@@ -93,7 +93,7 @@ WindInput/
 │   │   │   └── manager.rs        # DictManager
 │   │   └── Cargo.toml
 │   │
-│   ├── wind-engine/              # 输入引擎
+│   ├── moodflow-engine/              # 输入引擎
 │   │   ├── src/
 │   │   │   ├── lib.rs
 │   │   │   ├── engine.rs         # Engine trait
@@ -117,14 +117,14 @@ WindInput/
 │   │   │   └── manager.rs        # EngineManager
 │   │   └── Cargo.toml
 │   │
-│   ├── wind-candidate/           # 候选词类型
+│   ├── moodflow-candidate/           # 候选词类型
 │   │   ├── src/
 │   │   │   ├── lib.rs
 │   │   │   ├── candidate.rs      # Candidate 结构体
 │   │   │   └── filter.rs         # 过滤逻辑
 │   │   └── Cargo.toml
 │   │
-│   ├── wind-transform/           # 文本变换
+│   ├── moodflow-transform/           # 文本变换
 │   │   ├── src/
 │   │   │   ├── lib.rs
 │   │   │   ├── punctuation.rs    # 标点转换
@@ -133,7 +133,7 @@ WindInput/
 │   │   │   └── s2t.rs            # 简繁转换
 │   │   └── Cargo.toml
 │   │
-│   ├── wind-theme/               # 主题系统
+│   ├── moodflow-theme/               # 主题系统
 │   │   ├── src/
 │   │   │   ├── lib.rs
 │   │   │   ├── theme.rs          # Theme 结构体
@@ -144,7 +144,7 @@ WindInput/
 │   │   │   └── bgimage.rs        # 背景图/SVG
 │   │   └── Cargo.toml
 │   │
-│   ├── wind-ui/                  # UI 渲染层（tiny-skia）
+│   ├── moodflow-ui/                  # UI 渲染层（tiny-skia）
 │   │   ├── src/
 │   │   │   ├── lib.rs
 │   │   │   ├── window.rs         # Layered Window 管理
@@ -170,7 +170,7 @@ WindInput/
 │   │   │   └── manager.rs        # UI 管理器 + 消息循环
 │   │   └── Cargo.toml
 │   │
-│   ├── wind-cmdbar/              # 命令栏系统
+│   ├── moodflow-cmdbar/              # 命令栏系统
 │   │   ├── src/
 │   │   │   ├── lib.rs
 │   │   │   ├── parser/
@@ -184,7 +184,7 @@ WindInput/
 │   │   │   └── funcs/            # 34 个内置函数
 │   │   └── Cargo.toml
 │   │
-│   └── wind-coordinator/         # 中央协调器
+│   └── moodflow-coordinator/         # 中央协调器
 │       ├── src/
 │       │   ├── lib.rs
 │       │   ├── coordinator.rs    # Coordinator 主结构
@@ -203,12 +203,12 @@ WindInput/
 │       │   └── watchdog.rs
 │       └── Cargo.toml
 │
-├── wind_service/                 # 主入口
+├── moodflow_service/                 # 主入口
 │   ├── src/
 │   │   └── main.rs               # 启动序列
 │   └── Cargo.toml
 │
-├── wind_rpc/                     # RPC 服务
+├── moodflow_rpc/                     # RPC 服务
 │   ├── src/
 │   │   ├── main.rs               # 独立 RPC 进程（可选）
 │   │   ├── server.rs
@@ -237,54 +237,54 @@ WindInput/
 - [ ] CI 构建脚本
 
 ### Phase 1: 协议层（第 1-2 周）
-- [ ] `wind-ipc` — 完整协议定义 + 编解码（从 Go 的 `ipc/` 和 `rpcapi/` 移植）
-- [ ] `wind-bridge` — Named Pipe 服务器（tokio 异步）
-- [x] `wind-bridge` — 共享内存 Host Render（✅ 2026-07，合并 main + 真机验证）
+- [ ] `moodflow-ipc` — 完整协议定义 + 编解码（从 Go 的 `ipc/` 和 `rpcapi/` 移植）
+- [ ] `moodflow-bridge` — Named Pipe 服务器（tokio 异步）
+- [x] `moodflow-bridge` — 共享内存 Host Render（✅ 2026-07，合并 main + 真机验证）
 - [ ] 与现有 TSF DLL 联调验证
 
 ### Phase 2: 数据层（第 2-3 周）
-- [ ] `wind-config` — TOML 三层合并配置
-- [ ] `wind-store` — redb 数据库（bucket → table 映射）
-- [ ] `wind-store` — 频率异步批处理
-- [ ] `wind-dict` — 二进制格式 mmap 读取
-- [ ] `wind-dict` — DAT 格式读取
-- [ ] `wind-dict` — CompositeDict 多层架构
-- [ ] `wind-dict` — StoreUserLayer / StoreTempLayer / StoreShadowLayer
+- [ ] `moodflow-config` — TOML 三层合并配置
+- [ ] `moodflow-store` — redb 数据库（bucket → table 映射）
+- [ ] `moodflow-store` — 频率异步批处理
+- [ ] `moodflow-dict` — 二进制格式 mmap 读取
+- [ ] `moodflow-dict` — DAT 格式读取
+- [ ] `moodflow-dict` — CompositeDict 多层架构
+- [ ] `moodflow-dict` — StoreUserLayer / StoreTempLayer / StoreShadowLayer
 
 ### Phase 3: 引擎层（第 3-5 周）
-- [ ] `wind-candidate` — Candidate 类型 + 排序 + 过滤
-- [ ] `wind-transform` — 标点/全角/配对/简繁
-- [ ] `wind-engine/pinyin` — 音节 Trie + DAG + 解析器
-- [ ] `wind-engine/pinyin` — Lattice + Viterbi + 评分
-- [ ] `wind-engine/pinyin` — 语言模型（unigram/bigram）
-- [ ] `wind-engine/pinyin` — 双拼/模糊音
-- [ ] `wind-engine/codetable` — 码表引擎
-- [ ] `wind-engine/mixed` — 混合引擎
-- [ ] `wind-engine` — EngineManager + SchemaFactory
+- [ ] `moodflow-candidate` — Candidate 类型 + 排序 + 过滤
+- [ ] `moodflow-transform` — 标点/全角/配对/简繁
+- [ ] `moodflow-engine/pinyin` — 音节 Trie + DAG + 解析器
+- [ ] `moodflow-engine/pinyin` — Lattice + Viterbi + 评分
+- [ ] `moodflow-engine/pinyin` — 语言模型（unigram/bigram）
+- [ ] `moodflow-engine/pinyin` — 双拼/模糊音
+- [ ] `moodflow-engine/codetable` — 码表引擎
+- [ ] `moodflow-engine/mixed` — 混合引擎
+- [ ] `moodflow-engine` — EngineManager + SchemaFactory
 
 ### Phase 4: 渲染层（第 5-7 周）
-- [ ] `wind-theme` — 主题加载 + 调色板 + ResolvedV3
-- [ ] `wind-ui/text` — DirectWrite 后端（FFI）
-- [ ] `wind-ui/viewbox` — box-model 布局引擎
-- [ ] `wind-ui/viewbox` — tiny-skia 三阶段绘制
-- [ ] `wind-ui` — 候选窗口 + Layered Window
-- [ ] `wind-ui` — Toolbar / Tooltip / Status / Toast / PopupMenu
-- [x] `wind-ui` — Host Render 路径（写入共享内存）（✅ 2026-07）
+- [ ] `moodflow-theme` — 主题加载 + 调色板 + ResolvedV3
+- [ ] `moodflow-ui/text` — DirectWrite 后端（FFI）
+- [ ] `moodflow-ui/viewbox` — box-model 布局引擎
+- [ ] `moodflow-ui/viewbox` — tiny-skia 三阶段绘制
+- [ ] `moodflow-ui` — 候选窗口 + Layered Window
+- [ ] `moodflow-ui` — Toolbar / Tooltip / Status / Toast / PopupMenu
+- [x] `moodflow-ui` — Host Render 路径（写入共享内存）（✅ 2026-07）
 
 ### Phase 5: 业务逻辑（第 7-9 周）
-- [ ] `wind-cmdbar` — 词法/语法/AST
-- [ ] `wind-cmdbar` — 求值器 + 34 个内置函数
-- [ ] `wind-coordinator` — 按键事件路由（完整优先级链）
-- [ ] `wind-coordinator` — 候选选择/提交
-- [ ] `wind-coordinator` — 模式切换
-- [ ] `wind-coordinator` — 临时模式/快捷输入/特殊模式
-- [ ] `wind-coordinator` — 热键匹配
-- [ ] `wind-coordinator` — 统计/看门狗/内存修剪
+- [ ] `moodflow-cmdbar` — 词法/语法/AST
+- [ ] `moodflow-cmdbar` — 求值器 + 34 个内置函数
+- [ ] `moodflow-coordinator` — 按键事件路由（完整优先级链）
+- [ ] `moodflow-coordinator` — 候选选择/提交
+- [ ] `moodflow-coordinator` — 模式切换
+- [ ] `moodflow-coordinator` — 临时模式/快捷输入/特殊模式
+- [ ] `moodflow-coordinator` — 热键匹配
+- [ ] `moodflow-coordinator` — 统计/看门狗/内存修剪
 
 ### Phase 6: 集成（第 9-10 周）
-- [ ] `wind_service` — 主启动序列
-- [ ] `wind_rpc` — JSON-RPC 服务（65 个方法）
-- [ ] `wind_rpc` — 事件广播系统
+- [ ] `moodflow_service` — 主启动序列
+- [ ] `moodflow_rpc` — JSON-RPC 服务（65 个方法）
+- [ ] `moodflow_rpc` — 事件广播系统
 - [ ] 与 TSF DLL 完整联调
 - [ ] 性能基准测试（内存/延迟对比）
 
@@ -317,7 +317,7 @@ WindInput/
 
 - 二进制协议必须**字节级兼容**（IpcHeader 8 字节、所有 Payload 结构体）
 - JSON-RPC 协议必须**语义兼容**（方法名、参数格式、响应格式）
-- Named Pipe 命名规则不变（`\\.\pipe\wind_input` 等）
+- Named Pipe 命名规则不变（`\\.\pipe\moodflow_input` 等）
 - 共享内存格式不变（SharedRenderHeader 64 字节 + BGRA）
 
 ## 预期收益

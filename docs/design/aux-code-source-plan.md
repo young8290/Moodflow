@@ -4,13 +4,13 @@
 
 **Goal:** 「按词查编码」统一入口（系统 + 用户词库作为整体）第一期落地，辅助码借它支持 `files = ["schema:<id>"]` 引用码表方案，并修掉「改了来源要切方案才生效」的缓存 bug。
 
-**Architecture:** store 加按方案的写代次；wind-engine 新增用户词「词 → 全部编码」内存索引（按方案分槽、代次过期、后台单飞重建），与现有反查索引合成 `TextCodeView`；编码显示改走它。wind-aux-code 的筛选改为面向 `AuxCodeLookup` 接口；协调器把 `files` 里的文件表与方案视图按序拼成运行时查询对象，按来源清单做缓存键。
+**Architecture:** store 加按方案的写代次；moodflow-engine 新增用户词「词 → 全部编码」内存索引（按方案分槽、代次过期、后台单飞重建），与现有反查索引合成 `TextCodeView`；编码显示改走它。moodflow-aux-code 的筛选改为面向 `AuxCodeLookup` 接口；协调器把 `files` 里的文件表与方案视图按序拼成运行时查询对象，按来源清单做缓存键。
 
-**Tech Stack:** Rust 2024（workspace `wind_input/`），redb store，serde/toml，tracing。
+**Tech Stack:** Rust 2024（workspace `moodflow_input/`），redb store，serde/toml，tracing。
 
 **Spec:** `docs/design/text-code-lookup.md`（第一期）、`docs/design/aux-code-schema-source.md`（第 0、1 期）。
 
-**工作位置：** worktree `/home/dufeng/develop/windinput/wt-auxsrc/WindInput`，分支 `feat/aux-code-source`。
+**工作位置：** worktree `/home/dufeng/develop/moodflow/wt-auxsrc/Moodflow`，分支 `feat/aux-code-source`。
 harness 每条命令后会把 cwd 重置回主仓——**每条 Bash 都要显式 `cd` 到 worktree**。
 
 ## Global Constraints
@@ -23,7 +23,7 @@ harness 每条命令后会把 cwd 重置回主仓——**每条 Bash 都要显�
 - 加词去重（`handle_addword::encode_and_dedup`）**不改**，`word_codes_in` 保持「仅系统层」语义。
 - 提交：`git commit -F - --only -- <自己的路径…>`；新文件先 `git add -- <该文件>`。禁用 `git add -A` / `git add .` / `git commit -a` / `git stash` / `reset --hard`。
 - 格式化：只对改动文件 `rustfmt --edition 2024 <file>`，**不跑 `cargo fmt --all`**。
-- 测试命令（在 `wind_input/` 下）：
+- 测试命令（在 `moodflow_input/` 下）：
   `mkdir -p /tmp/wct-auxsrc && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p <crate> <filter>`。
   TMPDIR 不要用 scratchpad（路径过长会让 socket 测试假红）。
 - 注释与测试说明用中文，风格对齐所在文件（「为什么」写在注释里，不写流水账）。
@@ -41,11 +41,11 @@ harness 每条命令后会把 cwd 重置回主仓——**每条 Bash 都要显�
 ### Task 1: store 按方案的写代次
 
 **Files:**
-- Modify: `wind_input/crates/wind-store/src/store.rs`（字段 `words_gen` 附近 ~130-175；`words_generation` / `bump_words_gen` ~259-266；`resume` 里的 `bump_words_gen()` ~373）
-- Modify: `wind_input/crates/wind-store/src/user_words.rs`（`bump_words_gen()` 调用点：`add_user_word`、`remove_user_word`、`update_user_word_weight`、`on_word_selected`、`clear_user_words`、`import_user_words`）
-- Modify: `wind_input/crates/wind-store/src/temp_words.rs`（`learn_temp_word`、`evict_temp_words`、`import_temp_word_rows`、`clear_temp_words`、`remove_temp_word`、`promote_temp_word`）
-- Modify: `wind_input/crates/wind-store/src/draft_words.rs`（`promote_draft_to_temp`）
-- Test: `wind_input/crates/wind-store/tests/words_generation_of.rs`（新建）
+- Modify: `moodflow_input/crates/moodflow-store/src/store.rs`（字段 `words_gen` 附近 ~130-175；`words_generation` / `bump_words_gen` ~259-266；`resume` 里的 `bump_words_gen()` ~373）
+- Modify: `moodflow_input/crates/moodflow-store/src/user_words.rs`（`bump_words_gen()` 调用点：`add_user_word`、`remove_user_word`、`update_user_word_weight`、`on_word_selected`、`clear_user_words`、`import_user_words`）
+- Modify: `moodflow_input/crates/moodflow-store/src/temp_words.rs`（`learn_temp_word`、`evict_temp_words`、`import_temp_word_rows`、`clear_temp_words`、`remove_temp_word`、`promote_temp_word`）
+- Modify: `moodflow_input/crates/moodflow-store/src/draft_words.rs`（`promote_draft_to_temp`）
+- Test: `moodflow_input/crates/moodflow-store/tests/words_generation_of.rs`（新建）
 
 **Interfaces:**
 - Produces: `Store::words_generation_of(&self, schema: &str) -> (u64, u64)`（`(全体纪元, 该方案计数)`，任一变化即过期）；`pub(crate) fn bump_words_gen(&self, schema: &str)`；`pub(crate) fn bump_words_epoch(&self)`。
@@ -55,10 +55,10 @@ harness 每条命令后会把 cwd 重置回主仓——**每条 Bash 都要显�
 
 ```rust
 //! 按方案的写代次：一个方案的写入不该让别的方案的内存索引过期（见 `Store::words_generation_of`）。
-use wind_store::Store;
+use moodflow_store::Store;
 
 fn open(tag: &str) -> Store {
-    let p = std::env::temp_dir().join(format!("wind_store_gen_of_{tag}_{}.redb", std::process::id()));
+    let p = std::env::temp_dir().join(format!("moodflow_store_gen_of_{tag}_{}.redb", std::process::id()));
     let _ = std::fs::remove_file(&p);
     Store::open(&p).unwrap()
 }
@@ -100,7 +100,7 @@ fn global_generation_still_moves_on_any_write() {
 
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `cd /home/dufeng/develop/windinput/wt-auxsrc/WindInput/wind_input && mkdir -p /tmp/wct-auxsrc && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p wind-store --test words_generation_of`
+Run: `cd /home/dufeng/develop/moodflow/wt-auxsrc/Moodflow/moodflow_input && mkdir -p /tmp/wct-auxsrc && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p moodflow-store --test words_generation_of`
 Expected: 编译失败，`no method named words_generation_of`。
 
 - [ ] **Step 3: 实现**
@@ -157,20 +157,20 @@ Expected: 编译失败，`no method named words_generation_of`。
 
 `resume` 里 `self.bump_words_gen();` → `self.bump_words_epoch();`。
 其余每个调用点 `self.bump_words_gen();` → `self.bump_words_gen(schema);`（这些函数的形参都叫 `schema`）。
-改完 `grep -rn "bump_words_gen()" crates/wind-store/src` 必须无结果。字段文档 `words_gen` 那段补一句「按方案的见 `words_gen_by_schema`」。
+改完 `grep -rn "bump_words_gen()" crates/moodflow-store/src` 必须无结果。字段文档 `words_gen` 那段补一句「按方案的见 `words_gen_by_schema`」。
 
 - [ ] **Step 4: 跑测试确认通过，并跑整个 crate**
 
-Run: `cd /home/dufeng/develop/windinput/wt-auxsrc/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p wind-store`
+Run: `cd /home/dufeng/develop/moodflow/wt-auxsrc/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p moodflow-store`
 Expected: 全部 PASS。
 
 - [ ] **Step 5: 格式化并提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-auxsrc/WindInput/wind_input
-rustfmt --edition 2024 crates/wind-store/src/store.rs crates/wind-store/src/user_words.rs crates/wind-store/src/temp_words.rs crates/wind-store/src/draft_words.rs crates/wind-store/tests/words_generation_of.rs
-git add -- crates/wind-store/tests/words_generation_of.rs
-git commit -F - --only -- crates/wind-store/src/store.rs crates/wind-store/src/user_words.rs crates/wind-store/src/temp_words.rs crates/wind-store/src/draft_words.rs crates/wind-store/tests/words_generation_of.rs <<'EOF'
+cd /home/dufeng/develop/moodflow/wt-auxsrc/Moodflow/moodflow_input
+rustfmt --edition 2024 crates/moodflow-store/src/store.rs crates/moodflow-store/src/user_words.rs crates/moodflow-store/src/temp_words.rs crates/moodflow-store/src/draft_words.rs crates/moodflow-store/tests/words_generation_of.rs
+git add -- crates/moodflow-store/tests/words_generation_of.rs
+git commit -F - --only -- crates/moodflow-store/src/store.rs crates/moodflow-store/src/user_words.rs crates/moodflow-store/src/temp_words.rs crates/moodflow-store/src/draft_words.rs crates/moodflow-store/tests/words_generation_of.rs <<'EOF'
 feat(store): 用户词 / 临时词的写代次按方案计 —— 一个方案的写入不再让别的方案的索引过期
 
 按词查编码的用户层要按方案缓存（辅助码会引用五笔，而用户在拼音里打字）。只有全局代次时，
@@ -183,16 +183,16 @@ EOF
 ### Task 2: 用户层索引 `UserTextIndex`（词 → 全部编码，按方案分槽）
 
 **Files:**
-- Create: `wind_input/crates/wind-engine/src/text_codes.rs`
-- Modify: `wind_input/crates/wind-engine/src/lib.rs`（`pub mod text_codes;`）
+- Create: `moodflow_input/crates/moodflow-engine/src/text_codes.rs`
+- Modify: `moodflow_input/crates/moodflow-engine/src/lib.rs`（`pub mod text_codes;`）
 
 **Interfaces:**
 - Consumes: `Store::words_generation_of(&str) -> (u64, u64)`（Task 1）；`Store::for_each_user_word(schema, prefix, &mut |w| -> bool)`（现有，`w.text` / `w.code` 为 `&str`）。
 - Produces:
   - `pub struct UserTextIndex` + `pub fn codes_of(&self, text: &str) -> impl Iterator<Item = &str>`（码长升序、同长按字典序、去重）；
   - `pub(crate) type SharedSlots = Arc<Mutex<UserTextSlots>>`；
-  - `pub(crate) fn get_or_refresh(slots: &SharedSlots, store: &Arc<wind_store::Store>, data_schema: &str) -> Option<Arc<UserTextIndex>>`；
-  - `pub(crate) fn prewarm(slots: &SharedSlots, store: &wind_store::Store, data_schema: &str) -> bool`。
+  - `pub(crate) fn get_or_refresh(slots: &SharedSlots, store: &Arc<moodflow_store::Store>, data_schema: &str) -> Option<Arc<UserTextIndex>>`；
+  - `pub(crate) fn prewarm(slots: &SharedSlots, store: &moodflow_store::Store, data_schema: &str) -> bool`。
 
 - [ ] **Step 1: 写模块骨架与失败测试**
 
@@ -201,7 +201,7 @@ EOF
 ```rust
 //! 「按词查编码」的**用户层**：某方案用户词的「词 → 全部编码」内存索引。
 //!
-//! 系统层是反查索引（`wind_dict::ReverseIndex`）。用户词在 store 里按 `schema\0code\0text`
+//! 系统层是反查索引（`moodflow_dict::ReverseIndex`）。用户词在 store 里按 `schema\0code\0text`
 //! 排序，按词查只能扫全表（可达十九万条），故在内存里按词排一份。形态照搬词语联想的
 //! `user_assoc`：代次过期、过期时照用旧的、后台单飞重建，绝不在按键线程上扫表。
 //!
@@ -230,11 +230,11 @@ mod tests {
         assert_eq!(idx.codes_of("").count(), 0);
     }
 
-    fn tmp_store(tag: &str) -> std::sync::Arc<wind_store::Store> {
+    fn tmp_store(tag: &str) -> std::sync::Arc<moodflow_store::Store> {
         let p = std::env::temp_dir()
-            .join(format!("wind_text_codes_{tag}_{}.redb", std::process::id()));
+            .join(format!("moodflow_text_codes_{tag}_{}.redb", std::process::id()));
         let _ = std::fs::remove_file(&p);
-        std::sync::Arc::new(wind_store::Store::open(&p).unwrap())
+        std::sync::Arc::new(moodflow_store::Store::open(&p).unwrap())
     }
 
     #[test]
@@ -281,7 +281,7 @@ mod tests {
 }
 ```
 
-Run: `cd /home/dufeng/develop/windinput/wt-auxsrc/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p wind-engine --lib text_codes`
+Run: `cd /home/dufeng/develop/moodflow/wt-auxsrc/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p moodflow-engine --lib text_codes`
 Expected: FAIL（`todo!()` panic）。
 
 - [ ] **Step 2: 实现**
@@ -350,7 +350,7 @@ impl UserTextIndex {
     }
 
     /// 全量扫该方案的用户词建表（**会扫整张用户词表**，只在后台线程 / 预热 / 测试里调）。
-    pub fn build(store: &wind_store::Store, data_schema: &str) -> Self {
+    pub fn build(store: &moodflow_store::Store, data_schema: &str) -> Self {
         let generation = store.words_generation_of(data_schema);
         let mut rows = Vec::new();
         if let Err(e) = store.for_each_user_word(data_schema, "", &mut |w| {
@@ -380,7 +380,7 @@ impl UserTextIndex {
         codes.into_iter().flat_map(|s| s.split('\t'))
     }
 
-    fn is_stale(&self, store: &wind_store::Store) -> bool {
+    fn is_stale(&self, store: &moodflow_store::Store) -> bool {
         self.generation != store.words_generation_of(&self.data_schema)
     }
 }
@@ -430,7 +430,7 @@ impl UserTextSlots {
 /// 取可用索引（可能略旧）；缺失或过期时起一次后台重建（已有在建则不重复起）。
 pub(crate) fn get_or_refresh(
     slots: &SharedSlots,
-    store: &Arc<wind_store::Store>,
+    store: &Arc<moodflow_store::Store>,
     data_schema: &str,
 ) -> Option<Arc<UserTextIndex>> {
     let mut g = slots.lock().unwrap_or_else(|e| e.into_inner());
@@ -471,7 +471,7 @@ impl Drop for BuildingGuard {
 }
 
 /// 阻塞地建好并放进槽（预热 / 测试用）。已是最新则不重建，返回是否真的建了。
-pub(crate) fn prewarm(slots: &SharedSlots, store: &wind_store::Store, data_schema: &str) -> bool {
+pub(crate) fn prewarm(slots: &SharedSlots, store: &moodflow_store::Store, data_schema: &str) -> bool {
     {
         let mut g = slots.lock().unwrap_or_else(|e| e.into_inner());
         if g.touch(data_schema)
@@ -492,16 +492,16 @@ pub(crate) fn prewarm(slots: &SharedSlots, store: &wind_store::Store, data_schem
 
 - [ ] **Step 3: 跑测试确认通过**
 
-Run: `cd /home/dufeng/develop/windinput/wt-auxsrc/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p wind-engine --lib text_codes`
+Run: `cd /home/dufeng/develop/moodflow/wt-auxsrc/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p moodflow-engine --lib text_codes`
 Expected: 5 passed。
 
 - [ ] **Step 4: 格式化并提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-auxsrc/WindInput/wind_input
-rustfmt --edition 2024 crates/wind-engine/src/text_codes.rs crates/wind-engine/src/lib.rs
-git add -- crates/wind-engine/src/text_codes.rs
-git commit -F - --only -- crates/wind-engine/src/text_codes.rs crates/wind-engine/src/lib.rs <<'EOF'
+cd /home/dufeng/develop/moodflow/wt-auxsrc/Moodflow/moodflow_input
+rustfmt --edition 2024 crates/moodflow-engine/src/text_codes.rs crates/moodflow-engine/src/lib.rs
+git add -- crates/moodflow-engine/src/text_codes.rs
+git commit -F - --only -- crates/moodflow-engine/src/text_codes.rs crates/moodflow-engine/src/lib.rs <<'EOF'
 feat(engine): 按词查编码的用户层 —— 用户词「词 → 全部编码」索引，按方案分槽、代次过期后台重建
 
 形态照搬词语联想的 user_assoc（按键线程只读、过期照用旧的、单飞重建），区别是收单字、
@@ -514,11 +514,11 @@ EOF
 ### Task 3: `TextCodeView` 与编码显示接入（系统层 + 用户层）
 
 **Files:**
-- Modify: `wind_input/crates/wind-engine/src/text_codes.rs`（加 `TextCodeView`）
-- Modify: `wind_input/crates/wind-engine/src/manager.rs`（字段 `user_text` ~488 / 初始化 ~763；新方法放在 `word_codes_in` ~1165 附近；改 `codetable_reverse_hint` ~1071；改 `reverse_index_for` 的 `retain` ~1310）
-- Modify: `wind_input/crates/wind-engine/src/lib.rs`（`pub use text_codes::TextCodeView;`）
-- Modify: `wind_input/crates/wind-coordinator/src/comment.rs:679,836`、`wind_input/crates/wind-coordinator/src/coordinator.rs:6157`（`word_codes_in` → `word_codes_display`）
-- Test: `wind_input/crates/wind-engine/tests/text_codes.rs`（新建）
+- Modify: `moodflow_input/crates/moodflow-engine/src/text_codes.rs`（加 `TextCodeView`）
+- Modify: `moodflow_input/crates/moodflow-engine/src/manager.rs`（字段 `user_text` ~488 / 初始化 ~763；新方法放在 `word_codes_in` ~1165 附近；改 `codetable_reverse_hint` ~1071；改 `reverse_index_for` 的 `retain` ~1310）
+- Modify: `moodflow_input/crates/moodflow-engine/src/lib.rs`（`pub use text_codes::TextCodeView;`）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/comment.rs:679,836`、`moodflow_input/crates/moodflow-coordinator/src/coordinator.rs:6157`（`word_codes_in` → `word_codes_display`）
+- Test: `moodflow_input/crates/moodflow-engine/tests/text_codes.rs`（新建）
 
 **Interfaces:**
 - Consumes: Task 2 的 `get_or_refresh` / `prewarm` / `UserTextIndex::codes_of`。
@@ -531,7 +531,7 @@ EOF
 
 - [ ] **Step 1: 写失败测试（集成，自造码表方案）**
 
-`crates/wind-engine/tests/text_codes.rs`：
+`crates/moodflow-engine/tests/text_codes.rs`：
 
 ```rust
 //! 按词查编码统一入口的接线验证：系统层（反查索引）+ 用户层（用户词），见
@@ -539,8 +539,8 @@ EOF
 
 use std::path::PathBuf;
 use std::sync::Arc;
-use wind_config::Config;
-use wind_engine::EngineManager;
+use moodflow_config::Config;
+use moodflow_engine::EngineManager;
 
 /// 造一个码表方案 `wbx`：工=a/aaaa、攻=atyy、公=wcu。
 pub fn write_wbx(schemas: &std::path::Path) {
@@ -561,12 +561,12 @@ pub fn write_wbx(schemas: &std::path::Path) {
     .unwrap();
 }
 
-fn setup(tag: &str) -> (EngineManager, Arc<wind_store::Store>) {
-    let dir = std::env::temp_dir().join(format!("wind_text_codes_it_{tag}_{}", std::process::id()));
+fn setup(tag: &str) -> (EngineManager, Arc<moodflow_store::Store>) {
+    let dir = std::env::temp_dir().join(format!("moodflow_text_codes_it_{tag}_{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     write_wbx(&dir.join("schemas"));
     let sp = dir.join("store.redb");
-    let store = Arc::new(wind_store::Store::open(&sp).unwrap());
+    let store = Arc::new(moodflow_store::Store::open(&sp).unwrap());
     let mut cfg = Config::default();
     cfg.schema.available = vec!["wbx".into()];
     cfg.schema.active = "wbx".into();
@@ -607,7 +607,7 @@ fn view_any_code_walks_both_layers() {
 }
 ```
 
-Run: `cd /home/dufeng/develop/windinput/wt-auxsrc/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p wind-engine --test text_codes`
+Run: `cd /home/dufeng/develop/moodflow/wt-auxsrc/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p moodflow-engine --test text_codes`
 Expected: 编译失败（`word_codes_display` / `prewarm_text_codes` / `text_codes` 不存在）。
 
 - [ ] **Step 2: 实现 `TextCodeView`（text_codes.rs 追加）**
@@ -617,7 +617,7 @@ Expected: 编译失败（`word_codes_display` / `prewarm_text_codes` / `text_cod
 /// **不是**「查不到」（沿用 `EngineManager::word_codes_in` 的三态约定）。
 #[derive(Default, Clone)]
 pub struct TextCodeView {
-    pub(crate) system: Option<Arc<wind_dict::ReverseIndex>>,
+    pub(crate) system: Option<Arc<moodflow_dict::ReverseIndex>>,
     pub(crate) user: Option<Arc<UserTextIndex>>,
 }
 
@@ -665,7 +665,7 @@ impl TextCodeView {
 }
 ```
 
-（`ReverseIndex` 的实际路径以 `crates/wind-engine/src/manager.rs` 里 `reverse_index` 字段的类型为准；`CodeList::iter(self)` 按值取，`l.iter()` 可直接用。）
+（`ReverseIndex` 的实际路径以 `crates/moodflow-engine/src/manager.rs` 里 `reverse_index` 字段的类型为准；`CodeList::iter(self)` 按值取，`l.iter()` 可直接用。）
 
 - [ ] **Step 3: 实现 `EngineManager` 方法**
 
@@ -777,20 +777,20 @@ fn reverse_index_keeps(k: &str, requested: &str, primary: &str, pins: &[String])
 
 Run:
 ```
-cd /home/dufeng/develop/windinput/wt-auxsrc/WindInput/wind_input
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p wind-engine --test text_codes
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p wind-engine --lib reverse_index_keeps
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p wind-engine -p wind-coordinator
+cd /home/dufeng/develop/moodflow/wt-auxsrc/Moodflow/moodflow_input
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p moodflow-engine --test text_codes
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p moodflow-engine --lib reverse_index_keeps
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p moodflow-engine -p moodflow-coordinator
 ```
 Expected: 全部 PASS。
 
 - [ ] **Step 6: 格式化并提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-auxsrc/WindInput/wind_input
-rustfmt --edition 2024 crates/wind-engine/src/text_codes.rs crates/wind-engine/src/manager.rs crates/wind-engine/src/lib.rs crates/wind-engine/tests/text_codes.rs crates/wind-coordinator/src/comment.rs crates/wind-coordinator/src/coordinator.rs
-git add -- crates/wind-engine/tests/text_codes.rs
-git commit -F - --only -- crates/wind-engine/src/text_codes.rs crates/wind-engine/src/manager.rs crates/wind-engine/src/lib.rs crates/wind-engine/tests/text_codes.rs crates/wind-coordinator/src/comment.rs crates/wind-coordinator/src/coordinator.rs <<'EOF'
+cd /home/dufeng/develop/moodflow/wt-auxsrc/Moodflow/moodflow_input
+rustfmt --edition 2024 crates/moodflow-engine/src/text_codes.rs crates/moodflow-engine/src/manager.rs crates/moodflow-engine/src/lib.rs crates/moodflow-engine/tests/text_codes.rs crates/moodflow-coordinator/src/comment.rs crates/moodflow-coordinator/src/coordinator.rs
+git add -- crates/moodflow-engine/tests/text_codes.rs
+git commit -F - --only -- crates/moodflow-engine/src/text_codes.rs crates/moodflow-engine/src/manager.rs crates/moodflow-engine/src/lib.rs crates/moodflow-engine/tests/text_codes.rs crates/moodflow-coordinator/src/comment.rs crates/moodflow-coordinator/src/coordinator.rs <<'EOF'
 feat(engine): 按词查编码统一入口 TextCodeView —— 编码显示含用户层，自己造的词也显示编码
 
 系统层沿用反查索引，用户层取 Task 2 的用户词索引。候选注释 ${code}/${code_all} 与悬停
@@ -801,14 +801,14 @@ EOF
 
 ---
 
-### Task 4: wind-aux-code 面向 `AuxCodeLookup` 接口
+### Task 4: moodflow-aux-code 面向 `AuxCodeLookup` 接口
 
 **Files:**
-- Create: `wind_input/crates/wind-aux-code/src/lookup.rs`
-- Modify: `wind_input/crates/wind-aux-code/src/lib.rs`（`pub mod lookup; pub use lookup::AuxCodeLookup; pub use loader::read_name;`）
-- Modify: `wind_input/crates/wind-aux-code/src/filter.rs`（`phrase_matches_per_char_prefix` / `aux_code_matches` / `filter_by_aux_code` 的 `table: &AuxCodeTable` → `table: &dyn AuxCodeLookup`）
-- Modify: `wind_input/crates/wind-aux-code/src/session.rs:71`（`apply` 同上）
-- Modify: `wind_input/crates/wind-aux-code/src/loader.rs`（加 `read_name`）
+- Create: `moodflow_input/crates/moodflow-aux-code/src/lookup.rs`
+- Modify: `moodflow_input/crates/moodflow-aux-code/src/lib.rs`（`pub mod lookup; pub use lookup::AuxCodeLookup; pub use loader::read_name;`）
+- Modify: `moodflow_input/crates/moodflow-aux-code/src/filter.rs`（`phrase_matches_per_char_prefix` / `aux_code_matches` / `filter_by_aux_code` 的 `table: &AuxCodeTable` → `table: &dyn AuxCodeLookup`）
+- Modify: `moodflow_input/crates/moodflow-aux-code/src/session.rs:71`（`apply` 同上）
+- Modify: `moodflow_input/crates/moodflow-aux-code/src/loader.rs`（加 `read_name`）
 
 **Interfaces:**
 - Produces:
@@ -827,7 +827,7 @@ EOF
 mod tests {
     use super::*;
     use crate::{AuxCodeFilterOptions, AuxCodeTable, filter_by_aux_code};
-    use wind_candidate::Candidate;
+    use moodflow_candidate::Candidate;
 
     /// 两张表按序拼接的最小实现，证明筛选对「多层来源」成立。
     struct Pair(AuxCodeTable, AuxCodeTable);
@@ -877,7 +877,7 @@ mod tests {
 ```rust
     #[test]
     fn read_name_reads_only_first_line() {
-        let dir = std::env::temp_dir().join(format!("wind-aux-read-name-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("moodflow-aux-read-name-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let a = dir.join("a.txt");
         std::fs::write(&a, "# name: 小鹤\n# version: 1\n阿=ek\n").unwrap();
@@ -891,7 +891,7 @@ mod tests {
 
 （`AuxCodeTable::from_rows` 的实际签名以 `table.rs:97` 为准：`Vec<(char, &str)>`。`Candidate` 若没有 `Default`，照 `session.rs` 测试里的构造方式写。）
 
-Run: `cd /home/dufeng/develop/windinput/wt-auxsrc/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p wind-aux-code`
+Run: `cd /home/dufeng/develop/moodflow/wt-auxsrc/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p moodflow-aux-code`
 Expected: 编译失败（`AuxCodeLookup` / `read_name` 未定义）。
 
 - [ ] **Step 2: 实现**
@@ -951,19 +951,19 @@ pub fn read_name(path: &std::path::Path) -> Option<String> {
 
 Run:
 ```
-cd /home/dufeng/develop/windinput/wt-auxsrc/WindInput/wind_input
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p wind-aux-code
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc cargo check -p wind-coordinator --tests
+cd /home/dufeng/develop/moodflow/wt-auxsrc/Moodflow/moodflow_input
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p moodflow-aux-code
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc cargo check -p moodflow-coordinator --tests
 ```
 Expected: 全部 PASS；协调器照常编译（`&AuxCodeTable` 自动转 `&dyn`）。
 
 - [ ] **Step 4: 格式化并提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-auxsrc/WindInput/wind_input
-rustfmt --edition 2024 crates/wind-aux-code/src/lookup.rs crates/wind-aux-code/src/lib.rs crates/wind-aux-code/src/filter.rs crates/wind-aux-code/src/session.rs crates/wind-aux-code/src/loader.rs
-git add -- crates/wind-aux-code/src/lookup.rs
-git commit -F - --only -- crates/wind-aux-code/src/lookup.rs crates/wind-aux-code/src/lib.rs crates/wind-aux-code/src/filter.rs crates/wind-aux-code/src/session.rs crates/wind-aux-code/src/loader.rs crates/wind-aux-code/src/table.rs <<'EOF'
+cd /home/dufeng/develop/moodflow/wt-auxsrc/Moodflow/moodflow_input
+rustfmt --edition 2024 crates/moodflow-aux-code/src/lookup.rs crates/moodflow-aux-code/src/lib.rs crates/moodflow-aux-code/src/filter.rs crates/moodflow-aux-code/src/session.rs crates/moodflow-aux-code/src/loader.rs
+git add -- crates/moodflow-aux-code/src/lookup.rs
+git commit -F - --only -- crates/moodflow-aux-code/src/lookup.rs crates/moodflow-aux-code/src/lib.rs crates/moodflow-aux-code/src/filter.rs crates/moodflow-aux-code/src/session.rs crates/moodflow-aux-code/src/loader.rs crates/moodflow-aux-code/src/table.rs <<'EOF'
 refactor(aux-code): 筛选面向 AuxCodeLookup 接口，不再假定背后是一张静态表
 
 为「引用一个输入方案作辅助码」铺路：那种来源的码来自系统词库 + 用户词库、会随用户造词
@@ -977,31 +977,31 @@ EOF
 ### Task 5: 配置层 —— `files` 里的 `schema:` 条目与 `AuxSource`
 
 **Files:**
-- Modify: `wind_input/crates/wind-config/src/schema.rs:289-330`（`AuxCodeSpec` 文档、新常量）
-- Modify: `wind_input/crates/wind-engine/src/manager.rs:305-312`（`AuxCodeSettings`）、`~4188-4230`（`aux_code_settings_of`）、Task 3 的 `reverse_index_pins`
-- Modify: `wind_input/crates/wind-engine/src/lib.rs`（导出 `AuxSource`）
-- Test: `wind_input/crates/wind-engine/tests/aux_code_sources.rs`（新建）
+- Modify: `moodflow_input/crates/moodflow-config/src/schema.rs:289-330`（`AuxCodeSpec` 文档、新常量）
+- Modify: `moodflow_input/crates/moodflow-engine/src/manager.rs:305-312`（`AuxCodeSettings`）、`~4188-4230`（`aux_code_settings_of`）、Task 3 的 `reverse_index_pins`
+- Modify: `moodflow_input/crates/moodflow-engine/src/lib.rs`（导出 `AuxSource`）
+- Test: `moodflow_input/crates/moodflow-engine/tests/aux_code_sources.rs`（新建）
 
 **Interfaces:**
 - Produces:
-  - `wind_config::schema::AUX_SCHEMA_SOURCE_PREFIX: &str = "schema:"`；
+  - `moodflow_config::schema::AUX_SCHEMA_SOURCE_PREFIX: &str = "schema:"`；
   - `pub enum AuxSource { File(std::path::PathBuf), Schema(String) }`（`Debug, Clone, PartialEq, Eq`）；
   - `AuxCodeSettings { enabled, max_phrase_len, sources: Vec<AuxSource> }`（**替换**原 `files` 字段）+ `pub fn schema_sources(&self) -> impl Iterator<Item = &str>`；
   - `reverse_index_pins` 追加 `self.aux_code_settings().schema_sources()`。
 
 - [ ] **Step 1: 写失败测试**
 
-`crates/wind-engine/tests/aux_code_sources.rs`：
+`crates/moodflow-engine/tests/aux_code_sources.rs`：
 
 ```rust
 //! `[engine.aux_code].files` 的两种条目：文件路径与 `schema:<id>` 方案引用。
 
 use std::path::PathBuf;
-use wind_config::Config;
-use wind_engine::{AuxSource, EngineManager};
+use moodflow_config::Config;
+use moodflow_engine::{AuxSource, EngineManager};
 
 fn setup(tag: &str, files: &str) -> (EngineManager, PathBuf) {
-    let dir = std::env::temp_dir().join(format!("wind_aux_src_{tag}_{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("moodflow_aux_src_{tag}_{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     let schemas = dir.join("schemas");
     std::fs::create_dir_all(schemas.join("aux_code")).unwrap();
@@ -1060,12 +1060,12 @@ fn plain_file_entries_behave_as_before() {
 
 （`File` 里的路径以 `resolve_schema_resource` 实际返回为准；若它返回的是规范化后的路径，断言改为比较 `ends_with("aux_code/t.txt")`。）
 
-Run: `cd /home/dufeng/develop/windinput/wt-auxsrc/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p wind-engine --test aux_code_sources`
+Run: `cd /home/dufeng/develop/moodflow/wt-auxsrc/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p moodflow-engine --test aux_code_sources`
 Expected: 编译失败（`AuxSource` 未导出 / 无 `sources` 字段）。
 
 - [ ] **Step 2: 实现**
 
-`wind-config/src/schema.rs`，`AuxCodeSpec` 上方：
+`moodflow-config/src/schema.rs`，`AuxCodeSpec` 上方：
 
 ```rust
 /// `[engine.aux_code].files` 里「引用一个码表方案」的条目前缀：`"schema:wubi86"`。
@@ -1118,7 +1118,7 @@ impl AuxCodeSettings {
 
 ```rust
                     .filter_map(|entry| {
-                        if let Some(id) = entry.strip_prefix(wind_config::schema::AUX_SCHEMA_SOURCE_PREFIX) {
+                        if let Some(id) = entry.strip_prefix(moodflow_config::schema::AUX_SCHEMA_SOURCE_PREFIX) {
                             let id = id.trim();
                             if id.is_empty() || id == schema_id {
                                 tracing::warn!("辅助码来源无效（空或引用自己）: {entry}");
@@ -1130,7 +1130,7 @@ impl AuxCodeSettings {
                             }
                             return Some(AuxSource::Schema(id.to_string()));
                         }
-                        let p = wind_config::Config::resolve_schema_resource(self.data_dir.as_deref(), entry);
+                        let p = moodflow_config::Config::resolve_schema_resource(self.data_dir.as_deref(), entry);
                         if p.is_none() {
                             tracing::warn!("辅助码文件不存在（用户/系统 schemas 目录均未找到）: {entry}");
                         }
@@ -1150,7 +1150,7 @@ impl AuxCodeSettings {
 
 `lib.rs`：`AuxSource` 与 `AuxCodeSettings` 一起导出（看 `AuxCodeSettings` 现在怎么导出就照做）。
 
-此时 `wind-coordinator` 的 `handle_aux_code.rs` 仍引用 `settings.files`，编译会断——**本任务在协调器里只做最小适配**：把 `let paths = settings.files;` 改为
+此时 `moodflow-coordinator` 的 `handle_aux_code.rs` 仍引用 `settings.files`，编译会断——**本任务在协调器里只做最小适配**：把 `let paths = settings.files;` 改为
 
 ```rust
         // 第一期协调器接入前的过渡：只取文件来源，行为与改动前一致（Task 6 换成完整实现）。
@@ -1158,8 +1158,8 @@ impl AuxCodeSettings {
             .sources
             .iter()
             .filter_map(|s| match s {
-                wind_engine::AuxSource::File(p) => Some(p.clone()),
-                wind_engine::AuxSource::Schema(_) => None,
+                moodflow_engine::AuxSource::File(p) => Some(p.clone()),
+                moodflow_engine::AuxSource::Schema(_) => None,
             })
             .collect();
 ```
@@ -1168,19 +1168,19 @@ impl AuxCodeSettings {
 
 Run:
 ```
-cd /home/dufeng/develop/windinput/wt-auxsrc/WindInput/wind_input
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p wind-engine --test aux_code_sources
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p wind-config -p wind-engine -p wind-coordinator aux
+cd /home/dufeng/develop/moodflow/wt-auxsrc/Moodflow/moodflow_input
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p moodflow-engine --test aux_code_sources
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p moodflow-config -p moodflow-engine -p moodflow-coordinator aux
 ```
 Expected: 全部 PASS。
 
 - [ ] **Step 4: 格式化并提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-auxsrc/WindInput/wind_input
-rustfmt --edition 2024 crates/wind-config/src/schema.rs crates/wind-engine/src/manager.rs crates/wind-engine/src/lib.rs crates/wind-engine/tests/aux_code_sources.rs crates/wind-coordinator/src/handle_aux_code.rs
-git add -- crates/wind-engine/tests/aux_code_sources.rs
-git commit -F - --only -- crates/wind-config/src/schema.rs crates/wind-engine/src/manager.rs crates/wind-engine/src/lib.rs crates/wind-engine/tests/aux_code_sources.rs crates/wind-coordinator/src/handle_aux_code.rs <<'EOF'
+cd /home/dufeng/develop/moodflow/wt-auxsrc/Moodflow/moodflow_input
+rustfmt --edition 2024 crates/moodflow-config/src/schema.rs crates/moodflow-engine/src/manager.rs crates/moodflow-engine/src/lib.rs crates/moodflow-engine/tests/aux_code_sources.rs crates/moodflow-coordinator/src/handle_aux_code.rs
+git add -- crates/moodflow-engine/tests/aux_code_sources.rs
+git commit -F - --only -- crates/moodflow-config/src/schema.rs crates/moodflow-engine/src/manager.rs crates/moodflow-engine/src/lib.rs crates/moodflow-engine/tests/aux_code_sources.rs crates/moodflow-coordinator/src/handle_aux_code.rs <<'EOF'
 feat(config): [engine.aux_code].files 支持 schema:<id> 条目 —— 引用一个码表方案作辅助码来源
 
 同一个键、顺序即优先级、override 整组替换，不引入哨兵值。引用不存在 / 非码表 / 自己的
@@ -1193,11 +1193,11 @@ EOF
 ### Task 6: 协调器接入 —— 多来源运行时、缓存键、就绪门卫
 
 **Files:**
-- Create: `wind_input/crates/wind-coordinator/src/aux_code_source.rs`
-- Modify: `wind_input/crates/wind-coordinator/src/lib.rs`（`mod aux_code_source;`，看现有模块声明风格）
-- Modify: `wind_input/crates/wind-coordinator/src/coordinator.rs:1346-1348`（字段）、`~2548`（初始化）、`~3937`（`invalidate_aux_code_table`）、`spawn_index_warm`（可见性改 `pub(crate)`）
-- Modify: `wind_input/crates/wind-coordinator/src/handle_aux_code.rs`（`ensure_aux_code_table` ~85、`enter_aux_code` ~170-180、`refresh_aux_code_candidates` ~215-230、测试模块）
-- Modify: `wind_input/crates/wind-coordinator/src/handle_mode.rs:1518-1531`（模式指示名）
+- Create: `moodflow_input/crates/moodflow-coordinator/src/aux_code_source.rs`
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/lib.rs`（`mod aux_code_source;`，看现有模块声明风格）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/coordinator.rs:1346-1348`（字段）、`~2548`（初始化）、`~3937`（`invalidate_aux_code_table`）、`spawn_index_warm`（可见性改 `pub(crate)`）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/handle_aux_code.rs`（`ensure_aux_code_table` ~85、`enter_aux_code` ~170-180、`refresh_aux_code_candidates` ~215-230、测试模块）
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/handle_mode.rs:1518-1531`（模式指示名）
 
 **Interfaces:**
 - Consumes: `AuxSource` / `AuxCodeSettings::sources`（Task 5）、`EngineManager::text_codes` / `prewarm_text_codes` / `reverse_index_if_ready`（Task 3）、`AuxCodeLookup`（Task 4）、`EngineManager::schema_name(&str) -> String`（现有）。
@@ -1232,7 +1232,7 @@ EOF
 
     /// pinyin 方案的 `files` 由调用方给（TOML 数组字面量），并带上 `wbx` 与 `flypy_test.txt`。
     fn data_dir_with_files(tag: &str, files: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("wind_aux_code_src_{tag}_{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("moodflow_aux_code_src_{tag}_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let schemas = dir.join("schemas");
         std::fs::create_dir_all(schemas.join("aux_code")).unwrap();
@@ -1311,7 +1311,7 @@ EOF
         let dir = data_dir_with_files("ovr", r#"["aux_code/flypy_test.txt"]"#);
         let ov = dir.join("overrides");
         std::fs::create_dir_all(&ov).unwrap();
-        let path = std::env::temp_dir().join(format!("wind_aux_code_ovr_{}.redb", std::process::id()));
+        let path = std::env::temp_dir().join(format!("moodflow_aux_code_ovr_{}.redb", std::process::id()));
         let _ = std::fs::remove_file(&path);
         let store = Arc::new(Store::open(&path).unwrap());
         let mut cfg = Config::default();
@@ -1331,7 +1331,7 @@ EOF
 
 （`c.store` 的实际字段名以 `Coordinator` 为准；`Esc` 退出后候选是否复原为进入前那组，照已有用例 `schema_switch_invalidates_aux_code_table` 的写法——它在 Esc 后直接再次进入。）
 
-Run: `cd /home/dufeng/develop/windinput/wt-auxsrc/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p wind-coordinator --lib handle_aux_code`
+Run: `cd /home/dufeng/develop/moodflow/wt-auxsrc/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p moodflow-coordinator --lib handle_aux_code`
 Expected: `schema_source_filters_by_codetable_codes` / `schema_source_includes_user_words` FAIL（方案来源尚被忽略，`enter` 因无来源返回 None 或不筛）；`source_change_takes_effect_without_schema_switch` FAIL（缓存沿用旧表，`q` 全滤空）。**记下这三条红的输出**。
 
 - [ ] **Step 2: 实现 `aux_code_source.rs`**
@@ -1344,8 +1344,8 @@ Expected: `schema_source_filters_by_codetable_codes` / `schema_source_includes_u
 //! 静态表。设计见 `docs/design/aux-code-schema-source.md` §4、§5。
 
 use std::sync::Arc;
-use wind_aux_code::{AuxCodeLookup, AuxCodeTable};
-use wind_engine::{AuxSource, EngineManager, TextCodeView};
+use moodflow_aux_code::{AuxCodeLookup, AuxCodeTable};
+use moodflow_engine::{AuxSource, EngineManager, TextCodeView};
 
 pub(crate) struct AuxCodeRuntime {
     /// 由哪组来源建成——缓存键。来源变了（改了 override、换了方案）就重建。
@@ -1368,7 +1368,7 @@ impl AuxCodeRuntime {
             .iter()
             .map(|s| match s {
                 AuxSource::File(p) => {
-                    let t = wind_aux_code::load_from_file(p);
+                    let t = moodflow_aux_code::load_from_file(p);
                     if name.is_empty() {
                         name = t.name.clone();
                     }
@@ -1465,7 +1465,7 @@ impl AuxCodeLookup for AuxLookupNow<'_> {
     /// 旧做法会一直用旧表直到下次切方案。
     pub(crate) fn ensure_aux_code_runtime(
         &self,
-        sources: &[wind_engine::AuxSource],
+        sources: &[moodflow_engine::AuxSource],
     ) -> Arc<crate::aux_code_source::AuxCodeRuntime> {
         if let Some(rt) = self
             .aux_code_runtime
@@ -1515,7 +1515,7 @@ impl AuxCodeLookup for AuxLookupNow<'_> {
             .unwrap_or_else(|e| e.into_inner())
             .clone();
         let overlay = state.aux_code.as_mut().expect("辅助码模式必持 overlay");
-        // 未建 = 防御语义：不过滤，还原快照（见 wind-aux-code）。
+        // 未建 = 防御语义：不过滤，还原快照（见 moodflow-aux-code）。
         state.candidates = match rt {
             Some(rt) => {
                 let lookup = rt.lookup(&self.engine_mgr);
@@ -1546,25 +1546,25 @@ impl AuxCodeLookup for AuxLookupNow<'_> {
             }
 ```
 
-`grep -rn "aux_code_table\b" crates/wind-coordinator/src` 只允许剩 `invalidate_aux_code_table` 函数名及其调用、测试名。
+`grep -rn "aux_code_table\b" crates/moodflow-coordinator/src` 只允许剩 `invalidate_aux_code_table` 函数名及其调用、测试名。
 
 - [ ] **Step 4: 跑测试确认转绿，并跑协调器全量**
 
 Run:
 ```
-cd /home/dufeng/develop/windinput/wt-auxsrc/WindInput/wind_input
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p wind-coordinator --lib handle_aux_code
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p wind-coordinator
+cd /home/dufeng/develop/moodflow/wt-auxsrc/Moodflow/moodflow_input
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p moodflow-coordinator --lib handle_aux_code
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p moodflow-coordinator
 ```
 Expected: 新增 4 条与既有辅助码用例全部 PASS；协调器全量无回归。
 
 - [ ] **Step 5: 格式化并提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-auxsrc/WindInput/wind_input
-rustfmt --edition 2024 crates/wind-coordinator/src/aux_code_source.rs crates/wind-coordinator/src/lib.rs crates/wind-coordinator/src/coordinator.rs crates/wind-coordinator/src/handle_aux_code.rs crates/wind-coordinator/src/handle_mode.rs
-git add -- crates/wind-coordinator/src/aux_code_source.rs
-git commit -F - --only -- crates/wind-coordinator/src/aux_code_source.rs crates/wind-coordinator/src/lib.rs crates/wind-coordinator/src/coordinator.rs crates/wind-coordinator/src/handle_aux_code.rs crates/wind-coordinator/src/handle_mode.rs <<'EOF'
+cd /home/dufeng/develop/moodflow/wt-auxsrc/Moodflow/moodflow_input
+rustfmt --edition 2024 crates/moodflow-coordinator/src/aux_code_source.rs crates/moodflow-coordinator/src/lib.rs crates/moodflow-coordinator/src/coordinator.rs crates/moodflow-coordinator/src/handle_aux_code.rs crates/moodflow-coordinator/src/handle_mode.rs
+git add -- crates/moodflow-coordinator/src/aux_code_source.rs
+git commit -F - --only -- crates/moodflow-coordinator/src/aux_code_source.rs crates/moodflow-coordinator/src/lib.rs crates/moodflow-coordinator/src/coordinator.rs crates/moodflow-coordinator/src/handle_aux_code.rs crates/moodflow-coordinator/src/handle_mode.rs <<'EOF'
 feat(aux-code): 辅助码可引用码表方案（schema:<id>），系统 + 用户词库一起参与筛选
 
 files 里的文件表与方案视图按序拼成运行时查询对象；方案层每次筛选取当下的 TextCodeView，
@@ -1578,21 +1578,21 @@ EOF
 ### Task 7: RPC `schema.auxCodeSources`
 
 **Files:**
-- Modify: `wind_input/crates/wind-engine/src/manager.rs`（新方法 `aux_code_source_options`，放在 `aux_code_settings_of` 之后）
-- Modify: `wind_input/crates/wind-webdata/Cargo.toml`（加 `wind-aux-code = { path = "../wind-aux-code" }`）
-- Modify: `wind_input/crates/wind-webdata/src/lib.rs`（分派表 ~371 加一行；处理函数放在 `web_schema_save_config` 附近；测试模块加用例）
+- Modify: `moodflow_input/crates/moodflow-engine/src/manager.rs`（新方法 `aux_code_source_options`，放在 `aux_code_settings_of` 之后）
+- Modify: `moodflow_input/crates/moodflow-webdata/Cargo.toml`（加 `moodflow-aux-code = { path = "../moodflow-aux-code" }`）
+- Modify: `moodflow_input/crates/moodflow-webdata/src/lib.rs`（分派表 ~371 加一行；处理函数放在 `web_schema_save_config` 附近；测试模块加用例）
 
 **Interfaces:**
-- Consumes: `wind_aux_code::read_name`（Task 4）、`Config::list_schema_resource_dir`（现有）、`installed_schemas` / `schema_engine_type` / `schema_name`（现有）。
+- Consumes: `moodflow_aux_code::read_name`（Task 4）、`Config::list_schema_resource_dir`（现有）、`installed_schemas` / `schema_engine_type` / `schema_name`（现有）。
 - Produces: `EngineManager::aux_code_source_options(&self, exclude: &str) -> AuxCodeSourceOptions`，`pub struct AuxCodeSourceOptions { pub schemas: Vec<(String, String)>, pub files: Vec<(String, std::path::PathBuf)> }`；RPC 返回 `{"schemas":[{"id","name"}],"files":[{"path","label"}]}`（供第 3 期设置端）。
 
-- [ ] **Step 1: 写失败测试（wind-webdata 测试模块）**
+- [ ] **Step 1: 写失败测试（moodflow-webdata 测试模块）**
 
 ```rust
     /// 设置页「辅助码来源」的可选项：码表方案（不含请求方自己、不含非码表方案）+ aux_code/*.txt。
     #[test]
     fn schema_aux_code_sources_lists_codetable_schemas_and_tables() {
-        let dir = std::env::temp_dir().join(format!("wind_webdata_aux_src_{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("moodflow_webdata_aux_src_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let schemas = dir.join("schemas");
         std::fs::create_dir_all(schemas.join("aux_code")).unwrap();
@@ -1609,9 +1609,9 @@ EOF
         std::fs::write(schemas.join("aux_code/zz_named.txt"), "# name: 小鹤\n李=mz\n").unwrap();
         std::fs::write(schemas.join("aux_code/zz_plain.txt"), "李=mz\n").unwrap();
         let store_path = dir.join("s.redb");
-        let store = std::sync::Arc::new(wind_store::Store::open(&store_path).unwrap());
+        let store = std::sync::Arc::new(moodflow_store::Store::open(&store_path).unwrap());
         let c = Coordinator::new_headless_with_store_override(
-            wind_config::Config::default(),
+            moodflow_config::Config::default(),
             Some(&dir),
             store,
             None,
@@ -1630,7 +1630,7 @@ EOF
 
 （`schema_name` 若对 hidden 方案返回别的值，以其实际行为为准调整断言；`c.web_data_rpc` 的调用方式照同文件既有用例。）
 
-Run: `cd /home/dufeng/develop/windinput/wt-auxsrc/WindInput/wind_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p wind-webdata schema_aux_code_sources`
+Run: `cd /home/dufeng/develop/moodflow/wt-auxsrc/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p moodflow-webdata schema_aux_code_sources`
 Expected: FAIL（未知方法）。
 
 - [ ] **Step 2: 实现**
@@ -1657,14 +1657,14 @@ pub struct AuxCodeSourceOptions {
                 (id, name)
             })
             .collect();
-        let files = wind_config::Config::list_schema_resource_dir(self.data_dir.as_deref(), "aux_code", ".txt");
+        let files = moodflow_config::Config::list_schema_resource_dir(self.data_dir.as_deref(), "aux_code", ".txt");
         AuxCodeSourceOptions { schemas, files }
     }
 ```
 
 （`AuxCodeSourceOptions` 与 `AuxSource` 一并从 `lib.rs` 导出。）
 
-`wind-webdata/src/lib.rs` 分派表 `"schema.saveConfig"` 旁：
+`moodflow-webdata/src/lib.rs` 分派表 `"schema.saveConfig"` 旁：
 
 ```rust
             "schema.auxCodeSources" => self.web_schema_aux_code_sources(params),
@@ -1686,7 +1686,7 @@ pub struct AuxCodeSourceOptions {
             .files
             .iter()
             .map(|(rel, abs)| {
-                let label = wind_aux_code::read_name(abs).unwrap_or_else(|| {
+                let label = moodflow_aux_code::read_name(abs).unwrap_or_else(|| {
                     abs.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()
                 });
                 json!({ "path": rel, "label": label })
@@ -1700,17 +1700,17 @@ pub struct AuxCodeSourceOptions {
 
 Run:
 ```
-cd /home/dufeng/develop/windinput/wt-auxsrc/WindInput/wind_input
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p wind-webdata
+cd /home/dufeng/develop/moodflow/wt-auxsrc/Moodflow/moodflow_input
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p moodflow-webdata
 ```
 Expected: 全部 PASS。
 
 - [ ] **Step 4: 格式化并提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-auxsrc/WindInput/wind_input
-rustfmt --edition 2024 crates/wind-engine/src/manager.rs crates/wind-engine/src/lib.rs crates/wind-webdata/src/lib.rs
-git commit -F - --only -- crates/wind-engine/src/manager.rs crates/wind-engine/src/lib.rs crates/wind-webdata/Cargo.toml crates/wind-webdata/src/lib.rs Cargo.lock <<'EOF'
+cd /home/dufeng/develop/moodflow/wt-auxsrc/Moodflow/moodflow_input
+rustfmt --edition 2024 crates/moodflow-engine/src/manager.rs crates/moodflow-engine/src/lib.rs crates/moodflow-webdata/src/lib.rs
+git commit -F - --only -- crates/moodflow-engine/src/manager.rs crates/moodflow-engine/src/lib.rs crates/moodflow-webdata/Cargo.toml crates/moodflow-webdata/src/lib.rs Cargo.lock <<'EOF'
 feat(webdata): schema.auxCodeSources —— 列出可作辅助码来源的码表方案与码表文件
 
 供设置页「辅助码来源」下拉（第 3 期）。方案含隐藏、不看启用，排除请求方自己与非码表方案；
@@ -1732,9 +1732,9 @@ EOF
 
 Run:
 ```
-cd /home/dufeng/develop/windinput/wt-auxsrc/WindInput/wind_input
+cd /home/dufeng/develop/moodflow/wt-auxsrc/Moodflow/moodflow_input
 CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test --workspace 2>&1 | grep -E "^test result|FAILED|panicked" | awk '/test result/{p+=$4; f+=$6} /FAILED|panicked/{print} END{print "passed="p" failed="f}'
-CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc cargo clippy -p wind-store -p wind-engine -p wind-aux-code -p wind-coordinator -p wind-webdata --tests -- -D warnings
+CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc cargo clippy -p moodflow-store -p moodflow-engine -p moodflow-aux-code -p moodflow-coordinator -p moodflow-webdata --tests -- -D warnings
 ```
 Expected: `failed=0`，passed 为四位数（~4600 量级，见 worktree-test-count-baseline；明显偏少说明数据目录没生效）；clippy 无警告。
 
@@ -1746,7 +1746,7 @@ Expected: `failed=0`，passed 为四位数（~4600 量级，见 worktree-test-co
 - [ ] **Step 3: 提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-auxsrc/WindInput
+cd /home/dufeng/develop/moodflow/wt-auxsrc/Moodflow
 git commit -F - --only -- docs/design/text-code-lookup.md docs/design/aux-code-schema-source.md data/schemas/pinyin.schema.toml data/schemas/shuangpin.schema.toml <<'EOF'
 docs(aux-code): 第一期落地回填 —— 设计文档状态与提交号，方案文件注释补 schema: 写法
 EOF

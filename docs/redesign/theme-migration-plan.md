@@ -2,14 +2,14 @@
 
 ## 背景与定调
 
-Go `pkg/theme`（7224 行 / 50 文件，已是 V3-D 重构态）→ Rust `wind-theme`（迁移前 493 行，仅候选窗扁平字段）。
+Go `pkg/theme`（7224 行 / 50 文件，已是 V3-D 重构态）→ Rust `moodflow-theme`（迁移前 493 行，仅候选窗扁平字段）。
 
 **关键前提（已与用户确认）**：主题是**开放生态**——除内置 `_base`/`default`/`msime` 外，还有
-编辑器（WindInputThemeEditor）生成、Hub 分发的富主题（如 `jidian-classic`：九宫格背景图 + layers
+编辑器（MoodflowThemeEditor）生成、Hub 分发的富主题（如 `jidian-classic`：九宫格背景图 + layers
 水印 + 状态背景图，铺到所有窗口）。因此渲染面必须覆盖 Go 的完整能力，不能按"3 个纯色主题"裁剪。
 
 **架构调整（最大）**：当前 Rust 丢掉了 Go 的 `RVNode` 渲染消费树，改成扁平 `ResolvedTheme`，撑不住
-富主题。要补回 `ViewNode 树 → resolve → RVNode 树 → wind-ui 绘制` 两层模型，但做得比 Go 干净。
+富主题。要补回 `ViewNode 树 → resolve → RVNode 树 → moodflow-ui 绘制` 两层模型，但做得比 Go 干净。
 
 ## 已定设计决策
 
@@ -28,26 +28,26 @@ Go `pkg/theme`（7224 行 / 50 文件，已是 V3-D 重构态）→ Rust `wind-t
 
 ## 分阶段（每阶段可编译 + 测试通过 + 交叉编译）
 
-### T1：类型化 ViewNode schema（wind-theme，无渲染）
+### T1：类型化 ViewNode schema（moodflow-theme，无渲染）
 **目标**：`schema.rs` 定义 `Dim`/`ColorRef`/`ResourceRef`/`ViewEdges`/`ViewBorder`/`ViewFill`/
 `ViewImage`/`ViewGradient`/`ViewShadowSpec`/`ViewNode`/`Views`/`ToolbarViews`/`MenuViews`/`Meta`/
 `Behavior`/`Resources`，serde_yaml derive。复用现有 Value 层深合并，再 `from_value` 成 typed `Theme`。
 **成功标准**：`_base`/`default`/`msime`/`jidian-classic` 四个主题都能解析成 typed `Theme` 不报错。
 **状态**：✅ 完成（`schema.rs` + `theme::load_typed`；7 单测全绿，含 jidian 富特性解析：九宫格/阴影 blur/layers 水印/item 选中态背景图+字重/accent_bar/其它窗口）
 
-### T2：resolve → RVNode（wind-theme）
+### T2：resolve → RVNode（moodflow-theme）
 **目标**：`resolve.rs` 把 typed `Theme` 求值为 `Resolved{ palette, views: RvViews(RvNode 树), resources, behavior }`。
 token 递归求值 + 环检测（扩 palette.rs）；light/dark 坍缩（颜色+ref+tint）；Dim 保持符号态。
-derive 忽略；validate warn 级。**保留 `ResolvedTheme` 扁平 facade**（从 Resolved 投影），让 wind-ui
+derive 忽略；validate warn 级。**保留 `ResolvedTheme` 扁平 facade**（从 Resolved 投影），让 moodflow-ui
 迁移期零改动继续编译。
 **成功标准**：jidian-classic 解析出含 BgImage/Layers/状态 patch 的 RvNode；旧 ResolvedTheme 测试仍绿。
 **状态**：✅ 完成（`rvnode.rs` RVNode 树 + `resolve.rs` 求值；10 单测全绿、clippy 干净、windows-gnu 交叉编译 0 错误）。
 要点：不 derive；LightDark 解析期坍缩（颜色+resources ref+tint）；validate 降级为 tracing::warn；
 状态 patch nil-gating 不看几何；window 投影/accent_bar/列表几何归位；status/tooltip/toast 注入各自 palette 默认。
 **未做（留后续阶段）**：toolbar/menu 复杂结构（T5 其它窗口）；ResolvedTheme 扁平 facade 暂保持独立旧实现
-（wind-ui 仍消费旧 ResolvedTheme，T3 再切换到 Resolved/RvNode，届时删旧实现）。
+（moodflow-ui 仍消费旧 ResolvedTheme，T3 再切换到 Resolved/RvNode，届时删旧实现）。
 
-### T3：候选窗消费 RVNode（wind-ui）
+### T3：候选窗消费 RVNode（moodflow-ui）
 **目标**：candidate_window/viewbox 从 RvNode 取几何/色/字体（替换扁平字段读法）。
 **成功标准**：候选窗外观与迁移前一致（default/msime 零回归）。
 **状态**：✅ 完成（提交 `cefbaf9`）。Resolved 端到端贯通：coordinator.push_theme→load_resolved→SetTheme
@@ -73,10 +73,10 @@ Default/load_resolved、RvNode 加 bg_shape（序号圆形）。windows-gnu 交�
 - **T4b ✅**（提交 `b2abb2f`）：z 层覆盖图。`View.layers` + ViewLayer；paint 按 z<0/z>=0 分两段；
   `paint_layer` 按 anchor 九宫定位 + offset（dp + 百分比）+ size + opacity，stretch 后 Pattern 绘制。
   接到 window 节点（jidian 右下角 mark 水印）。
-- **T4c ✅**（提交 `b0cb683`）：footer SVG tint 箭头。wind-ui 加 resvg；image_cache 支持 SVG 栅格化 +
+- **T4c ✅**（提交 `b0cb683`）：footer SVG tint 箭头。moodflow-ui 加 resvg；image_cache 支持 SVG 栅格化 +
   tint（图当 alpha mask 填色）；ViewImage 加 tint；footer 用 SVG 图标节点（启用→tint、禁用→
-  disabled_tint），无图回退文字。**资产链解析**：wind-theme resolve 暴露 asset_dirs（self+base 链，
-  theme_chain_dirs）；wind-ui asset_path 按 resources→data/绝对→asset_dirs 搜字面文件——_base 的 chevron
+  disabled_tint），无图回退文字。**资产链解析**：moodflow-theme resolve 暴露 asset_dirs（self+base 链，
+  theme_chain_dirs）；moodflow-ui asset_path 按 resources→data/绝对→asset_dirs 搜字面文件——_base 的 chevron
   字面 ref 在 base 目录可被派生主题找到。
 **T4 全部完成**：背景图（九宫格/拉伸/平铺/center）+ z 层 layers + footer SVG tint 箭头。
 **部署便利**：jidian-classic 已拷入 data/themes + build_debug/data/themes（gitignore 不入库）供测试。
@@ -140,5 +140,5 @@ T4a 背景图 → T4b layers → T4c SVG 箭头 → 菜单修复 → 死代码�
 但两侧改动都不大、数据通路已铺好一半，可作为主题能力的补齐项择机做。
 
 > 注：`line_spacing` / `col_gap` / `title_gap`（tooltip/toast 多行多列间距）
-> 同样是 wind-ui 零消费，但**不列为待办**——tooltip/toast 的换行由文本内容直接控制
+> 同样是 moodflow-ui 零消费，但**不列为待办**——tooltip/toast 的换行由文本内容直接控制
 > （渲染器按文本换行排版），间距参数化没有实际需求。

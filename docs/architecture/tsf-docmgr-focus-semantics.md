@@ -2,7 +2,7 @@
 
 > 记录「焦点变了」这件事在 TSF 里的三个层级，以及每一层各自该用什么判据。
 > 本仓已有四个缺陷源于**把某一层的判据用到了另一层**，形状高度一致，故集中于此。
-> 涉及 `wind_tsf/src/TextService.cpp`（`OnSetFocus`）与 `wind-coordinator`。
+> 涉及 `moodflow_tsf/src/TextService.cpp`（`OnSetFocus`）与 `moodflow-coordinator`。
 
 ## 1. 三个层级，三种"变了"
 

@@ -1,14 +1,14 @@
 # 输入统计功能迁移计划（Go → Rust 完整对齐）
 
-> worktree: `WindInput-stats`　分支: `feat/input-stats`（从 main `4ffbf21` 分出）
-> 目标: 把 Go 版 `WindInput` 的**完整输入统计**迁移到 Rust 版，含采集器架构。
+> worktree: `Moodflow-stats`　分支: `feat/input-stats`（从 main `4ffbf21` 分出）
+> 目标: 把 Go 版 `Moodflow` 的**完整输入统计**迁移到 Rust 版，含采集器架构。
 > 决策（已确认）: ①一次性完整对齐 Go　②引入 StatCollector 采集器（内存聚合 + 后台 flush）
 
 ---
 
 ## 0. 现状与差距（结论）
 
-Rust **并非完全缺失**统计，而是只迁了「极简骨架」：`wind-store/src/stats.rs` 仅持久化每日 `{chinese, english}`，
+Rust **并非完全缺失**统计，而是只迁了「极简骨架」：`moodflow-store/src/stats.rs` 仅持久化每日 `{chinese, english}`，
 顶层单点 `coordinator.rs:1737 record_input_stats()` 按最终文本分类中英文直写 redb。
 前端 `StatsPage.vue`(1059 行) 按 Go 富模型设计，但后端不产富字段 → 速度/码长/首选率/小时分布/按方案**全显示 0**。
 
@@ -32,10 +32,10 @@ Rust **并非完全缺失**统计，而是只迁了「极简骨架」：`wind-st
 
 | 层 | 文件 | 耦合 | 冲突风险 |
 |---|---|---|---|
-| 数据/存储 | `wind-store/src/stats.rs` | 🟢低 | 改自己文件，serde(default) 向后兼容旧数据 |
-| 采集器 | `wind-store/src/stat_collector.rs`（**新文件**） | 🟢低 | 零冲突 |
-| 配置 | `wind-config/src/config.rs` | 🟡中 | 已知热点+主仓有未提交改动；只追加 StatsConfig 字段 |
-| RPC | `wind-coordinator/src/webdata.rs` | 🟡中 | 追加分支/扩展返回，冲突可控 |
+| 数据/存储 | `moodflow-store/src/stats.rs` | 🟢低 | 改自己文件，serde(default) 向后兼容旧数据 |
+| 采集器 | `moodflow-store/src/stat_collector.rs`（**新文件**） | 🟢低 | 零冲突 |
+| 配置 | `moodflow-config/src/config.rs` | 🟡中 | 已知热点+主仓有未提交改动；只追加 StatsConfig 字段 |
+| RPC | `moodflow-coordinator/src/webdata.rs` | 🟡中 | 追加分支/扩展返回，冲突可控 |
 | 顶层采集接线 | `coordinator.rs: record_input_stats / handle_key_event_policed` | 🟡中 | 改动集中在已独立函数 |
 | **散布注入** | 9 个 `handle_*.rs` 上屏函数 | 🔴**高** | **合并主战场**，隔离为 Stage3 单独提交 |
 | 前端 | `StatsPage.vue` | 🟢零 | 已完整，后端补字段即点亮 |
@@ -47,8 +47,8 @@ Rust **并非完全缺失**统计，而是只迁了「极简骨架」：`wind-st
 
 ---
 
-## Stage 1: 数据模型扩展 + 采集器（wind-store，零耦合）
-**Goal**: wind-store 内完成全部数据结构、存储 CRUD、StatCollector，纯单元测试覆盖，不碰任何其它 crate。
+## Stage 1: 数据模型扩展 + 采集器（moodflow-store，零耦合）
+**Goal**: moodflow-store 内完成全部数据结构、存储 CRUD、StatCollector，纯单元测试覆盖，不碰任何其它 crate。
 **Success Criteria**:
 - `DailyStats` 扩展为全字段（对照 Go `DailyStat`），旧 `{chinese,english}` 数据用 `#[serde(default)]` 仍可读
 - 新增 `StatsMeta`（存入现有 `META` 表的 `stats_meta` key，**不新增表定义**，减少对 store.rs 改动）
@@ -59,7 +59,7 @@ Rust **并非完全缺失**统计，而是只迁了「极简骨架」：`wind-st
 **Tests**（移植 Go `store/stats_test.go` + `stat_collector` 行为）:
 - record→daily 累加、区间查询、跨天 flush、活跃时间累计(10s 累加/90s 跳过)、streak、clear/prune、classify_chars(含标点/数字)
 - 旧数据向后兼容反序列化测试
-**Status**: ✅ Complete（32 单测全绿；下游 wind-coordinator 仍编译；commit `<stage1>`）
+**Status**: ✅ Complete（32 单测全绿；下游 moodflow-coordinator 仍编译；commit `<stage1>`）
 
 ## Stage 2: 顶层采集接线（采集器替换每键直写，单点）
 **Goal**: coordinator 持有 StatCollector，`record_input_stats` 走采集器；服务装配 collector 生命周期。

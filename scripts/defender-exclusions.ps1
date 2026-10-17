@@ -23,7 +23,7 @@
 #   # 应用 (需管理员 PowerShell)
 #   pwsh -File .\scripts\defender-exclusions.ps1
 #
-#   # 连同兄弟仓库一起排除 (wind-setting / wind-portable / wind-dict ...)
+#   # 连同兄弟仓库一起排除 (moodflow-setting / moodflow-portable / moodflow-dict ...)
 #   pwsh -File .\scripts\defender-exclusions.ps1 -Scope Workspace
 #
 #   # 撤销本脚本添加的排除项

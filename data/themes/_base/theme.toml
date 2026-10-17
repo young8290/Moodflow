@@ -1,14 +1,14 @@
 # 唯一基础主题（_ 前缀目录 → 不显示在主题列表，仅供 default/msime/jidian 等通过 base 继承）。
-# 配方：颜色=清风蓝；toolbar=跟随语义（${accent}/${surface}/${text_dim}）；候选窗几何基线
+# 配方：颜色=Moodflow 蓝；toolbar=跟随语义（${accent}/${surface}/${text_dim}）；候选窗几何基线
 # （item padding 保证合理行高）；序号=纯数字无圆圈（default 可 override 圆圈）。
 #
 # TOML 主题为「扁平人写形态」：视图节点直接顶层成表（[window]/[item]/…），radius/shape 上提到
-# 节点级，padding/margin 支持标量/数组简写，引擎加载时归一化为内存模型（见 wind-theme/normalize.rs）。
+# 节点级，padding/margin 支持标量/数组简写，引擎加载时归一化为内存模型（见 moodflow-theme/normalize.rs）。
 # 视图节点白名单：window candidate_list preedit_bar item index text comment
 #                 accent_bar footer_bar mode_label status tooltip toast toolbar menu
 
 [meta]
-name = "基础主题(清风蓝·跟随语义)"
+name = "基础主题(Moodflow 蓝·跟随语义)"
 version = "1.0"
 
 [colors]
@@ -30,7 +30,7 @@ shadow = { light = "#0000000F", dark = "#0000001A" }
 # 所有继承 _base 的主题都保证能解析（设计 text-span-colors.md §5.4，含取值依据与对比度）。
 # 出厂视图节点只在下方的 [tooltip.roles] 里引用它们（气泡角色色）。
 # accent_text 两档都等于 accent：_base 没有「强调色不可读」要另调，只为让名字在所有主题里存在；
-# 清风系自带调好的值，照旧覆盖。
+# Moodflow 系自带调好的值，照旧覆盖。
 accent_text = "${accent}"
 success = { light = "#1E8E3E", dark = "#81C995" }
 warning = { light = "#B06000", dark = "#FDD663" }
@@ -53,7 +53,7 @@ tooltip_bg = { light = "#3C3C3CF0", dark = "#1E1E1EF0" }
 tooltip_text = { light = "#FFFFFF", dark = "${text}" }
 # 气泡里的标准色：内联色在气泡里写 `x` 先取 `tooltip_x`（为深色气泡底调过），契约里每个名字
 # 都有一份。气泡底两档都是深色，故亮暗同值；没有语境意义的 on_accent / selection_text 等于
-# tooltip_text，保证写了也可读。清风系按各自强调色覆盖 tooltip_accent。
+# tooltip_text，保证写了也可读。Moodflow 系按各自强调色覆盖 tooltip_accent。
 tooltip_text_dim = { light = "#BDBDBD", dark = "#BDBDBD" }
 tooltip_text_hint = { light = "#A0A0A0", dark = "#A0A0A0" }
 tooltip_accent = { light = "#8AB4F8", dark = "#8AB4F8" }

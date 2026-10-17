@@ -1,7 +1,7 @@
 # 重设计差分：coordinator（协调器 / 按键处理）
 
 > 阶段 A 产物。Go 侧 3 个只读 agent 提取、核心架构断言 grep 抽验 file:line 属实；Rust 侧本人通读关键路径。
-> 体量：Go `internal/coordinator` ≈ 1.81 万行生产代码（最大模块，~73 文件）；Rust `wind-coordinator` ≈ 3977 行。
+> 体量：Go `internal/coordinator` ≈ 1.81 万行生产代码（最大模块，~73 文件）；Rust `moodflow-coordinator` ≈ 3977 行。
 > **本子系统是用户强调的"模式融合 + 统一按键处理"的落点**——重点是吸取 Go 新管线的**目标终态**。
 
 > ⚠️ 关键判断：**Go 的 pipeline 是迁移进行中**（满是"第 0 批骨架/部分接管/待后续批次"注释，`decide()` 遇 Activate/Release 即回退旧路径，旧 `handleXxxKey` 仍被新 `Apply` 委托调用，special 游离于 registry 外，temp_english 导航仍内联）。Rust 应**吸取其设计意图（干净终态），不照搬半迁移的新旧双轨**。Rust coordinator 目前仍是单体、未站队，正好可**直接跃迁到干净 pipeline**，省掉 Go 的迁移包袱——这是重设计的最大红利。
@@ -136,4 +136,4 @@ coordinator 重构属 **阶段 C（交互层）**，不阻塞 engine/dict/store 
 1. 阶段 B 完成质量核心后，先搭 Processor/Provider/KeyHandler/Decider 骨架 + engine_default 宿主跑通基本输入。
 2. 逐个迁移模式为 Processor（临时拼音/英文/快捷输入 → special/url），每个用 shared nav。
 3. 候选 Provider 融合（quick_input 多源）。
-> 与 ROADMAP"模式融合/统一按键处理"原则呼应。每步 `wind_input/scripts/dev.sh ci` 把关。
+> 与 ROADMAP"模式融合/统一按键处理"原则呼应。每步 `moodflow_input/scripts/dev.sh ci` 把关。

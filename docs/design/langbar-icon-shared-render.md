@@ -1,29 +1,29 @@
 # 语言栏图标共享内存渲染
 
-把 Win11 输入指示器那个图标的绘制，从 `wind_tsf.dll` 内的 DirectWrite 现画，
+把 Win11 输入指示器那个图标的绘制，从 `moodflow_tsf.dll` 内的 DirectWrite 现画，
 改为 Rust 服务端预渲染 + 共享内存投送、DLL 侧零阻塞取用。
 
 ## 实现落点
 
 | 职责 | 位置 |
 |---|---|
-| SHM 布局与命名（两端契约） | `wind-ipc/src/protocol.rs`（`IconShmHeader` / `IconVariant` / `icon_shm_name`） |
-| 图标渲染 + 发布器 | `wind-ui/src/langbar_icon.rs`（`IconRenderer` / `LangBarIconPublisher`） |
-| SHM 写端（双缓冲） | `wind-bridge/src/icon_shm_windows.rs`（`IconShm`） |
-| 触发发布 | `wind-coordinator/src/coordinator.rs` 的 `push_state_update` |
-| SHM 读端 | `wind_tsf/src/IconShmReader.cpp` |
-| 取用与兜底 | `wind_tsf/src/LangBarItemButton.cpp` 的 `GetIcon` |
-| C++ 侧结构与名字 | `wind_tsf/include/BinaryProtocol.h`、`Globals.h` |
+| SHM 布局与命名（两端契约） | `moodflow-ipc/src/protocol.rs`（`IconShmHeader` / `IconVariant` / `icon_shm_name`） |
+| 图标渲染 + 发布器 | `moodflow-ui/src/langbar_icon.rs`（`IconRenderer` / `LangBarIconPublisher`） |
+| SHM 写端（双缓冲） | `moodflow-bridge/src/icon_shm_windows.rs`（`IconShm`） |
+| 触发发布 | `moodflow-coordinator/src/coordinator.rs` 的 `push_state_update` |
+| SHM 读端 | `moodflow_tsf/src/IconShmReader.cpp` |
+| 取用与兜底 | `moodflow_tsf/src/LangBarItemButton.cpp` 的 `GetIcon` |
+| C++ 侧结构与名字 | `moodflow_tsf/include/BinaryProtocol.h`、`Globals.h` |
 
-**为什么渲染在 `wind-ui` 而不是 `wind-bridge`**：渲染需要 `TextRenderer`，
-而 `wind-ui-types → cfg(windows) wind-bridge`、`wind-ui → wind-ui-types`。
-若把渲染放进 `wind-bridge`，就需要 `wind-bridge → wind-ui` 取文本能力，立刻成环。
+**为什么渲染在 `moodflow-ui` 而不是 `moodflow-bridge`**：渲染需要 `TextRenderer`，
+而 `moodflow-ui-types → cfg(windows) moodflow-bridge`、`moodflow-ui → moodflow-ui-types`。
+若把渲染放进 `moodflow-bridge`，就需要 `moodflow-bridge → moodflow-ui` 取文本能力，立刻成环。
 根 `AGENTS.md` 的平台分层判据表回答了「整模块平台专属 → 整模块 cfg」，
 但放哪个 crate 由依赖图的无环约束决定，而那只有一个可行解。
 
 渲染逻辑本身**不加 cfg**（几何绘制与蒙版合成是平台无关的），只有 SHM 投送是
 `cfg(windows)`——这样单元测试能在 CI 的 Linux test job 上跑到。为此
-`wind-ipc` 从 target-specific 依赖提为 `wind-ui` 的通用依赖（经 `wind-bridge`
+`moodflow-ipc` 从 target-specific 依赖提为 `moodflow-ui` 的通用依赖（经 `moodflow-bridge`
 本就传递依赖它，不增加编译成本）。
 
 ## 为什么要改
@@ -178,8 +178,8 @@ PostMessage → OnUpdate → GetIcon」同样是毫秒级，谁先到取决于�
 加上 `slot0_offset`（512 B，容得下 14 × 16 B 的变体表）共约 109 KiB，落在 128 KiB 的
 `ICON_SHM_SIZE` 内。
 
-⚠ **改这里的任何数字都要同步三处**：`wind-ipc/protocol.rs`（权威）、
-`wind_tsf/include/BinaryProtocol.h`（`ICON_SHM_VERSION` / `ICON_SHM_SIZE` 各硬编码一份）、
+⚠ **改这里的任何数字都要同步三处**：`moodflow-ipc/protocol.rs`（权威）、
+`moodflow_tsf/include/BinaryProtocol.h`（`ICON_SHM_VERSION` / `ICON_SHM_SIZE` 各硬编码一份）、
 以及本表。版本号不一致时读端直接判失败退回本地绘制（图标还在、只是没角标）。
 
 `ICON_SHM_VERSION` 当前为 **1**：本功能尚未随任何版本发布，开发期内改布局（补 40/48
@@ -227,8 +227,8 @@ PostMessage → OnUpdate → GetIcon」同样是毫秒级，谁先到取决于�
 （`HostRenderSetupEntry { window_kind, max_buffer_size, shm_name, event_name }`），
 DLL 侧 `HostWindow.cpp` 用 `OpenFileMappingW(FILE_MAP_READ)` 打开。
 
-**图标 SHM 不走握手，用规则命名**：`Local\WindInput_IconShm_v{版本}{变体后缀}`
-（当前 `Local\WindInput_IconShm_v1` / `..._v1_dev`）。
+**图标 SHM 不走握手，用规则命名**：`Local\Moodflow_IconShm_v{版本}{变体后缀}`
+（当前 `Local\Moodflow_IconShm_v1` / `..._v1_dev`）。
 
 理由：两端各按同一条规则拼得出来，握手带来的动态性没有用武之地；而免握手省掉了
 「DLL 必须先握上手才能画图标」这层依赖——图标在服务连接建立之前就可能被请求。
@@ -250,7 +250,7 @@ DLL 侧 `HostWindow.cpp` 用 `OpenFileMappingW(FILE_MAP_READ)` 打开。
 
 代价是这成为一处**无编译期约束的跨仓命名契约**（与 `datadir.conf` 同类）。
 缓解办法：两端各留一处常量定义并互相注明，且变体后缀必须与既有的
-`wind_config::variant` 同源，不得另起一套（macOS 侧曾因 `_dev` 与 `Dev`
+`moodflow_config::variant` 同源，不得另起一套（macOS 侧曾因 `_dev` 与 `Dev`
 两种后缀风格混用，导致 dev 变体的 bridge/SHM 全程握不上手）。
 
 SHM 创建必须带 AppContainer SDDL（复用
@@ -258,7 +258,7 @@ SHM 创建必须带 AppContainer SDDL（复用
 
 ### 渲染：必须分层，否则退回单色
 
-`wind-ui` 的 DirectWrite 后端有一条容易踩空的语义——它假设**目标缓冲区是
+`moodflow-ui` 的 DirectWrite 后端有一条容易踩空的语义——它假设**目标缓冲区是
 已含背景的预乘 alpha**：渲染后逐像素对比，RGB 未变的算背景保留原 alpha，
 RGB 变了的按缓冲区原 alpha 预乘。
 
@@ -360,9 +360,9 @@ RGB 变了的按缓冲区原 alpha 预乘。
 - **存稳定 id（`"corner_triangle"`）而不是下标。** 下标是「在 `ALL` 里排第几」这个
   位置身份，写进文件就等于让格式绑死枚举的声明顺序——本次在头上插了一个 `None`，
   昨天存的 0（三角）今天就读成「不显示」。凡是活得比进程久的标识都要用名字。
-- **`None` = 用代码默认，不重复声明默认值。** wind-config 侧三个字段都是 `Option`，
+- **`None` = 用代码默认，不重复声明默认值。** moodflow-config 侧三个字段都是 `Option`，
   未设置时不写进文件、读回时不动构造函数给的值。默认值的唯一出处是
-  `wind_ui::langbar_icon`，在配置侧再写一份，改默认时必然漏掉一处，而症状是
+  `moodflow_ui::langbar_icon`，在配置侧再写一份，改默认时必然漏掉一处，而症状是
   「新装的机器和用过的机器表现不一样」。
 
 「不显示角标」做成形状枚举的一员而非另开一个 `enabled` 布尔：两者并存可以摆出
@@ -451,7 +451,7 @@ RGB 变了的按缓冲区原 alpha 预乘。
 这正是本次改动的收益；先落一个候选，真机看过再调。
 
 **随后 — 开关与配置。**
-角标显示与否做成配置项。按本仓惯例需同步 wind-setting 的守门测试与文档站两处，
+角标显示与否做成配置项。按本仓惯例需同步 moodflow-setting 的守门测试与文档站两处，
 成本独立于渲染本身。
 
 ## 风险与遗留
@@ -462,7 +462,7 @@ RGB 变了的按缓冲区原 alpha 预乘。
   上，凡是**位图变了而状态没变**的路径都会静默失效。将来再往图标上加任何「不表达
   状态的呈现」（第二种动画、临时高亮之类），都要先回答它靠什么通知 DLL。
 - ~~**共享内存名不含版本，改尺寸会把自己锁在门外。**~~ **已做**（2026-08-14 实际踩到，
-  次日修复）。名字改为 `Local\WindInput_IconShm_v{版本}{_dev}`，设计与踩坑经过见
+  次日修复）。名字改为 `Local\Moodflow_IconShm_v{版本}{_dev}`，设计与踩坑经过见
   「命名」一节。记一条给以后：`ACCESS_DENIED` 出现在 `MapViewOfFile` 上时，**先怀疑
   尺寸而不是权限**——命名 section 的名字把尺寸也钉死了，而错误码完全不提这件事。
 
@@ -515,7 +515,7 @@ scale = 1.0                 # 相对全局倍率的额外倍率
 `badge_alpha` 是全局默认；单条要淡一点就把色值写成八位 `#RRGGBBAA`（网页那套写法），
 不写末两位就跟随全局。**不另开 `alpha` 字段**的理由是「没说」与「说了个默认值」得分得开，
 而十六进制色值天然有这个区别：6 位 = 没说，8 位 = 这条自己说了算。仓里的
-`wind_theme::palette::parse_hex` 本来就吃这两种长度，只是把 6 位补成 `alpha = 255`
+`moodflow_theme::palette::parse_hex` 本来就吃这两种长度，只是把 6 位补成 `alpha = 255`
 丢掉了那一位信息——所以判据必须在调用侧按**原字符串去掉 `#` 后的长度**做，不能看解析结果。
 
 代价是「挖空 vs 半遮」那条档位判据从全局降到了**逐层**。这在几何上本来就是 per-badge

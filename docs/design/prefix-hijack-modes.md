@@ -37,7 +37,7 @@
 
 ## 2. 骨架在哪
 
-全部在 `crates/wind-coordinator/src/handle_url.rs`（历史原因住在 url 那个文件里，
+全部在 `crates/moodflow-coordinator/src/handle_url.rs`（历史原因住在 url 那个文件里，
 文件头注释已点明）：
 
 | 函数 | 职责 |
@@ -97,7 +97,7 @@
 
 ### 5.1 网址模式的历史补全 ✅
 
-已落地。候选来自**上屏历史**（`wind_store::completion` 的 `UrlHistory` 分区），不是新词库
+已落地。候选来自**上屏历史**（`moodflow_store::completion` 的 `UrlHistory` 分区），不是新词库
 ——用户打的网址本就没有一份可预置的表。历史由 `input.url.history_enabled` 单独开关，
 **出厂关闭**：网址模式本身不产生任何持久数据，开了历史才开始把打过的网址原文落盘，
 两者隐私量级不同。

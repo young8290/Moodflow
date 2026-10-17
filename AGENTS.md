@@ -1,6 +1,6 @@
-# AGENTS.md — WindInput 协作约定
+# AGENTS.md — Moodflow 协作约定
 
-> 给在本仓工作的 AI/人类协作者。Rust 核心在 `wind_input/`（cargo workspace）。
+> 给在本仓工作的 AI/人类协作者。Rust 核心在 `moodflow_input/`（cargo workspace）。
 
 ## 仓库地图
 
@@ -8,43 +8,42 @@
 
 | 位置 | 内容 | 文档 |
 |---|---|---|
-| `wind_input/` | Rust 核心服务（cargo workspace：19 个 crate + `apps/service`） | 本文档 + crate 级 AGENTS.md |
-| `wind_tsf/` | C++17 TSF DLL：Windows 输入法接口层，经 Named Pipe 与 Rust 服务通信 | [AGENTS.md](wind_tsf/AGENTS.md) |
-| `wind_macos/` | macOS IMKit `.app`（与 `wind_tsf/` 对位，开发中） | [AGENTS.md](wind_macos/AGENTS.md) |
-| `../wind-setting` | 设置 UI（**独立仓库**，经 JSON-RPC 与核心通信）；改设置界面去那边 | — |
-| `../wind-portable` | 绿色版启动器（独立仓库，不存在时构建脚本自动跳过） | — |
-| `../WindInput-Go` | Go 旧版源码（只读参考；docs 旧文档里的 `../WindInput` 指的是它） | — |
+| `moodflow_input/` | Rust 核心服务（cargo workspace：19 个 crate + `apps/service`） | 本文档 + crate 级 AGENTS.md |
+| `moodflow_tsf/` | C++17 TSF DLL：Windows 输入法接口层，经 Named Pipe 与 Rust 服务通信 | [AGENTS.md](moodflow_tsf/AGENTS.md) |
+| `moodflow_macos/` | macOS IMKit `.app`（与 `moodflow_tsf/` 对位，开发中） | [AGENTS.md](moodflow_macos/AGENTS.md) |
+| `../moodflow-setting` | 设置 UI（**独立仓库**，经 JSON-RPC 与核心通信）；改设置界面去那边 | — |
+| `../moodflow-portable` | 绿色版启动器（独立仓库，不存在时构建脚本自动跳过） | — |
 
-**心晴（XinQing）部分**：本仓是清风的私有分支，心晴新增的部分与上游组件并列，见下方「心晴部分」一节。
+**Moodflow 部分**：Hub、MFP 协议、开发工具等与输入法并列，见下方「Moodflow 部分」一节。
 
 ## Crate 索引
 
-> workspace 共 20 个 crate（均在 `wind_input/crates/`）。复杂 crate 已配 crate 级 `AGENTS.md`，改动前先读对应文档；新增/重构 crate 时参照同结构补文档。
+> workspace 共 20 个 crate（均在 `moodflow_input/crates/`）。复杂 crate 已配 crate 级 `AGENTS.md`，改动前先读对应文档；新增/重构 crate 时参照同结构补文档。
 
 | Crate | 职责 | crate 文档 |
 |---|---|---|
-| `wind-coordinator` | 输入法“大脑”：按键路由、状态机、候选与模式切换的中央协调器 | [AGENTS.md](wind_input/crates/wind-coordinator/AGENTS.md) |
-| `wind-engine` | Schema 驱动的引擎工厂：拼音/码表/混输/英文四类引擎的构建、切换与候选分发 | [AGENTS.md](wind_input/crates/wind-engine/AGENTS.md) |
-| `wind-ui` | 所有浮层窗口（候选窗/工具栏/菜单/状态泡/Toast/Tooltip）的渲染与鼠标交互 | [AGENTS.md](wind_input/crates/wind-ui/AGENTS.md) |
-| `wind-ui-types` | 表现层协议（纯数据）：`UiCommand`/`UiEvent` 及载荷，协调器 ↔ 任意前端（桌面/macOS/Android）共用 | [AGENTS.md](wind_input/crates/wind-ui-types/AGENTS.md) |
-| `wind-cmdbar` | 命令直通车：短语解析 → AST 求值 → 动作执行（纯逻辑） | [AGENTS.md](wind_input/crates/wind-cmdbar/AGENTS.md) |
-| `wind-dict` | 多层复合词典引擎：DictLayer/CompositeDict 查询 + wdat mmap 二进制词库 | [AGENTS.md](wind_input/crates/wind-dict/AGENTS.md) |
-| `wind-store` | 基于 redb 的用户数据持久化：按方案隔离用户词/词频/Shadow，全局存短语 | [AGENTS.md](wind_input/crates/wind-store/AGENTS.md) |
-| `wind-rpc` | core ↔ 设置端 JSON-RPC IPC 双通道（ctrl 请求-响应 + events 广播） | [AGENTS.md](wind_input/crates/wind-rpc/AGENTS.md) |
-| `wind-xinqing-tap` | 心晴：核心侧 XQP 服务端（采集钩子、隐私闸门、命名管道），Hub 通过它拿到按键与上屏事件 | [AGENTS.md](wind_input/crates/wind-xinqing-tap/AGENTS.md) |
-| `wind-config` | 配置系统：TOML 三层合并、字段注册表 SSOT、热键编译、变体探测、运行时状态 | [AGENTS.md](wind_input/crates/wind-config/AGENTS.md) |
-| `wind-theme` | 加载并求值 v3 主题，输出调色板 + 盒模型树供 wind-ui 渲染 | [AGENTS.md](wind_input/crates/wind-theme/AGENTS.md) |
-| `wind-bridge` | Named Pipe 服务器 + Push 管道，桥接 Rust 服务与 C++ TSF DLL | [AGENTS.md](wind_input/crates/wind-bridge/AGENTS.md) |
-| `wind-ipc` | IPC 协议定义与编解码（TSF 二进制协议 + JSON-RPC） | — |
-| `wind-keys` | 键名/VK 映射、导航键分类（纯逻辑）+ 按键注入（平台层）；**VK 常量 SSOT** | — |
-| `wind-candidate` | 候选词数据类型、排序与过滤 | — |
-| `wind-phrase` | 短语系统：静态/动态模板展开 + cmdbar 双路径 | — |
-| `wind-transfer` | 导入导出/备份还原底座：Bundle（manifest + zip）聚合打包与 Merge 合并策略（编解码在 wind-store）；方案包 `.wpkg` 与主题包 `.wtheme` 的格式定义都在这里 | — |
-| `wind-quick-input` | 快捷输入的内置候选来源（纯逻辑）：`quick_input.calc` 算式（含幂 `^`）/ `.date` 日期年月 / `.number` 数字金额；另定义 `.repeat`（重复上屏，由协调器实现）的成员 id。开关与优先级 = `mix_modes.members` 的有无与顺序 | — |
-| `wind-reverse` | 候选反查：五笔编码/拆字/拼音读音（悬停 tooltip） | — |
-| `wind-aux-code` | 辅助码过滤：拼音后追加字形辅助码，按字形裁减候选字词（**出厂关闭**，`schema.pinyin.aux_code.enabled`） | [AGENTS.md](wind_input/crates/wind-aux-code/AGENTS.md) |
-| `wind-punct` | 标点转换纯逻辑（中英标点/全半角/数字后智能） | — |
-| `wind-transform` | 文本变换：标点、全角、自动配对、简繁 | — |
+| `moodflow-coordinator` | 输入法“大脑”：按键路由、状态机、候选与模式切换的中央协调器 | [AGENTS.md](moodflow_input/crates/moodflow-coordinator/AGENTS.md) |
+| `moodflow-engine` | Schema 驱动的引擎工厂：拼音/码表/混输/英文四类引擎的构建、切换与候选分发 | [AGENTS.md](moodflow_input/crates/moodflow-engine/AGENTS.md) |
+| `moodflow-ui` | 所有浮层窗口（候选窗/工具栏/菜单/状态泡/Toast/Tooltip）的渲染与鼠标交互 | [AGENTS.md](moodflow_input/crates/moodflow-ui/AGENTS.md) |
+| `moodflow-ui-types` | 表现层协议（纯数据）：`UiCommand`/`UiEvent` 及载荷，协调器 ↔ 任意前端（桌面/macOS/Android）共用 | [AGENTS.md](moodflow_input/crates/moodflow-ui-types/AGENTS.md) |
+| `moodflow-cmdbar` | 命令直通车：短语解析 → AST 求值 → 动作执行（纯逻辑） | [AGENTS.md](moodflow_input/crates/moodflow-cmdbar/AGENTS.md) |
+| `moodflow-dict` | 多层复合词典引擎：DictLayer/CompositeDict 查询 + wdat mmap 二进制词库 | [AGENTS.md](moodflow_input/crates/moodflow-dict/AGENTS.md) |
+| `moodflow-store` | 基于 redb 的用户数据持久化：按方案隔离用户词/词频/Shadow，全局存短语 | [AGENTS.md](moodflow_input/crates/moodflow-store/AGENTS.md) |
+| `moodflow-rpc` | core ↔ 设置端 JSON-RPC IPC 双通道（ctrl 请求-响应 + events 广播） | [AGENTS.md](moodflow_input/crates/moodflow-rpc/AGENTS.md) |
+| `moodflow-tap` | Moodflow：核心侧 MFP 服务端（采集钩子、隐私闸门、命名管道），Hub 通过它拿到按键与上屏事件 | [AGENTS.md](moodflow_input/crates/moodflow-tap/AGENTS.md) |
+| `moodflow-config` | 配置系统：TOML 三层合并、字段注册表 SSOT、热键编译、变体探测、运行时状态 | [AGENTS.md](moodflow_input/crates/moodflow-config/AGENTS.md) |
+| `moodflow-theme` | 加载并求值 v3 主题，输出调色板 + 盒模型树供 moodflow-ui 渲染 | [AGENTS.md](moodflow_input/crates/moodflow-theme/AGENTS.md) |
+| `moodflow-bridge` | Named Pipe 服务器 + Push 管道，桥接 Rust 服务与 C++ TSF DLL | [AGENTS.md](moodflow_input/crates/moodflow-bridge/AGENTS.md) |
+| `moodflow-ipc` | IPC 协议定义与编解码（TSF 二进制协议 + JSON-RPC） | — |
+| `moodflow-keys` | 键名/VK 映射、导航键分类（纯逻辑）+ 按键注入（平台层）；**VK 常量 SSOT** | — |
+| `moodflow-candidate` | 候选词数据类型、排序与过滤 | — |
+| `moodflow-phrase` | 短语系统：静态/动态模板展开 + cmdbar 双路径 | — |
+| `moodflow-transfer` | 导入导出/备份还原底座：Bundle（manifest + zip）聚合打包与 Merge 合并策略（编解码在 moodflow-store）；方案包 `.wpkg` 与主题包 `.wtheme` 的格式定义都在这里 | — |
+| `moodflow-quick-input` | 快捷输入的内置候选来源（纯逻辑）：`quick_input.calc` 算式（含幂 `^`）/ `.date` 日期年月 / `.number` 数字金额；另定义 `.repeat`（重复上屏，由协调器实现）的成员 id。开关与优先级 = `mix_modes.members` 的有无与顺序 | — |
+| `moodflow-reverse` | 候选反查：五笔编码/拆字/拼音读音（悬停 tooltip） | — |
+| `moodflow-aux-code` | 辅助码过滤：拼音后追加字形辅助码，按字形裁减候选字词（**出厂关闭**，`schema.pinyin.aux_code.enabled`） | [AGENTS.md](moodflow_input/crates/moodflow-aux-code/AGENTS.md) |
+| `moodflow-punct` | 标点转换纯逻辑（中英标点/全半角/数字后智能） | — |
+| `moodflow-transform` | 文本变换：标点、全角、自动配对、简繁 | — |
 
 `—` = 暂无独立 `AGENTS.md`（多为纯逻辑/工具 crate，职责单一，看 `src/lib.rs` 顶部模块注释即可）。
 
@@ -59,38 +58,38 @@ Android 复用（进程内直调 headless coordinator）落地后，「平台代
 
 | 你要加的东西 | 归属 | 先例 |
 |---|---|---|
-| 协调器 ↔ 前端之间流转的**数据类型** | `wind-ui-types`（三条红线见其 AGENTS.md：仅纯数据、依赖过 android check、平台载荷走 target-specific + cfg 变体） | `UiCommand`；唯一平台载荷 `SetHostRender` |
-| 引擎/词库/候选/配置等**纯逻辑** | 对应纯逻辑 crate，**零平台依赖**（引入前先问「Android 上编得过吗」） | wind-engine / wind-dict / wind-candidate 等全员 |
+| 协调器 ↔ 前端之间流转的**数据类型** | `moodflow-ui-types`（三条红线见其 AGENTS.md：仅纯数据、依赖过 android check、平台载荷走 target-specific + cfg 变体） | `UiCommand`；唯一平台载荷 `SetHostRender` |
+| 引擎/词库/候选/配置等**纯逻辑** | 对应纯逻辑 crate，**零平台依赖**（引入前先问「Android 上编得过吗」） | moodflow-engine / moodflow-dict / moodflow-candidate 等全员 |
 | 协调器逻辑中途要**同步 pull** 的平台能力，且 cfg 兜底值是语义错误 | `HostServices` trait 注入面（coordinator/src/host_services.rs，收录判据三条见模块文档） | 剪贴板三方法 |
 | 平台状态有**事件推送通路**可注入 | 用注入路，**不要**造第二个 pull 真相源 | 宿主进程名走焦点事件喂 `pid_names` |
 | cfg 兜底值在缺失平台**可接受**的探测函数 | 同名函数三平台并列 cfg + 兜底，不进 trait | `theme_style.rs::system_prefers_dark`（三实现范例）、`is_foreground_fullscreen`→false |
-| **整模块**平台专属的功能 | `lib.rs` 处整模块 cfg（聚类，勿散落函数内） | `direct_switch`（windows）、`handle_cmdbar_macos`、wind-bridge 的 `*_unix`/`*_windows` 模块族 |
-| **桌面渲染路径**（窗口/UI 线程/渲染注入） | wind-coordinator 的 `desktop-ui` feature（default 含）；`--no-default-features` 即 headless/Android 形态 | 生产构造器 `new`、`UiManager` |
+| **整模块**平台专属的功能 | `lib.rs` 处整模块 cfg（聚类，勿散落函数内） | `direct_switch`（windows）、`handle_cmdbar_macos`、moodflow-bridge 的 `*_unix`/`*_windows` 模块族 |
+| **桌面渲染路径**（窗口/UI 线程/渲染注入） | moodflow-coordinator 的 `desktop-ui` feature（default 含）；`--no-default-features` 即 headless/Android 形态 | 生产构造器 `new`、`UiManager` |
 
-编译门与防走样（命令即 `wind_input/.cargo/config.toml` 的 alias，CI 强制）：
-`cargo check-headless`（host 无 wind-ui 形态）、`cargo check-android`（依赖闭包过
+编译门与防走样（命令即 `moodflow_input/.cargo/config.toml` 的 alias，CI 强制）：
+`cargo check-headless`（host 无 moodflow-ui 形态）、`cargo check-android`（依赖闭包过
 aarch64-linux-android；⚠ zstd-sys 等 C 依赖的 build script 需 NDK clang，本机无 NDK 时由
-CI 承接）、CI 另有 `cargo tree` 断言 coordinator 无 wind-ui 依赖边。
+CI 承接）、CI 另有 `cargo tree` 断言 coordinator 无 moodflow-ui 依赖边。
 
 已知 Android target 坑：bionic 无 POSIX SHM（`shared_memory_posix` 已 cfg 排除）；
 「check 不链接故无需 NDK」对 `-sys` crate **不成立**（build script 要编 C 源）。
 
 ## 虚拟键码（VK）—— 用常量，禁止裸十六进制
 
-所有 Windows 虚拟键码统一在 `wind_input/crates/wind-keys/src/keymap.rs` 定义为
+所有 Windows 虚拟键码统一在 `moodflow_input/crates/moodflow-keys/src/keymap.rs` 定义为
 `pub const VK_*`（`VK_ESCAPE`/`VK_BACK`/`VK_SPACE`/`VK_RETURN`/`VK_PRIOR`/`VK_NEXT`/
 `VK_UP`/`VK_DOWN`/`VK_A..VK_Z`/`VK_0..VK_9`/`VK_SEMICOLON` 等）。
 
 - **禁止**在 `match data.key_code` / 比较中写裸 `0x1B`、`0x21` 之类字面量；用 `keymap::VK_*`。
 - 触发键名（配置里的 `"backslash"`/`"semicolon"`）→ VK：`keymap::key_name_to_vk(_with_letters)`，
   单一真相源 `KEY_TABLE`，新增键只改一处。
-- **⚠️ 触发键名跨仓一致性**：设置界面（独立仓库 `../wind-setting`，见上方仓库列表）的
+- **⚠️ 触发键名跨仓一致性**：设置界面（独立仓库 `../moodflow-setting`，见上方仓库列表）的
   `src/assets/settings_manifest.toml` 里各触发键选项的 `value` 必须与本表 `KEY_TABLE.names`
   字符串**逐字相同**——两仓无编译期/运行期校验，写错会静默失效（UI 显示"已选中"、保存不报错，
-  内核 `key_name_to_vk` 返回 `None` 后被 `filter_map` 悄悄丢弃）。曾因 `wind-setting` 把方括号
+  内核 `key_name_to_vk` 返回 `None` 后被 `filter_map` 悄悄丢弃）。曾因 `moodflow-setting` 把方括号
   选项写成 `open_bracket`/`close_bracket`（本表实际是 `lbracket`/`rbracket`）导致临时英文/临时
   拼音/快捷输入的方括号触发键全部失效。改本表新增键或改名时，**必须同步 grep 检查
-  `wind-setting/src/assets/settings_manifest.toml` 与 `wind-setting/src/key_conflict.rs` 的
+  `moodflow-setting/src/assets/settings_manifest.toml` 与 `moodflow-setting/src/key_conflict.rs` 的
   `key_symbol()`** 有没有过时或不一致的字符串。
 - **注意类型**：`KeyEventData.prev_char`、`CommitRequestData.trigger_key` 是 **u16**
   （UTF-16 码元 / 协议字段），与 VK(`u32`) 比较前需 `as u32` 转换；prev_char 是字符码点不是 VK，
@@ -119,13 +118,13 @@ CI 承接）、CI 另有 `cargo tree` 断言 coordinator 无 wind-ui 依赖边�
 
 跨 crate / 跨语言边界的立约级不变量集中在此；crate 内部细节归 crate 级 `AGENTS.md`。
 
-- **C++ 吃键集必须 ⊆ Rust 出字集**：`wind_tsf` 在 `OnTestKeyDown` 就决定是否吃键，早于 IPC
+- **C++ 吃键集必须 ⊆ Rust 出字集**：`moodflow_tsf` 在 `OnTestKeyDown` 就决定是否吃键，早于 IPC
   往返；Rust 侧事后回 PassThrough 已来不及。凡 C++ 吃掉而 Rust 最终不出字的键，在严格 TSF
   宿主上直接丢失（历史案例：全角模式丢键、密码框丢键；指纹＝「有些应用打不出、有些出半角」）。
   给 C++ 侧新增吃键条件前，先确认 Rust 侧在同条件下必定产出。
 - **候选排序必须落到 weight**：协调器会按 weight 统一重排候选；引擎内部只调顺序、不改
   weight 的排序会被重排冲掉。顶码上屏取首选与候选窗展示必须共用同一排序函数。
-- **用户短语数据只存 `user_data.db`**（wind-store，全局不分方案）：yaml 短语文件是系统种子，
+- **用户短语数据只存 `user_data.db`**（moodflow-store，全局不分方案）：yaml 短语文件是系统种子，
   **不是**用户覆盖入口——旧设计文档里「yaml 用户目录覆盖」的说法已过时，勿据此实现。
 - **自带数据文件一律经覆盖解析函数定位，禁止直接 `data_dir.join(...)`**：用户目录同名文件
   整体替代安装目录那份（`Config::resolve_data_file` / `resolve_schema_resource` /
@@ -167,11 +166,11 @@ AI 附加 trailer。
 一次性执行 `./scripts/dev.sh hooks`（或 `.\scripts\dev.ps1 hooks`）激活；
 纯本地 git config，不随仓库自动传播，每个 worktree/clone 都需单独激活一次。
 
-**每次修改 Rust 文件后，验证通过前必须运行 `cargo fmt`**（在 `wind_input/` 目录下），
+**每次修改 Rust 文件后，验证通过前必须运行 `cargo fmt`**（在 `moodflow_input/` 目录下），
 再把格式化结果作为独立提交：
 
 ```bash
-cd wind_input
+cd moodflow_input
 cargo fmt
 # 确认只有格式改动，无逻辑变更
 git add <修改过的 .rs 文件>
@@ -208,16 +207,16 @@ log_level = "debug"   # 或 "trace"
 
 - 滚动策略：**每次服务启动滚动一次**（`log_rotate::rotate_on_startup`，上次运行整体搬入
   历史文件），另按大小兜底（默认 10 MB/文件）；历史文件默认保留 10 个（`debug.log_max_files`）
-- 文件命名：`wind_input.1.log`（本次运行）、`wind_input.2.log`（上次）… `wind_input.11.log`。
+- 文件命名：`moodflow_input.1.log`（本次运行）、`moodflow_input.2.log`（上次）… `moodflow_input.11.log`。
   **每份都带序号、数字越小越新**，与设置程序的 `wind_setting.N.log` 同一规则——早先当前那份
-  叫 `wind_input.log`（无序号），用户打包发日志时认不出它才是最新的，发来的常常只有 `.1.log`。
+  叫 `moodflow_input.log`（无序号），用户打包发日志时认不出它才是最新的，发来的常常只有 `.1.log`。
   **序号在扩展名之前**，滚动后仍是 `.log`（编辑器可双击、按 `*.log` 可搜）；勿改回 `.log.N` 旧式，
   也别把当前那份改回无序号
-- 时间戳为**本地时区**，格式与 `wind_tsf` 的 FileLogger 完全一致，两份日志按时间直接对齐排查；
+- 时间戳为**本地时区**，格式与 `moodflow_tsf` 的 FileLogger 完全一致，两份日志按时间直接对齐排查；
   勿退回 tracing 默认的 UTC SystemTime timer
 - 路径（变体感知）：
-  - 正常安装 release：`%LOCALAPPDATA%\WindInput\logs\`
-  - 正常安装 dev：`%LOCALAPPDATA%\WindInputDev\logs\`
+  - 正常安装 release：`%LOCALAPPDATA%\Moodflow\logs\`
+  - 正常安装 dev：`%LOCALAPPDATA%\MoodflowDev\logs\`
   - 便携模式：`<exe目录>\localdata\logs\`（以 exe 同目录存在 `portable_mode` 文件为标记；
     旧名 `wind_portable_mode` 仅保留读取兼容，新写入一律用新名）
 - 可通过 `RUST_LOG` 环境变量覆盖级别（优先级最高，仅用于开发排查）
@@ -234,11 +233,11 @@ log_level = "debug"   # 或 "trace"
 ### Windows 本机（MSVC，`scripts\dev.ps1` / `dev.bat`）
 
 - host 即 Windows 目标，无交叉编译限制：`cargo check` / `cargo test` 可直接跑全 workspace
-  （含 `wind-coordinator`）。脚本快捷键：`k`=check、`l`=clippy、`t`=test、`f`=fmt、
+  （含 `moodflow-coordinator`）。脚本快捷键：`k`=check、`l`=clippy、`t`=test、`f`=fmt、
   `ci`=fmt+clippy+test。
 - 全构建：`1`（release → `build/`）/ `d1`（dev → `build_dev/`）；单模块 `m1..m4`（tsf/核心/
   setting/portable，前缀 `d` 为 dev）。系统安装：`p1`/`pd1`；安装包：`8`/`d8` → `dist\*-Setup.exe`。
-- 部署目标默认 `C:\Program Files\WindInput[Dev]`，可在 `scripts\deploy.local.ps1` 覆盖。
+- 部署目标默认 `C:\Program Files\Moodflow[Dev]`，可在 `scripts\deploy.local.ps1` 覆盖。
 
 ### 远程编译机（可选，默认不生效）
 
@@ -247,11 +246,11 @@ log_level = "debug"   # 或 "trace"
 账号，**不入库**）；不建则 `dev.ps1` 行为逐字不变，直接调 `remote-build.ps1` 也只会回落本机执行。
 
 - **照常用 `dev.ps1`**：`dm1` / `d1` / `t` / `ci` 等构建检查类命令自动转发，产物落回 `build[_dev]\`。
-- **细粒度 cargo**：`.\scripts\rc.ps1 test -p wind-coordinator`（直接敲 `cargo` 是在本机跑）。
-- **任意命令**：`.\scripts\remote-build.ps1 -Raw "<命令>"`，在编译机的 `wind_input\` 下执行。
-- **临时回落本机**：`$env:WIND_NO_REMOTE = "1"`（编译机关机 / 不在内网 / 要做 A-B 对照）。
+- **细粒度 cargo**：`.\scripts\rc.ps1 test -p moodflow-coordinator`（直接敲 `cargo` 是在本机跑）。
+- **任意命令**：`.\scripts\remote-build.ps1 -Raw "<命令>"`，在编译机的 `moodflow_input\` 下执行。
+- **临时回落本机**：`$env:MOODFLOW_NO_REMOTE = "1"`（编译机关机 / 不在内网 / 要做 A-B 对照）。
 
-⚠️ **编译机必须是 Windows + 原生 MSVC**：clang / cargo-xwin 交叉编译出的 `wind_tsf.dll` 在带
+⚠️ **编译机必须是 Windows + 原生 MSVC**：clang / cargo-xwin 交叉编译出的 `moodflow_tsf.dll` 在带
 安全加固的宿主（企业微信 / TIM / UU 浏览器）里 COM 激活失败，已 A/B 实测锁定在工具链上
 （`6dbc8595` 因此把发布链从 ubuntu 交叉编译改回 windows-latest）。Linux 编译机与 sccache-dist
 （其 build server 官方只支持 Linux）都因此出局。
@@ -277,7 +276,7 @@ log_level = "debug"   # 或 "trace"
 
 #### 远程侧的构建是并行的
 
-`remote-build.ps1` 会注入 `WIND_PARALLEL_BUILD=1`，让全构建的 core / tsf / setting / portable
+`remote-build.ps1` 会注入 `MOODFLOW_PARALLEL_BUILD=1`，让全构建的 core / tsf / setting / portable
 四步并行（它们各写各的产物，且 setting 与 portable 用各自仓库的 `target/`）。**本机直接跑
 `dev.ps1` 时默认关闭**——12 核机器上同时跑四个构建会把机器压死。想在本机试可自行设该环境变量。
 
@@ -291,13 +290,13 @@ log_level = "debug"   # 或 "trace"
 自动派生槽位**（主树派生不出槽位，行为与从前一致），也可用环境变量覆盖：
 
 ```powershell
-$env:WIND_REMOTE_SLOT = "fx"     # → C:\build-fx\WindInput
-$env:WIND_REMOTE_SLOT = "off"    # 关掉槽位，与主树共用目录（串台风险自负）
+$env:MOODFLOW_REMOTE_SLOT = "fx"     # → C:\build-fx\Moodflow
+$env:MOODFLOW_REMOTE_SLOT = "off"    # 关掉槽位，与主树共用目录（串台风险自负）
 ```
 
-⚠️ 槽位换的是**父目录**，不是主仓的目录名。伴生仓与主仓平级，而 `wind-setting\Cargo.toml` 写死了
-三条相对 path 依赖（`../WindInput/wind_input/crates/` 下的 `wind-ipc` / `wind-rpc` / `wind-config`）：
-只改主仓目录名的话，wind-setting 仍会去 `..\WindInput` 取那三个 crate，**取到的是主树代码、
+⚠️ 槽位换的是**父目录**，不是主仓的目录名。伴生仓与主仓平级，而 `moodflow-setting\Cargo.toml` 写死了
+三条相对 path 依赖（`../Moodflow/moodflow_input/crates/` 下的 `moodflow-ipc` / `moodflow-rpc` / `moodflow-config`）：
+只改主仓目录名的话，moodflow-setting 仍会去 `..\Moodflow` 取那三个 crate，**取到的是主树代码、
 编译照样成功、错得毫无提示**。
 
 ⚠️ 每个槽位各带一份 `target\`（几十 GB），用完清掉：`remote-build.ps1 -Command <x> -Clean`。
@@ -321,9 +320,9 @@ $env:WIND_REMOTE_SLOT = "off"    # 关掉槽位，与主树共用目录（串台
 
 ⚠️ **本机不产出交付物**：凡会写进 `build[_dev]/` 或 `dist/` 的命令都自动转发到 Windows 编译机
 （配置 `scripts/build.local`）。理由在工具链代码生成层——clang / cargo-xwin 交叉编出的
-`wind_tsf.dll` 在带安全加固的宿主里 **COM 激活失败**（根因见提交 `6dbc8595`），原生 MSVC 编的
+`moodflow_tsf.dll` 在带安全加固的宿主里 **COM 激活失败**（根因见提交 `6dbc8595`），原生 MSVC 编的
 没这个问题。⇒ **发版与部署的产物一律走编译机**，本机交叉只用于「编不编得过 / 逻辑对不对」。
-`WIND_BUILD_LOCAL=1` 可强行本机出二进制，那是用来看链接过不过的，**不能部署也不能发版**。
+`MOODFLOW_BUILD_LOCAL=1` 可强行本机出二进制，那是用来看链接过不过的，**不能部署也不能发版**。
 
 - 编译检查：`dev.sh k` / `l`（cargo-xwin，目标 `x86_64-pc-windows-msvc`）。
 - host 单测：`cargo test`（Linux 原生跑，`windows` crate 是 `cfg(windows)` 依赖不参与编译）；
@@ -331,9 +330,9 @@ $env:WIND_REMOTE_SLOT = "off"    # 关掉槽位，与主树共用目录（串台
 - 候选逻辑速验：`dev.sh r`（repl）。
 - 部署 / 远程诊断：`dev.sh pd1`、`rproc`、`shot` 等（推的是编译机产出的产物）。
 
-#### 邻仓 wind-setting：交叉 + wine（`sk` / `st` / `sg`）
+#### 邻仓 moodflow-setting：交叉 + wine（`sk` / `st` / `sg`）
 
-`wind-setting` 编不出**原生 Linux** 产物：它依赖 `windui`，而 `windui` 对非 Windows/macOS 目标
+`moodflow-setting` 编不出**原生 Linux** 产物：它依赖 `moodflowui`，而 `moodflowui` 对非 Windows/macOS 目标
 直接 `compile_error!`（rfd 的后端 feature 只是最先爆的那个，修好它照样过不去）。但**交叉到
 Windows 目标一切正常**，测试二进制交给 wine 执行即可：
 
@@ -352,35 +351,35 @@ Windows 目标一切正常**，测试二进制交给 wine 执行即可：
 
 #### 本机 wine 冒烟：核心 exe 的 CLI
 
-交叉编出的 `wind_input.exe` 在 wine 下跑得起来，CLI 子命令可用（实测 `--help` 与
+交叉编出的 `moodflow_input.exe` 在 wine 下跑得起来，CLI 子命令可用（实测 `--help` 与
 `config get <key>` 都正常）。适合快速验证「配置读写 / 数据层加载」这类不碰宿主的逻辑，
 省掉一轮推靶机。
 
-⛔ **不能**拿它验证 TSF：`wind_tsf.dll` 要真实 TSF 宿主加载 + COM 激活，而交叉编出来的那份
+⛔ **不能**拿它验证 TSF：`moodflow_tsf.dll` 要真实 TSF 宿主加载 + COM 激活，而交叉编出来的那份
 恰恰就卡在 COM 激活（本节开头那条）。输入链路的验证仍然只能上靶机。
 ⛔ 这份产物同样**不可发版、不可部署**，理由同上。
 
 #### 改了 core 的配置注册表，先跑这条
 
 ```bash
-cargo test -p wind-rpc --test wind_setting_assets
+cargo test -p moodflow-rpc --test wind_setting_assets
 ```
 
 在 core 这边对账邻仓三份检入产物（capability 快照逐键比、`mockdata` 比键集合、设置清单覆盖
-单向断言），**不编译 wind-setting、也不需要 wine**，秒级。找不到 `../wind-setting` 时整族跳过
-并打印原因（`WIND_SETTING_DIR` 可指定位置）。它只管「core 这边看得见的事实」；值的策展偏离、
+单向断言），**不编译 moodflow-setting、也不需要 wine**，秒级。找不到 `../moodflow-setting` 时整族跳过
+并打印原因（`MOODFLOW_SETTING_DIR` 可指定位置）。它只管「core 这边看得见的事实」；值的策展偏离、
 控件类型、选项文案仍由 `st` 那套把关，两者不重叠。
 
 ### macOS 本机（`scripts/mac/dev.sh`）
 
-- host 即目标：`cargo check/test --workspace` 全 workspace 可直接跑（含 `wind-coordinator`
+- host 即目标：`cargo check/test --workspace` 全 workspace 可直接跑（含 `moodflow-coordinator`
   ——`windows` crate 是 `cfg(windows)` 依赖，非 Windows 上不参与编译）。脚本快捷键与
   `dev.ps1` 对齐：`k`/`l`/`t`/`f`/`fmt-check`/`ci`/`hooks`/`clean`/`gd`/`r`。
-- 模块映射：Win 的 `m1`(TSF DLL) ↔ mac 的 `m1`(`WindInput.app`，Swift/IMKit)；
+- 模块映射：Win 的 `m1`(TSF DLL) ↔ mac 的 `m1`(`Moodflow.app`，Swift/IMKit)；
   Win 的 `m2`(核心 exe) ↔ mac 的 `m2`(Rust 服务)。全构建 `1`/`d1`，系统安装 `p1`/`pd1`，
   安装包 `8`/`d8` → `.pkg`。
-- `.app` 侧单测：`cd wind_macos && swift test`。
-- 与 Windows 的功能差距（宿主层）登记在 `wind_macos/AGENTS.md`「与 Windows 的功能差距」。
+- `.app` 侧单测：`cd moodflow_macos && swift test`。
+- 与 Windows 的功能差距（宿主层）登记在 `moodflow_macos/AGENTS.md`「与 Windows 的功能差距」。
 
 ### 注意
 
@@ -396,8 +395,8 @@ cargo test -p wind-rpc --test wind_setting_assets
   两段。每一步的判据与检查点见 [docs/design/release-from-linux.md](docs/design/release-from-linux.md)
   —— 脚本固化的是命令，「为什么是这个顺序」只写在那里。
 - 产品版本**唯一真源 = `docs/VERSION`**。构建脚本读取后分发到 5 类产物
-  （`wind_input.exe` / `wind_tsf.dll` / `wind_setting.exe` / `wind_portable.exe` / 安装包），
-  跨仓经环境变量 `WIND_APP_VERSION` 注入（不经脚本独立构建时各仓自行回退）。
+  （`moodflow_input.exe` / `moodflow_tsf.dll` / `wind_setting.exe` / `wind_portable.exe` / 安装包），
+  跨仓经环境变量 `MOODFLOW_APP_VERSION` 注入（不经脚本独立构建时各仓自行回退）。
   发版只改 `docs/VERSION` 一处，**不要**手改各仓 `Cargo.toml` 的 `version`。
 - Linux 包（`.deb`，amd64 + arm64）由 `release.yml` 并行调 `linux-build.yml` 构建，**不阻塞** Windows/macOS 发布；
   想先单独发 Linux：手动触发 `release-linux.yml`（可填 tag 挂到该 tag 的 Release）。设计与取舍见
@@ -407,46 +406,46 @@ cargo test -p wind-rpc --test wind_setting_assets
 - 草稿 Release 的正文由 `scripts/gen-release-notes.sh` 生成（模板在 `docs/release-notes/`）：
   基础信息 + 人工填写区 + 折叠的提交记录。人工填写区由 `<!-- user-facing:start/end -->`
   圈定，**两个下游按此标记取内容**——文档仓 `scripts/sync_release_notes.py`（官网更新记录）
-  与 wind-setting `src/update/notes.rs`（应用内升级提示）。占位文本必须恰好是 `暂未填写`
+  与 moodflow-setting `src/update/notes.rs`（应用内升级提示）。占位文本必须恰好是 `暂未填写`
   （Rust 侧按全等判定），前面加 `>` 之类修饰会让占位符被当成正文弹给用户。
 
-## 心晴部分
+## Moodflow 部分
 
-本仓是心晴（懂你心情的 AI 输入陪伴）在清风上的私有分支。需求与设计以**产品书**为准，产品书只放在
+Moodflow 是懂你心情的 AI 输入陪伴。输入法部分由开源项目 WindInput（MIT）分支而来，现已独立维护、不再合并上游（ADR 0045）。需求与设计以**产品书**为准，产品书只放在
 [young8290/xinqing](https://github.com/young8290/xinqing/tree/main/docs/product-book)（代码注释里的
-“08 FR-AIG-02”“17 第 2.5 节”都指它）；本仓的入口说明见 [docs/xinqing/README.md](docs/xinqing/README.md)。
+“08 FR-AIG-02”“17 第 2.5 节”都指它）；本仓的入口说明见 [docs/moodflow/README.md](docs/moodflow/README.md)。
 
 | 位置 | 内容 | 文档 |
 |---|---|---|
-| `Cargo.toml`（根目录） | 心晴的 Cargo workspace，与 `wind_input/` 互不包含，edition 2024 | [ADR 0007](docs/adr/0007-Hub核心与外壳分离.md) |
-| `crates/xqp/`、`protocol/` | XQP 协议：Rust 类型与帧编解码、`xqp.schema.json` 契约（Hub、`xq-sim`、`wind-xinqing-tap` 共用） | — |
-| `xinqing_hub/core/` | Hub 领域层与平台无关的基础层（**禁止**依赖 tauri / windows） | [README](xinqing_hub/core/README.md) |
-| `xinqing_hub/gateway/` | AI 网关的 HTTP 实现（Jev、OpenAI 兼容大模型），core 不依赖它 | [README](xinqing_hub/gateway/README.md) |
-| `xinqing_hub/src-tauri/`、`xinqing_hub/src/` | Hub 的 Tauri 外壳与 Vue 3 前端 | [README](xinqing_hub/README.md) |
+| `Cargo.toml`（根目录） | Moodflow 的 Cargo workspace，与 `moodflow_input/` 互不包含，edition 2024 | [ADR 0007](docs/adr/0007-Hub核心与外壳分离.md) |
+| `crates/mfp/`、`protocol/` | MFP 协议：Rust 类型与帧编解码、`mfp.schema.json` 契约（Hub、`mf-sim`、`moodflow-tap` 共用） | — |
+| `moodflow_hub/core/` | Hub 领域层与平台无关的基础层（**禁止**依赖 tauri / windows） | [README](moodflow_hub/core/README.md) |
+| `moodflow_hub/gateway/` | AI 网关的 HTTP 实现（Jev、OpenAI 兼容大模型），core 不依赖它 | [README](moodflow_hub/gateway/README.md) |
+| `moodflow_hub/src-tauri/`、`moodflow_hub/src/` | Hub 的 Tauri 外壳与 Vue 3 前端 | [README](moodflow_hub/README.md) |
 | `hub_templates/` | 出厂模板：危机词表、禁用词表、暖心话、界面文案、提示词 | — |
-| `tools/` | `xq-sim`（扮演核心服务的 XQP 模拟器）、`mock-ai`（模拟 AI 接口）、`typer`（经 SendInput 按节奏发键，性能与 R1 测试用）、`db-grep`（在数据库里搜测试句，验证不存原文）、校验脚本 | [typer](tools/typer/README.md)、[db-grep](tools/db-grep/README.md) |
+| `tools/` | `mf-sim`（扮演核心服务的 MFP 模拟器）、`mock-ai`（模拟 AI 接口）、`typer`（经 SendInput 按节奏发键，性能与 R1 测试用）、`db-grep`（在数据库里搜测试句，验证不存原文）、校验脚本 | [typer](tools/typer/README.md)、[db-grep](tools/db-grep/README.md) |
 | `eval/` | 评测数据集与危机词表参考实现 | — |
-| `docs/xinqing/`、`docs/adr/` | 身份改造说明、心晴的架构决策记录（0007 起） | — |
+| `docs/moodflow/`、`docs/adr/` | Windows 标识对照、交接文档、架构决策记录（0007 起） | — |
 
-构建与测试（在仓库根目录，不需要任何 API 密钥；Linux 上编译 Hub 外壳需要 WebKitGTK，包名见 `xinqing.yml`）：
+构建与测试（在仓库根目录，不需要任何 API 密钥；Linux 上编译 Hub 外壳需要 WebKitGTK，包名见 `moodflow.yml`）：
 
 ```bash
 cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace
-cargo run -p xinqing-hub --bin export-bindings     # 改了命令或事件后重新生成 xinqing_hub/src/api/bindings.ts
+cargo run -p moodflow-hub --bin export-bindings     # 改了命令或事件后重新生成 moodflow_hub/src/api/bindings.ts
 cargo run -p mock-ai -- --port 18080 --scenario normal   # normal/slow/timeout/500/422/model_not_found/stream_cut
-cargo run -p xq-sim -- --script tools/xq-sim/scripts/hesitant.jsonl --speed 5   # 非 Windows 加 --tcp 127.0.0.1:18765
+cargo run -p mf-sim -- --script tools/mf-sim/scripts/hesitant.jsonl --speed 5   # 非 Windows 加 --tcp 127.0.0.1:18765
 cargo run -p typer -- gen r1 -o r1.txt && cargo run -p typer -- check r1.txt   # 发键 `typer run` 只在 Windows 上可用
-cd xinqing_hub && pnpm install && pnpm lint && pnpm test && pnpm tauri dev
-python3 tools/check_templates.py hub_templates && python3 tools/check_xqp_scripts.py && python3 eval/tools/check_crisis.py
+cd moodflow_hub && pnpm install && pnpm lint && pnpm test && pnpm tauri dev
+python3 tools/check_templates.py hub_templates && python3 tools/check_mfp_scripts.py && python3 eval/tools/check_crisis.py
 ```
 
-心晴部分的约定（上面的提交纪律、格式化规则同样适用）：
+Moodflow 部分的约定（上面的提交纪律、格式化规则同样适用）：
 
-- CI：`xinqing.yml` 只在心晴路径变化时跑（Linux 上 fmt / clippy / 测试与前端绑定核对、前端 lint 与 Vitest、Windows 上编译测试并构建 Hub、契约校验）；`xinqing-secrets.yml` 的 gitleaks 每次都跑；上游 `ci.yml` 在只改心晴部分时跳过。
-- 安装包：`xinqing-package.yml`（手动触发，或改了 `config/app.toml`、`scripts/dev.ps1` 的 PR）在 Windows 上跑 `scripts/dev.ps1 8`，产物 `XinQing-Setup-<版本>.exe` 挂在 Actions 页面上供试装；`dev.ps1` 的 `Build-Hub` 把 `xinqing_hub.exe` 与 `hub_templates/` 放进 `build/`。上游 `release.yml` 仍是清风的三平台发版流程，心晴不用。
+- CI：`moodflow.yml` 只在 Moodflow 路径变化时跑（Linux 上 fmt / clippy / 测试与前端绑定核对、前端 lint 与 Vitest、Windows 上编译测试并构建 Hub、契约校验）；`moodflow-secrets.yml` 的 gitleaks 每次都跑；`ci.yml`（输入法核心）在只改 Moodflow 部分时跳过，其中的产品名检查 `scripts/moodflow/check_names.py` 保证改名前的名字不再出现。
+- 安装包：`moodflow-package.yml`（手动触发，或改了 `config/app.toml`、`scripts/dev.ps1` 的 PR）在 Windows 上跑 `scripts/dev.ps1 8`，产物 `Moodflow-Setup-<版本>.exe` 挂在 Actions 页面上供试装；`dev.ps1` 的 `Build-Hub` 把 `moodflow_hub.exe` 与 `hub_templates/` 放进 `build/`。`release.yml` 是原有的三平台发版流程，目前不用。
 - **禁止提交任何真实 API 密钥或私有接口地址**，示例只用占位符 `<...>`；本地密钥放 `secrets.toml`（已忽略），模板见 `secrets.example.toml`。
 - 危机词表、禁用词表、提示词的修改至少 2 人评审，其中 1 人是 E（产品书 15 第 5 节）。
-- 改清风原有文件时，在改动处加以 `心晴：` 开头的注释（产品书 13 第 6.1 节），合并上游时 `git grep 心晴：` 就能找全；身份改造脚本做的替换不另加注释，合并上游的步骤见 `docs/xinqing/identity.md`。
+- 不再合并上游（ADR 0045），改输入法原有文件不需要再加特殊注释；代码里已有的 `Moodflow：` 开头的注释是当年标记分支改动留下的，可以保留。
 - 偏离产品书的实现决定写 `docs/adr/`，并在 ADR 的“影响”里列出产品书要改的章节。
 - 多人异步协作（认领、契约先行、草稿 PR、评审时限、交接）按产品书 13 第 3.1 节。
 

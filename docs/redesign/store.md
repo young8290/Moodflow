@@ -1,7 +1,7 @@
 # 重设计差分：store（持久化存储）
 
 > 阶段 A 产物。Go 侧 3 个只读 agent 提取、关键论断 grep 抽验 file:line 属实；Rust 侧本人通读。
-> 体量：Go `internal/store` ≈ 3093 行生产代码（bbolt）；Rust `wind-store` ≈ 509 行。
+> 体量：Go `internal/store` ≈ 3093 行生产代码（bbolt）；Rust `moodflow-store` ≈ 509 行。
 > 本子系统是 dict 差分"接通 store_layer"的后端依赖——§9 给出 dict 所需 API 契约。
 
 ---
@@ -146,4 +146,4 @@ Rust 现状：`shadow.rs` 逻辑**已对齐且扎实**（pin LIFO、delete 优�
 3. phrases（随 dict Logic 层）、stats/bulk（阶段 D）、Go 数据导入工具（阶段 D，字段现已兼容）。
 
 > 词频设计以 [frequency.md](./frequency.md) 为准（解耦权重、排序独立维度）。落地建议顺序：store §10.1-2 → dict §9.1 → engine 打分器 + 词频重排。
-> 每步 `wind_input/scripts/dev.sh ci` 把关。
+> 每步 `moodflow_input/scripts/dev.sh ci` 把关。

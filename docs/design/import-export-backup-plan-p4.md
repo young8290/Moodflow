@@ -4,7 +4,7 @@
 
 **Goal:** 交付整机备份/还原:config + 全部用户数据表(逐表文本)+ 用户方案 + 用户主题打成自描述 zip,可 inspect 清单、按 sections 局部还原,Merge/Replace 可选。
 
-**Architecture:** store 层补齐 temp/freq/shadow/stats 的逐表文本导出导入与跨 schema 枚举(`list_data_schemas`);wind-transfer 把 P3 的穿越守卫下沉为共享函数,新增 `backup.rs` 组合全部积木(目录参数化,tempdir 可测);RPC 三方法薄封装,还原后调 `reload_user_config`/`rebuild_phrases`/`invalidate_schema` 刷新。**设计 RPC 表 backup 域无 preview**——`backup.inspect` 由 P1 `read_manifest` 直接覆盖。
+**Architecture:** store 层补齐 temp/freq/shadow/stats 的逐表文本导出导入与跨 schema 枚举(`list_data_schemas`);moodflow-transfer 把 P3 的穿越守卫下沉为共享函数,新增 `backup.rs` 组合全部积木(目录参数化,tempdir 可测);RPC 三方法薄封装,还原后调 `reload_user_config`/`rebuild_phrases`/`invalidate_schema` 刷新。**设计 RPC 表 backup 域无 preview**——`backup.inspect` 由 P1 `read_manifest` 直接覆盖。
 
 **Tech Stack:** Rust、redb、zip、serde/serde_json(jsonl=逐行 serde_json,不建独立 codec 模块——4 行代码不值得抽层)。
 
@@ -12,8 +12,8 @@
 
 ## Global Constraints
 
-- 工作目录:所有 `cargo` 命令在 `wind_input/` 下执行。
-- **cwd 防护(强制)**:实现者只能在指定 worktree 内操作;每次 git 写命令前 `pwd` 验证;严禁触碰主仓 `D:/Develop/workspace/windinput/WindInput`。
+- 工作目录:所有 `cargo` 命令在 `moodflow_input/` 下执行。
+- **cwd 防护(强制)**:实现者只能在指定 worktree 内操作;每次 git 写命令前 `pwd` 验证;严禁触碰主仓 `D:/Develop/workspace/moodflow/Moodflow`。
 - 格式化:只用 `cargo fmt -p <crate>`;提交前 `git status` 核查并 restore 非本任务文件。
 - 提交:conventional commit,不带 Co-Authored-By 与任何 AI trailer。TDD 先写失败测试。
 - 日志:INFO 及以下不得含用户敏感信息。
@@ -42,8 +42,8 @@
 ### Task 1: store——temp 词 wdict + freq jsonl 导出/导入 + clear_temp_words
 
 **Files:**
-- Modify: `wind_input/crates/wind-store/src/temp_words.rs`
-- Modify: `wind_input/crates/wind-store/src/freq.rs`
+- Modify: `moodflow_input/crates/moodflow-store/src/temp_words.rs`
+- Modify: `moodflow_input/crates/moodflow-store/src/freq.rs`
 
 **Interfaces:**
 - Consumes: `wdict::{WordIo, export_words_wdict, parse_words_wdict}`;`search_temp_words_prefix(schema,"",0)`、`learn_temp_word(schema,code,text,add_weight)->Result<u32>`;freq 的 `enc_key`/`enc_freq`/`dec_freq`/`FreqRecord{count,last_used}`(serde derive 已有)、`list_freq_paged(schema,"",0,0)`。
@@ -61,14 +61,14 @@
 ```rust
 #[test]
 fn temp_words_wdict_roundtrip_and_clear() {
-    let path = tmp("wind_tw_io.redb");
+    let path = tmp("moodflow_tw_io.redb");
     let s = Store::open(&path).unwrap();
     s.learn_temp_word("wb", "ab", "临时", 50).unwrap();
     s.learn_temp_word("py", "ni", "你", 10).unwrap();
     let text = s.export_temp_words_wdict("wb", "t").unwrap();
     assert!(text.contains("--- !words"));
 
-    let path2 = tmp("wind_tw_io2.redb");
+    let path2 = tmp("moodflow_tw_io2.redb");
     let s2 = Store::open(&path2).unwrap();
     let (imported, skipped) = s2.import_temp_words_wdict("wb", &text).unwrap();
     assert_eq!((imported, skipped), (1, 0));
@@ -87,7 +87,7 @@ fn temp_words_wdict_roundtrip_and_clear() {
 ```rust
 #[test]
 fn freq_jsonl_roundtrip_merge_max() {
-    let path = tmp("wind_freq_io.redb");
+    let path = tmp("moodflow_freq_io.redb");
     let s = Store::open(&path).unwrap();
     s.record_freq("wb", "a", "工").unwrap();
     s.record_freq("wb", "a", "工").unwrap(); // count=2
@@ -95,7 +95,7 @@ fn freq_jsonl_roundtrip_merge_max() {
     assert!(text.contains("\"count\":2"));
 
     // 导入到已有更高 count 的库:Merge 取 max,不回退
-    let path2 = tmp("wind_freq_io2.redb");
+    let path2 = tmp("moodflow_freq_io2.redb");
     let s2 = Store::open(&path2).unwrap();
     for _ in 0..5 {
         s2.record_freq("wb", "a", "工").unwrap(); // count=5
@@ -105,7 +105,7 @@ fn freq_jsonl_roundtrip_merge_max() {
     assert_eq!(s2.get_freq("wb", "a", "工").unwrap().unwrap().count, 5, "max 合并不回退");
 
     // 导入到空库:原值落库
-    let path3 = tmp("wind_freq_io3.redb");
+    let path3 = tmp("moodflow_freq_io3.redb");
     let s3 = Store::open(&path3).unwrap();
     s3.import_freq_jsonl("wb", &text).unwrap();
     assert_eq!(s3.get_freq("wb", "a", "工").unwrap().unwrap().count, 2);
@@ -122,7 +122,7 @@ fn freq_jsonl_roundtrip_merge_max() {
 
 - [x] **Step 2: 跑测试确认失败**
 
-Run: `cd wind_input && cargo test -p wind-store temp_words::tests::temp_words_wdict freq::tests::freq_jsonl`
+Run: `cd moodflow_input && cargo test -p moodflow-store temp_words::tests::temp_words_wdict freq::tests::freq_jsonl`
 Expected: 编译错误,新方法未定义。
 
 - [x] **Step 3: 实现**
@@ -253,14 +253,14 @@ Expected: 编译错误,新方法未定义。
 
 - [x] **Step 4: 跑测试确认通过(含既有回归)**
 
-Run: `cd wind_input && cargo test -p wind-store temp_words freq`
+Run: `cd moodflow_input && cargo test -p moodflow-store temp_words freq`
 Expected: PASS。
 
 - [x] **Step 5: 格式化并提交**
 
 ```bash
-cd wind_input && cargo fmt -p wind-store
-git add wind_input/crates/wind-store/src/temp_words.rs wind_input/crates/wind-store/src/freq.rs
+cd moodflow_input && cargo fmt -p moodflow-store
+git add moodflow_input/crates/moodflow-store/src/temp_words.rs moodflow_input/crates/moodflow-store/src/freq.rs
 git commit -m "feat(store): 临时词 wdict/词频 jsonl 导出导入 + clear_temp_words"
 ```
 
@@ -269,10 +269,10 @@ git commit -m "feat(store): 临时词 wdict/词频 jsonl 导出导入 + clear_te
 ### Task 2: store——shadow/stats jsonl + list_data_schemas + clear_user_phrases/clear_shadow
 
 **Files:**
-- Modify: `wind_input/crates/wind-store/src/shadow.rs`
-- Modify: `wind_input/crates/wind-store/src/stats.rs`
-- Modify: `wind_input/crates/wind-store/src/store.rs`(`list_data_schemas` 跨表扫描)
-- Modify: `wind_input/crates/wind-store/src/phrases.rs`(`clear_user_phrases`)
+- Modify: `moodflow_input/crates/moodflow-store/src/shadow.rs`
+- Modify: `moodflow_input/crates/moodflow-store/src/stats.rs`
+- Modify: `moodflow_input/crates/moodflow-store/src/store.rs`(`list_data_schemas` 跨表扫描)
+- Modify: `moodflow_input/crates/moodflow-store/src/phrases.rs`(`clear_user_phrases`)
 
 **Interfaces:**
 - Consumes: `list_shadow_rules(schema)->Vec<(String,ShadowRecord)>`、`pin_shadow(schema,code,word,cand_id:Option<&str>,position)`、`delete_shadow(schema,code,word)`;`daily_stats(from,to)`、`put_daily_stat(date,&DailyStats)`;`list_phrases()->Vec<PhraseRecord>`、`remove_phrase(code,text)`;表常量 `USER_WORDS/TEMP_WORDS/FREQ/SHADOW`。`ShadowRecord/ShadowPin/DailyStats` 均已 serde derive。
@@ -292,14 +292,14 @@ git commit -m "feat(store): 临时词 wdict/词频 jsonl 导出导入 + clear_te
 ```rust
 #[test]
 fn shadow_jsonl_roundtrip_and_clear() {
-    let path = tmp("wind_sh_io.redb");
+    let path = tmp("moodflow_sh_io.redb");
     let s = Store::open(&path).unwrap();
     s.pin_shadow("wb", "aaaa", "恭", Some("c1"), 0).unwrap();
     s.delete_shadow("wb", "bbbb", "删词").unwrap();
     let text = s.export_shadow_jsonl("wb").unwrap();
     assert_eq!(text.lines().count(), 2);
 
-    let path2 = tmp("wind_sh_io2.redb");
+    let path2 = tmp("moodflow_sh_io2.redb");
     let s2 = Store::open(&path2).unwrap();
     let (imported, skipped) = s2.import_shadow_jsonl("wb", &text).unwrap();
     assert_eq!(skipped, 0);
@@ -322,7 +322,7 @@ fn shadow_jsonl_roundtrip_and_clear() {
 ```rust
 #[test]
 fn stats_jsonl_roundtrip_skip_existing() {
-    let path = tmp("wind_st_io.redb");
+    let path = tmp("moodflow_st_io.redb");
     let s = Store::open(&path).unwrap();
     let mut d = DailyStats::default();
     d.chinese = 42;
@@ -330,7 +330,7 @@ fn stats_jsonl_roundtrip_skip_existing() {
     let text = s.export_stats_jsonl().unwrap();
     assert!(text.contains("2026-07-01"));
 
-    let path2 = tmp("wind_st_io2.redb");
+    let path2 = tmp("moodflow_st_io2.redb");
     let s2 = Store::open(&path2).unwrap();
     let mut local = DailyStats::default();
     local.chinese = 7;
@@ -353,7 +353,7 @@ fn stats_jsonl_roundtrip_skip_existing() {
 ```rust
     #[test]
     fn list_data_schemas_across_tables() {
-        let path = std::env::temp_dir().join("wind_store_schemas_test.redb");
+        let path = std::env::temp_dir().join("moodflow_store_schemas_test.redb");
         let _ = std::fs::remove_file(&path);
         let s = Store::open(&path).unwrap();
         s.add_user_word("wb", "a", "工", 1).unwrap();
@@ -372,7 +372,7 @@ fn stats_jsonl_roundtrip_skip_existing() {
 ```rust
     #[test]
     fn clear_user_phrases_keeps_system() {
-        let path = tmp("wind_ph_clear.redb");
+        let path = tmp("moodflow_ph_clear.redb");
         let s = Store::open(&path).unwrap();
         s.sync_system_phrases(&[SystemPhrase {
             code: "sys".into(),
@@ -395,7 +395,7 @@ fn stats_jsonl_roundtrip_skip_existing() {
 
 - [x] **Step 2: 跑测试确认失败**
 
-Run: `cd wind_input && cargo test -p wind-store shadow_jsonl stats_jsonl list_data_schemas clear_user_phrases`
+Run: `cd moodflow_input && cargo test -p moodflow-store shadow_jsonl stats_jsonl list_data_schemas clear_user_phrases`
 Expected: 编译错误,新方法未定义。
 
 - [x] **Step 3: 实现**
@@ -572,26 +572,26 @@ Expected: 编译错误,新方法未定义。
 
 - [x] **Step 4: 跑测试确认通过(全 crate 回归)**
 
-Run: `cd wind_input && cargo test -p wind-store`
+Run: `cd moodflow_input && cargo test -p moodflow-store`
 Expected: PASS 全绿。
 
 - [x] **Step 5: 格式化并提交**
 
 ```bash
-cd wind_input && cargo fmt -p wind-store
-git add wind_input/crates/wind-store/src/shadow.rs wind_input/crates/wind-store/src/stats.rs wind_input/crates/wind-store/src/store.rs wind_input/crates/wind-store/src/phrases.rs
+cd moodflow_input && cargo fmt -p moodflow-store
+git add moodflow_input/crates/moodflow-store/src/shadow.rs moodflow_input/crates/moodflow-store/src/stats.rs moodflow_input/crates/moodflow-store/src/store.rs moodflow_input/crates/moodflow-store/src/phrases.rs
 git commit -m "feat(store): shadow/stats jsonl 导出导入 + list_data_schemas + 清库原语"
 ```
 
 ---
 
-### Task 3: wind-transfer——守卫下沉共享 + backup.rs 导出侧
+### Task 3: moodflow-transfer——守卫下沉共享 + backup.rs 导出侧
 
 **Files:**
-- Modify: `wind_input/crates/wind-transfer/src/bundle.rs`(共享守卫)
-- Modify: `wind_input/crates/wind-transfer/src/scheme.rs`(`entry_rel` 改薄包装)
-- Create: `wind_input/crates/wind-transfer/src/backup.rs`
-- Modify: `wind_input/crates/wind-transfer/src/lib.rs`(`pub mod backup;`)
+- Modify: `moodflow_input/crates/moodflow-transfer/src/bundle.rs`(共享守卫)
+- Modify: `moodflow_input/crates/moodflow-transfer/src/scheme.rs`(`entry_rel` 改薄包装)
+- Create: `moodflow_input/crates/moodflow-transfer/src/backup.rs`
+- Modify: `moodflow_input/crates/moodflow-transfer/src/lib.rs`(`pub mod backup;`)
 
 **Interfaces:**
 - Consumes: `BundleWriter::{new,add_bytes_with,finish}`、`Manifest::new`、`BundleKind::Backup`;Task 1/2 的全部 store 导出 API + `export_user_words_wdict`(P1)/`export_user_phrases_wdict`(既有)/`get_stats_meta`;`list_data_schemas`。
@@ -601,7 +601,7 @@ git commit -m "feat(store): shadow/stats jsonl 导出导入 + list_data_schemas 
     - `pub struct BackupOptions { pub include_stats: bool, pub include_state: bool }`
     - `pub struct BackupSources<'a> { pub user_config_file: Option<&'a Path>, pub user_schemas_dir: Option<&'a Path>, pub user_themes_dir: Option<&'a Path>, pub state_file: Option<&'a Path> }`
     - `pub struct BackupResult { pub path: PathBuf, pub entries: Vec<String> }`
-    - `pub fn create_backup(store: &wind_store::store::Store, src: &BackupSources, out_path: &Path, app_version: &str, platform: &str, created_at: &str, opts: &BackupOptions) -> anyhow::Result<BackupResult>`(schema 清单内部取 `store.list_data_schemas()`)
+    - `pub fn create_backup(store: &moodflow_store::store::Store, src: &BackupSources, out_path: &Path, app_version: &str, platform: &str, created_at: &str, opts: &BackupOptions) -> anyhow::Result<BackupResult>`(schema 清单内部取 `store.list_data_schemas()`)
 
 - [x] **Step 1: 守卫下沉(先改不新增行为,既有测试守护)**
 
@@ -640,7 +640,7 @@ fn entry_rel(name: &str) -> anyhow::Result<&str> {
 }
 ```
 
-Run: `cd wind_input && cargo test -p wind-transfer scheme bundle`
+Run: `cd moodflow_input && cargo test -p moodflow-transfer scheme bundle`
 Expected: 全部既有测试(含穿越用例)仍绿——守卫语义零变化的证明。
 
 - [x] **Step 2: 写 backup 导出失败测试**
@@ -653,8 +653,8 @@ mod tests {
     use super::*;
     use std::fs;
 
-    fn seed_store(dir: &std::path::Path) -> wind_store::store::Store {
-        let s = wind_store::store::Store::open(dir.join("t.redb")).unwrap();
+    fn seed_store(dir: &std::path::Path) -> moodflow_store::store::Store {
+        let s = moodflow_store::store::Store::open(dir.join("t.redb")).unwrap();
         s.add_user_word("wb", "a", "工", 100).unwrap();
         s.learn_temp_word("wb", "ab", "临", 5).unwrap();
         s.record_freq("wb", "a", "工").unwrap();
@@ -741,7 +741,7 @@ mod tests {
 
 - [x] **Step 3: 跑测试确认失败**
 
-Run: `cd wind_input && cargo test -p wind-transfer backup`
+Run: `cd moodflow_input && cargo test -p moodflow-transfer backup`
 Expected: 编译错误,`create_backup` 等未定义。
 
 - [x] **Step 4: 实现导出侧**
@@ -753,7 +753,7 @@ Expected: 编译错误,`create_backup` 等未定义。
 //! 组合 bundle/merge/store 导出原语打成 kind=backup 的自描述 zip。
 use crate::bundle::{BundleKind, BundleWriter, Manifest};
 use std::path::{Path, PathBuf};
-use wind_store::store::Store;
+use moodflow_store::store::Store;
 
 pub struct BackupOptions {
     pub include_stats: bool,
@@ -884,23 +884,23 @@ pub fn create_backup(
 
 - [x] **Step 5: 跑测试确认通过**
 
-Run: `cd wind_input && cargo test -p wind-transfer`
+Run: `cd moodflow_input && cargo test -p moodflow-transfer`
 Expected: PASS(backup 2 个 + 既有全部)。
 
 - [x] **Step 6: 格式化并提交**
 
 ```bash
-cd wind_input && cargo fmt -p wind-transfer
-git add wind_input/crates/wind-transfer/src/bundle.rs wind_input/crates/wind-transfer/src/scheme.rs wind_input/crates/wind-transfer/src/lib.rs wind_input/crates/wind-transfer/src/backup.rs
+cd moodflow_input && cargo fmt -p moodflow-transfer
+git add moodflow_input/crates/moodflow-transfer/src/bundle.rs moodflow_input/crates/moodflow-transfer/src/scheme.rs moodflow_input/crates/moodflow-transfer/src/lib.rs moodflow_input/crates/moodflow-transfer/src/backup.rs
 git commit -m "feat(transfer): 穿越守卫下沉共享 + 整机备份导出"
 ```
 
 ---
 
-### Task 4: wind-transfer——backup 还原侧(sections 过滤 + Merge/Replace)
+### Task 4: moodflow-transfer——backup 还原侧(sections 过滤 + Merge/Replace)
 
 **Files:**
-- Modify: `wind_input/crates/wind-transfer/src/backup.rs`
+- Modify: `moodflow_input/crates/moodflow-transfer/src/backup.rs`
 
 **Interfaces:**
 - Consumes: Task 3 全部;`crate::bundle::{read_manifest, extract_entry, validate_entry_rel}`;`crate::merge::Strategy`;store 导入原语:`import_user_words_wdict`/`clear_user_words`、`import_temp_words_wdict`/`clear_temp_words`、`import_freq_jsonl`/`clear_freq`、`import_shadow_jsonl`/`clear_shadow`、`import_user_phrases_wdict`/`clear_user_phrases`、`import_stats_jsonl`/`clear_stats`、`put_stats_meta`。
@@ -933,7 +933,7 @@ git commit -m "feat(transfer): 穿越守卫下沉共享 + 整机备份导出"
 
         // 全新目标环境
         let t2 = tempfile::tempdir().unwrap();
-        let s2 = wind_store::store::Store::open(t2.path().join("t2.redb")).unwrap();
+        let s2 = moodflow_store::store::Store::open(t2.path().join("t2.redb")).unwrap();
         let cfg2 = t2.path().join("config.toml");
         let targets = RestoreTargets {
             user_config_file: Some(&cfg2),
@@ -967,7 +967,7 @@ git commit -m "feat(transfer): 穿越守卫下沉共享 + 整机备份导出"
             &BackupOptions { include_stats: false, include_state: false }).unwrap();
 
         let t2 = tempfile::tempdir().unwrap();
-        let s2 = wind_store::store::Store::open(t2.path().join("t2.redb")).unwrap();
+        let s2 = moodflow_store::store::Store::open(t2.path().join("t2.redb")).unwrap();
         let cfg2 = t2.path().join("config.toml");
         std::fs::write(&cfg2, "LOCAL").unwrap();
         let targets = RestoreTargets {
@@ -999,7 +999,7 @@ git commit -m "feat(transfer): 穿越守卫下沉共享 + 整机备份导出"
             &BackupOptions { include_stats: false, include_state: false }).unwrap();
 
         let t2 = tempfile::tempdir().unwrap();
-        let s2 = wind_store::store::Store::open(t2.path().join("t2.redb")).unwrap();
+        let s2 = moodflow_store::store::Store::open(t2.path().join("t2.redb")).unwrap();
         s2.add_user_word("wb", "zz", "杂", 1).unwrap(); // 本地杂词
         let targets = RestoreTargets {
             user_config_file: None, user_schemas_dir: None,
@@ -1015,7 +1015,7 @@ git commit -m "feat(transfer): 穿越守卫下沉共享 + 整机备份导出"
 
 - [x] **Step 2: 跑测试确认失败**
 
-Run: `cd wind_input && cargo test -p wind-transfer backup::tests::restore`
+Run: `cd moodflow_input && cargo test -p moodflow-transfer backup::tests::restore`
 Expected: 编译错误,`restore_backup` 未定义。
 
 - [x] **Step 3: 实现还原侧**
@@ -1058,7 +1058,7 @@ fn write_file(
     if let Some(parent) = target.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    let tmp = target.with_extension("windinput.tmp");
+    let tmp = target.with_extension("moodflow.tmp");
     std::fs::write(&tmp, bytes)?;
     if target.exists() {
         std::fs::remove_file(target)?;
@@ -1166,7 +1166,7 @@ pub fn restore_backup(
             }
             "stats_meta" => {
                 if replace {
-                    let meta: wind_store::stats::StatsMeta = serde_json::from_slice(&bytes)?;
+                    let meta: moodflow_store::stats::StatsMeta = serde_json::from_slice(&bytes)?;
                     store.put_stats_meta(&meta)?;
                     restored.push(e.path.clone());
                 }
@@ -1203,18 +1203,18 @@ pub fn restore_backup(
 }
 ```
 
-(`wind_store::stats::StatsMeta` 的模块路径以实况为准——若 stats.rs 类型从 crate 根 re-export 则用相应路径。)
+(`moodflow_store::stats::StatsMeta` 的模块路径以实况为准——若 stats.rs 类型从 crate 根 re-export 则用相应路径。)
 
 - [x] **Step 4: 跑测试确认通过**
 
-Run: `cd wind_input && cargo test -p wind-transfer`
+Run: `cd moodflow_input && cargo test -p moodflow-transfer`
 Expected: PASS(backup 5 个 + 既有全部)。
 
 - [x] **Step 5: 格式化并提交**
 
 ```bash
-cd wind_input && cargo fmt -p wind-transfer
-git add wind_input/crates/wind-transfer/src/backup.rs
+cd moodflow_input && cargo fmt -p moodflow-transfer
+git add moodflow_input/crates/moodflow-transfer/src/backup.rs
 git commit -m "feat(transfer): 整机备份还原(sections 过滤 + Merge/Replace + 域级清库)"
 ```
 
@@ -1223,19 +1223,19 @@ git commit -m "feat(transfer): 整机备份还原(sections 过滤 + Merge/Replac
 ### Task 5: RPC backup.create / inspect / restore + 刷新钩子 + 设计文档对齐
 
 **Files:**
-- Modify: `wind_input/crates/wind-coordinator/src/webdata.rs`(dispatch 三分支 + 三 handlers + 契约测试)
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/webdata.rs`(dispatch 三分支 + 三 handlers + 契约测试)
 - Modify: `docs/design/import-export-backup-design.md`(整机备份布局按多方案子目录化实况更新)
 
 **Interfaces:**
-- Consumes: Task 3/4 的 `wind_transfer::backup::{create_backup, restore_backup, BackupOptions, BackupSources, RestoreTargets}`;`wind_transfer::bundle::read_manifest`;`wind_transfer::merge::Strategy`;`Config::{user_config_dir, local_dir, data_dir}`;`self.store`、`self.engine_mgr.invalidate_schema`、`self.reload_user_config()`(coordinator.rs:1357)、`self.rebuild_phrases()`(coordinator.rs:2915)。
-- Produces(wind-setting 契约):
+- Consumes: Task 3/4 的 `moodflow_transfer::backup::{create_backup, restore_backup, BackupOptions, BackupSources, RestoreTargets}`;`moodflow_transfer::bundle::read_manifest`;`moodflow_transfer::merge::Strategy`;`Config::{user_config_dir, local_dir, data_dir}`;`self.store`、`self.engine_mgr.invalidate_schema`、`self.reload_user_config()`(coordinator.rs:1357)、`self.rebuild_phrases()`(coordinator.rs:2915)。
+- Produces(moodflow-setting 契约):
   - `backup.create {path, includeStats?, includeState?}` → `{path, manifest}`
   - `backup.inspect {path}` → `{manifest}`
   - `backup.restore {path, strategy?, sections?}` → `{restored, conflicts, schemasTouched}`
 
 - [x] **Step 1: 写失败契约测试**
 
-`webdata.rs` tests 追加(happy path 的 create/restore 会读写真实用户目录,契约测试只走 store 数据域为主的临时环境 + 错误路径;文件域 happy path 由 wind-transfer 单测覆盖):
+`webdata.rs` tests 追加(happy path 的 create/restore 会读写真实用户目录,契约测试只走 store 数据域为主的临时环境 + 错误路径;文件域 happy path 由 moodflow-transfer 单测覆盖):
 
 ```rust
 #[test]
@@ -1248,7 +1248,7 @@ fn backup_rpc_contract() {
         &json!({ "schemaId": "wb", "code": "a", "text": "工", "weight": 100 }),
     )
     .unwrap();
-    let out = std::env::temp_dir().join("wind_backup_rpc_test.zip");
+    let out = std::env::temp_dir().join("moodflow_backup_rpc_test.zip");
     let _ = std::fs::remove_file(&out);
     let r = c
         .web_data_rpc(
@@ -1294,7 +1294,7 @@ fn backup_rpc_contract() {
 
 - [x] **Step 2: 跑测试确认失败**
 
-Run: `cd wind_input && cargo test -p wind-coordinator backup_rpc -- --nocapture`
+Run: `cd moodflow_input && cargo test -p moodflow-coordinator backup_rpc -- --nocapture`
 Expected: FAIL,`unknown method: backup.create`。
 
 - [x] **Step 3: 实现 dispatch 与 handlers**
@@ -1311,7 +1311,7 @@ handlers 区追加(紧邻 scheme handlers 之后;复用 P3 的 `Self::user_schem
 
 ```rust
     fn web_backup_create(&self, params: &Value) -> anyhow::Result<Value> {
-        use wind_transfer::backup::{create_backup, BackupOptions, BackupSources};
+        use moodflow_transfer::backup::{create_backup, BackupOptions, BackupSources};
         let out = str_param(params, "path")?;
         let include_stats = params.get("includeStats").and_then(|v| v.as_bool()).unwrap_or(false);
         let include_state = params.get("includeState").and_then(|v| v.as_bool()).unwrap_or(false);
@@ -1319,11 +1319,11 @@ handlers 区追加(紧邻 scheme handlers 之后;复用 P3 的 `Self::user_schem
             .store
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("无持久化存储"))?;
-        let user_dir = wind_config::Config::user_config_dir();
+        let user_dir = moodflow_config::Config::user_config_dir();
         let cfg_file = user_dir.as_ref().map(|d| d.join("config.toml"));
         let schemas_dir = user_dir.as_ref().map(|d| d.join("schemas"));
         let themes_dir = user_dir.as_ref().map(|d| d.join("themes"));
-        let state_file = wind_config::Config::local_dir().map(|d| d.join("state.toml"));
+        let state_file = moodflow_config::Config::local_dir().map(|d| d.join("state.toml"));
         let src = BackupSources {
             user_config_file: cfg_file.as_deref(),
             user_schemas_dir: schemas_dir.as_deref(),
@@ -1339,19 +1339,19 @@ handlers 区追加(紧邻 scheme handlers 之后;复用 P3 的 `Self::user_schem
             &chrono::Local::now().to_rfc3339(),
             &BackupOptions { include_stats, include_state },
         )?;
-        let manifest = wind_transfer::bundle::read_manifest(&r.path)?;
+        let manifest = moodflow_transfer::bundle::read_manifest(&r.path)?;
         Ok(json!({ "path": r.path.to_string_lossy(), "manifest": serde_json::to_value(&manifest)? }))
     }
 
     fn web_backup_inspect(&self, params: &Value) -> anyhow::Result<Value> {
         let path = str_param(params, "path")?;
-        let manifest = wind_transfer::bundle::read_manifest(std::path::Path::new(path))?;
+        let manifest = moodflow_transfer::bundle::read_manifest(std::path::Path::new(path))?;
         Ok(json!({ "manifest": serde_json::to_value(&manifest)? }))
     }
 
     fn web_backup_restore(&self, params: &Value) -> anyhow::Result<Value> {
-        use wind_transfer::backup::{restore_backup, RestoreTargets};
-        use wind_transfer::merge::Strategy;
+        use moodflow_transfer::backup::{restore_backup, RestoreTargets};
+        use moodflow_transfer::merge::Strategy;
         let path = str_param(params, "path")?;
         let strategy = Strategy::from_param(
             params.get("strategy").and_then(|v| v.as_str()).unwrap_or(""),
@@ -1367,11 +1367,11 @@ handlers 区追加(紧邻 scheme handlers 之后;复用 P3 的 `Self::user_schem
             .store
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("无持久化存储"))?;
-        let user_dir = wind_config::Config::user_config_dir();
+        let user_dir = moodflow_config::Config::user_config_dir();
         let cfg_file = user_dir.as_ref().map(|d| d.join("config.toml"));
         let schemas_dir = user_dir.as_ref().map(|d| d.join("schemas"));
         let themes_dir = user_dir.as_ref().map(|d| d.join("themes"));
-        let state_file = wind_config::Config::local_dir().map(|d| d.join("state.toml"));
+        let state_file = moodflow_config::Config::local_dir().map(|d| d.join("state.toml"));
         let targets = RestoreTargets {
             user_config_file: cfg_file.as_deref(),
             user_schemas_dir: schemas_dir.as_deref(),
@@ -1418,7 +1418,7 @@ handlers 区追加(紧邻 scheme handlers 之后;复用 P3 的 `Self::user_schem
 
 - [x] **Step 4: 跑测试确认通过(含既有 webdata 回归)**
 
-Run: `cd wind_input && cargo test -p wind-coordinator webdata`
+Run: `cd moodflow_input && cargo test -p moodflow-coordinator webdata`
 Expected: PASS。
 
 - [x] **Step 5: 设计文档布局更新**
@@ -1428,8 +1428,8 @@ Expected: PASS。
 - [x] **Step 6: 格式化并提交**
 
 ```bash
-cd wind_input && cargo fmt -p wind-coordinator
-git add wind_input/crates/wind-coordinator/src/webdata.rs docs/design/import-export-backup-design.md
+cd moodflow_input && cargo fmt -p moodflow-coordinator
+git add moodflow_input/crates/moodflow-coordinator/src/webdata.rs docs/design/import-export-backup-design.md
 git commit -m "feat(rpc): backup.create/inspect/restore 整机备份三件套"
 ```
 
@@ -1437,14 +1437,14 @@ git commit -m "feat(rpc): backup.create/inspect/restore 整机备份三件套"
 
 ## P4 收尾验证
 
-- [x] `cd wind_input && cargo test -p wind-store -p wind-transfer -p wind-coordinator` 全绿。
-- [x] `cd wind_input && cargo build` 成功。
-- [x] `cd wind_input && cargo fmt -p wind-store -p wind-transfer -p wind-coordinator -- --check` 干净(不含既有漂移文件)。
+- [x] `cd moodflow_input && cargo test -p moodflow-store -p moodflow-transfer -p moodflow-coordinator` 全绿。
+- [x] `cd moodflow_input && cargo build` 成功。
+- [x] `cd moodflow_input && cargo fmt -p moodflow-store -p moodflow-transfer -p moodflow-coordinator -- --check` 干净(不含既有漂移文件)。
 
 ## P4 交付物
 
 - store:temp/freq/shadow/stats 逐表文本导出导入 + `list_data_schemas`(覆盖孤儿数据方案)+ 三个清库原语。
-- wind-transfer:穿越守卫下沉共享(`validate_entry_rel`);`backup.rs` 整机导出/还原(sections 过滤、Merge/Replace、域级一次性清库)。
+- moodflow-transfer:穿越守卫下沉共享(`validate_entry_rel`);`backup.rs` 整机导出/还原(sections 过滤、Merge/Replace、域级一次性清库)。
 - RPC:`backup.create/inspect/restore` 契约就位,还原后自动刷新(config 热重载/短语重建/方案缓存失效)。
 
 ## 遗留(P5 打磨)

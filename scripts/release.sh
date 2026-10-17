@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# WindInput 发版编排 (Linux 侧) —— docs/design/release-from-linux.md 第 4~8 节的固化。
+# Moodflow 发版编排 (Linux 侧) —— docs/design/release-from-linux.md 第 4~8 节的固化。
 #
 #   ./scripts/release.sh status                  只读: 五仓状态一览
 #   ./scripts/release.sh check                   预检: 五仓 / gh / 编译机 / 签名会话
@@ -70,23 +70,23 @@ fsize() { ls -lh "$1" 2>/dev/null | awk '{print $5}'; }
 # ---------- 参与发布的仓库 ----------
 # 顺序即执行顺序: 依赖在前, 主仓最后。第二列 = 是否打版本 tag。
 #
-# ★ 主仓为什么必须最后: 推 WindInput 的 v* tag 会【立刻】触发 release.yml, 而该 workflow
+# ★ 主仓为什么必须最后: 推 Moodflow 的 v* tag 会【立刻】触发 release.yml, 而该 workflow
 #   用 actions/checkout 拉附属仓时没有指定 ref, 取的是各自默认分支的最新提交。附属仓没先
 #   到位, CI 就会拿旧代码构建出错误的发布包 —— 且全程不报错。
 #
-# ★ wind-ui-rust 只推送不打 tag: 它是 wind-setting 的 path 依赖 (windui = { path = ... }),
-#   必须先到位; 但它是独立发 crates.io 的开源库, 自有版本线, 不该被打上 WindInput 的版本
-#   tag。(wind-installer 走 crates.io 的 windui = "0.8", 不受影响)
+# ★ moodflow-ui-rust 只推送不打 tag: 它是 moodflow-setting 的 path 依赖 (moodflowui = { path = ... }),
+#   必须先到位; 但它是独立发 crates.io 的开源库, 自有版本线, 不该被打上 Moodflow 的版本
+#   tag。(moodflow-installer 走 crates.io 的 moodflowui = "0.8", 不受影响)
 #
 # ⚠️ 与 release.ps1 的 $Repos 逐条对齐, 改一处要改两处。
 RELEASE_REPOS=(
-    "wind-ui-rust:notag"
-    "wind-setting:tag"
-    "wind-portable:tag"
-    "wind-installer:tag"
-    "WindInput:tag"
+    "moodflow-ui-rust:notag"
+    "moodflow-setting:tag"
+    "moodflow-portable:tag"
+    "moodflow-installer:tag"
+    "Moodflow:tag"
 )
-MAIN_REPO="WindInput"
+MAIN_REPO="Moodflow"
 
 # ---------- 目标分支: 从 repo manifest 读 default revision ----------
 manifest_branch() {
@@ -263,12 +263,12 @@ do_check() {
         rc=1
     fi
 
-    cyan "\n[3/4] 编译机可达 ($WIND_BUILD_REMOTE)"
+    cyan "\n[3/4] 编译机可达 ($MOODFLOW_BUILD_REMOTE)"
     if rbuild_require_ready "release.sh check" >/dev/null 2>&1; then
         out="$(rbuild_ps "hostname" 2>&1 | tr -d '\r' | tail -1)"
         if [ -n "$out" ]; then say "  ✓ $out"; else err "  ✗ 连不上"; rc=1; fi
     else
-        err "  ✗ 未配置 scripts/build.local (WIND_BUILD_REMOTE / WIND_BUILD_ROOT)"
+        err "  ✗ 未配置 scripts/build.local (MOODFLOW_BUILD_REMOTE / MOODFLOW_BUILD_ROOT)"
         rc=1
     fi
 
@@ -276,8 +276,8 @@ do_check() {
     gray "  ★ 时序: 签名会话只活 2 小时, CI 约 20 分钟 —— 先在编译机桌面登录会话再触发发版,"
     gray "    这样 CI 跑完时会话仍有效。"
     gray "  ⚠️ HasPrivateKey=True 不是判据 (会话没建立时它照样为 True), 只认下面这段的结论。"
-    if [ -n "$WIND_BUILD_ROOT" ]; then
-        rbuild_ps "Set-Location '$WIND_BUILD_ROOT'; .\\scripts\\dev.ps1 sign-status" 2>&1 | tr -d '\r'
+    if [ -n "$MOODFLOW_BUILD_ROOT" ]; then
+        rbuild_ps "Set-Location '$MOODFLOW_BUILD_ROOT'; .\\scripts\\dev.ps1 sign-status" 2>&1 | tr -d '\r'
         if [ "${PIPESTATUS[0]}" != 0 ]; then
             warn "  ⚠️ 签名会话不可用 —— 打 tag 前先去编译机桌面登录 (手机二次验证)"
             soft=1
@@ -371,7 +371,7 @@ do_push() {
         printf '\n'
         cyan "── $name ──"
 
-        # ⚠️ 仓库可能装有 pre-push hook (wind-ui-rust 会跑 clippy + 全量测试), 推送会很慢。
+        # ⚠️ 仓库可能装有 pre-push hook (moodflow-ui-rust 会跑 clippy + 全量测试), 推送会很慢。
         #    耐心等, 别用 --no-verify 绕过。
         gray "  push $br ... (仓内若有 pre-push hook 会跑测试, 可能要几分钟)"
         if ! git -C "$d" push origin "$br"; then
@@ -564,12 +564,12 @@ remote_archive_old_dist() {
 if (-not (Test-Path $d)) { New-Item -ItemType Directory $d -Force | Out-Null }
 $a = Join-Path $d ("_archive/pre-release-" + (Get-Date -Format "MMdd-HHmm"))
 $old = @(Get-ChildItem $d -File -EA SilentlyContinue |
-         Where-Object { $_.Name -match "^WindInput(Dev)?-(Setup|Portable|Stage)-" })
+         Where-Object { $_.Name -match "^Moodflow(Dev)?-(Setup|Portable|Stage)-" })
 if ($old.Count -eq 0) { "NONE"; exit 0 }
 New-Item -ItemType Directory $a -Force | Out-Null
 $old | Move-Item -Destination $a -Force
 "MOVED " + $old.Count'
-    ps="${ps//@@ROOT@@/$WIND_BUILD_ROOT}"
+    ps="${ps//@@ROOT@@/$MOODFLOW_BUILD_ROOT}"
     rbuild_ps "$ps" 2>&1 | tr -d '\r'
 }
 
@@ -582,12 +582,12 @@ remote_sign() {
     local v="$1" ps
     ps='$ErrorActionPreference = "Stop"
 Set-Location "@@ROOT@@"
-.\scripts\dev.ps1 unstage ".\dist\WindInput-Stage-@@V@@.zip"; if ($LASTEXITCODE) { exit 11 }
+.\scripts\dev.ps1 unstage ".\dist\Moodflow-Stage-@@V@@.zip"; if ($LASTEXITCODE) { exit 11 }
 .\scripts\dev.ps1 sign 8s;                                    if ($LASTEXITCODE) { exit 12 }
 .\scripts\dev.ps1 sign 9s;                                    if ($LASTEXITCODE) { exit 13 }
 .\scripts\dev.ps1 verify-sign;                                if ($LASTEXITCODE) { exit 14 }
 exit 0'
-    ps="${ps//@@ROOT@@/$WIND_BUILD_ROOT}"
+    ps="${ps//@@ROOT@@/$MOODFLOW_BUILD_ROOT}"
     ps="${ps//@@V@@/$v}"
     rbuild_ps "$ps" 2>&1 | tr -d '\r'
     return "${PIPESTATUS[0]}"
@@ -602,9 +602,9 @@ remote_verify_timestamps() {
 $st = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe -EA SilentlyContinue |
         Where-Object { $_.FullName -match "\\x64\\" } | Sort-Object FullName -Descending)[0].FullName
 if (-not $st) { Write-Output "没找到 signtool.exe"; exit 21 }
-$tmp = Join-Path $env:TEMP "wind-verify-portable"
+$tmp = Join-Path $env:TEMP "moodflow-verify-portable"
 if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
-Expand-Archive "@@ROOT@@/dist/WindInput-Portable-@@V@@.zip" $tmp -Force
+Expand-Archive "@@ROOT@@/dist/Moodflow-Portable-@@V@@.zip" $tmp -Force
 $bad = 0; $n = 0
 Get-ChildItem $tmp -Recurse -File | Where-Object { $_.Extension -in @(".exe", ".dll") } | ForEach-Object {
     $n++
@@ -617,7 +617,7 @@ Remove-Item $tmp -Recurse -Force
 if ($n -eq 0)   { Write-Output "便携包里没有 PE"; exit 22 }
 if ($bad -gt 0) { Write-Output ("有 " + $bad + " 个 PE 没有时间戳"); exit 23 }
 exit 0'
-    ps="${ps//@@ROOT@@/$WIND_BUILD_ROOT}"
+    ps="${ps//@@ROOT@@/$MOODFLOW_BUILD_ROOT}"
     ps="${ps//@@V@@/$v}"
     rbuild_ps "$ps" 2>&1 | tr -d '\r'
     return "${PIPESTATUS[0]}"
@@ -639,7 +639,7 @@ exit 0'
 origin_mark_path() { printf '%s/.origin-%s.json\n' "$DIST_DIR" "$1"; }
 
 write_origin_mark() {
-    python3 - "$(origin_mark_path "$1")" "$2" "$DIST_DIR/WindInput-Setup-$1.exe" <<'PY'
+    python3 - "$(origin_mark_path "$1")" "$2" "$DIST_DIR/Moodflow-Setup-$1.exe" <<'PY'
 import datetime, hashlib, json, sys
 out, run, setup = sys.argv[1], sys.argv[2], sys.argv[3]
 json.dump({"run": run,
@@ -654,7 +654,7 @@ PY
 origin_mark_matches() {
     local f; f="$(origin_mark_path "$1")"
     [ -f "$f" ] || return 1
-    python3 - "$f" "$2" "$DIST_DIR/WindInput-Setup-$1.exe" <<'PY'
+    python3 - "$f" "$2" "$DIST_DIR/Moodflow-Setup-$1.exe" <<'PY'
 import hashlib, json, sys
 f, run, setup = sys.argv[1], sys.argv[2], sys.argv[3]
 try:
@@ -670,10 +670,10 @@ PY
 release_assets() {
     local v="$1"
     printf '%s\n' \
-        "$DIST_DIR/WindInput-Setup-$v.exe" \
-        "$DIST_DIR/WindInput-Setup-$v.exe.sha256" \
-        "$DIST_DIR/WindInput-Portable-$v.zip" \
-        "$DIST_DIR/WindInput-Portable-$v.zip.sha256"
+        "$DIST_DIR/Moodflow-Setup-$v.exe" \
+        "$DIST_DIR/Moodflow-Setup-$v.exe.sha256" \
+        "$DIST_DIR/Moodflow-Portable-$v.zip" \
+        "$DIST_DIR/Moodflow-Portable-$v.zip.sha256"
 }
 
 # 只覆盖草稿 Release。覆盖【已发布】的会让已下载用户的 sha256 对不上, 且
@@ -719,7 +719,7 @@ do_sign_draft() {
     #
     #   配额不值得拿这个换: 走到这一步就是要出一版能发的包, 7 次配额是它应付的成本。
     #   (`sign 9s` 那层对已签 PE 按指纹跳过是另一回事, 那是 dev.ps1 内部的去重, 保留。)
-    if [ -f "$DIST_DIR/WindInput-Setup-$v.exe" ]; then
+    if [ -f "$DIST_DIR/Moodflow-Setup-$v.exe" ]; then
         gray "  dist/ 里有 $v 的旧产物, 回传时会被本次构建的覆盖"
     fi
 
@@ -731,7 +731,7 @@ do_sign_draft() {
         err "  ✗ 下载 stage-windows 失败。artifact 保留期 14 天, 过期需重跑 CI。"
         rm -rf "$tmp"; return 1
     fi
-    stagezip="$(find "$tmp" -maxdepth 1 -name 'WindInput-Stage-*.zip' | head -1)"
+    stagezip="$(find "$tmp" -maxdepth 1 -name 'Moodflow-Stage-*.zip' | head -1)"
     [ -n "$stagezip" ] || { err "  ✗ 下载结果里没有中转产物包"; rm -rf "$tmp"; return 1; }
     say "  ✓ $(basename "$stagezip")  ($(fsize "$stagezip"))"
 
@@ -765,14 +765,14 @@ _sign_body() {
 
     # ---------- 3. 传中转产物 + 对齐版本号 ----------
     cyan "\n[4/8] 上传中转产物并对齐编译机的 docs/VERSION"
-    if ! rbuild_scp "$stagezip" "$WIND_BUILD_REMOTE:$WIND_BUILD_ROOT/dist/" "中转产物"; then
+    if ! rbuild_scp "$stagezip" "$MOODFLOW_BUILD_REMOTE:$MOODFLOW_BUILD_ROOT/dist/" "中转产物"; then
         err "  ✗ 上传中转产物失败"; return 1
     fi
     # unstage 有版本硬校验 (stage.json 的版本 vs 编译机的 docs/VERSION)。tag 是版本真源,
     # 而仓库里的 docs/VERSION 是开发占位, 所以签名前必须把编译机那份对齐到 tag 版本。
     # ⚠️ 必须用 scp 传文件, 别拼 PowerShell 写文件 —— 文档里实测连踩两次转义坑。
     local vf; vf="$(mktemp)"; printf '%s\n' "$v" > "$vf"
-    if ! rbuild_scp "$vf" "$WIND_BUILD_REMOTE:$WIND_BUILD_ROOT/docs/VERSION" "docs/VERSION"; then
+    if ! rbuild_scp "$vf" "$MOODFLOW_BUILD_REMOTE:$MOODFLOW_BUILD_ROOT/docs/VERSION" "docs/VERSION"; then
         err "  ✗ 同步 docs/VERSION 失败"; rm -f "$vf"; return 1
     fi
     rm -f "$vf"
@@ -818,9 +818,9 @@ _sign_body() {
     # ---------- 6. 回传 ----------
     cyan "\n[7/8] 回传 4 个签名资产"
     local pat ok=1
-    for pat in "WindInput-Setup-$v.exe" "WindInput-Setup-$v.exe.sha256" \
-               "WindInput-Portable-$v.zip" "WindInput-Portable-$v.zip.sha256"; do
-        if rbuild_scp "$WIND_BUILD_REMOTE:$WIND_BUILD_ROOT/dist/$pat" "$DIST_DIR/" "$pat"; then
+    for pat in "Moodflow-Setup-$v.exe" "Moodflow-Setup-$v.exe.sha256" \
+               "Moodflow-Portable-$v.zip" "Moodflow-Portable-$v.zip.sha256"; do
+        if rbuild_scp "$MOODFLOW_BUILD_REMOTE:$MOODFLOW_BUILD_ROOT/dist/$pat" "$DIST_DIR/" "$pat"; then
             gray "  ✓ $pat  ($(fsize "$DIST_DIR/$pat"))"
         else
             err "  ✗ 回传失败: $pat"; ok=0
@@ -830,12 +830,12 @@ _sign_body() {
 
     # ---------- 7. Linux 侧独立验签 ----------
     cyan "\n[8/8] 本机独立验签 (读 PE 证书表, 不依赖 signtool)"
-    if pe_has_signature "$DIST_DIR/WindInput-Setup-$v.exe"; then
+    if pe_has_signature "$DIST_DIR/Moodflow-Setup-$v.exe"; then
         say "  ✓ Setup.exe 带签名"
     else
         err "  ✗ Setup.exe 的证书表是空的 —— 拿回来的是未签名版, 不能上传"; return 1
     fi
-    verify_portable_contents "$DIST_DIR/WindInput-Portable-$v.zip" || return 1
+    verify_portable_contents "$DIST_DIR/Moodflow-Portable-$v.zip" || return 1
 
     # 落来源标记 —— 必须是在验签全过之后, 它等于「这批产物是 run $run 签出来的」的凭据。
     # 下一次重发同版本号时, 跳过重签与上传前的把关都认它。
@@ -866,7 +866,7 @@ do_upload() {
     #
     # do_upload 有两个入口 —— 签名段走完自然落到这里 (那边刚验过), 以及单独跑 `upload`
     # 那条恢复路径。后者拿的是 dist/ 里的现成文件, 而 dist/ 里完全可能躺着本机构建留下的
-    # 【未签名】同名产物: 实测本机 dev 构建就会在 dist/ 留下 WindInput-Setup-<版本>.exe,
+    # 【未签名】同名产物: 实测本机 dev 构建就会在 dist/ 留下 Moodflow-Setup-<版本>.exe,
     # 证书表为空。少了这道闸门, 那份会被原样传上 Release 且全程不报错 —— 正是本仓反复
     # 吃过亏的「发布包静默出坏包」。
     #
@@ -895,14 +895,14 @@ do_upload() {
     fi
 
     cyan "\n上传前验签"
-    if pe_has_signature "$DIST_DIR/WindInput-Setup-$v.exe"; then
+    if pe_has_signature "$DIST_DIR/Moodflow-Setup-$v.exe"; then
         say "  ✓ Setup.exe 带签名"
     else
-        err "  ✗ dist/WindInput-Setup-$v.exe 的证书表是空的 —— 这是【未签名】产物, 拒绝上传。"
+        err "  ✗ dist/Moodflow-Setup-$v.exe 的证书表是空的 —— 这是【未签名】产物, 拒绝上传。"
         err "     多半是本机构建留下的同名文件。跑 sign-draft 出签名版, 或先把它移走再来。"
         return 1
     fi
-    verify_portable_contents "$DIST_DIR/WindInput-Portable-$v.zip" || return 1
+    verify_portable_contents "$DIST_DIR/Moodflow-Portable-$v.zip" || return 1
 
     printf '\n'
     confirm "覆盖 $tag 的这 4 个资产?" y || { gray "已取消 (签名产物留在 dist/)。"; return 0; }
@@ -951,7 +951,7 @@ do_upload() {
     gray "  上传成功不等于挂上去的就是签名版。"
     local d f r l bad=0
     d="$(mktemp -d)"
-    for f in "WindInput-Setup-$v.exe" "WindInput-Portable-$v.zip"; do
+    for f in "Moodflow-Setup-$v.exe" "Moodflow-Portable-$v.zip"; do
         if ! gh release download "$tag" --pattern "$f" --dir "$d" -R "$GH_REPO" >/dev/null 2>&1; then
             err "  ✗ 下载失败: $f"; bad=1; continue
         fi
@@ -1044,7 +1044,7 @@ show_menu() {
     sep="$(printf '=%.0s' $(seq 1 64))"
     clear 2>/dev/null || true
     printf '%b%s%b\n' "$C_CYAN" "$sep" "$C_RESET"
-    printf '%b  WindInput 发版  (Linux; 签名委托编译机 %s)%b\n' "$C_CYAN" "${WIND_BUILD_REMOTE:-未配置 build.local}" "$C_RESET"
+    printf '%b  Moodflow 发版  (Linux; 签名委托编译机 %s)%b\n' "$C_CYAN" "${MOODFLOW_BUILD_REMOTE:-未配置 build.local}" "$C_RESET"
     printf '%b%s%b\n' "$C_CYAN" "$sep" "$C_RESET"
     printf '  最新已发布 tag : '
     if [ -n "$MENU_LATEST" ]; then say "v$MENU_LATEST"; else warn "(无)"; fi
@@ -1146,7 +1146,7 @@ menu_loop() {
 # ============================================================================
 usage() {
     cat <<'USAGE'
-WindInput 发版编排 (Linux 侧)
+Moodflow 发版编排 (Linux 侧)
 
   ./scripts/release.sh status                  五仓状态一览 (只读)
   ./scripts/release.sh check                   预检: 五仓 / gh / 编译机 / 签名会话

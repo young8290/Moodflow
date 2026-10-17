@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# windinput-setup 的离线测试：临时 HOME / XDG_CONFIG_HOME，假 pgrep / fcitx5 / fcitx5-remote，
+# moodflow-setup 的离线测试：临时 HOME / XDG_CONFIG_HOME，假 pgrep / fcitx5 / fcitx5-remote，
 # 不碰本机真实配置、不起真 fcitx5。逐个场景断言改动结果，以及不破坏别人的内容、重复运行幂等。
 #
 #   scripts/linux/test-setup.sh
-#   SETUP=/path/to/windinput-setup scripts/linux/test-setup.sh   # 测别的版本
+#   SETUP=/path/to/moodflow-setup scripts/linux/test-setup.sh   # 测别的版本
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-SETUP="${SETUP:-$REPO/scripts/linux/pkg/windinput-setup}"
+SETUP="${SETUP:-$REPO/scripts/linux/pkg/moodflow-setup}"
 ROOT="$(mktemp -d)"
 trap 'rm -rf "$ROOT"' EXIT
 
@@ -21,9 +21,9 @@ bad() { FAIL=$((FAIL + 1)); echo "FAIL [$CASE] $*" >&2; }
 new_case() {
     CASE="$1"
     T="$ROOT/$1"
-    mkdir -p "$T/home" "$T/cfg/fcitx5" "$T/cfg/WindInput" "$T/bin"
+    mkdir -p "$T/home" "$T/cfg/fcitx5" "$T/cfg/Moodflow" "$T/bin"
     F="$T/cfg/fcitx5"
-    W="$T/cfg/WindInput"
+    W="$T/cfg/Moodflow"
     # 假 pgrep：state 文件存在即「fcitx5 在跑」。
     cat >"$T/bin/pgrep" <<EOF
 #!/bin/sh
@@ -40,7 +40,7 @@ fi
 EOF
     cat >"$T/bin/fcitx5" <<EOF
 #!/bin/sh
-echo "fcitx5 \$* profile_has_windinput=\$(grep -c '^Name=windinput' "$F/profile")" >>"$T/calls"
+echo "fcitx5 \$* profile_has_moodflow=\$(grep -c '^Name=moodflow' "$F/profile")" >>"$T/calls"
 EOF
     chmod +x "$T/bin/"*
 }
@@ -81,9 +81,9 @@ expect_idempotent() {
 new_case fresh
 rm -rf "$F" "$W"
 run_setup
-expect_grep "$F/profile" '^Name=windinput$'
+expect_grep "$F/profile" '^Name=moodflow$'
 expect_grep "$F/profile" '^Name=keyboard-us$'
-expect_grep "$F/profile" '^DefaultIM=windinput$'
+expect_grep "$F/profile" '^DefaultIM=moodflow$'
 expect_file "$F/config" <<'EOF'
 [Hotkey/AltTriggerKeys]
 
@@ -146,7 +146,7 @@ Name=pinyin
 Layout=
 
 [Groups/0/Items/2]
-Name=windinput
+Name=moodflow
 Layout=
 
 [GroupOrder]
@@ -187,7 +187,7 @@ EOF
 run_setup
 expect_count "$F/profile" '^\[Groups/0/Items/1\]$' 1
 expect_count "$F/profile" '^\[Groups/1/Items/2\]$' 0
-expect_count "$F/profile" '^Name=windinput$' 1
+expect_count "$F/profile" '^Name=moodflow$' 1
 expect_grep "$F/profile" '^1=Other$'
 expect_grep "$F/profile" '^Name=mozc$'
 expect_idempotent
@@ -253,7 +253,7 @@ new_case crlf
 printf '[Groups/0]\r\nName=Default\r\nDefault Layout=us\r\nDefaultIM=keyboard-us\r\n\r\n[Groups/0/Items/0]\r\nName=keyboard-us\r\nLayout=\r\n\r\n[GroupOrder]\r\n0=Default\r\n' >"$F/profile"
 printf '[Hotkey/AltTriggerKeys]\r\n0=Shift_L\r\n\r\n[Behavior]\r\nShareInputState=No\r\n' >"$F/config"
 run_setup
-expect_count "$F/profile" '^Name=windinput' 1
+expect_count "$F/profile" '^Name=moodflow' 1
 expect_count "$F/config" 'Shift_L' 0
 expect_grep "$F/config" '^ShareInputState=No'
 for f in "$F/profile" "$F/config"; do
@@ -351,9 +351,9 @@ EOF
 cp "$T/fcitx_memory_profile" "$F/profile"
 touch "$T/fcitx_running"
 DISPLAY_FOR_TEST=:99 run_setup
-expect_count "$F/profile" '^Name=windinput$' 1
+expect_count "$F/profile" '^Name=moodflow$' 1
 expect_grep "$T/calls" '^remote -e$'
-expect_grep "$T/calls" '^fcitx5 -d profile_has_windinput=1$'
+expect_grep "$T/calls" '^fcitx5 -d profile_has_moodflow=1$'
 expect_grep "$T/out" '先让它退出'
 
 # 没有图形会话（如 SSH）或 --no-restart：只退出、不拉起，并说明。
@@ -362,7 +362,7 @@ cp "$ROOT/running/fcitx_memory_profile" "$T/"
 cp "$T/fcitx_memory_profile" "$F/profile"
 touch "$T/fcitx_running"
 DISPLAY_FOR_TEST=:99 run_setup --no-restart
-expect_count "$F/profile" '^Name=windinput$' 1
+expect_count "$F/profile" '^Name=moodflow$' 1
 expect_count "$T/calls" '^fcitx5 ' 0
 expect_grep "$T/out" '未重新启动'
 

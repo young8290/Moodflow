@@ -296,28 +296,28 @@ comment_template_horizontal = ""            # 本方案横排不显示注释
 
 | 仓 | 事项 | 状态 |
 |---|---|---|
-| WindInput | Config 结构体 + default + REGISTRY + `data/config.toml`(L2) | ✅ P0 |
-| WindInput | 方案文件 `[candidate]` 两字段 + `SchemaBehavior` | ✅ P0 |
-| WindInput | `comment_of` 加 schema 过滤 + 挂载去方案化 | ✅ P0 |
-| wind-setting | `comment_max_chars` 改名的**被动同步**：manifest 拆成两项、`capabilities.snapshot.json`、`mockdata/config.json`（769 测试过，含快照对账） | ✅ P0 |
-| WindInputDocs | `comment_max_chars` 改名 + 方案级两键（`guides/config/ui.mdx`、`guides/schemas.mdx`） | ✅ P0 |
+| Moodflow | Config 结构体 + default + REGISTRY + `data/config.toml`(L2) | ✅ P0 |
+| Moodflow | 方案文件 `[candidate]` 两字段 + `SchemaBehavior` | ✅ P0 |
+| Moodflow | `comment_of` 加 schema 过滤 + 挂载去方案化 | ✅ P0 |
+| moodflow-setting | `comment_max_chars` 改名的**被动同步**：manifest 拆成两项、`capabilities.snapshot.json`、`mockdata/config.json`（769 测试过，含快照对账） | ✅ P0 |
+| MoodflowDocs | `comment_max_chars` 改名 + 方案级两键（`guides/config/ui.mdx`、`guides/schemas.mdx`） | ✅ P0 |
 
 ### GH#128（`${shuangpin}` / `code_hint_source`）
 
 | 仓 | 事项 | 状态 |
 |---|---|---|
-| WindInput | `ShuangpinReverse` 反向表（枚举 `convert_pair` 反演） | ✅ |
-| WindInput | `EngineManager::schema_keys_of` + 单槽缓存 + 布局解析收口 | ✅ |
-| WindInput | `${shuangpin}` 新变量；`${code}`→`${code_rev}` 改名 + 永久别名 | ✅ |
-| WindInput | `show_code_hint`(bool) → `code_hint_source`(四档) + 值迁移 | ✅ |
-| WindInput | 出厂模板 `${code_hint|code_rev|shuangpin}`（`data/config.toml` 与 `default_comment_template()` 两处） | ✅ |
-| wind-setting | manifest 改 select、`mockdata/config.json` | ✅ |
-| wind-setting | `capabilities.snapshot.json` + `mockdata/config.json` 由生成器重出 | ✅ 编译机独立槽位，全量 1038 passed |
-| WindInput | `docs/config-key-migration.md` 键名映射表 | ✅ |
-| WindInputDocs | `candidate-comment.mdx` / `config/schema.mdx` / `config/ui.mdx` / `special-modes.mdx` | ✅ |
+| Moodflow | `ShuangpinReverse` 反向表（枚举 `convert_pair` 反演） | ✅ |
+| Moodflow | `EngineManager::schema_keys_of` + 单槽缓存 + 布局解析收口 | ✅ |
+| Moodflow | `${shuangpin}` 新变量；`${code}`→`${code_rev}` 改名 + 永久别名 | ✅ |
+| Moodflow | `show_code_hint`(bool) → `code_hint_source`(四档) + 值迁移 | ✅ |
+| Moodflow | 出厂模板 `${code_hint|code_rev|shuangpin}`（`data/config.toml` 与 `default_comment_template()` 两处） | ✅ |
+| moodflow-setting | manifest 改 select、`mockdata/config.json` | ✅ |
+| moodflow-setting | `capabilities.snapshot.json` + `mockdata/config.json` 由生成器重出 | ✅ 编译机独立槽位，全量 1038 passed |
+| Moodflow | `docs/config-key-migration.md` 键名映射表 | ✅ |
+| MoodflowDocs | `candidate-comment.mdx` / `config/schema.mdx` / `config/ui.mdx` / `special-modes.mdx` | ✅ |
 | 真机 | 双拼方案下候选注释显示双拼码；升级迁移后老用户所见不变 | ⏸ **待验** |
 
-⚠️ wind-setting 在 Linux 上构建不了（`rfd` 缺 gtk3/xdg-portal 后端），两个生成器
+⚠️ moodflow-setting 在 Linux 上构建不了（`rfd` 缺 gtk3/xdg-portal 后端），两个生成器
 （`regenerate_capabilities_snapshot` / `regenerate_mock_config`）只能上编译机跑，用独立
 槽位 `C:/build-<tag>/` 避开共享的主构建树，用完删掉（一份 target 约 2.6 GB）。
 手改那两份产物是 `capabilities.rs` 明令禁止的。
@@ -378,6 +378,6 @@ comment_template_horizontal = ""            # 本方案横排不显示注释
 
 修法现成——挪进 `migrate_user_layer_value` 并补 `contains_key` 守卫即可——但那会改变已
 发布的行为，该单独排期、单独测。
-| wind-setting | 方案级三态行（并入「本方案行为」节）+ 注释库列表编辑器 + 销 UNCOVERED ⑮（781 测试过，含截图自查） | ✅ P1 |
-| WindInputDocs | 三层优先级表（`settings/appearance/candidate-comment`）+ 反向审查既有陈述 | P2 |
-| WindInputTools | **不涉及**：工具站的方案模型只覆盖码表/编码字段，`[punct]`/`[candidate]`/`[phrases]` 这三段行为段本就不在其中（已核 `src/lib/schema/model.ts`） | — |
+| moodflow-setting | 方案级三态行（并入「本方案行为」节）+ 注释库列表编辑器 + 销 UNCOVERED ⑮（781 测试过，含截图自查） | ✅ P1 |
+| MoodflowDocs | 三层优先级表（`settings/appearance/candidate-comment`）+ 反向审查既有陈述 | P2 |
+| MoodflowTools | **不涉及**：工具站的方案模型只覆盖码表/编码字段，`[punct]`/`[candidate]`/`[phrases]` 这三段行为段本就不在其中（已核 `src/lib/schema/model.ts`） | — |

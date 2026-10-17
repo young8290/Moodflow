@@ -1,0 +1,13 @@
+[Desktop Entry]
+# 双击方案包（.wpkg）/ 主题包（.wtheme）导入：设置程序按扩展名认包路径参数
+# （moodflow-setting cli.rs::parse_import_file）。与 moodflow-setting.desktop 分开是因为
+# 文件要 %f（本地路径）、协议要 %u（URL），一条 Exec 只能写一种；本条不进应用菜单。
+Type=Application
+Name=Moodflow 输入法导入
+Name[en]=Moodflow Import
+Exec=/usr/lib/moodflow/wind_setting %f
+Icon=moodflow
+Terminal=false
+NoDisplay=true
+MimeType=application/x-moodflow-package;application/x-moodflow-theme;
+StartupWMClass=wind_setting

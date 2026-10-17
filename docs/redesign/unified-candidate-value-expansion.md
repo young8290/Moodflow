@@ -23,7 +23,7 @@
 
 ## 架构：双汇聚点
 
-展开器 `wind_phrase::expand_dict_value(text, input, now, recent, clip) -> DictExpansion{None|Single|Many}`
+展开器 `moodflow_phrase::expand_dict_value(text, input, now, recent, clip) -> DictExpansion{None|Single|Many}`
 已存在且干净，无需改动。问题在于调用它的 ~60 行后处理 pass 被**内联**在路径 1，未抽共享件。
 
 引入**两个唯一汇聚点**（均在 `handle_candidate.rs`，`impl Coordinator`）：
@@ -115,7 +115,7 @@ pub(crate) fn select_candidate(
 
 - 单元：`finalize_candidates` 对 `$AA→Many`、`$CC→is_command`、`$Y→Single`、普通词→原样各一例。
 - 集成：每条 overlay 路径喂含 `$AA` 候选断言炸开；喂 `$CC` 断言 `is_command` 且选中触发 `commit_command`。
-- 回归：`wind-coordinator` 全测，确保路径 1 / 临拼 partial 分段 / 特殊模式单发退出不破。
+- 回归：`moodflow-coordinator` 全测，确保路径 1 / 临拼 partial 分段 / 特殊模式单发退出不破。
 
 ## 实施顺序
 

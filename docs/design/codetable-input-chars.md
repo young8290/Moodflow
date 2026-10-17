@@ -19,7 +19,7 @@
 
 ## 1. 现状：字段就位，消费点为零
 
-`wind-config/src/schema.rs:100-102` 已有字段，方案 `.schema.toml` 写 `[engine.codetable] input_chars = "a-x/"`
+`moodflow-config/src/schema.rs:100-102` 已有字段，方案 `.schema.toml` 写 `[engine.codetable] input_chars = "a-x/"`
 **能解析成功且不报错**：
 
 ```rust
@@ -34,7 +34,7 @@ pub input_chars: String,
 | 层 | 状态 |
 |---|---|
 | `CodetableGlobal`（全局基线） | **无对应字段**——注释里「空=回退全局」指向虚空 |
-| `CodetableGlobal::resolved()`（`wind-config/src/config.rs:517`） | 折叠 9 个行为字段 + frequency 段，**不含 `input_chars`** |
+| `CodetableGlobal::resolved()`（`moodflow-config/src/config.rs:517`） | 折叠 9 个行为字段 + frequency 段，**不含 `input_chars`** |
 | coordinator 按键分派 | 仍是硬编码 `keymap::VK_A..=keymap::VK_Z`（`coordinator.rs:5449`） |
 
 对照组证明这是遗漏而非有意：同段的另外两个「引擎固定参数」都接了线——`max_code_length`
@@ -51,23 +51,23 @@ pub input_chars: String,
 
 ### 2.1 引擎层对码元字符零假设 ⇒ 零改动
 
-`wind-engine/src/codetable/engine.rs`：
+`moodflow-engine/src/codetable/engine.rs`：
 
 ```rust
 fn convert(&self, input: &str, max_candidates: usize) -> anyhow::Result<ConvertResult>
 ```
 
 纯字符串键；码长一律 `input.chars().count()`（`:121`、`:223`、`:266`）。
-整个 `wind-engine/src/codetable/` 目录中 `is_ascii_lowercase` / `b'a'` / `'a'..=` **零命中**。
+整个 `moodflow-engine/src/codetable/` 目录中 `is_ascii_lowercase` / `b'a'` / `'a'..=` **零命中**。
 
 ### 2.2 词典层已非纯 26 字母 ⇒ 零改动
 
-`wind-dict/src/codetable.rs:76` 的 `is_code_shape` 已接受 `a-z`、数字、空格、`'`、`;`。
+`moodflow-dict/src/codetable.rs:76` 的 `is_code_shape` 已接受 `a-z`、数字、空格、`'`、`;`。
 （注意它是**列序猜测**的启发式，不是码元校验器——见 §6「明确不做」。）
 
 ### 2.3 C++ 中文模式已吃下全部字母与标点 ⇒ 零改动、零 IPC
 
-`wind_tsf/src/HotkeyManager.cpp:106-161` + `KeyEventSink.cpp:611-710` 的吃键真相表：
+`moodflow_tsf/src/HotkeyManager.cpp:106-161` + `KeyEventSink.cpp:611-710` 的吃键真相表：
 
 | 键类型 | 中文模式吃键条件 |
 |---|---|
@@ -360,7 +360,7 @@ P1 是纯地基、可独立合入且**可证明零行为变化**：`input_flow` 
 ## 6. 测试策略
 
 - **单元**：`CodeCharSet` 解析——范围 / 字面 / `-` 首末位 / 大小写归一 / 非法输入回落 `a-z` 而非空集。
-- **零回归锁（P1 最关键）**：默认 `a-z` 时，`wind-coordinator/tests/input_flow.rs` 全绿且**无一处断言修改**。
+- **零回归锁（P1 最关键）**：默认 `a-z` 时，`moodflow-coordinator/tests/input_flow.rs` 全绿且**无一处断言修改**。
   断言需要改 = P1 没做到「无行为变化」。
 - **端到端**：`a-x` 方案下 `y` 键行为（空缓冲 vs 组码中）；`a-x/` 方案下 `/` 在组码中作码元、空缓冲仍作引导键。
 - **反向对照**：每条「符号作码元」的用例都要配一条「同符号在空缓冲下仍是标点/引导键」的对照。
@@ -393,21 +393,21 @@ P1 是纯地基、可独立合入且**可证明零行为变化**：`input_flow` 
 
 ## 8. 相关代码位置
 
-- `wind_input/crates/wind-config/src/code_charset.rs`：`CodeCharSet`（解析、首码集、回落规则）
-- `wind_input/crates/wind-config/src/schema.rs`：`CodeTableSpec::input_chars` / `leading_chars`
-- `wind_input/crates/wind-config/src/config.rs`：`CodetableGlobal` 两字段 + `resolved()` 折叠
-- `wind_input/crates/wind-config/src/config_schema.rs`：注册表登记（新增配置键的守门测试要它）
-- `wind_input/crates/wind-engine/src/engine.rs`：`Engine::input_chars()`（默认 `None`）
-- `wind_input/crates/wind-engine/src/codetable/engine.rs`：`with_charset` + `input_chars()`
-- `wind_input/crates/wind-engine/src/mixed/engine.rs`：混输显式代理主码表子引擎
-- `wind_input/crates/wind-engine/src/pinyin/shuangpin.rs`：`Layout::code_char_set()`（双拼布局 → 码元集，§3.6）
-- `wind_input/crates/wind-engine/src/pinyin/mod.rs`：`PinyinEngine::input_chars()` + `with_shuangpin` 注入点
-- `wind_input/crates/wind-engine/src/manager.rs`：构建期注入 + `active_input_chars` / `active_is_code_char` / `active_is_leading_char`
-- `wind_input/crates/wind-coordinator/src/coordinator.rs`：`can_enter_buffer` / `reject_non_code_char` / `accumulate_code_char` / `try_code_char_gate` / `code_char_conflicts`
-- `wind_input/crates/wind-coordinator/tests/codetable_input_chars.rs`：15 条端到端用例
-- `wind_input/crates/wind-coordinator/src/handle_temp.rs`：`matched_letter_temp_trigger`（顺序铁律）
+- `moodflow_input/crates/moodflow-config/src/code_charset.rs`：`CodeCharSet`（解析、首码集、回落规则）
+- `moodflow_input/crates/moodflow-config/src/schema.rs`：`CodeTableSpec::input_chars` / `leading_chars`
+- `moodflow_input/crates/moodflow-config/src/config.rs`：`CodetableGlobal` 两字段 + `resolved()` 折叠
+- `moodflow_input/crates/moodflow-config/src/config_schema.rs`：注册表登记（新增配置键的守门测试要它）
+- `moodflow_input/crates/moodflow-engine/src/engine.rs`：`Engine::input_chars()`（默认 `None`）
+- `moodflow_input/crates/moodflow-engine/src/codetable/engine.rs`：`with_charset` + `input_chars()`
+- `moodflow_input/crates/moodflow-engine/src/mixed/engine.rs`：混输显式代理主码表子引擎
+- `moodflow_input/crates/moodflow-engine/src/pinyin/shuangpin.rs`：`Layout::code_char_set()`（双拼布局 → 码元集，§3.6）
+- `moodflow_input/crates/moodflow-engine/src/pinyin/mod.rs`：`PinyinEngine::input_chars()` + `with_shuangpin` 注入点
+- `moodflow_input/crates/moodflow-engine/src/manager.rs`：构建期注入 + `active_input_chars` / `active_is_code_char` / `active_is_leading_char`
+- `moodflow_input/crates/moodflow-coordinator/src/coordinator.rs`：`can_enter_buffer` / `reject_non_code_char` / `accumulate_code_char` / `try_code_char_gate` / `code_char_conflicts`
+- `moodflow_input/crates/moodflow-coordinator/tests/codetable_input_chars.rs`：15 条端到端用例
+- `moodflow_input/crates/moodflow-coordinator/src/handle_temp.rs`：`matched_letter_temp_trigger`（顺序铁律）
 - `data/config.toml`：出厂默认与说明
-- `wind_tsf/src/HotkeyManager.cpp:106-161`：`ClassifyInputKey`（吃键真相表来源）
-- `wind_tsf/include/BinaryProtocol.h:627`：`CONFIG_KEY_CUSTOM_EN_PUNCT`（升档到数字时的模板）
+- `moodflow_tsf/src/HotkeyManager.cpp:106-161`：`ClassifyInputKey`（吃键真相表来源）
+- `moodflow_tsf/include/BinaryProtocol.h:627`：`CONFIG_KEY_CUSTOM_EN_PUNCT`（升档到数字时的模板）
 - `docs/redesign/config-schema.md:53-70`：原始设计稿 §3b
 - `docs/redesign/coordinator.md:110`：待办第 11 条（本设计即其兑现）

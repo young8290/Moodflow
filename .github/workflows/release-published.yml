@@ -6,7 +6,7 @@ name: Release Published
 #
 # 两平台各一套元数据:latest.json(exeUrl,Windows)与 latest-mac.json(pkgUrl,macOS)。
 # 键名故意不同,好让「客户端读到另一平台的元数据」在解析阶段就被拒 —— 客户端侧对应实现见
-# wind-setting 的 src/update/mod.rs::Artifact。macOS 产物按「有则同步」处理:补同步老 Release
+# moodflow-setting 的 src/update/mod.rs::Artifact。macOS 产物按「有则同步」处理:补同步老 Release
 # 时它不存在,不该拖垮 Windows 那半。
 #
 # 配置项(Settings → Secrets and variables → Actions)。缺任一项时对应 job 跳过而非失败:
@@ -94,7 +94,7 @@ jobs:
         run: npm install -g wrangler@4
 
       # 产物名以打包脚本为唯一口径:pack-installer.sh 与 dev.ps1 均产出
-      # WindInput-Setup-<版本>.exe。dev.ps1 的 exeUrl 直接用产物名拼 CDN 地址,
+      # Moodflow-Setup-<版本>.exe。dev.ps1 的 exeUrl 直接用产物名拼 CDN 地址,
       # 故 R2 上的对象名必须与之逐字一致,否则在线升级会下到 404。
       - name: 从 Release 下载安装包与发布说明
         if: steps.gate.outputs.skip != 'true'
@@ -106,15 +106,15 @@ jobs:
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           mkdir -p dl
           gh release download "$TAG" --repo "${{ github.repository }}" \
-            --pattern "WindInput-Setup-${VERSION}.exe" --dir ./dl
+            --pattern "Moodflow-Setup-${VERSION}.exe" --dir ./dl
           gh release download "$TAG" --repo "${{ github.repository }}" \
-            --pattern "WindInput-Setup-${VERSION}.exe.sha256" --dir ./dl
+            --pattern "Moodflow-Setup-${VERSION}.exe.sha256" --dir ./dl
           # macOS 包按「有则同步」处理:workflow_dispatch 补同步老 Release 时它并不存在,
           # 那种情况下缺 mac 产物是正常的,不该让整条 Windows 同步跟着失败。
           if gh release download "$TAG" --repo "${{ github.repository }}" \
-               --pattern "WindInput-${VERSION}-macOS.pkg" --dir ./dl 2>/dev/null; then
+               --pattern "Moodflow-${VERSION}-macOS.pkg" --dir ./dl 2>/dev/null; then
             gh release download "$TAG" --repo "${{ github.repository }}" \
-              --pattern "WindInput-${VERSION}-macOS.pkg.sha256" --dir ./dl
+              --pattern "Moodflow-${VERSION}-macOS.pkg.sha256" --dir ./dl
             echo "mac=true" >> "$GITHUB_OUTPUT"
           else
             echo "::warning::该 Release 没有 macOS 安装包,跳过 mac 同步。"
@@ -122,18 +122,18 @@ jobs:
           fi
           # Linux 包同样「有则同步」:两个架构一起要(缺一个说明发布不完整,宁可不同步也不推半套)。
           if gh release download "$TAG" --repo "${{ github.repository }}" \
-               --pattern "WindInput-${VERSION}-linux-*.deb*" --dir ./dl 2>/dev/null \
-             && [ -f "./dl/WindInput-${VERSION}-linux-amd64.deb" ] \
-             && [ -f "./dl/WindInput-${VERSION}-linux-arm64.deb" ]; then
+               --pattern "Moodflow-${VERSION}-linux-*.deb*" --dir ./dl 2>/dev/null \
+             && [ -f "./dl/Moodflow-${VERSION}-linux-amd64.deb" ] \
+             && [ -f "./dl/Moodflow-${VERSION}-linux-arm64.deb" ]; then
             echo "linux=true" >> "$GITHUB_OUTPUT"
           else
-            rm -f ./dl/WindInput-*-linux-*.deb*
+            rm -f ./dl/Moodflow-*-linux-*.deb*
             echo "::warning::该 Release 没有完整的 Linux 安装包(amd64 + arm64),跳过 Linux 同步。"
             echo "linux=false" >> "$GITHUB_OUTPUT"
           fi
           # 升级元数据里的 releaseNotesUrl 指向它(命名口径见 dev.ps1 New-UpdateManifest)
           gh release view "$TAG" --repo "${{ github.repository }}" --json body -q .body \
-            > "./dl/WindInput-${VERSION}-Release.md"
+            > "./dl/Moodflow-${VERSION}-Release.md"
           # 统一从 Release 取发布时间:手动 workflow_dispatch 补触发时
           # github.event.release.* 全为空,直接引用会写出 publishedAt 为空串的元数据。
           PUBLISHED_AT=$(gh release view "$TAG" --repo "${{ github.repository }}" \
@@ -163,21 +163,21 @@ jobs:
       - name: 上传安装包到 R2
         if: steps.gate.outputs.skip != 'true'
         run: |
-          wrangler r2 object put --remote "$R2_BUCKET/WindInput-Setup-${VERSION}.exe" \
-            --file "./dl/WindInput-Setup-${VERSION}.exe" \
+          wrangler r2 object put --remote "$R2_BUCKET/Moodflow-Setup-${VERSION}.exe" \
+            --file "./dl/Moodflow-Setup-${VERSION}.exe" \
             --content-type "application/octet-stream"
-          wrangler r2 object put --remote "$R2_BUCKET/WindInput-Setup-${VERSION}.exe.sha256" \
-            --file "./dl/WindInput-Setup-${VERSION}.exe.sha256" \
+          wrangler r2 object put --remote "$R2_BUCKET/Moodflow-Setup-${VERSION}.exe.sha256" \
+            --file "./dl/Moodflow-Setup-${VERSION}.exe.sha256" \
             --content-type "text/plain; charset=utf-8"
 
       - name: 上传发布说明到 R2
         if: steps.gate.outputs.skip != 'true'
         run: |
-          wrangler r2 object put --remote "$R2_BUCKET/WindInput-${VERSION}-Release.md" \
-            --file "./dl/WindInput-${VERSION}-Release.md" \
+          wrangler r2 object put --remote "$R2_BUCKET/Moodflow-${VERSION}-Release.md" \
+            --file "./dl/Moodflow-${VERSION}-Release.md" \
             --content-type "text/markdown; charset=utf-8"
 
-      # 字段契约见 wind-setting/docs/online-update-plan.md §3.2,与 dev.ps1 的
+      # 字段契约见 moodflow-setting/docs/online-update-plan.md §3.2,与 dev.ps1 的
       # New-UpdateManifest 保持一致。sha256/size 为必填且必须真实 —— 客户端在缺失或
       # 不匹配时拒绝升级,不退化为「不校验就装」(旧 Go 版 size 恒为 0,导致 %TEMP% 里
       # 一个被截断的同名文件会被当成完整包安装)。size 必须是 JSON 数字而非字符串,
@@ -185,8 +185,8 @@ jobs:
       - name: 生成并上传 latest.json
         if: steps.gate.outputs.skip != 'true'
         run: |
-          EXE="./dl/WindInput-Setup-${VERSION}.exe"
-          SHA=$(awk '{print $1}' "./dl/WindInput-Setup-${VERSION}.exe.sha256")
+          EXE="./dl/Moodflow-Setup-${VERSION}.exe"
+          SHA=$(awk '{print $1}' "./dl/Moodflow-Setup-${VERSION}.exe.sha256")
           SIZE=$(stat -c %s "$EXE")
           # sidecar 与实际产物不符说明 Release 资产被动过,宁可发布失败也不能发出错误校验值
           ACTUAL=$(sha256sum "$EXE" | awk '{print $1}')
@@ -197,10 +197,10 @@ jobs:
           jq -n \
             --arg version "$VERSION" \
             --arg tag "$TAG" \
-            --arg exeUrl "${R2_BASE_URL}/WindInput-Setup-${VERSION}.exe" \
+            --arg exeUrl "${R2_BASE_URL}/Moodflow-Setup-${VERSION}.exe" \
             --arg sha256 "$SHA" \
             --argjson size "$SIZE" \
-            --arg releaseNotesUrl "${R2_BASE_URL}/WindInput-${VERSION}-Release.md" \
+            --arg releaseNotesUrl "${R2_BASE_URL}/Moodflow-${VERSION}-Release.md" \
             --arg publishedAt "$PUBLISHED_AT" \
             '{version: $version, tag: $tag, channel: "stable", exeUrl: $exeUrl,
               sha256: $sha256, size: $size, releaseNotesUrl: $releaseNotesUrl,
@@ -212,12 +212,12 @@ jobs:
 
       # macOS:同样的契约,只是安装包字段叫 pkgUrl 而非 exeUrl —— 两平台各用各的键,
       # 让「客户端读到另一平台的元数据」这类串档在解析阶段就被拒,而不是下完才发现装不上
-      # (客户端侧的对应实现见 wind-setting src/update/mod.rs 的 Artifact)。
+      # (客户端侧的对应实现见 moodflow-setting src/update/mod.rs 的 Artifact)。
       # 发布说明两平台共用同一份 md,不重复上传。
       - name: macOS - 上传安装包与 latest-mac.json
         if: steps.gate.outputs.skip != 'true' && steps.dl.outputs.mac == 'true'
         run: |
-          PKG="./dl/WindInput-${VERSION}-macOS.pkg"
+          PKG="./dl/Moodflow-${VERSION}-macOS.pkg"
           SHA=$(awk '{print $1}' "$PKG.sha256")
           ACTUAL=$(sha256sum "$PKG" | awk '{print $1}')
           if [ "$SHA" != "$ACTUAL" ]; then
@@ -226,17 +226,17 @@ jobs:
           fi
           SIZE=$(stat -c %s "$PKG")
           # 顺序同 Windows:先传包,后传 json。json 是开关,反过来会让客户端看到新版本却下到 404。
-          wrangler r2 object put --remote "$R2_BUCKET/WindInput-${VERSION}-macOS.pkg" \
+          wrangler r2 object put --remote "$R2_BUCKET/Moodflow-${VERSION}-macOS.pkg" \
             --file "$PKG" --content-type "application/octet-stream"
-          wrangler r2 object put --remote "$R2_BUCKET/WindInput-${VERSION}-macOS.pkg.sha256" \
+          wrangler r2 object put --remote "$R2_BUCKET/Moodflow-${VERSION}-macOS.pkg.sha256" \
             --file "$PKG.sha256" --content-type "text/plain; charset=utf-8"
           jq -n \
             --arg version "$VERSION" \
             --arg tag "$TAG" \
-            --arg pkgUrl "${R2_BASE_URL}/WindInput-${VERSION}-macOS.pkg" \
+            --arg pkgUrl "${R2_BASE_URL}/Moodflow-${VERSION}-macOS.pkg" \
             --arg sha256 "$SHA" \
             --argjson size "$SIZE" \
-            --arg releaseNotesUrl "${R2_BASE_URL}/WindInput-${VERSION}-Release.md" \
+            --arg releaseNotesUrl "${R2_BASE_URL}/Moodflow-${VERSION}-Release.md" \
             --arg publishedAt "$PUBLISHED_AT" \
             '{version: $version, tag: $tag, channel: "stable", pkgUrl: $pkgUrl,
               sha256: $sha256, size: $size, releaseNotesUrl: $releaseNotesUrl,
@@ -254,7 +254,7 @@ jobs:
         run: |
           DEBS='{}'
           for ARCH in amd64 arm64; do
-            F="WindInput-${VERSION}-linux-${ARCH}.deb"
+            F="Moodflow-${VERSION}-linux-${ARCH}.deb"
             SHA=$(awk '{print $1}' "./dl/$F.sha256")
             ACTUAL=$(sha256sum "./dl/$F" | awk '{print $1}')
             if [ "$SHA" != "$ACTUAL" ]; then
@@ -273,7 +273,7 @@ jobs:
             --arg version "$VERSION" \
             --arg tag "$TAG" \
             --argjson debs "$DEBS" \
-            --arg releaseNotesUrl "${R2_BASE_URL}/WindInput-${VERSION}-Release.md" \
+            --arg releaseNotesUrl "${R2_BASE_URL}/Moodflow-${VERSION}-Release.md" \
             --arg publishedAt "$PUBLISHED_AT" \
             '{version: $version, tag: $tag, channel: "stable", debs: $debs,
               releaseNotesUrl: $releaseNotesUrl, publishedAt: $publishedAt}' > latest-linux.json
@@ -285,7 +285,7 @@ jobs:
         if: steps.gate.outputs.skip != 'true'
         run: |
           set -e
-          EXPECTED_EXE_SIZE=$(stat -c %s "./dl/WindInput-Setup-${VERSION}.exe")
+          EXPECTED_EXE_SIZE=$(stat -c %s "./dl/Moodflow-Setup-${VERSION}.exe")
           check() {
             local url="$1" expected_size="$2" attempt=0 headers actual
             echo "Verifying: $url"
@@ -309,19 +309,19 @@ jobs:
             echo "ERROR: $url 六次尝试后仍不可达或大小不符" >&2
             return 1
           }
-          check "${R2_BASE_URL}/WindInput-Setup-${VERSION}.exe" "$EXPECTED_EXE_SIZE"
-          check "${R2_BASE_URL}/WindInput-Setup-${VERSION}.exe.sha256" ""
-          check "${R2_BASE_URL}/WindInput-${VERSION}-Release.md" ""
+          check "${R2_BASE_URL}/Moodflow-Setup-${VERSION}.exe" "$EXPECTED_EXE_SIZE"
+          check "${R2_BASE_URL}/Moodflow-Setup-${VERSION}.exe.sha256" ""
+          check "${R2_BASE_URL}/Moodflow-${VERSION}-Release.md" ""
           check "${R2_BASE_URL}/latest.json" ""
           if [ "${{ steps.dl.outputs.mac }}" = "true" ]; then
-            EXPECTED_PKG_SIZE=$(stat -c %s "./dl/WindInput-${VERSION}-macOS.pkg")
-            check "${R2_BASE_URL}/WindInput-${VERSION}-macOS.pkg" "$EXPECTED_PKG_SIZE"
-            check "${R2_BASE_URL}/WindInput-${VERSION}-macOS.pkg.sha256" ""
+            EXPECTED_PKG_SIZE=$(stat -c %s "./dl/Moodflow-${VERSION}-macOS.pkg")
+            check "${R2_BASE_URL}/Moodflow-${VERSION}-macOS.pkg" "$EXPECTED_PKG_SIZE"
+            check "${R2_BASE_URL}/Moodflow-${VERSION}-macOS.pkg.sha256" ""
             check "${R2_BASE_URL}/latest-mac.json" ""
           fi
           if [ "${{ steps.dl.outputs.linux }}" = "true" ]; then
             for ARCH in amd64 arm64; do
-              F="WindInput-${VERSION}-linux-${ARCH}.deb"
+              F="Moodflow-${VERSION}-linux-${ARCH}.deb"
               check "${R2_BASE_URL}/$F" "$(stat -c %s "./dl/$F")"
               check "${R2_BASE_URL}/$F.sha256" ""
             done
@@ -330,7 +330,7 @@ jobs:
           echo "R2 对象全部校验通过。"
 
       # 校验通过后才清理旧版本,失败时旧版本原样留着仍可下载。
-      # 只删按当前命名口径拼出的对象;更早的 Go 版遗留对象(WindInput-<版本>-Setup.exe)
+      # 只删按当前命名口径拼出的对象;更早的 Go 版遗留对象(Moodflow-<版本>-Setup.exe)
       # 命名不同,不会被误删,需要时手工清理。
       - name: 清理 R2 上的旧版本对象
         if: steps.gate.outputs.skip != 'true'
@@ -347,14 +347,14 @@ jobs:
 
           if [ -n "$PREV_VERSION" ] && [ "$PREV_VERSION" != "$VERSION" ]; then
             echo "清理 Windows 旧版本: $PREV_VERSION"
-            wrangler r2 object delete --remote "$R2_BUCKET/WindInput-Setup-${PREV_VERSION}.exe" || true
-            wrangler r2 object delete --remote "$R2_BUCKET/WindInput-Setup-${PREV_VERSION}.exe.sha256" || true
+            wrangler r2 object delete --remote "$R2_BUCKET/Moodflow-Setup-${PREV_VERSION}.exe" || true
+            wrangler r2 object delete --remote "$R2_BUCKET/Moodflow-Setup-${PREV_VERSION}.exe.sha256" || true
             # 发布说明各平台共用同一份。mac / Linux 元数据还指着它时不能删 ——
             # 各平台版本可能不同步(比如某次只发了 Windows),删了对方用户的「更新说明」就 404。
             if [ "$MAC_CUR" = "$PREV_VERSION" ] || [ "$LINUX_CUR" = "$PREV_VERSION" ]; then
               echo "  发布说明 $PREV_VERSION 仍被其它平台元数据引用,保留"
             else
-              wrangler r2 object delete --remote "$R2_BUCKET/WindInput-${PREV_VERSION}-Release.md" || true
+              wrangler r2 object delete --remote "$R2_BUCKET/Moodflow-${PREV_VERSION}-Release.md" || true
             fi
           else
             echo "Windows: 无需清理(前一版本为 ${PREV_VERSION:-<none>})"
@@ -363,8 +363,8 @@ jobs:
           # 只有本次确实推了新 mac 包,才轮得到清旧 mac 包。
           if [ "$MAC_SYNCED" = "true" ] && [ -n "$PREV_MAC" ] && [ "$PREV_MAC" != "$VERSION" ]; then
             echo "清理 macOS 旧版本: $PREV_MAC"
-            wrangler r2 object delete --remote "$R2_BUCKET/WindInput-${PREV_MAC}-macOS.pkg" || true
-            wrangler r2 object delete --remote "$R2_BUCKET/WindInput-${PREV_MAC}-macOS.pkg.sha256" || true
+            wrangler r2 object delete --remote "$R2_BUCKET/Moodflow-${PREV_MAC}-macOS.pkg" || true
+            wrangler r2 object delete --remote "$R2_BUCKET/Moodflow-${PREV_MAC}-macOS.pkg.sha256" || true
           else
             echo "macOS: 无需清理(本次同步=${MAC_SYNCED:-false}, 前一版本=${PREV_MAC:-<none>})"
           fi
@@ -373,8 +373,8 @@ jobs:
           if [ "$LINUX_SYNCED" = "true" ] && [ -n "$PREV_LINUX" ] && [ "$PREV_LINUX" != "$VERSION" ]; then
             echo "清理 Linux 旧版本: $PREV_LINUX"
             for ARCH in amd64 arm64; do
-              wrangler r2 object delete --remote "$R2_BUCKET/WindInput-${PREV_LINUX}-linux-${ARCH}.deb" || true
-              wrangler r2 object delete --remote "$R2_BUCKET/WindInput-${PREV_LINUX}-linux-${ARCH}.deb.sha256" || true
+              wrangler r2 object delete --remote "$R2_BUCKET/Moodflow-${PREV_LINUX}-linux-${ARCH}.deb" || true
+              wrangler r2 object delete --remote "$R2_BUCKET/Moodflow-${PREV_LINUX}-linux-${ARCH}.deb.sha256" || true
             done
           else
             echo "Linux: 无需清理(本次同步=${LINUX_SYNCED:-false}, 前一版本=${PREV_LINUX:-<none>})"

@@ -1,0 +1,23 @@
+[package]
+name = "moodflow-tap"
+description = "Moodflow：核心服务侧的 MFP 服务端（采集钩子、隐私闸门、命名管道），产品书 17 第 1 节"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+# MFP 消息类型与帧编解码，与 Hub、mf-sim 共用（仓库根目录的 Moodflow 工作区）
+mfp = { path = "../../../crates/mfp" }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true }
+
+[dev-dependencies]
+# 集成测试扮演 Hub，直接收发 MFP 帧
+mfp = { path = "../../../crates/mfp" }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

@@ -35,10 +35,10 @@
 （gitignore，模板见 `build.local.example`）—— 机器地址属于各人的环境，不入库。
 
 ```bash
-cd ~/develop/windinput/WindInput
-source scripts/build.local                 # 提供 WIND_BUILD_REMOTE / WIND_BUILD_ROOT
-BUILD_HOST="$WIND_BUILD_REMOTE"            # 形如 user@host
-BUILD_ROOT="$WIND_BUILD_ROOT"              # 编译机上的仓根，形如 X:/path/WindInput
+cd ~/develop/moodflow/Moodflow
+source scripts/build.local                 # 提供 MOODFLOW_BUILD_REMOTE / MOODFLOW_BUILD_ROOT
+BUILD_HOST="$MOODFLOW_BUILD_REMOTE"            # 形如 user@host
+BUILD_ROOT="$MOODFLOW_BUILD_ROOT"              # 编译机上的仓根，形如 X:/path/Moodflow
 ```
 
 ---
@@ -58,8 +58,8 @@ BUILD_ROOT="$WIND_BUILD_ROOT"              # 编译机上的仓根，形如 X:/p
 签名只覆盖 **Windows 的 4 个资产**：
 
 ```
-WindInput-Setup-<版本>.exe          + .sha256
-WindInput-Portable-<版本>.zip       + .sha256
+Moodflow-Setup-<版本>.exe          + .sha256
+Moodflow-Portable-<版本>.zip       + .sha256
 ```
 
 macOS 的 `.pkg` 由 CI 直接传进 Release，**不经过本流程**。
@@ -70,13 +70,13 @@ macOS 的 `.pkg` 由 CI 直接传进 Release，**不经过本流程**。
 
 | 仓 | 打 tag | 说明 |
 |---|---|---|
-| `wind-ui-rust` | ✗ 只推送 | 是 `wind-setting` 的 path 依赖（`windui = { path = "../wind-ui-rust" }`），必须先到位。`wind-installer` 走 crates.io 的 `windui = "0.8"`，不受影响 |
-| `wind-setting` | ✓ | |
-| `wind-portable` | ✓ | |
-| `wind-installer` | ✓ | |
-| **`WindInput`** | ✓ | **永远最后推** |
+| `moodflow-ui-rust` | ✗ 只推送 | 是 `moodflow-setting` 的 path 依赖（`moodflowui = { path = "../moodflow-ui-rust" }`），必须先到位。`moodflow-installer` 走 crates.io 的 `moodflowui = "0.8"`，不受影响 |
+| `moodflow-setting` | ✓ | |
+| `moodflow-portable` | ✓ | |
+| `moodflow-installer` | ✓ | |
+| **`Moodflow`** | ✓ | **永远最后推** |
 
-★ **为什么主仓最后**：推 `WindInput` 的 `v*` tag 会**立刻**触发 `.github/workflows/release.yml`，
+★ **为什么主仓最后**：推 `Moodflow` 的 `v*` tag 会**立刻**触发 `.github/workflows/release.yml`，
 而该 workflow 用 `actions/checkout` 拉附属仓时**没有指定 ref**，取的是它们默认分支的最新
 提交。附属仓没先到位，CI 就会拿旧代码构建出错误的发布包 —— 且全程不报错。
 
@@ -101,10 +101,10 @@ macOS 的 `.pkg` 由 CI 直接传进 Release，**不经过本流程**。
 **✅ 以下各项均可在 Linux 上执行。**
 
 ```bash
-cd ~/develop/windinput
+cd ~/develop/moodflow
 
 # 1. 五仓都在目标分支、工作区干净、无未推送提交
-for r in wind-ui-rust wind-setting wind-portable wind-installer WindInput; do
+for r in moodflow-ui-rust moodflow-setting moodflow-portable moodflow-installer Moodflow; do
     printf '%-16s %s\n' "$r" "$(git -C $r status --short --branch | head -1)"
     git -C $r status --short | grep -q . && echo "    ⚠️ 工作区有改动"
 done
@@ -146,24 +146,24 @@ ssh "$BUILD_HOST" "pwsh -NoProfile -Command \"Set-Location '\$BUILD_ROOT'; .\\sc
 **✅ 已实测**（v0.121.2）。
 
 ```bash
-cd ~/develop/windinput
+cd ~/develop/moodflow
 V=0.121.3                      # 新版本号，不带 v
 BR=main
 
-# 1. 附属仓：先推 wind-ui-rust（不打 tag）
-git -C wind-ui-rust push origin $BR
+# 1. 附属仓：先推 moodflow-ui-rust（不打 tag）
+git -C moodflow-ui-rust push origin $BR
 
 # 2. 三个附属仓：打 tag 并推
-for r in wind-setting wind-portable wind-installer; do
+for r in moodflow-setting moodflow-portable moodflow-installer; do
     git -C $r tag -a "v$V" -m "v$V" || { echo "$r tag 失败"; break; }
     git -C $r push origin $BR
     git -C $r push origin "v$V"
 done
 
 # 3. 主仓最后（推 tag 会立刻触发 CI）
-git -C WindInput push origin $BR
-git -C WindInput tag -a "v$V" -m "v$V"
-git -C WindInput push origin "v$V"
+git -C Moodflow push origin $BR
+git -C Moodflow tag -a "v$V" -m "v$V"
+git -C Moodflow push origin "v$V"
 ```
 
 **检查点**：
@@ -172,7 +172,7 @@ git -C WindInput push origin "v$V"
 - 推完主仓 tag 后 CI 应在 1 分钟内起来：
   `gh run list --workflow release.yml --limit 3 -R huanfeng/WindInput`
 
-⚠️ 仓库可能装有 **pre-push hook**（`wind-ui-rust` 会跑 clippy + 全量测试），推送会变慢。
+⚠️ 仓库可能装有 **pre-push hook**（`moodflow-ui-rust` 会跑 clippy + 全量测试），推送会变慢。
 `release.ps1` 对此有专门处理，手工推时耐心等即可，别用 `--no-verify` 绕过。
 
 ---
@@ -182,7 +182,7 @@ git -C WindInput push origin "v$V"
 **✅ 已实测**（v0.121.2，CI 约 17 分钟）。
 
 ```bash
-cd ~/develop/windinput/WindInput
+cd ~/develop/moodflow/Moodflow
 gh run list --workflow release.yml --branch "v$V" --limit 5
 gh run watch <runId>           # 或轮询 gh run view <runId>
 ```
@@ -193,7 +193,7 @@ gh run watch <runId>           # 或轮询 gh run view <runId>
 
 | artifact | 内容 | 用途 |
 |---|---|---|
-| `stage-windows` | `WindInput-Stage-<版本>.zip`（`build/` 散件 + 安装器三件套） | **签名段要用这个** |
+| `stage-windows` | `Moodflow-Stage-<版本>.zip`（`build/` 散件 + 安装器三件套） | **签名段要用这个** |
 | `dist-windows` | CI 自己打的未签名 Setup/Portable | 不用，会被签名版覆盖 |
 | `dist-macos` | `.pkg` + `.sha256` | CI 直传 Release，不经本流程 |
 
@@ -213,23 +213,23 @@ gh run watch <runId>           # 或轮询 gh run view <runId>
 ssh "$BUILD_HOST" "pwsh -NoProfile -Command \"
   \$d='$BUILD_ROOT/dist'; \$a=Join-Path \$d ('_archive/pre-release-'+(Get-Date -Format 'MMdd-HHmm'))
   New-Item -ItemType Directory \$a -Force | Out-Null
-  Get-ChildItem \$d -File | Where-Object { \$_.Name -match '^WindInput(Dev)?-(Setup|Portable|Stage)-' } |
+  Get-ChildItem \$d -File | Where-Object { \$_.Name -match '^Moodflow(Dev)?-(Setup|Portable|Stage)-' } |
       Move-Item -Destination \$a -Force
 \""
 ```
 
 ```bash
-cd ~/develop/windinput/WindInput
+cd ~/develop/moodflow/Moodflow
 TMP=$(mktemp -d)
 
 # 1. 找到本次 tag 的 run，拉中转产物
 RUN=$(gh run list --workflow release.yml --branch "v$V" --limit 10 \
         --json databaseId,conclusion -q '[.[]|select(.conclusion=="success")][0].databaseId')
 gh run download "$RUN" --name stage-windows --dir "$TMP"
-ls -la "$TMP"/WindInput-Stage-*.zip
+ls -la "$TMP"/Moodflow-Stage-*.zip
 
 # 2. 传到 VM
-scp "$TMP"/WindInput-Stage-*.zip "$BUILD_HOST":"$BUILD_ROOT/dist/"
+scp "$TMP"/Moodflow-Stage-*.zip "$BUILD_HOST":"$BUILD_ROOT/dist/"
 
 # 3. 对齐 VM 的 docs/VERSION（unstage 的硬校验要它等于 tag 版本）
 printf '%s\n' "$V" > /tmp/VERSION
@@ -248,7 +248,7 @@ scp /tmp/VERSION "$BUILD_HOST":"$BUILD_ROOT/docs/VERSION"
 cat > /tmp/do-sign.ps1 <<PS1
 \$ErrorActionPreference = "Stop"
 Set-Location "$BUILD_ROOT"
-.\scripts\dev.ps1 unstage ".\dist\WindInput-Stage-$V.zip"; if (\$LASTEXITCODE) { exit 1 }
+.\scripts\dev.ps1 unstage ".\dist\Moodflow-Stage-$V.zip"; if (\$LASTEXITCODE) { exit 1 }
 .\scripts\dev.ps1 sign 8s;                                   if (\$LASTEXITCODE) { exit 1 }
 .\scripts\dev.ps1 sign 9s;                                   if (\$LASTEXITCODE) { exit 1 }
 .\scripts\dev.ps1 verify-sign;                               if (\$LASTEXITCODE) { exit 1 }
@@ -257,8 +257,8 @@ scp /tmp/do-sign.ps1 "$BUILD_HOST":"$BUILD_ROOT/../do-sign.ps1"
 ssh "$BUILD_HOST" "pwsh -NoProfile -File '$BUILD_ROOT/../do-sign.ps1'"
 
 # 5. 回传 4 个签名资产
-scp "$BUILD_HOST":"$BUILD_ROOT/dist/WindInput-Setup-$V.exe*" dist/
-scp "$BUILD_HOST":"$BUILD_ROOT/dist/WindInput-Portable-$V.zip*" dist/
+scp "$BUILD_HOST":"$BUILD_ROOT/dist/Moodflow-Setup-$V.exe*" dist/
+scp "$BUILD_HOST":"$BUILD_ROOT/dist/Moodflow-Portable-$V.zip*" dist/
 ```
 
 **检查点（逐条都要看，脚本报「完成」不算数）**：
@@ -281,9 +281,9 @@ cat > /tmp/verify-portable.ps1 <<PS1
 \$ErrorActionPreference = "Stop"
 \$st = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
          Where-Object { \$_.FullName -match "\\x64\\" } | Sort-Object FullName -Descending)[0].FullName
-\$tmp = Join-Path \$env:TEMP "wind-verify-portable"
+\$tmp = Join-Path \$env:TEMP "moodflow-verify-portable"
 if (Test-Path \$tmp) { Remove-Item \$tmp -Recurse -Force }
-Expand-Archive "$BUILD_ROOT/dist/WindInput-Portable-$V.zip" \$tmp -Force
+Expand-Archive "$BUILD_ROOT/dist/Moodflow-Portable-$V.zip" \$tmp -Force
 Get-ChildItem \$tmp -Recurse -File | Where-Object { \$_.Extension -in @(".exe",".dll") } | ForEach-Object {
     \$o  = & \$st verify /pa /v \$_.FullName 2>&1
     \$ts = (\$o | Where-Object { \$_ -match "timestamped" }) -replace ".*timestamped:\s*", ""
@@ -306,12 +306,12 @@ ssh "$BUILD_HOST" "pwsh -NoProfile -File '$BUILD_ROOT/../verify-portable.ps1'"
 **✅ 已实测**（v0.121.2）。
 
 ```bash
-cd ~/develop/windinput/WindInput
+cd ~/develop/moodflow/Moodflow
 gh release upload "v$V" \
-    "dist/WindInput-Setup-$V.exe" \
-    "dist/WindInput-Setup-$V.exe.sha256" \
-    "dist/WindInput-Portable-$V.zip" \
-    "dist/WindInput-Portable-$V.zip.sha256" \
+    "dist/Moodflow-Setup-$V.exe" \
+    "dist/Moodflow-Setup-$V.exe.sha256" \
+    "dist/Moodflow-Portable-$V.zip" \
+    "dist/Moodflow-Portable-$V.zip.sha256" \
     --clobber
 
 # 正文里 CI 加的未签名横幅要摘掉
@@ -358,9 +358,9 @@ print("\n".join(kept))
 
 ```bash
 D=$(mktemp -d)
-gh release download "v$V" --pattern "WindInput-Setup-$V.exe" --dir "$D"
-gh release download "v$V" --pattern "WindInput-Portable-$V.zip" --dir "$D"
-for f in "WindInput-Setup-$V.exe" "WindInput-Portable-$V.zip"; do
+gh release download "v$V" --pattern "Moodflow-Setup-$V.exe" --dir "$D"
+gh release download "v$V" --pattern "Moodflow-Portable-$V.zip" --dir "$D"
+for f in "Moodflow-Setup-$V.exe" "Moodflow-Portable-$V.zip"; do
     r=$(sha256sum "$D/$f" | cut -d' ' -f1); l=$(sha256sum "dist/$f" | cut -d' ' -f1)
     [ "$r" = "$l" ] && echo "  OK  $f" || echo "  ✗ $f 与本地签名版不一致!"
 done

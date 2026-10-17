@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""心晴 · 生成危机词表用的繁转简字表（hub_templates/crisis_t2s.toml）
+"""Moodflow · 生成危机词表用的繁转简字表（hub_templates/crisis_t2s.toml）
 
 用法：pip install opencc-python-reimplemented && python3 tools/gen_crisis_t2s.py [--check]
 只收录“转换结果出现在 crisis_lexicon.toml 中”的繁体字，保证词表里的每个字都能从繁体写法匹配到。
@@ -29,7 +29,7 @@ EXTRA = {"著": "着"}
 pairs.update({t: v for t, v in EXTRA.items() if v in used})
 body = "".join(f'"{t}" = "{s}"\n' for t, s in sorted(pairs.items()))
 out = (
-    "# 心晴 · 危机词表繁转简字表（由 tools/gen_crisis_t2s.py 生成，不要手改）\n"
+    "# Moodflow · 危机词表繁转简字表（由 tools/gen_crisis_t2s.py 生成，不要手改）\n"
     "# 只含转换结果出现在 crisis_lexicon.toml 中的字；数据来自 OpenCC TSCharacters（Apache-2.0）。\n"
     "# Hub safety 模块与 eval/tools/check_crisis.py 共用本表（判定算法第 1 步“繁转简”）。\n\n"
     "[map]\n" + body

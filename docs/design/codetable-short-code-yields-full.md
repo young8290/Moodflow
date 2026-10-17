@@ -1,6 +1,6 @@
 # 出简让全：把简码让位从词库层搬到运行时
 
-> 状态：**已实施**。实现在 `wind_input/crates/wind-coordinator/src/short_code_yield.rs`，
+> 状态：**已实施**。实现在 `moodflow_input/crates/moodflow-coordinator/src/short_code_yield.rs`，
 > 开关为 `schema.codetable.short_code_yield_level`（0 关闭 / 2 一二级 / 3 全部）。
 > **出厂全关**：全局基线 0，且内置方案（含 wubi86）一律不声明这一项，理由见 §6.3。
 > 词库层的 `gen_dict` `[demotion]` 已同步退役，发行词库保留极点上游的候选次序。
@@ -30,7 +30,7 @@
 
 五笔的简码定义就是全码的前 N 码——「路」的三简 `kht` 是全码 `khtk` 的前缀。
 
-所以「这个字有没有更短的码」**不需要 `text → code` 反查索引**（`wind-dict` 的检索接口全是
+所以「这个字有没有更短的码」**不需要 `text → code` 反查索引**（`moodflow-dict` 的检索接口全是
 `code → text` 单向：`search` / `search_prefix` / `has_longer_code`），只需回答
 「输入码的某个前缀上，首选是不是它」。
 
@@ -78,7 +78,7 @@ wdat 是运行时首次加载 yaml 生成的**本机缓存**（`cached.rs`），
 ### 4.2 落点是现成的
 
 ```rust
-// wind-coordinator/src/handle_candidate.rs:578
+// moodflow-coordinator/src/handle_candidate.rs:578
 pub(crate) fn build_candidates(&self, state: &mut State, limit: usize) -> (usize, InputOutcome)
 ```
 
@@ -314,13 +314,13 @@ candidates[1..normal_len].rotate_left(1); // 字从下标 1 沉到正常段末�
 ## 8. 落点
 
 ```
-crates/wind-coordinator/src/short_code_yield.rs   判定 / 记录 / 淘汰，三个纯函数
-crates/wind-coordinator/src/coordinator.rs        State.shortcode_tops
-crates/wind-coordinator/src/handle_candidate.rs   三处接线（见下）+ apply_shadow 返回让路判据
-crates/wind-candidate/src/shadow.rs               apply_shadow 返回 pin 命中数（判据的唯一取值处）
-crates/wind-config/src/config.rs                  CodetableGlobal.short_code_yield_level
-crates/wind-config/src/schema.rs                  方案级 Option<usize> 覆盖
-crates/wind-config/src/config_schema.rs           注册（守门测试要求 data/config.toml 同步列出）
+crates/moodflow-coordinator/src/short_code_yield.rs   判定 / 记录 / 淘汰，三个纯函数
+crates/moodflow-coordinator/src/coordinator.rs        State.shortcode_tops
+crates/moodflow-coordinator/src/handle_candidate.rs   三处接线（见下）+ apply_shadow 返回让路判据
+crates/moodflow-candidate/src/shadow.rs               apply_shadow 返回 pin 命中数（判据的唯一取值处）
+crates/moodflow-config/src/config.rs                  CodetableGlobal.short_code_yield_level
+crates/moodflow-config/src/schema.rs                  方案级 Option<usize> 覆盖
+crates/moodflow-config/src/config_schema.rs           注册（守门测试要求 data/config.toml 同步列出）
 ```
 
 `build_candidates` 内的三处，次序不可换：
@@ -355,7 +355,7 @@ state.candidates = candidates
 ## 10. 测试
 
 纯函数层 17 个用例在 `short_code_yield.rs` 内；端到端 11 个在
-`crates/wind-coordinator/tests/codetable_short_code_yield.rs`。两层必须都有——本仓
+`crates/moodflow-coordinator/tests/codetable_short_code_yield.rs`。两层必须都有——本仓
 「引擎全绿而用户打不出」是反复出现过的形态。
 
 候选调整优先那一族（端到端 4 条，见 §6.2）**必须用 `new_headless_with_store`**：shadow

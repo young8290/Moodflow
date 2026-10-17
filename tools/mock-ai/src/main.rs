@@ -7,7 +7,7 @@ use clap::Parser;
 use mock_ai::{Handle, Scenario, router};
 
 #[derive(Parser, Debug)]
-#[command(name = "mock-ai", about = "心晴 AI 接口模拟服务")]
+#[command(name = "mock-ai", about = "Moodflow AI 接口模拟服务")]
 struct Args {
     #[arg(long, default_value_t = 18080)]
     port: u16,

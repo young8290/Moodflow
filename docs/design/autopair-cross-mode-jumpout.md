@@ -10,9 +10,9 @@
 
 | 代号 | 位置 | 内容 |
 | --- | --- | --- |
-| R | `wind-coordinator` `Coordinator::pair_tracker`（`coordinator.rs:661`） | 真正的栈，存左右符号字符 |
-| E | `wind_tsf` `CKeyEventSink::_englishPairEngine`（`KeyEventSink.h:293`） | 另一个栈，英文半角配对独有 |
-| D | `wind_tsf` `CKeyEventSink::_pairPendingDepth`（`KeyEventSink.h:141`） | R 的镜像计数，`InsertTextWithCursor` 响应 +1、`MoveCursorRight` -1 |
+| R | `moodflow-coordinator` `Coordinator::pair_tracker`（`coordinator.rs:661`） | 真正的栈，存左右符号字符 |
+| E | `moodflow_tsf` `CKeyEventSink::_englishPairEngine`（`KeyEventSink.h:293`） | 另一个栈，英文半角配对独有 |
+| D | `moodflow_tsf` `CKeyEventSink::_pairPendingDepth`（`KeyEventSink.h:141`） | R 的镜像计数，`InsertTextWithCursor` 响应 +1、`MoveCursorRight` -1 |
 
 ### 三个判定入口
 
@@ -165,7 +165,7 @@ TTL 值由 core 推送给 DLL。**建议新增独立配置键 `CONFIG_KEY_PAIR_S
 
 ### 配置项（内部项，不进 GUI）
 
-两项都做成内部配置：`data/config.toml` 写好默认值与注释，**不同步 wind-setting 仓的 manifest 与 capabilities 快照**，设置界面不暴露。
+两项都做成内部配置：`data/config.toml` 写好默认值与注释，**不同步 moodflow-setting 仓的 manifest 与 capabilities 快照**，设置界面不暴露。
 
 ```toml
 [input.auto_pair]
@@ -187,11 +187,11 @@ state_ttl_secs = 120
 | 4 | 设置仓 | `rpc::tests::mock_config_matches_core_system_preset` | 跑 `cargo test regenerate_mock_config -- --ignored` |
 | 5 | 设置仓 | `uncovered_capability_keys_match_allowlist` | 加进 `capabilities.rs` 的 `UNCOVERED_BY_DESIGN` 并写明理由 |
 
-第 3、4 道的产物（`capabilities.snapshot.json` / `mockdata/config.json`）是从主仓的 `wind-config` + `data` **现算**的，有生成入口，**不要手改**。第 5 道是双向断言（既拦"新增了没接进设置页的键"，也拦"名单里的键已被接进清单或已被删除"），正是内部配置项的正规落点。
+第 3、4 道的产物（`capabilities.snapshot.json` / `mockdata/config.json`）是从主仓的 `moodflow-config` + `data` **现算**的，有生成入口，**不要手改**。第 5 道是双向断言（既拦"新增了没接进设置页的键"，也拦"名单里的键已被接进清单或已被删除"），正是内部配置项的正规落点。
 
 ## 改动清单
 
-### C++（`wind_tsf`）
+### C++（`moodflow_tsf`）
 
 | 文件 | 改动 |
 | --- | --- |
@@ -209,23 +209,23 @@ state_ttl_secs = 120
 
 | 文件 | 改动 |
 | --- | --- |
-| `wind-config/src/config.rs` | `AutoPairConfig` 加 `keep_state_on_focus_lost: bool`（默认 true）、`state_ttl_secs: u32`（默认 120），均 `#[serde(default)]` |
-| `wind-config/src/config_schema.rs` | 登记上述两键（Bool / Int） |
-| `wind-ipc/src/protocol.rs` + `codec.rs` | 新增 `CONFIG_KEY_PAIR_STATE_TTL` 与编码函数 |
-| `wind-transform/src/pair_tracker.rs` | `PairTracker` 加 `owner_token`、`last_activity`；`push` 记录，`is_stale(ttl)` 判定 |
-| `wind-coordinator/src/coordinator.rs:4249` | 英文模式分支接入英文半角配对接手 |
-| `wind-coordinator/src/coordinator.rs:4392-4406` | 跳出检查前置到英文分支之前，加 TTL 判定 |
-| `wind-coordinator/src/coordinator.rs:5156` | 失焦清栈条件从 `clears_input()` 改为按 reason 细分 + `keep_state_on_focus_lost` |
-| `wind-coordinator/src/coordinator.rs` `handle_focus_gained` | owner_token 不匹配 → 清栈 |
-| `wind-coordinator/src/coordinator.rs` 推送段（`:3082` 附近） | 新增 `push_pair_state_ttl_config` |
-| `wind-coordinator/src/handle_punct.rs` | 英文半角配对接手；删除 `:519-523` 已不成立的「两半栈」限制说明 |
+| `moodflow-config/src/config.rs` | `AutoPairConfig` 加 `keep_state_on_focus_lost: bool`（默认 true）、`state_ttl_secs: u32`（默认 120），均 `#[serde(default)]` |
+| `moodflow-config/src/config_schema.rs` | 登记上述两键（Bool / Int） |
+| `moodflow-ipc/src/protocol.rs` + `codec.rs` | 新增 `CONFIG_KEY_PAIR_STATE_TTL` 与编码函数 |
+| `moodflow-transform/src/pair_tracker.rs` | `PairTracker` 加 `owner_token`、`last_activity`；`push` 记录，`is_stale(ttl)` 判定 |
+| `moodflow-coordinator/src/coordinator.rs:4249` | 英文模式分支接入英文半角配对接手 |
+| `moodflow-coordinator/src/coordinator.rs:4392-4406` | 跳出检查前置到英文分支之前，加 TTL 判定 |
+| `moodflow-coordinator/src/coordinator.rs:5156` | 失焦清栈条件从 `clears_input()` 改为按 reason 细分 + `keep_state_on_focus_lost` |
+| `moodflow-coordinator/src/coordinator.rs` `handle_focus_gained` | owner_token 不匹配 → 清栈 |
+| `moodflow-coordinator/src/coordinator.rs` 推送段（`:3082` 附近） | 新增 `push_pair_state_ttl_config` |
+| `moodflow-coordinator/src/handle_punct.rs` | 英文半角配对接手；删除 `:519-523` 已不成立的「两半栈」限制说明 |
 | `data/config.toml` | 两个新键 + 注释 |
 
 > `handle_english_custom_punct` 里那条已知限制（自定义产物恰为配对左符时无法用跳出键跳出）会被本方案顺带修掉——两半栈合并即消失。
 
 ## 测试计划
 
-端到端测试（`crates/wind-coordinator/tests/input_flow.rs`）。**每个用例都要先断言前置条件真的成立**（配对确实入栈、模式确实翻转），否则会静默退化成假绿——本仓已有先例。
+端到端测试（`crates/moodflow-coordinator/tests/input_flow.rs`）。**每个用例都要先断言前置条件真的成立**（配对确实入栈、模式确实翻转），否则会静默退化成假绿——本仓已有先例。
 
 跨模式与新能力：
 
@@ -302,9 +302,9 @@ TTL 相关用例需要可注入的时钟或可配置的极小 TTL（如 1 秒）
 
 **定位过程（三步，全靠日志判据，没有猜测）**：
 
-1. `wind_tsf.log` 里指纹 `cross-mode jumpout` 出现 45 次 → 新 DLL 确实在跑，吃键闸门也命中了。
+1. `moodflow_tsf.log` 里指纹 `cross-mode jumpout` 出现 45 次 → 新 DLL 确实在跑，吃键闸门也命中了。
 2. 指纹行内容 `vk=0x09/0x0D depth=1 chinese=0` 反复出现，**depth 始终是 1、从不递减** → core 没有回 `MoveCursorRight`。
-3. 同一时段 `wind_input.log` **一条日志都没有** → 键根本没到 core。C++ 吃了却没转发 = 「吃了再吐」。
+3. 同一时段 `moodflow_input.log` **一条日志都没有** → 键根本没到 core。C++ 吃了却没转发 = 「吃了再吐」。
 
 **根因**：`OnKeyDown` 的跳出放行写在 `if (hasInputSession || isChineseMode)` 块**内部**。英文模式没有输入会话，整块跳过，Tab/Enter 没有任何分支认领，`isInputKey` 保持 FALSE。而 `OnTestKeyDown` 那边已经改成全模式统一闸门——**两侧不对称**。设计文档原本就写了要把这个分支提出来，实施时却只给它加了 TTL 判据、没有移出块外。
 
@@ -320,9 +320,9 @@ TTL 相关用例需要可注入的时钟或可配置的极小 TTL（如 1 秒）
 
 | 命令 | 变体 | 输出目录 | 文件名 |
 | --- | --- | --- | --- |
-| `m1` | release | `build/` | `wind_tsf.dll` / `wind_tsf_x86.dll` |
-| `dm1` | dev | `build_dev/` | `wind_tsf_dev.dll` / `wind_tsf_x86_dev.dll` |
-| `pdm1` | — | 只复制不编译，源为 `build_dev/` | → `C:\Program Files\WindInputDev\` |
+| `m1` | release | `build/` | `moodflow_tsf.dll` / `moodflow_tsf_x86.dll` |
+| `dm1` | dev | `build_dev/` | `moodflow_tsf_dev.dll` / `moodflow_tsf_x86_dev.dll` |
+| `pdm1` | — | 只复制不编译，源为 `build_dev/` | → `C:\Program Files\MoodflowDev\` |
 
 用户真机跑的是 **dev 版**，必须 `dm1` → `pdm1`；`m1` 的产物根本不参与 dev 部署。比对 md5 时源目录要跟着变体走，否则会把「比错了文件」误判成「部署失败」。
 
@@ -342,9 +342,9 @@ TTL 相关用例需要可注入的时钟或可配置的极小 TTL（如 1 秒）
 C++ 改动的验证极易被假象误导，本仓已栽过多次（部署脚本只复制不编译、退出码 0 但文件被锁定未替换、时间戳新但内容旧）。因此：
 
 1. 构建走 `scripts/dev.ps1 m1`（`pdm1` 只部署不编译，必须先 `m1`）。
-2. 在改动分支加一条带独特词的 `WIND_LOG_DEBUG_FMT`（例如 `cross-mode jumpout`）。它一举三得：grep 构建产物 = 编进去了、grep 部署目录 = 换上了、真机日志出现 = 运行时加载了新 DLL。
+2. 在改动分支加一条带独特词的 `MOODFLOW_LOG_DEBUG_FMT`（例如 `cross-mode jumpout`）。它一举三得：grep 构建产物 = 编进去了、grep 部署目录 = 换上了、真机日志出现 = 运行时加载了新 DLL。
 3. 定案判据用 `md5sum 部署份 构建份` 比对，不要采信脚本的「部署完成」输出。
-4. dev 版读 `%APPDATA%\WindInputDev\config.toml`，不是 `%APPDATA%\WindInput\config.toml`。核对生效配置时先分辨清楚。
+4. dev 版读 `%APPDATA%\MoodflowDev\config.toml`，不是 `%APPDATA%\Moodflow\config.toml`。核对生效配置时先分辨清楚。
 
 ## 相关
 

@@ -1,8 +1,8 @@
 # 候选窗坐标时序与定位设计
 
 > 记录候选窗"在哪里显示"这件事背后的 Windows TSF 复杂性与防抖/防错位机制。
-> Go 版本（`../WindInput/wind_input`）经长期实测稳定，Rust 版本据此移植。
-> 涉及 DLL（`wind_tsf`）、协调器（`wind-coordinator`）、UI（`wind-ui`）三层。
+> Go 版本（`../Moodflow/moodflow_input`）经长期实测稳定，Rust 版本据此移植。
+> 涉及 DLL（`moodflow_tsf`）、协调器（`moodflow-coordinator`）、UI（`moodflow-ui`）三层。
 
 > ⚠ **动手改本文档描述的任何判据之前，先读
 > [`docs/architecture/caret-position-host-compat-notes.md`](../architecture/caret-position-host-compat-notes.md)。**
@@ -30,9 +30,9 @@
 
 > Windows 输入法栈（TSF + CUAS + 各框架自绘）没有统一的"光标已稳定"信号，只能靠一组经验性 hack 逼近。以下机制都是为对抗上述时序而生。
 
-## 3. DLL 层（wind_tsf）的应对
+## 3. DLL 层（moodflow_tsf）的应对
 
-见 `wind_tsf/src/TextService.cpp`：
+见 `moodflow_tsf/src/TextService.cpp`：
 
 | 机制 | 位置 | 作用 |
 |------|------|------|
@@ -170,7 +170,7 @@ Go 版本用三层独立机制覆盖不同失效模式，Rust 同构移植：
 
 **新组合首帧不立即显示候选窗**，而是等 reflow 后的权威坐标（或兜底超时）再首显。从根本上避免在 reflow 前的陈旧坐标处显示，因此既无错位也无"先显示再跳"。
 
-状态机（Rust：`wind-coordinator/src/coordinator.rs`）：
+状态机（Rust：`moodflow-coordinator/src/coordinator.rs`）：
 
 - 字段：`pending_first_show: Mutex<bool>`、`pending_first_show_token: Mutex<u64>`、`candidate_shown: Mutex<bool>`、`show_authorized: AtomicBool`。
 - `notify_ui_update` 门控：过了"无内容/candwin 隐藏"守卫后，若 `!show_authorized && !candidate_shown`（首帧且非授权）→ `arm_pending_first_show()` 并 `return`（不下发）。
@@ -196,7 +196,7 @@ DLL reflow 后 CaretUpdate(height>0, C_new) → was_pending → 授权首显 →
 
 ### 第 3 层：4px 位置阈值 —— 渲染落位防抖
 
-UI 层（`wind-ui/src/candidate_window.rs`）**每帧据当前光标 + 内容尺寸重算窗口位置**（`place_window`），再与上次内容锚点比较：`<4px*scale` 微移则保持原位（`last_content_pos`）。这是位置保护的最后一道，吞掉穿过前两层的残余微抖。
+UI 层（`moodflow-ui/src/candidate_window.rs`）**每帧据当前光标 + 内容尺寸重算窗口位置**（`place_window`），再与上次内容锚点比较：`<4px*scale` 微移则保持原位（`last_content_pos`）。这是位置保护的最后一道，吞掉穿过前两层的残余微抖。
 
 > 注意：UI 层**不再锁定锚点**（早期 Rust 实现曾用 anchor 锁定，导致首帧锁死在陈旧坐标、reflow 坐标被忽略——正是 bug 之源）。改为"每帧重算 + 阈值过滤"，与 Go 一致。
 
@@ -214,12 +214,12 @@ UI 层（`wind-ui/src/candidate_window.rs`）**每帧据当前光标 + 内容尺
 
 | 层 | 文件 | 关键点 |
 |----|------|--------|
-| DLL | `wind_tsf/src/TextService.cpp` | `_compositionJustStarted`、`SendCaretPositionUpdate`、`OnLayoutChange`、`SendCaretUpdate` |
-| 协调器 | `wind-coordinator/src/coordinator.rs` | `pending_first_show`/`candidate_shown`/`show_authorized`/`composition_start`、`arm_pending_first_show*`/`first_show_fallback_ms`、`reset_first_show`、`notify_ui_update` 门控+坐标基准、`handle_caret_update`、`handle_caret_pending`、`handle_caret_probe`、`handle_commit_request`、`update_active_compat`/`active_compat`/`process_name`、`first_show_was_provisional`/`last_authoritative_caret`/`last_key_interval_ms` |
-| 兼容规则 | `wind-config/src/app_compat.rs`、`data/compat.toml` | `AppCompat::load`/`get_rule`（`[[apps]]`：`process`/`caret_use_top`/`first_show_mode`，后者为 `Option`＝可跟随全局），系统层+用户层覆盖；`FirstShowMode` 枚举、`set_user_first_show_mode`（菜单写盘） |
-| 菜单 | `wind-coordinator/src/handle_menu.rs`、`wind-ui/src/manager.rs` | `set_first_show_mode`（写盘→重载→刷新 active_compat）、`MenuCmd::FirstShowMode(u8)`（id 段 `5000..=5999`） |
-| IPC | `wind-bridge/src/{handler,server}.rs` | `CaretData{ x,y,height,composition_start_x,composition_start_y }`、`CMD_CARET_PENDING → handle_caret_pending`、`CMD_CARET_PROBE → handle_caret_probe`、`client_token`（高 32 位 = PID） |
-| UI | `wind-ui/src/candidate_window.rs` | `place_window`（下方 `caret_y+gap`、上方 `caret_y-height-…`）、`last_content_pos` + 4px 阈值、`placed_above` 粘滞 |
+| DLL | `moodflow_tsf/src/TextService.cpp` | `_compositionJustStarted`、`SendCaretPositionUpdate`、`OnLayoutChange`、`SendCaretUpdate` |
+| 协调器 | `moodflow-coordinator/src/coordinator.rs` | `pending_first_show`/`candidate_shown`/`show_authorized`/`composition_start`、`arm_pending_first_show*`/`first_show_fallback_ms`、`reset_first_show`、`notify_ui_update` 门控+坐标基准、`handle_caret_update`、`handle_caret_pending`、`handle_caret_probe`、`handle_commit_request`、`update_active_compat`/`active_compat`/`process_name`、`first_show_was_provisional`/`last_authoritative_caret`/`last_key_interval_ms` |
+| 兼容规则 | `moodflow-config/src/app_compat.rs`、`data/compat.toml` | `AppCompat::load`/`get_rule`（`[[apps]]`：`process`/`caret_use_top`/`first_show_mode`，后者为 `Option`＝可跟随全局），系统层+用户层覆盖；`FirstShowMode` 枚举、`set_user_first_show_mode`（菜单写盘） |
+| 菜单 | `moodflow-coordinator/src/handle_menu.rs`、`moodflow-ui/src/manager.rs` | `set_first_show_mode`（写盘→重载→刷新 active_compat）、`MenuCmd::FirstShowMode(u8)`（id 段 `5000..=5999`） |
+| IPC | `moodflow-bridge/src/{handler,server}.rs` | `CaretData{ x,y,height,composition_start_x,composition_start_y }`、`CMD_CARET_PENDING → handle_caret_pending`、`CMD_CARET_PROBE → handle_caret_probe`、`client_token`（高 32 位 = PID） |
+| UI | `moodflow-ui/src/candidate_window.rs` | `place_window`（下方 `caret_y+gap`、上方 `caret_y-height-…`）、`last_content_pos` + 4px 阈值、`placed_above` 粘滞 |
 
 ### 第 4 层：compositionStart 组合起点锚定 —— 钉在缓冲头部
 
@@ -273,7 +273,7 @@ DocMgr 层级的其它同类缺陷（地址栏首字母上屏、焦点气泡时�
 
 按进程名匹配的兼容规则（`compat.toml` 的 `[[apps]]`，对齐 Go `pkg/config/compat.go`）解决：
 
-- **规则加载**：`wind-config/src/app_compat.rs` 的 `AppCompat::load(data_dir, user_dir)`——系统层
+- **规则加载**：`moodflow-config/src/app_compat.rs` 的 `AppCompat::load(data_dir, user_dir)`——系统层
   `{data}/compat.toml` + 用户层 `{user_config}/compat.toml` 覆盖；`get_rule(process)` 不区分大小写。
   系统预置见 `data/compat.toml`（`Weixin.exe → caret_use_top = true`）。
 - **进程识别**：协调器 `update_active_compat(client_token)` 从 `client_token` 高 32 位取 PID
@@ -284,7 +284,7 @@ DocMgr 层级的其它同类缺陷（地址栏首字母上屏、焦点气泡时�
 - **坐标变换**（`handle_caret_update` 顶部，对齐 Go `HandleCaretUpdate`）：命中规则时
   `Y -= rawH`（bottom → 稳定的 top）、组合起点 Y 同步上移。
 
-> **height 必须保留真实行高，不能压成 1**（与 Go 的差异点）：wind-ui 的**下方**公式 `below_y = caret_y + gap`
+> **height 必须保留真实行高，不能压成 1**（与 Go 的差异点）：moodflow-ui 的**下方**公式 `below_y = caret_y + gap`
 > 不读 height，故下方紧贴只靠稳定的 top；但**上方**公式 `above_y = caret_y - height - hi - gap` 用
 > `caret_top = caret_y - height` 推算正文顶端。若 height=1，正文顶端被当成 `top-1`（≈正文底端），
 > 上方候选窗会整条压住正文/光标。故变换保留 `height = rawH.max(CARET_USE_TOP_MIN_LINE_H=18)`：
@@ -482,7 +482,7 @@ UI 线程响应延迟、`GetGUIThreadInfo` 的 Win32 caret、以及异步 edit s
   三步：写盘 → 重载 → 刷新 `active_compat`）。
   ★ 菜单项与 setter 的 id 解析**共用 `Coordinator::FIRST_SHOW_MENU` 一张表**：两处手写时
   「把 id 2 与 3 写反」编译过、测试绿，只表现为点错档位。
-- **设置页**：外观 → 候选窗口 → 「首次显示时机」（全局默认档，wind-setting 仓的 manifest）。
+- **设置页**：外观 → 候选窗口 → 「首次显示时机」（全局默认档，moodflow-setting 仓的 manifest）。
 - **配置**：全局 `config.toml` `[ui.candidate] first_show_mode`；per-app `compat.toml` 的同名字段
   （缺省＝跟随全局）；另有三个内部选项在 `[ui.candidate]` 下不进设置页
   （`first_show_settle_ratio` / `fast_typing_window_ms` / `fast_first_show_fallback_ms`）。

@@ -1,0 +1,140 @@
+/*
+ * 设计令牌（07 第 1 节 DS）。组件里只用 var(--mf-*)，禁止硬编码色值（DS-COLOR）。
+ * 改色值后必须重新核对对比度（DS-COLOR-01），并同步 07 的表格。
+ *
+ * 深浅色：默认跟随系统；设置 `ui.theme` 为 light / dark 时在 <html> 上写 data-theme 强制指定（DS-COLOR-03）。
+ */
+:root {
+  color-scheme: light dark;
+
+  --mf-bg: #fffdf8;
+  --mf-surface: #ffffff;
+  --mf-surface-2: #f6f3ee;
+  --mf-border: #e7e1d8;
+  --mf-text-1: #2b2a28;
+  --mf-text-2: #6b665e;
+  --mf-text-3: #746e64;
+  --mf-primary: #f29e38;
+  --mf-on-primary: #2b2a28; /* 主按钮文字固定用浅色模式的 --mf-text-1 */
+  --mf-link: #a75f06;
+  --mf-danger: #c23a2e;
+  /* 图表单色系列的线与点（看板）。主色 #f29e38 对白底只有 2.2:1，图表另取同色相深一档：对 surface ≥ 3:1、OKLCH L 在图表带内 */
+  --mf-chart-1: #c47a1f;
+  --mf-focus: #2f6fde;
+
+  /* 情绪天气色：只用于填充和插画，其上文字一律用 --mf-on-weather */
+  --mf-w-sunny: #f6c344;
+  --mf-w-wind: #9fd3c7;
+  --mf-w-cloudy: #a99bd8;
+  --mf-w-rain: #7fa7c9;
+  --mf-w-storm: #e8875b;
+  --mf-w-night: #9aa3b2;
+  --mf-on-weather: #2b2a28;
+
+  /* 字体（DS-TYPE）：只用系统自带字体 */
+  --mf-font: 'Microsoft YaHei UI', 'Segoe UI Variable', 'Segoe UI', sans-serif;
+  --mf-fs-xs: 12px;
+  --mf-lh-xs: 18px;
+  --mf-fs-sm: 13px;
+  --mf-lh-sm: 20px;
+  --mf-fs-md: 14px;
+  --mf-lh-md: 22px;
+  --mf-fs-lg: 16px;
+  --mf-lh-lg: 24px;
+  --mf-fs-xl: 20px;
+  --mf-lh-xl: 28px;
+  --mf-fs-xxl: 28px;
+  --mf-lh-xxl: 36px;
+
+  /* 间距、圆角、阴影（DS-SPACE） */
+  --mf-sp-1: 4px;
+  --mf-sp-2: 8px;
+  --mf-sp-3: 12px;
+  --mf-sp-4: 16px;
+  --mf-sp-5: 24px;
+  --mf-sp-6: 32px;
+  --mf-radius-sm: 8px;
+  --mf-radius-card: 12px;
+  --mf-radius-window: 16px;
+  --mf-shadow-card: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --mf-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.14);
+
+  /* 动效（DS-MOTION-01） */
+  --mf-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --mf-dur-micro: 150ms;
+  --mf-dur-panel: 250ms;
+  --mf-dur-weather: 400ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --mf-bg: #1b1a19;
+    --mf-surface: #252321;
+    --mf-surface-2: #2f2c29;
+    --mf-border: #3d3935;
+    --mf-text-1: #f2eee8;
+    --mf-text-2: #b8b1a6;
+    --mf-text-3: #9a9389;
+    --mf-primary: #f5ae55;
+    --mf-link: #f5ae55;
+    --mf-danger: #ff7a6b;
+    --mf-focus: #7fa8ff;
+    --mf-chart-1: #c98128;
+    /* 深色模式降低阴影透明度，层次改由边框表达 */
+    --mf-shadow-card: 0 2px 8px rgba(0, 0, 0, 0.04);
+    --mf-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.07);
+  }
+}
+
+:root[data-theme='dark'] {
+  --mf-bg: #1b1a19;
+  --mf-surface: #252321;
+  --mf-surface-2: #2f2c29;
+  --mf-border: #3d3935;
+  --mf-text-1: #f2eee8;
+  --mf-text-2: #b8b1a6;
+  --mf-text-3: #9a9389;
+  --mf-primary: #f5ae55;
+  --mf-link: #f5ae55;
+  --mf-danger: #ff7a6b;
+  --mf-focus: #7fa8ff;
+  --mf-chart-1: #c98128;
+  --mf-shadow-card: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --mf-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.07);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+/* 高对比度主题（DS-A11Y-04）：全部换成系统颜色 */
+@media (forced-colors: active) {
+  :root {
+    --mf-bg: Canvas;
+    --mf-surface: Canvas;
+    --mf-surface-2: Canvas;
+    --mf-border: CanvasText;
+    --mf-text-1: CanvasText;
+    --mf-text-2: CanvasText;
+    --mf-text-3: CanvasText;
+    --mf-primary: ButtonFace;
+    --mf-on-primary: ButtonText;
+    --mf-link: LinkText;
+    --mf-danger: CanvasText;
+    --mf-chart-1: CanvasText;
+    --mf-focus: Highlight;
+    --mf-w-sunny: Canvas;
+    --mf-w-wind: Canvas;
+    --mf-w-cloudy: Canvas;
+    --mf-w-rain: Canvas;
+    --mf-w-storm: Canvas;
+    --mf-w-night: Canvas;
+    --mf-on-weather: CanvasText;
+    --mf-shadow-card: none;
+    --mf-shadow-float: none;
+  }
+}

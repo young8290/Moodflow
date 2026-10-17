@@ -30,7 +30,7 @@ PC 输入法里说的「联想」几乎总是前者：词库里以刚上屏内�
 | | 普通候选 | 联想候选 |
 |---|---|---|
 | 输入是什么 | 编码缓冲（`nihao`） | 刚上屏的文本（「你好」） |
-| 谁来算 | `EngineManager::convert_with(schema, code)` | `wind_assoc::associate(ctx, cfg, providers)` |
+| 谁来算 | `EngineManager::convert_with(schema, code)` | `moodflow_assoc::associate(ctx, cfg, providers)` |
 | 有没有编码 | 有 | **没有** |
 | 词库归属 | 有 | **没有** |
 
@@ -128,7 +128,7 @@ bridge 回 `StatusUpdate`，而 C++ 的 StatusUpdate 分支**明确不结束组�
 §3.1.2）。
 
 同文本先到先得。store 的键按编码排、按文本前缀只能全表扫（用户词库可达十九万条），
-故另建内存文本索引 `wind_engine::user_assoc`，按两个代次判过期：
+故另建内存文本索引 `moodflow_engine::user_assoc`，按两个代次判过期：
 
 - **结构代次**（`Store::words_generation`：增删词、改权重的事务 commit 后 +1）——一变即过期；
 - **临时词计数代次**（`Store::words_count_generation`：已有临时词 count +1）——变了且索引
@@ -476,7 +476,7 @@ punct = true
 出现的键移动端就用这里的值，没出现的沿用基线。别提前铺一排永远等于基线的键，每个都
 要在 REGISTRY、预置文件、capability 快照、设置页豁免名单里各占一行。
 
-整个联想只有一处平台判断：协调器的 `use_mobile_overrides()`。`wind-assoc` 自己不知道
+整个联想只有一处平台判断：协调器的 `use_mobile_overrides()`。`moodflow-assoc` 自己不知道
 跑在哪，取不取用移动端段由调用方传 `Option` 决定。
 
 ⛔ **不要改用「值域哨兵」**（让 `kind` 取 `"auto"`、由宿主按平台解释）。那样平台知识
@@ -504,7 +504,7 @@ punct = true
 
 ## 7. 测试策略
 
-`wind-assoc` 的单元测试只证明「给定上文能算出候选」。**联想真正会坏的地方全在接线
+`moodflow-assoc` 的单元测试只证明「给定上文能算出候选」。**联想真正会坏的地方全在接线
 上**——闸门没接、展示没接、按键被别的分支先消费掉。故 `handle_assoc::wiring_tests`
 一律从 `handle_key_event` 进，与用户入口同层。
 
@@ -526,4 +526,4 @@ headless 下没有宿主上报 caret，每一帧都是「首帧且坐标未就�
   ——现在就加规则，等于在没有观察数据的情况下调参。
 - 移动端接线：`AssocContext::text` 改由 `InputConnection.getTextBeforeCursor` 填入
   光标前的真实内容。一期就按「完整上文」设计接口，正是为了那时不必改签名。
-- 设置页：`wind-setting` 仓、文档站、工具站三处的配置项同步
+- 设置页：`moodflow-setting` 仓、文档站、工具站三处的配置项同步

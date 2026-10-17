@@ -1,0 +1,636 @@
+//! 前端 → 后端命令（10 第 5.1 节）。所有命令返回 `Result<T, UiError>`；
+//! 这里只做取参 → 调领域服务 → 推送事件，不写业务规则。
+
+pub mod ai;
+pub mod chat;
+pub mod comfort;
+pub mod dashboard;
+pub mod diary;
+pub mod ime;
+pub mod letter;
+pub mod schedule;
+
+use std::sync::Arc;
+
+use moodflow_hub_core::HUB_VERSION;
+use moodflow_hub_core::bus::HubEvent;
+use moodflow_hub_core::domain::collection::{self, CollectionView};
+use moodflow_hub_core::domain::consent::{self, ConsentItem, ConsentState};
+use moodflow_hub_core::domain::explain::Explanation;
+use moodflow_hub_core::domain::features::persist;
+use moodflow_hub_core::domain::feedback::{self, FeedbackTarget, Verdict};
+use moodflow_hub_core::domain::rest::{RestAction, RestKind};
+use moodflow_hub_core::domain::routine::{self, Routine};
+use moodflow_hub_core::domain::self_report::{self, ReportSource, SelfReportItem, SelfWeather};
+use moodflow_hub_core::domain::settings::{self, SettingValue};
+use moodflow_hub_core::domain::status::StatusSnapshot;
+use moodflow_hub_core::infra::store::{export, import};
+use moodflow_hub_core::infra::wipe;
+use moodflow_hub_core::sense::SenseCmd;
+use tauri::{AppHandle, Manager, State};
+use tauri_specta::Event;
+
+use crate::error::UiError;
+use crate::events::{CollectionChanged, SelfReportChanged, SettingsChanged, StatusChanged};
+use crate::gateway::Ai;
+use crate::research::Research;
+use crate::rest::Rest;
+use crate::sensing::Sensing;
+use crate::sim::{self, DemoStatus};
+use crate::state::AppState;
+use crate::windows::{self, WindowTarget};
+
+pub(crate) fn emit_status(app: &AppHandle, snap: StatusSnapshot) {
+    if let Err(e) = StatusChanged(snap).emit(app) {
+        crate::hlog!("推送 status:changed 失败：{e}");
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_status(state: State<'_, AppState>) -> Result<StatusSnapshot, UiError> {
+    Ok(state.status())
+}
+
+/// 导出用户数据（FR-DAT-03），写到前端文件选择器给的 `path`（已存在则覆盖）。
+/// 1 年数据量要几秒，放进 `spawn_blocking`，不占主线程。先提交排队中的数据（ADR 0020 第 3 条最多晚 5 秒），
+/// 再在只读连接上导出，导出期间不挡写入。
+#[tauri::command]
+#[specta::specta]
+pub async fn data_export(app: AppHandle, path: String) -> Result<(), UiError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        state.writer().flush();
+        export::export(
+            &state.db(),
+            std::path::Path::new(&path),
+            HUB_VERSION,
+            chrono::Local::now(),
+        )
+    })
+    .await
+    .map_err(|e| UiError::internal("data.export.join", e))?
+    .map(|_| ())
+    .map_err(|e| UiError::internal("data.export", e))
+}
+
+/// 删除全部数据（FR-DAT-04，ADR 0037）：记下“待删除”，然后重启 Hub；下次启动、打开数据库之前删掉数据库文件
+/// （连同损坏和导入前的备份），`include_secrets` 时连 AI 密钥一起删，再按新装的样子重建，重新进入首次引导。
+/// 界面要先让用户输入“删除”二字确认。调用成功后进程会退出，前端拿不到返回值。
+#[tauri::command]
+#[specta::specta]
+pub fn data_delete_all(app: AppHandle, include_secrets: bool) -> Result<(), UiError> {
+    let dir = crate::paths::hub_data_dir().map_err(|e| UiError::internal("data.delete.dir", e))?;
+    let req = wipe::WipeRequest {
+        include_secrets,
+        requested_at: chrono::Utc::now().timestamp_millis(),
+    };
+    wipe::request(&dir, &req).map_err(|e| UiError::internal("data.delete", e))?;
+    app.restart()
+}
+
+/// 导入与恢复（FR-DAT-07，ADR 0037）：只收“导出我的数据”生成的 zip，校验清单与每个文件的 SHA-256，
+/// 结构版本更新的包拒绝。`overwrite` 先把当前数据库备份到旁边（`*.bak-<时间>`）再替换；`merge` 保留两边、相同的只留一份。
+/// 同意记录、出网记录不导入；`include_settings` 为假时设置也不导入。全部在一个事务里，失败整体回滚。
+/// 成功后界面请用户重启 Hub（`app_restart`），各服务按新数据重新加载。
+#[tauri::command]
+#[specta::specta]
+pub async fn data_import(
+    app: AppHandle,
+    path: String,
+    mode: import::ImportMode,
+    include_settings: bool,
+) -> Result<import::ImportReport, UiError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        state.writer().flush();
+        let current = state.db().schema_version()?;
+        let pkg =
+            import::read_package(std::path::Path::new(&path), current).map_err(import_error)?;
+        if mode == import::ImportMode::Overwrite {
+            let bak = state.backup_path();
+            state.writer().write_sync(|db| db.backup_to(&bak))?;
+        }
+        state
+            .writer()
+            .write_sync(|db| db.import_package(&pkg, mode, include_settings))
+            .map_err(import_error)
+    })
+    .await
+    .map_err(|e| UiError::internal("data.import.join", e))?
+}
+
+fn import_error(e: import::ImportError) -> UiError {
+    use import::ImportError as E;
+    match e {
+        E::NotExport | E::Json(_) | E::Zip(_) => {
+            UiError::new("data.import.format", "error.import_not_export")
+        }
+        E::FormatTooNew(_) | E::SchemaTooNew { .. } => {
+            UiError::new("data.import.too_new", "error.import_too_new")
+        }
+        E::Checksum(_) | E::TooLarge(_) => {
+            UiError::new("data.import.checksum", "error.import_checksum")
+        }
+        e => UiError::internal("data.import", e),
+    }
+}
+
+/// 重启 Hub（导入完成后让各服务按新数据重新加载）。
+#[tauri::command]
+#[specta::specta]
+pub fn app_restart(app: AppHandle) {
+    app.restart()
+}
+
+/// “导出运行信息”包里有哪些文件（FR-OPS-04：导出前先给用户看）。
+#[tauri::command]
+#[specta::specta]
+pub fn diagnostics_preview() -> Vec<crate::diagnostics::DiagFile> {
+    crate::diagnostics::preview()
+}
+
+/// 把运行信息写成 zip 到 `path`（用户在“另存为”里选的），返回文件数。不含数据库、密钥与任何用户文字。
+#[tauri::command]
+#[specta::specta]
+pub fn diagnostics_export(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    ai: State<'_, Arc<crate::gateway::Ai>>,
+    path: String,
+) -> Result<u32, UiError> {
+    use crate::diagnostics::{self, Display, Inputs};
+    let gw = ai.gateway();
+    let info = os_info::get();
+    let displays = app
+        .available_monitors()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|m| Display {
+            name: m.name().cloned(),
+            width: m.size().width,
+            height: m.size().height,
+            x: m.position().x,
+            y: m.position().y,
+            scale: m.scale_factor(),
+        })
+        .collect();
+    let net_log = state.db().net_log_recent(diagnostics::NET_LOG_ROWS)?;
+    let inputs = Inputs {
+        generated: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+        hub_version: HUB_VERSION.to_string(),
+        debug_build: cfg!(debug_assertions),
+        demo: crate::sim::demo(),
+        os: info.to_string(),
+        arch: std::env::consts::ARCH.into(),
+        displays,
+        status: state.status(),
+        health: moodflow_hub_core::infra::gateway::AiGateway::health(ai.inner().as_ref()),
+        usage: crate::commands::ai::ai_usage_today(ai.clone())?,
+        metrics: crate::commands::ai::metrics_view(&gw),
+        net_log,
+        template_overrides: crate::paths::hub_data_dir()
+            .map(|d| diagnostics::template_overrides(&d.join("templates")))
+            .unwrap_or_default(),
+        log: crate::runlog::lines(),
+    };
+    diagnostics::write_zip(std::path::Path::new(&path), &diagnostics::build(&inputs))
+        .map_err(|e| UiError::internal("diagnostics.write_failed", e))
+}
+
+fn collection_now(state: &AppState) -> Result<CollectionView, UiError> {
+    let enabled = settings::get(&state.db(), "collection.enabled")
+        .ok()
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+    let now = sim::clock().now();
+    Ok(state
+        .writer()
+        .write_sync(|db| db.collection_view(enabled, now.date_naive(), now.timestamp_millis()))?)
+}
+
+fn emit_collection(app: &AppHandle, state: &AppState) {
+    match collection_now(state) {
+        Ok(view) => {
+            if let Err(e) = (CollectionChanged { view }).emit(app) {
+                crate::hlog!("推送 collection:changed 失败：{e}");
+            }
+        }
+        Err(e) => crate::hlog!("读取晴天收集失败：{}", e.code),
+    }
+}
+
+/// 晴天值与装扮（FR-REV-04）。新达到的解锁在这时记下；关闭时只返回 `enabled = false`。
+#[tauri::command]
+#[specta::specta]
+pub fn collection_get(state: State<'_, AppState>) -> Result<CollectionView, UiError> {
+    collection_now(&state)
+}
+
+/// 换装（FR-WGT-08）：穿上一件已解锁的，或 `item` 为空时脱下。同一时间只穿一件。推送 `collection:changed`。
+#[tauri::command]
+#[specta::specta]
+pub fn collection_equip(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    item: Option<String>,
+) -> Result<CollectionView, UiError> {
+    if let Some(id) = item.as_deref()
+        && !collection::is_item(id)
+    {
+        return Err(UiError::new("collection.unknown_item", "error.generic"));
+    }
+    let ok = state
+        .writer()
+        .write_sync(|db| db.collection_equip(item.as_deref()))?;
+    if !ok {
+        return Err(UiError::new("collection.locked", "error.collection_locked"));
+    }
+    emit_collection(&app, &state);
+    collection_now(&state)
+}
+
+/// 正在运行的程序名（只有可执行文件名，去掉系统进程、按名字排序），给设置页的程序名单当候选。
+#[tauri::command]
+#[specta::specta]
+pub async fn running_apps() -> Vec<String> {
+    tauri::async_runtime::spawn_blocking(crate::procs::running_apps)
+        .await
+        .unwrap_or_default()
+}
+
+/// 开始专注（FR-RST-10），时长 10–120 分钟；已经在专注时报错。
+#[tauri::command]
+#[specta::specta]
+pub fn focus_start(
+    focus: State<'_, moodflow_hub_core::focus::FocusHandle>,
+    minutes: u32,
+) -> Result<moodflow_hub_core::focus::FocusStatus, UiError> {
+    use moodflow_hub_core::focus::FocusError;
+    focus.start(minutes).map_err(|e| match e {
+        FocusError::InvalidMinutes => {
+            UiError::new("focus.invalid_minutes", "error.focus_invalid_minutes")
+        }
+        FocusError::AlreadyRunning => UiError::new("focus.running", "error.focus_running"),
+    })
+}
+
+/// 结束专注（随时可以，不做任何评价），返回这次的小结；没在专注时为空。小结也会以 `focus:done` 推送。
+#[tauri::command]
+#[specta::specta]
+pub fn focus_stop(
+    focus: State<'_, moodflow_hub_core::focus::FocusHandle>,
+) -> Option<moodflow_hub_core::domain::focus::FocusSummary> {
+    focus.stop()
+}
+
+/// 现在是否在专注、还剩多久（窗口重开时恢复倒计时）。
+#[tauri::command]
+#[specta::specta]
+pub fn focus_status(
+    focus: State<'_, moodflow_hub_core::focus::FocusHandle>,
+) -> moodflow_hub_core::focus::FocusStatus {
+    focus.status()
+}
+
+/// 是否已设为登录 Windows 时在后台启动（FR-OPS-03）。以系统里的启动项为准，不另存设置。
+#[tauri::command]
+#[specta::specta]
+pub fn autostart_get(app: AppHandle) -> Result<bool, UiError> {
+    use tauri_plugin_autostart::ManagerExt;
+    app.autolaunch()
+        .is_enabled()
+        .map_err(|e| UiError::internal("autostart.failed", e))
+}
+
+/// 开关登录时后台启动，返回改完后的实际状态。
+#[tauri::command]
+#[specta::specta]
+pub fn autostart_set(app: AppHandle, on: bool) -> Result<bool, UiError> {
+    use tauri_plugin_autostart::ManagerExt;
+    let m = app.autolaunch();
+    let r = if on { m.enable() } else { m.disable() };
+    r.map_err(|e| UiError::internal("autostart.failed", e))?;
+    m.is_enabled()
+        .map_err(|e| UiError::internal("autostart.failed", e))
+}
+
+/// 撤回同意 ① 时一并删除情绪数据（FR-DAT-05 第 3 条，ADR 0037）：特征窗口、状态判断、基线、反馈、自评，
+/// 以及每日汇总里的情绪列；对话、日记等自己写的内容不动。基线清空后重新进入冷启动。返回改动的行数。
+#[tauri::command]
+#[specta::specta]
+pub fn data_delete_mood(
+    state: State<'_, AppState>,
+    sensing: State<'_, Sensing>,
+) -> Result<u32, UiError> {
+    let now = sim::clock().now_ms();
+    let fixed = sensing.fixed_baseline;
+    let (n, stats) = state.writer().write_sync(|db| -> Result<_, UiError> {
+        let n = db.delete_mood_data()?;
+        // `MF_SIM_BASELINE` 回放期间不碰真实基线（ADR 0021）
+        let stats = if fixed {
+            None
+        } else {
+            Some(persist::reset(db, now)?)
+        };
+        Ok((n, stats))
+    })?;
+    if let Some(stats) = stats {
+        sensing.apply_baseline(&stats);
+        if sensing.cmds.try_send(SenseCmd::Baseline(stats)).is_err() {
+            crate::hlog!("清空基线未能交给感知任务，下次启动时生效");
+        }
+    }
+    Ok(u32::try_from(n).unwrap_or(u32::MAX))
+}
+
+/// 状态解释（FR-STA-09）。不带 `mood_state_id` 时是当前显示状态的解释（还没切换过时为 `null`）；
+/// 带上时是看板时间线上那个状态点的解释，记录不存在或窗口已清理时为 `null`。
+#[tauri::command]
+#[specta::specta]
+pub fn state_explain(
+    state: State<'_, AppState>,
+    sensing: State<'_, Sensing>,
+    // specta 不导出 i64（前端 number 会丢精度）；状态记录的行号用 u32 足够
+    mood_state_id: Option<u32>,
+) -> Result<Option<Explanation>, UiError> {
+    let Some(id) = mood_state_id else {
+        return Ok(state.explanation());
+    };
+    let Some(baseline) = sensing.baseline() else {
+        return Ok(None);
+    };
+    Ok(state.db().explain_mood_state(i64::from(id), &baseline)?)
+}
+
+/// 状态“准 / 不准”（FR-STA-07）。不带 `target_id` 时评价的是当前显示状态。
+/// 写入 `feedback` 表后，“不准”交给感知任务上调个人阈值；交不过去时（任务没运行或队列满）
+/// 也不报错，下次启动会从库里重放。还没有任何状态记录时什么也不做。
+#[tauri::command]
+#[specta::specta]
+pub fn submit_feedback(
+    state: State<'_, AppState>,
+    sensing: State<'_, Sensing>,
+    target: FeedbackTarget,
+    target_id: Option<u32>,
+    verdict: Verdict,
+) -> Result<(), UiError> {
+    match target {
+        FeedbackTarget::MoodState => {
+            let ts = sim::clock().now_ms();
+            // 写连接：先提交排队中的状态记录，“记到最近一条”才是界面上显示的那条
+            let rec = state
+                .writer()
+                .write_sync(|db| feedback::record(db, target_id.map(i64::from), verdict, ts))?;
+            if let Some(f) = rec
+                && f.verdict == Verdict::Unfit
+                && sensing
+                    .cmds
+                    .try_send(SenseCmd::Unfit { state: f.state, ts })
+                    .is_err()
+            {
+                crate::hlog!("“不准”反馈未能交给感知任务，下次启动时重放");
+            }
+        }
+    }
+    Ok(())
+}
+
+/// 主动报告心情（FR-STA-10）。写入 `self_report` 表后交给感知任务：之后 60 分钟显示用户说的状态
+/// （“说不上来”不覆盖），并推送 `self_report:changed`。备注只存本地，用完即清零（NFR-PRI-09）。
+/// 研究模式的邀请（`research:invite`）弹出后 30 分钟内的自评记为 `source = esm`（FR-DMO-04）。
+#[tauri::command]
+#[specta::specta]
+pub fn self_report_set(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    sensing: State<'_, Sensing>,
+    research: State<'_, Research>,
+    weather: SelfWeather,
+    note: Option<String>,
+) -> Result<(), UiError> {
+    let note = note.map(zeroize::Zeroizing::new);
+    let ts = sim::clock().now_ms();
+    let source = if research.take_answer(ts) {
+        ReportSource::Esm
+    } else {
+        ReportSource::User
+    };
+    let rec = state.writer().write_sync(|db| {
+        self_report::record_from(
+            db,
+            weather,
+            note.as_deref().map(String::as_str),
+            state.auto_state(),
+            ts,
+            source,
+        )
+    })?;
+    if sensing
+        .cmds
+        .try_send(SenseCmd::SelfReport {
+            weather,
+            ts,
+            raise: rec.raise,
+        })
+        .is_err()
+    {
+        crate::hlog!("自评未能交给感知任务，本次不覆盖显示");
+    }
+    let ev = SelfReportChanged {
+        weather,
+        until_ts: rec.until_ms as f64,
+    };
+    if let Err(e) = ev.emit(&app) {
+        crate::hlog!("推送 self_report:changed 失败：{e}");
+    }
+    Ok(())
+}
+
+/// 研究模式的自评邀请点了“跳过”（FR-DMO-04）：之后的自评按用户主动报告记。
+#[tauri::command]
+#[specta::specta]
+pub fn research_dismiss(research: State<'_, Research>) -> Result<(), UiError> {
+    research.dismiss();
+    Ok(())
+}
+
+/// 删除研究期间邀请得到的自评（`source = esm`，FR-DMO-04“研究结束后删除”），返回删了几条。
+/// 用户主动的自评不动。界面应先请用户确认。
+#[tauri::command]
+#[specta::specta]
+pub fn research_clear(state: State<'_, AppState>) -> Result<u32, UiError> {
+    let n = state.writer().write_sync(self_report::delete_esm)?;
+    Ok(u32::try_from(n).unwrap_or(u32::MAX))
+}
+
+/// 某天（本地日期 `YYYY-MM-DD`）的自评，按时间先后；看板时间线用实心标记显示。
+#[tauri::command]
+#[specta::specta]
+pub fn self_report_list(
+    state: State<'_, AppState>,
+    date: String,
+) -> Result<Vec<SelfReportItem>, UiError> {
+    let date = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d")
+        .map_err(|_| UiError::new("self_report.bad_date", "error.generic"))?;
+    Ok(self_report::list_day(&state.db(), date)?)
+}
+
+/// 作息洞察（FR-REV-03，看板周报）：截至最近一个已经结束的晚上共 `days` 晚（1–90）的停止打字时间。
+/// 界面一律称“停止打字时间”，并注明只统计这台电脑上的打字、不等于入睡时间（DS-COPY-09）。
+#[tauri::command]
+#[specta::specta]
+pub fn get_routine(state: State<'_, AppState>, days: u32) -> Result<Routine, UiError> {
+    Ok(routine::get(&state.db(), days, sim::clock().now())?)
+}
+
+/// 是否为演示模式（FR-DMO-03）：是的话界面在标题栏显示“演示模式”。以 `--demo` 启动时为是（ADR 0023）。
+#[tauri::command]
+#[specta::specta]
+pub fn demo_status() -> Result<DemoStatus, UiError> {
+    Ok(sim::demo_status())
+}
+
+/// 重置基线（设置页“感知”分类，FR-SET-04、FR-STA-03 第 4 条）：清空个人统计值，
+/// 之后只用重置以后的窗口，重新进入冷启动（“正在熟悉你的打字习惯”从 0% 开始）。
+#[tauri::command]
+#[specta::specta]
+pub fn baseline_reset(
+    state: State<'_, AppState>,
+    sensing: State<'_, Sensing>,
+) -> Result<(), UiError> {
+    if sensing.fixed_baseline {
+        // `MF_SIM_BASELINE` 回放期间不读写真实基线（ADR 0021）
+        return Err(UiError::new("baseline.fixed", "error.generic"));
+    }
+    let now = sim::clock().now_ms();
+    let stats = state.writer().write_sync(|db| persist::reset(db, now))?;
+    sensing.apply_baseline(&stats);
+    if sensing.cmds.try_send(SenseCmd::Baseline(stats)).is_err() {
+        crate::hlog!("重置基线未能交给感知任务，下次启动时生效");
+    }
+    Ok(())
+}
+
+/// 暂停 / 恢复感知（FR-WGT-06 右键菜单）：进行中的窗口作废，并经 MFP 下发给输入法（FR-SEN-06）。
+#[tauri::command]
+#[specta::specta]
+pub fn pause_set(app: AppHandle, sensing: State<'_, Sensing>, on: bool) -> Result<(), UiError> {
+    sensing.pause(&app, on);
+    Ok(())
+}
+
+/// 全部设置键的类型、取值范围与默认值（ADR 0019 第 9 条），设置页按它出控件，与 `ime_schema` 对称。
+#[tauri::command]
+#[specta::specta]
+pub fn settings_schema() -> Vec<settings::SettingField> {
+    settings::schema()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn settings_get(state: State<'_, AppState>, key: String) -> Result<SettingValue, UiError> {
+    Ok(settings::get(&state.db(), &key)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn settings_set(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    key: String,
+    value: SettingValue,
+) -> Result<(), UiError> {
+    let changed = state
+        .writer()
+        .write_sync(|db| settings::set(db, &key, &value))?;
+    if changed
+        && key.starts_with("ai.cap.")
+        && let Some(ai) = app.try_state::<Arc<Ai>>()
+    {
+        ai.apply_caps(&state.db());
+    }
+    // 关闭晴天收集：解锁记录与穿戴一并删除（D-30），小组件随即摘下装扮
+    if changed && key == "collection.enabled" && value.as_bool() == Some(false) {
+        state.writer().write_sync(|db| db.collection_clear())?;
+        emit_collection(&app, &state);
+    }
+    // 全局快捷键改了：整组重新注册，设置页随后用 `hotkey_status` 看有没有冲突（FR-ENT-04）
+    if changed && key.starts_with("hotkey.") {
+        crate::hotkeys::apply(&app);
+    }
+    if changed && let Err(e) = (SettingsChanged { key }).emit(&app) {
+        crate::hlog!("推送 settings:changed 失败：{e}");
+    }
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn consent_get(state: State<'_, AppState>) -> Result<ConsentState, UiError> {
+    Ok(ConsentState::load(&state.db())?)
+}
+
+/// 记录一项同意或撤回，返回更新后的全部同意状态，界面不用再读一次。
+#[tauri::command]
+#[specta::specta]
+pub fn consent_set(
+    state: State<'_, AppState>,
+    sensing: State<'_, Sensing>,
+    item: ConsentItem,
+    granted: bool,
+) -> Result<ConsentState, UiError> {
+    let now = state.writer().write_sync(|db| {
+        consent::set(db, item, granted, chrono::Utc::now().timestamp_millis())?;
+        ConsentState::load(db)
+    })?;
+    // Hub 是同意状态的唯一真相源：每次变化都重新下发 cfg（10 第 2.5 节）
+    sensing.mfp.send(consent::mfp_cfg(&now));
+    let _ = sensing.bus.send(HubEvent::ConsentChanged);
+    Ok(now)
+}
+
+/// 必须是 async：同步命令跑在主线程，在 Windows 上同步命令里建窗口会死锁（wry#583）。
+#[tauri::command]
+#[specta::specta]
+pub async fn open_window(app: AppHandle, target: WindowTarget) -> Result<(), UiError> {
+    windows::open(&app, target)
+}
+
+/// 本次启动时数据库损坏、已备份并重建（FR-DAT-01）：小组件一句话区提示 `error.db_rebuilt`。
+/// 只有第一次调用返回真，小组件重开不会再提示（ADR 0036）。
+#[tauri::command]
+#[specta::specta]
+pub fn db_rebuilt_take(state: State<'_, AppState>) -> bool {
+    static TAKEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    state.db_rebuilt && !TAKEN.swap(true, std::sync::atomic::Ordering::SeqCst)
+}
+
+/// 全局快捷键的注册结果（FR-ENT-04，设置页“常规”）：`conflict` 为真的是设了但没注册上（被别的软件占用，
+/// 或与另一项重复），界面提示换一个，不弹窗打扰（07 FR-ENT-04）。
+#[tauri::command]
+#[specta::specta]
+pub fn hotkey_status(
+    hotkeys: State<'_, crate::hotkeys::Hotkeys>,
+) -> Vec<crate::hotkeys::HotkeyStatus> {
+    hotkeys.status()
+}
+
+/// 用户点了休息提醒卡片上的按钮（FR-RST-06 第 2 条）：完成或关闭后该类计时清零，“5 分钟后”顺延；
+/// 每次操作记一条 `reminder_log`（FR-RST-08）。服务没在运行时忽略。
+#[tauri::command]
+#[specta::specta]
+pub fn rest_action(
+    rest: State<'_, Rest>,
+    kind: RestKind,
+    action: RestAction,
+) -> Result<(), UiError> {
+    if rest
+        .cmds
+        .try_send(moodflow_hub_core::rest::RestCmd::Act { kind, action })
+        .is_err()
+    {
+        crate::hlog!("休息提醒服务没有在运行，操作未处理");
+    }
+    Ok(())
+}

@@ -14,8 +14,8 @@
 | `ui.tooltip.chaizi_enabled` | `[拆字]` 段 |
 | `ui.tooltip.debug_enabled` | `[调试]` 段 |
 
-段的内容、顺序、标题、格式全部写死在 `ReverseLookup::tooltip_for`（wind-reverse）与
-`Coordinator::debug_tooltip_section`（wind-coordinator）里。由此有四条实际缺口：
+段的内容、顺序、标题、格式全部写死在 `ReverseLookup::tooltip_for`（moodflow-reverse）与
+`Coordinator::debug_tooltip_section`（moodflow-coordinator）里。由此有四条实际缺口：
 
 1. **二合一是固化策略**。拆字与拼音同开时，`merge_chaizi_pinyin` 按段名把两段合成
    `[拆字 / 拼音]`（`\t` 分列）。想分开、想换列序、想去掉拆字编码，都无从表达。
@@ -197,7 +197,7 @@ template = "${char}：{${chaizi}{ [${chaizi_code}]}\t}${readings}"
 气泡从字符串升级为结构体，段结构一路保留到 UI，右键才有东西可命中：
 
 ```rust
-// wind-ui-types
+// moodflow-ui-types
 pub struct TooltipDoc {
     pub sections: Vec<TooltipSection>,
 }
@@ -214,7 +214,7 @@ pub struct TooltipLine {
 
 - `CandidateItem.tooltip: String` → `TooltipDoc`（P3 实施）。气泡渲染与 macOS 下发调用
   `TooltipDoc::to_plain_text()`，输出与现行格式相同；自绘气泡仍是**一个**文本叶节点，
-  外观逐像素不变（`wind-ui` 测试 `doc_renders_exactly_like_the_legacy_string`）。
+  外观逐像素不变（`moodflow-ui` 测试 `doc_renders_exactly_like_the_legacy_string`）。
 - 「复制全部」不再取 UI 手里的显示文本（已截断、已折行），改由协调器按**原始行**拼：
   段落格式照 `to_plain_text`（`[段名]` 独占一行、inline 段 `段名: 内容`、段间换行），
   内容换成原始行（`RenderedTooltip::raw_plain_text`）。拼好的文本经
@@ -223,7 +223,7 @@ pub struct TooltipLine {
   换页/重算时覆盖）。UI 只需回报命中位置，取值在协调器侧完成——值可能很长（完整原文），
   没必要每次按键都复制一份给 UI。
 - 模板在配置加载时解析一次、随配置快照缓存，不在候选循环里解析。
-- 原始行由 `wind-coordinator` 的 `tooltip::RenderedTooltip.raw`（`raw[段][原始行]`，
+- 原始行由 `moodflow-coordinator` 的 `tooltip::RenderedTooltip.raw`（`raw[段][原始行]`，
   与 `doc.sections` 一一对应）随渲染结果返回，**不进** `TooltipDoc`；协调器在候选页组装时
   把本页每个候选的 `RenderedTooltip` 连同候选原文缓存进 `Coordinator::tooltip_page`
   （P3 实施，`handle_tooltip.rs`）。
@@ -287,11 +287,11 @@ pub struct TooltipHit { pub section: u16, pub raw_line: Option<u16> } // 点在�
 
 - Windows 自绘气泡：本设计完整覆盖。
 - 宿主渲染（TSF 带窗口）：**右键未转发，本轮保持现状**（2026-09-27 核实）。
-  `wind_tsf/src/HostWindow.cpp` 的窗口过程只对候选窗处理鼠标（`WM_LBUTTONDOWN` /
+  `moodflow_tsf/src/HostWindow.cpp` 的窗口过程只对候选窗处理鼠标（`WM_LBUTTONDOWN` /
   `WM_MOUSEMOVE` / `WM_MOUSELEAVE` / `WM_MOUSEWHEEL`，注释写明「Tooltip/status are pure-display
-  band windows」），气泡窗口的鼠标消息全交 `DefWindowProc`；wind-bridge 的宿主渲染协议也
+  band windows」），气泡窗口的鼠标消息全交 `DefWindowProc`；moodflow-bridge 的宿主渲染协议也
   没有从宿主回传气泡鼠标事件的消息。要接上需改三处：① HostWindow 对 `HOST_WINDOW_TOOLTIP`
-  处理 `WM_RBUTTONDOWN`，把客户区坐标 + 屏幕坐标经 IPC 发回服务；② wind-bridge 加一条
+  处理 `WM_RBUTTONDOWN`，把客户区坐标 + 屏幕坐标经 IPC 发回服务；② moodflow-bridge 加一条
   上行消息并转成 `UiEvent::RequestTooltipMenu`；③ UI 进程渲染宿主帧时（`render_tooltip_frame`）
   已记下文本块矩形与 `TooltipDoc`，命中换算可直接复用 `Tooltip` 里那一份。另需处理菜单
   打开期间宿主气泡的隐藏抑制（自绘气泡靠 `SetTooltipMenuOpen`）。
@@ -421,7 +421,7 @@ pub struct TooltipHit { pub section: u16, pub raw_line: Option<u16> } // 点在�
 现行 `tooltip_for` + `debug_tooltip_section` 在删除前先作为测试内的**参照实现**保留，
 对一组夹具逐字节比对「旧开关组合 → 迁移出的段列表 → 新渲染」与旧输出，覆盖：多音字、
 扩展区字、拆字库未收录的字、无编码、跨方案带来源名、调试段、全部 2⁵ 种开关组合。
-P1 实施时参照实现**保留**在 `wind-coordinator/src/tooltip.rs` 的测试里作回归闸（旧六开关
+P1 实施时参照实现**保留**在 `moodflow-coordinator/src/tooltip.rs` 的测试里作回归闸（旧六开关
 迁移路径仍在，删了就没有东西守它）；P2 放开非 CJK 气泡时按 §8.3 那条差异同步调整对拍。
 
 ### 8.3 已确认的刻意差异
@@ -471,7 +471,7 @@ P1 实施时参照实现**保留**在 `wind-coordinator/src/tooltip.rs` 的测�
 | P1 | 段配置 + 迁移；`TooltipDoc`；段渲染接入注释模板引擎（含 `each`）；`word_code`/`code_source`/`char`/`readings`/`unicode*`/`debug` 变量；删 `merge_chaizi_pinyin` 与 `TooltipOptions` | §8.2 对拍全绿；REGISTRY/L2 守门绿 |
 | P2 | `${full_text}`、`max_chars`、`wrap_width`；原始行/显示行分离；非 CJK 候选出气泡 | 截断候选出现完整原文段；复制取到未截断原文 |
 | P3 | 右键命中（自绘气泡；宿主渲染见 §7.5，本轮未做）、菜单、复制/上屏段与行、上屏前一致性校验 | 协调器侧菜单构建与取值单测；靶机人工验（判据随 P3 给出） |
-| P4 | wind-setting 段列表编辑器（启停、排序、段名/模板/each 编辑、按预设添加：编码 / 拼音 / 拆字 / 拆字+拼音 / 完整原文 / Unicode / 注释库 / 调试）；文档站 `settings/appearance/candidate-tooltip` 与 guides/config | 设置仓五道闸门绿；新 label 过拼音检索表 |
+| P4 | moodflow-setting 段列表编辑器（启停、排序、段名/模板/each 编辑、按预设添加：编码 / 拼音 / 拆字 / 拆字+拼音 / 完整原文 / Unicode / 注释库 / 调试）；文档站 `settings/appearance/candidate-tooltip` 与 guides/config | 设置仓五道闸门绿；新 label 过拼音检索表 |
 
 ## 11 已确认（2026-09-27）
 

@@ -65,21 +65,21 @@ C2-26 的通用 config 覆盖（上百个键）与将来的按应用覆盖属于
 | 跨方案覆盖汇总 | R8.6「已被 N 个方案覆盖」 | 新 RPC `schema.overrideSummary`：返回 `{config_key: [schema_id…]}`，只含可见方案；数据源为各方案折叠后的 `Option` 字段 + `[candidate]` / `[punct]` 行为段 |
 | 跟随值 | R8.2「跟随全局（值）」 | 不需要新能力：设置端已有整份全局 config |
 
-两个 RPC 都放在主仓 wind-rpc，设置端 mock（`rpc.rs`）同步补上。
+两个 RPC 都放在主仓 moodflow-rpc，设置端 mock（`rpc.rs`）同步补上。
 
 ## 4. 整改清单（按 R8 逐项）
 
 | # | 项 | 现状 | 整改 | 仓 | 提交 |
 |---|---|---|---|---|---|
-| F1 | 辅助码启用 | ② 分段三档 | 改为 ① 勾选行，并按设计文档补上 `max_phrase_len` | wind-setting | wind-setting 490a6f1；8f83478（R8.5 审查回填：补「全部恢复跟随」、钳最长词长范围） |
-| F2 | 标点 / 候选排列 / overlay 排列 | ② 下拉，「跟随全局」不带值 | 保留 ②，「跟随全局」档带上当前全局值 | wind-setting | wind-setting 70fd3be |
-| F3 | 方案 · 候选文字字体 | `""` 文本框，不是三态 | 改为 ①，跟随值显示外观页的字族 | wind-setting | wind-setting 70fd3be（与 F2 同一提交） |
-| F4 | 外观 · 字号 / 字族 / 字重 | ④ 哨兵，叫法不一 | 改为 ①「跟随主题（值）」；存储不变（0 / `""`） | 两仓（依赖 `theme.resolved`） | core fba2d51e（`theme.resolved`）；wind-setting c35bb8b |
-| F5 | 外观 · 翻页栏 / 页码显示 | ④「默认（主题配置）」 | 按 R8.2 改文案为「跟随主题（值）」 | 两仓 | core fba2d51e（同 F4，共用 `theme.resolved`）；wind-setting c35bb8b（与 F4 同一提交） |
-| F6 | 主字颜色 2×2 | 「清除」回到跟随，状态文字写「跟随主题」 | 状态文字带上主题色块（值）；交互不变 | wind-setting（依赖 `theme.resolved`） | wind-setting afff4b7 |
-| F7 | 角标颜色 | `auto` + 色值位长 ⑤ | 拆成颜色键（`""` = 跟随主字）+ `alpha_light` / `alpha_dark: Option<f32>`（未设置 = 跟随全局 `badge_alpha`）。浅、深两侧各有 alpha，旧 8 位色值两侧可以不同，合成一个值会丢信息。 | 两仓 + 文档站 | core 6d1181c4（Value 层迁移）、59e94df3（fix：新传入的旧写法也迁移后落盘）；wind-setting afff4b7、ff99f34（审查回填：取色面板关透明度、色值读入不改大小写）；docs 62c0606 |
-| F8 | 码表「全部恢复跟随」 | 清全集 | 核实：`reset` 只清 12 个 `SPEC_BEHAVIOR_FIELDS` + `frequency` + `english_merge`，界面隐藏的 `auto_phrase.*` 原样保留。本项按实测结论处理，见 Task 7。实测无隐藏键被清，已加护栏（wind-setting efaa243）。 | wind-setting | wind-setting efaa243（R8.5 护栏）、fa55b90（fix：护栏改用 core 结构体枚举字段）；core 555abe5c（本设计文档回填实测结论） |
-| F9 | 全局页角标 | 静态「可被方案覆盖」 | 按 R8.6 显示「已被 N 个方案覆盖」 | 两仓（依赖 `schema.overrideSummary`） | core 4209128f（`schema.overrideSummary` + `getConfig.followedBehavior`）；wind-setting b7e09d1、9e67101（审查回填：钉住 save() 重拉时机） |
+| F1 | 辅助码启用 | ② 分段三档 | 改为 ① 勾选行，并按设计文档补上 `max_phrase_len` | moodflow-setting | moodflow-setting 490a6f1；8f83478（R8.5 审查回填：补「全部恢复跟随」、钳最长词长范围） |
+| F2 | 标点 / 候选排列 / overlay 排列 | ② 下拉，「跟随全局」不带值 | 保留 ②，「跟随全局」档带上当前全局值 | moodflow-setting | moodflow-setting 70fd3be |
+| F3 | 方案 · 候选文字字体 | `""` 文本框，不是三态 | 改为 ①，跟随值显示外观页的字族 | moodflow-setting | moodflow-setting 70fd3be（与 F2 同一提交） |
+| F4 | 外观 · 字号 / 字族 / 字重 | ④ 哨兵，叫法不一 | 改为 ①「跟随主题（值）」；存储不变（0 / `""`） | 两仓（依赖 `theme.resolved`） | core fba2d51e（`theme.resolved`）；moodflow-setting c35bb8b |
+| F5 | 外观 · 翻页栏 / 页码显示 | ④「默认（主题配置）」 | 按 R8.2 改文案为「跟随主题（值）」 | 两仓 | core fba2d51e（同 F4，共用 `theme.resolved`）；moodflow-setting c35bb8b（与 F4 同一提交） |
+| F6 | 主字颜色 2×2 | 「清除」回到跟随，状态文字写「跟随主题」 | 状态文字带上主题色块（值）；交互不变 | moodflow-setting（依赖 `theme.resolved`） | moodflow-setting afff4b7 |
+| F7 | 角标颜色 | `auto` + 色值位长 ⑤ | 拆成颜色键（`""` = 跟随主字）+ `alpha_light` / `alpha_dark: Option<f32>`（未设置 = 跟随全局 `badge_alpha`）。浅、深两侧各有 alpha，旧 8 位色值两侧可以不同，合成一个值会丢信息。 | 两仓 + 文档站 | core 6d1181c4（Value 层迁移）、59e94df3（fix：新传入的旧写法也迁移后落盘）；moodflow-setting afff4b7、ff99f34（审查回填：取色面板关透明度、色值读入不改大小写）；docs 62c0606 |
+| F8 | 码表「全部恢复跟随」 | 清全集 | 核实：`reset` 只清 12 个 `SPEC_BEHAVIOR_FIELDS` + `frequency` + `english_merge`，界面隐藏的 `auto_phrase.*` 原样保留。本项按实测结论处理，见 Task 7。实测无隐藏键被清，已加护栏（moodflow-setting efaa243）。 | moodflow-setting | moodflow-setting efaa243（R8.5 护栏）、fa55b90（fix：护栏改用 core 结构体枚举字段）；core 555abe5c（本设计文档回填实测结论） |
+| F9 | 全局页角标 | 静态「可被方案覆盖」 | 按 R8.6 显示「已被 N 个方案覆盖」 | 两仓（依赖 `schema.overrideSummary`） | core 4209128f（`schema.overrideSummary` + `getConfig.followedBehavior`）；moodflow-setting b7e09d1、9e67101（审查回填：钉住 save() 重拉时机） |
 
 F7 改的是已发布的键，按 R4 必须做 Value 层迁移，并同步文档站。
 

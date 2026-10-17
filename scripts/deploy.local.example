@@ -2,16 +2,16 @@
 # 供 dev.sh 的 push / pull 命令通过 SSH 连到 Windows 实测机使用。
 
 # SSH 目标（共用）
-WIND_REMOTE='me@192.0.2.20'
+MOODFLOW_REMOTE='me@192.0.2.20'
 
 # 安装目录（scp 正斜杠风格 C:/...）。release 与 debug 分开，对应 p1 / pd1：
-#   p1  / pm*   → WIND_REMOTE_DIR_RELEASE
-#   pd1 / pdm*  → WIND_REMOTE_DIR_DEV
-WIND_REMOTE_DIR_RELEASE='C:/Users/me/AppData/Local/Programs/WindInput'
-WIND_REMOTE_DIR_DEV='C:/Users/me/AppData/Local/Programs/WindInputDev'
+#   p1  / pm*   → MOODFLOW_REMOTE_DIR_RELEASE
+#   pd1 / pdm*  → MOODFLOW_REMOTE_DIR_DEV
+MOODFLOW_REMOTE_DIR_RELEASE='C:/Users/me/AppData/Local/Programs/Moodflow'
+MOODFLOW_REMOTE_DIR_DEV='C:/Users/me/AppData/Local/Programs/MoodflowDev'
 
 # 拉取 config.toml / 日志用（pull-config / pull-log）：
-#   WIND_DATA_DIR  = %APPDATA%\<App>        含 config.toml
-#   WIND_LOCAL_DIR = %LOCALAPPDATA%\<App>   含 logs/
-WIND_DATA_DIR='C:/Users/me/AppData/Roaming/WindInput'
-WIND_LOCAL_DIR='C:/Users/me/AppData/Local/WindInput'
+#   MOODFLOW_DATA_DIR  = %APPDATA%\<App>        含 config.toml
+#   MOODFLOW_LOCAL_DIR = %LOCALAPPDATA%\<App>   含 logs/
+MOODFLOW_DATA_DIR='C:/Users/me/AppData/Roaming/Moodflow'
+MOODFLOW_LOCAL_DIR='C:/Users/me/AppData/Local/Moodflow'

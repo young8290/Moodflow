@@ -33,7 +33,7 @@
 |---|---|---|
 | `[punct]` | 全局 `input.punct` | `mode` |
 | `[candidate]` | 全局 `ui.candidate` | `layout` |
-| `[phrases]` | `wind-phrase::PhraseLayer` / store `phrases` 表 | `enabled` / `categories` / `exclude_categories` |
+| `[phrases]` | `moodflow-phrase::PhraseLayer` / store `phrases` 表 | `enabled` / `categories` / `exclude_categories` |
 
 ⚠️ 与 `[overlay].candidate_layout` 的关系：**两段并存、语义不同，不合并**。
 `[overlay]` 那份是「本方案**被叠加激活期间**」的布局（有进入/退出生命周期）；
@@ -202,14 +202,14 @@ override 层没有「删除」的表达。失效形态是本仓反复栽的那�
 
 #### 2.5.5 收窄签名把消费点变成编译错误 —— 以及那条**绕过的路**
 
-`wind_punct` 里凡读 `punct.*` 的函数一律从 `&InputConfig` 收窄到 `&PunctConfig`，由
+`moodflow_punct` 里凡读 `punct.*` 的函数一律从 `&InputConfig` 收窄到 `&PunctConfig`，由
 `Coordinator::effective_punct` 供给 ⇒ 漏接一个消费点就是编译失败，而不是「这条路上方案表
 静默不生效」。同 §6.3 把 `scope` 做成 `PhraseLayer` 六个方法的必填参数。
 
-⚠️ **这道防线有一个缺口**，实施时才发现：`PunctuationConverter::peek_custom`（wind-transform）
-可以被直接调用、绕过 wind-punct。当时唯一这么做的是 `english_pairs_via_pipeline`（英文自动配对
+⚠️ **这道防线有一个缺口**，实施时才发现：`PunctuationConverter::peek_custom`（moodflow-transform）
+可以被直接调用、绕过 moodflow-punct。当时唯一这么做的是 `english_pairs_via_pipeline`（英文自动配对
 要算左右符号的实际形态），它不会因签名变更而报错。已单独补一条源码级守门测试。
-⇒ **再出现这种直调时，要么收编进 wind-punct，要么照此加一条守门测试。**
+⇒ **再出现这种直调时，要么收编进 moodflow-punct，要么照此加一条守门测试。**
 
 #### 2.5.6 顺带：引号交替态随代际归位
 
@@ -642,10 +642,10 @@ serde 的 `#[serde(default = "default_true")]` **只在反序列化缺键时生�
 
 **为什么必须能换键**：macOS 上 CapsLock 这条路三层都不通——
 
-- IMKit 侧 `toWindowsVK`（`wind_macos/.../KeyHandler.swift`）**没有 CapsLock 的映射**，
+- IMKit 侧 `toWindowsVK`（`moodflow_macos/.../KeyHandler.swift`）**没有 CapsLock 的映射**，
   而编码前有 `guard vk != 0 else { return nil }` ⇒ 按键根本不会发到服务端；系统只把
   **锁定态**经 `toggles` 位传过来，那是状态不是按键。
-- `wind-keys/src/capslock_hook.rs` 整个 `imp` 是 `#[cfg(windows)]`，macOS 上没有钩子这个
+- `moodflow-keys/src/capslock_hook.rs` 整个 `imp` 是 `#[cfg(windows)]`，macOS 上没有钩子这个
   概念；要拦得上 CGEventTap（需辅助功能授权），而锁定态由 HID 层维护——`cancel_on_mode_switch`
   当初就是因此在 macOS 标了无落点。
 - Mac 用户普遍把 CapsLock 用作系统级中英切换，夺取它比 Windows 上更冒犯。
@@ -678,7 +678,7 @@ serde 的 `#[serde(default = "default_true")]` **只在反序列化缺键时生�
 
 ### 6.1 现状
 
-`wind-store/src/phrases.rs:3` 的模块注释白纸黑字：**「短语是全局的（不分方案）」**。
+`moodflow-store/src/phrases.rs:3` 的模块注释白纸黑字：**「短语是全局的（不分方案）」**。
 `PhraseLayer` 是全局单例 `RwLock`，从 store 的 `enabled_phrases_for_input()` 一次性建成。
 store 里 key = `code + text`，`PhraseValue` 有 `weight / position / is_system / enabled / shadows_system`，
 **没有 category**。
@@ -870,11 +870,11 @@ pub fn active_candidate_layout(&self) -> LayoutIntent
 
 ## 八、跨仓清单与实施顺序
 
-### 8.1 主仓（WindInput）
+### 8.1 主仓（Moodflow）
 
 | 阶段 | 内容 |
 |---|---|
-| A | `wind-config/schema.rs`：`PunctIntent` + `[punct]` / `[candidate]` / `[phrases]` 三段结构体；`manager.rs` 三个 `active_*()` + per-schema 缓存并入 `invalidate_schema` |
+| A | `moodflow-config/schema.rs`：`PunctIntent` + `[punct]` / `[candidate]` / `[phrases]` 三段结构体；`manager.rs` 三个 `active_*()` + per-schema 缓存并入 `invalidate_schema` |
 | B | 代际机制：`State` 加 `schema_scope_gen` / `punct_manual` / `layout_manual`；`sync_schema_scope` + 四个调用点；`layout.rs::intent_for` 插方案层 |
 | C | 英文原文候选与变形：`push_raw_english_candidate` / `push_en_case_variants` 两个共用函数 + **四个键**（`input.temp_english.raw_candidate` 新增默认 true、`schema.english.raw_candidate` 新增默认 true、`schema.english.case_variants` 新增默认 false；`input.temp_english.case_variants` 原样不动）。三个新键各走 REGISTRY / `data/config.toml` / 文档站。**无任何键迁移**，见 §5.3 |
 | D | 短语闸门：store `PhraseValue.category`；`PhraseLayer` 六个方法签名改必填 `scope`；`effective_data_schema` 接线；`data/schemas/english.schema.toml` 写 `[phrases] enabled = false` |
@@ -882,7 +882,7 @@ pub fn active_candidate_layout(&self) -> LayoutIntent
 A→B→C→D 顺序有依赖（B 依赖 A；C、D 独立于 B，可并行）。
 D 风险最高（改 store schema + 六处闸门），放最后单独验证。
 
-### 8.2 wind-setting（设置仓）
+### 8.2 moodflow-setting（设置仓）
 
 - 方案设置对话框加「标点 / 候选布局」两项，走既有 `saveConfig` 稀疏 diff 通路；
 - ★★ **同一次保存里的多个改动来源必须写进同一份 cfg、只调一次 `saveConfig`**——
@@ -891,10 +891,10 @@ D 风险最高（改 store schema + 六处闸门），放最后单独验证。
   （`[phrases].categories` 就是典型：本轮无 GUI，只能手写），用字面量重建会静默抹掉；
 - 三个新键（`input.temp_english.raw_candidate`、`schema.english.raw_candidate` / `case_variants`）走全局 manifest，各要过**五道守门测试**（REGISTRY / L2 /
   manifest / 快照 / 覆盖率）；
-- ⚠️ 设置仓靠 `path = "../WindInput/..."` 依赖主工作区 ⇒ 在 feature worktree 里恒绿、
+- ⚠️ 设置仓靠 `path = "../Moodflow/..."` 依赖主工作区 ⇒ 在 feature worktree 里恒绿、
   **合并后才红**。收尾工作要算进「合并后」。
 
-### 8.3 文档站（WindInputDocs）
+### 8.3 文档站（MoodflowDocs）
 
 - config 参考页 + 用法页**两处**都要改（加配置项的固定动作）；
 - 方案文件三个新段是文档站从未记录过的方案文件字段族，需要新开一节

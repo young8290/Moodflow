@@ -1,4 +1,4 @@
-//! `db-grep --db <xinqing.db> --phrases <测试句.txt>`：只读打开数据库，在所有表的所有列里搜索测试句
+//! `db-grep --db <moodflow.db> --phrases <测试句.txt>`：只读打开数据库，在所有表的所有列里搜索测试句
 //! （每行一句，空行和 `#` 开头的行跳过），打印命中的表、列、行号和句子编号。有命中时退出码为 1。
 //!
 //! 默认放过用户确认的日程标题、地点与待办标题（NFR-PRI-04 的例外），`--strict` 连这些也查。
@@ -10,11 +10,11 @@ use std::process::ExitCode;
 
 use anyhow::{Context, Result};
 use clap::Parser;
+use moodflow_hub_core::infra::store::grep::{CONFIRMED_USER_TEXT, grep};
 use rusqlite::{Connection, OpenFlags};
-use xinqing_hub_core::infra::store::grep::{CONFIRMED_USER_TEXT, grep};
 
 #[derive(Parser)]
-#[command(about = "在心晴数据库里搜索测试句，验证不存原文（TC-PRI-01）")]
+#[command(about = "在 Moodflow 数据库里搜索测试句，验证不存原文（TC-PRI-01）")]
 struct Args {
     /// 数据库文件（只读打开，Hub 运行时也可以扫）
     #[arg(long)]

@@ -1,9 +1,9 @@
-# WindInput 多仓库发布脚本 (打 tag + push)
+# Moodflow 多仓库发布脚本 (打 tag + push)
 #
 # 背景:
-#   WindInput 发布依赖几个兄弟仓库, 以往只推主仓, 容易出现"主仓已发布、附属仓库改动
-#   还留在本地"的情况。本脚本把它们作为一个整体发布, 且【WindInput 永远最后推】——
-#   推 WindInput 的 v* tag 会立刻触发 .github/workflows/release.yml, 而该 workflow 用
+#   Moodflow 发布依赖几个兄弟仓库, 以往只推主仓, 容易出现"主仓已发布、附属仓库改动
+#   还留在本地"的情况。本脚本把它们作为一个整体发布, 且【Moodflow 永远最后推】——
+#   推 Moodflow 的 v* tag 会立刻触发 .github/workflows/release.yml, 而该 workflow 用
 #   actions/checkout 拉取各附属仓库时【没有指定 ref】, 取的是它们默认分支的最新提交。
 #   所以附属仓库必须先于主仓 tag 到位, 否则 CI 会拿旧代码构建出错误的发布包。
 #
@@ -83,28 +83,28 @@ if ($PSVersionTable.PSVersion.Major -ge 7) { $PSNativeCommandUseErrorActionPrefe
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 
 # ---------- 路径 ----------
-# 目录层级: <工作区根>\WindInput\scripts\release.ps1
+# 目录层级: <工作区根>\Moodflow\scripts\release.ps1
 $ScriptDir   = $PSScriptRoot
 $ProductRoot = Split-Path $ScriptDir -Parent     # 主仓 (含 docs\VERSION)
 $WorkRoot    = Split-Path $ProductRoot -Parent   # 各仓库平级所在的工作区根
 $VersionFile = Join-Path $ProductRoot "docs\VERSION"
 
 # ---------- 参与发布的仓库 ----------
-# 顺序即执行顺序: 依赖在前, WindInput 最后 (主仓 tag = 整套代码已就位的信号)。
+# 顺序即执行顺序: 依赖在前, Moodflow 最后 (主仓 tag = 整套代码已就位的信号)。
 #   Tag=$true  打版本 tag
-#   Tag=$false 只保证推送 —— wind-ui-rust 是 wind-setting 的 path 依赖
-#              (wind-setting/Cargo.toml: windui = { path = "../wind-ui-rust" }),
+#   Tag=$false 只保证推送 —— moodflow-ui-rust 是 moodflow-setting 的 path 依赖
+#              (moodflow-setting/Cargo.toml: moodflowui = { path = "../moodflow-ui-rust" }),
 #              CI 会拉它的 main 参与构建; 但它是独立发 crates.io 的开源库,
-#              自有版本线, 不应打 WindInput 的版本 tag。
-#              (wind-installer 走 crates.io 的 windui = "0.8", 不受此影响)
+#              自有版本线, 不应打 Moodflow 的版本 tag。
+#              (moodflow-installer 走 crates.io 的 moodflowui = "0.8", 不受此影响)
 $Repos = @(
-    [pscustomobject]@{ Name = "wind-ui-rust";   Tag = $false }
-    [pscustomobject]@{ Name = "wind-setting";   Tag = $true  }
-    [pscustomobject]@{ Name = "wind-portable";  Tag = $true  }
-    [pscustomobject]@{ Name = "wind-installer"; Tag = $true  }
-    [pscustomobject]@{ Name = "WindInput";      Tag = $true  }
+    [pscustomobject]@{ Name = "moodflow-ui-rust";   Tag = $false }
+    [pscustomobject]@{ Name = "moodflow-setting";   Tag = $true  }
+    [pscustomobject]@{ Name = "moodflow-portable";  Tag = $true  }
+    [pscustomobject]@{ Name = "moodflow-installer"; Tag = $true  }
+    [pscustomobject]@{ Name = "Moodflow";      Tag = $true  }
 )
-$MainRepo = "WindInput"
+$MainRepo = "Moodflow"
 
 # ---------- 输出辅助 (风格对齐 dev.ps1) ----------
 function Say    ([string]$m) { Write-Host $m -ForegroundColor Green }
@@ -374,7 +374,7 @@ function Get-RepoState ([pscustomobject]$repo, [string]$branch, [string]$tag, [b
     }
 
     # -------- 工作区 --------
-    # WindInput 的 docs/VERSION 是本地版本占位文件(release 末尾会自动写它、常态不提交),
+    # Moodflow 的 docs/VERSION 是本地版本占位文件(release 末尾会自动写它、常态不提交),
     # 不计入脏工作区确认, 避免每次发布都为它多按一次 y。porcelain 格式为 "XY path",
     # 路径从第 4 个字符起(Substring(3))。
     $porcelain = Get-GitValue $path @("status", "--porcelain")
@@ -475,7 +475,7 @@ function Invoke-Release {
     $title = if ($dryRun) { "演练 (DryRun)" } elseif ($noTag) { "同步推送 (不打 tag)" } else { "发布 $tag" }
 
     Write-Host ""
-    Cyan "==================== WindInput 多仓库$title ===================="
+    Cyan "==================== Moodflow 多仓库$title ===================="
     if ($needTag) { Write-Host "  tag        : " -NoNewline; Say $tag }
     Write-Host "  目标分支   : $branch"
     Write-Host "  工作区根   : $WorkRoot"
@@ -580,7 +580,7 @@ function Invoke-Release {
         try {
             # 预检已确保处于目标分支。无新提交(Ahead=0)时跳过 push ——
             # 远端已含 HEAD(Behind 已在预检拦截), 再 push 只是空操作, 却会触发 pre-push
-            # hook(如 wind-ui-rust 跑 clippy + 全量测试)白白变慢; 预检已 fetch 过, 无意义。
+            # hook(如 moodflow-ui-rust 跑 clippy + 全量测试)白白变慢; 预检已 fetch 过, 无意义。
             if ($st.Ahead -eq 0) {
                 Gray "  无新提交, 跳过 push (远端已是最新)"
             } else {
@@ -589,7 +589,7 @@ function Invoke-Release {
                 if ($dryRun) { $pushArgs += "--dry-run" }
                 Gray "  git push origin $branch$(if ($dryRun) { ' --dry-run' })"
                 $out = Invoke-GitOrDie $st.Path $pushArgs "推送分支"
-                # 仓库可能装有 pre-push hook (如 wind-ui-rust 会跑 clippy + 全量测试),
+                # 仓库可能装有 pre-push hook (如 moodflow-ui-rust 会跑 clippy + 全量测试),
                 # 成功时其输出对发布无价值, 只保留末尾的 git 推送结果行。
                 # 失败路径不走这里 —— Invoke-GitOrDie 抛出的异常带完整输出。
                 if ($out) { Show-PushOutput $out }
@@ -772,14 +772,14 @@ function Send-FileToUrl {
         [string]$Url,
         [string]$Token,
         [string]$Path,
-        [string]$Prefix        # 进度行前缀, 形如 "  [2/4] WindInput-Portable-0.120.3.zip"
+        [string]$Prefix        # 进度行前缀, 形如 "  [2/4] Moodflow-Portable-0.120.3.zip"
     )
     $total = [long](Get-Item -LiteralPath $Path).Length
     $req = [System.Net.HttpWebRequest]::Create($Url)
     $req.Method                    = "POST"
     $req.ContentType               = "application/octet-stream"
     $req.Accept                    = "application/vnd.github+json"
-    $req.UserAgent                 = "WindInput-release.ps1"
+    $req.UserAgent                 = "Moodflow-release.ps1"
     $req.AllowWriteStreamBuffering = $false
     $req.ContentLength             = $total
     # ⚠️ PowerShell 7 的 HttpWebRequest 是 HttpClient 的兼容壳: Timeout 覆盖【整个请求,
@@ -1230,7 +1230,7 @@ function Invoke-SignDraft ([string]$tagName) {
         while (-not $signReady) {
             Write-Host ""
             Warn "[!] 签名会话不可用 —— 建立签名会话后再继续 (有效期 2 小时)。"
-            Gray "    具体步骤见 sign.ps1 -Status 的提示 (可在 sign.local.ps1 里配 `$WIND_SIGN_SESSION_HINT)。"
+            Gray "    具体步骤见 sign.ps1 -Status 的提示 (可在 sign.local.ps1 里配 `$MOODFLOW_SIGN_SESSION_HINT)。"
             $retry++
             if ($retry -gt 5) { ErrMsg "会话仍不可用, 已放弃。"; return 1 }
             if (-not (Confirm-Step "    已建立会话, 重新体检?" $true $true)) {
@@ -1266,7 +1266,7 @@ function Invoke-SignDraft ([string]$tagName) {
             ErrMsg "下载 stage-windows 失败。artifact 保留期 14 天, 过期需重跑 CI。"
             return 1
         }
-        $stageZip = Get-ChildItem (Join-Path $tmp "WindInput-Stage-*.zip") -ErrorAction SilentlyContinue |
+        $stageZip = Get-ChildItem (Join-Path $tmp "Moodflow-Stage-*.zip") -ErrorAction SilentlyContinue |
                     Select-Object -First 1
         if (-not $stageZip) { ErrMsg "下载结果里没有中转产物包: $tmp"; return 1 }
 
@@ -1299,10 +1299,10 @@ function Invoke-SignDraft ([string]$tagName) {
 
         # ---------- 7. 覆盖草稿资产 ----------
         $assets = @(
-            "WindInput-Setup-$version.exe"
-            "WindInput-Setup-$version.exe.sha256"
-            "WindInput-Portable-$version.zip"
-            "WindInput-Portable-$version.zip.sha256"
+            "Moodflow-Setup-$version.exe"
+            "Moodflow-Setup-$version.exe.sha256"
+            "Moodflow-Portable-$version.zip"
+            "Moodflow-Portable-$version.zip.sha256"
         ) | ForEach-Object { Join-Path $distDir $_ }
         $absent = @($assets | Where-Object { -not (Test-Path $_) })
         if ($absent.Count -gt 0) {
@@ -1340,7 +1340,7 @@ function Invoke-SignDraft ([string]$tagName) {
         if ($null -eq $cleaned) {
             Gray "正文里没有未签名横幅 (已删过, 或本次 CI 判定为已签名)。"
         } else {
-            $nf = Join-Path ([System.IO.Path]::GetTempPath()) "windinput-notes-$version.md"
+            $nf = Join-Path ([System.IO.Path]::GetTempPath()) "moodflow-notes-$version.md"
             [System.IO.File]::WriteAllText($nf, $cleaned, (New-Object System.Text.UTF8Encoding($false)))
             & gh release edit $tagName --notes-file $nf | Out-Host
             if ($LASTEXITCODE -ne 0) { Warn "更新正文失败, 请手动删掉未签名横幅。" }
@@ -1411,7 +1411,7 @@ function Show-Menu ([string]$branch) {
     $ahead = [int](Get-GitValue $mainPath @("rev-list", "--count", "origin/$branch..HEAD"))
 
     Write-Host ""
-    Cyan "==================== WindInput 发布 ===================="
+    Cyan "==================== Moodflow 发布 ===================="
     Write-Host "  最新已发布 tag : " -NoNewline
     if ($latest) { Say "v$($latest.Raw)" } else { Warn "(无)" }
     Write-Host "  docs\VERSION   : $fileVer" -NoNewline; Gray "   (本地构建占位, 非版本真源)"

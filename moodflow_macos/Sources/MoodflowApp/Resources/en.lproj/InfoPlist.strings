@@ -1,0 +1,6 @@
+/* English fallback strings. */
+
+CFBundleName        = "Moodflow";
+CFBundleDisplayName = "Moodflow";
+
+"app.moodflow.inputmethod.Moodflow.mode" = "Moodflow";

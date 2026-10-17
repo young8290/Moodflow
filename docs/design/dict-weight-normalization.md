@@ -39,7 +39,7 @@
 
 ## 2. 这不是新坑，是既有设计位
 
-`wind-config` 的 `DictSpec` 里**早就有** `[dictionaries.weight_spec]`，字段
+`moodflow-config` 的 `DictSpec` 里**早就有** `[dictionaries.weight_spec]`，字段
 `median` / `max` / `min` / `mode`("linear"/"log") / `target`，文档写着：
 
 > **当前未接线**：仅作为词库权重分布的事实记录供设计者查阅（如 pinyin 方案记 median=200，
@@ -98,13 +98,13 @@ max 与 p99 差 **30 万倍**（那 12 条脏数据）。用 max 作上锚点，
 #### ⚠️ 为什么解析期告警一个不够
 
 解析期告警只在**解析 yaml** 时触发，而词库一旦建了 `.wdat` 缓存
-（`%LOCALAPPDATA%\WindInput\cache\<方案>\`）就直接 mmap、不再解析。实测：首次加载报一次，
+（`%LOCALAPPDATA%\Moodflow\cache\<方案>\`）就直接 mmap、不再解析。实测：首次加载报一次，
 删掉缓存才会再报。
 
 ⇒ **「老词库 + 新版本」这个最需要报警的组合一次也不会响**——用户升级到带诊断的版本时缓存
 早已存在。**告警的缺席不构成「词库守约」的证据。**
 
-故权威路径是离线命令 `wind_input dict weight-check`：直接读源文件、无视缓存，且不要求服务
+故权威路径是离线命令 `moodflow_input dict weight-check`：直接读源文件、无视缓存，且不要求服务
 在线。受众本就是**方案作者**（终端用户看到告警也改不了词库），他们需要的是「打包前查一次」。
 
 对不守约的库，命令直接给出**可粘贴的配置块**——参数由实测分布算出，比让作者自己统计中位数
@@ -229,7 +229,7 @@ w > median :  w' = target + (TARGET_MAX - target)
 
 后续微调（用户定档）：`datm` 从 2000/1800 降到 **1200/1100**——只需越过 1080 即可，不必占到
 2000 那一档；变体取 1100 而非沿用 800，否则「万花筒」会插进本组中间。
-同时新建短语的默认权重从 1000 提到 **1800**（真正落点在 wind-setting 仓 `dict/state.rs`
+同时新建短语的默认权重从 1000 提到 **1800**（真正落点在 moodflow-setting 仓 `dict/state.rs`
 的 `open_add`；主仓 `webdata.rs` 那条 `unwrap_or` 是兜底，设置页总是显式传 weight）。
 
 ### 6.2 第 3 步的落地记录：为什么是 6→5 而不是 6→4

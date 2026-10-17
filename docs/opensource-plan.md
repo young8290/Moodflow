@@ -1,31 +1,31 @@
-# WindInput 开源方案
+# Moodflow 开源方案
 
-> 目标：开源本仓库（核心服务 wind_input + wind_tsf + wind_macos），配套的
-> wind-setting / wind-portable / wind-installer 暂不开源。
+> 目标：开源本仓库（核心服务 moodflow_input + moodflow_tsf + moodflow_macos），配套的
+> moodflow-setting / moodflow-portable / moodflow-installer 暂不开源。
 > 其他人可以阅读、学习、构建核心部分，但无法用本仓库直接打包出完整发行版。
 > 许可证沿用原 Go 项目的 MIT。
 >
 > 命名决策：本仓库后续直接替换原仓库，即更名/迁移为 `huanfeng/WindInput`；
-> 原 Go 版仓库另存为 `huanfeng/WindInput-Go`。对外产品名不变（清风输入法），
+> 原 Go 版仓库另存为 `huanfeng/WindInput-Go`。对外产品名不变（Moodflow 输入法），
 > 不使用 "Plus" 品牌。
 
 ## 一、现状盘点（结论）
 
 | 项 | 现状 | 结论 |
 |---|---|---|
-| 仓库边界 | 本仓库只含 `wind_input/`（18 crate）、`wind_tsf/`、`wind_macos/`、`data/`、`scripts/`、`docs/`；三个闭源组件一直是 `../wind-setting` 等**兄弟独立仓库** | 无需拆分，边界天然成立 |
-| 构建脚本 | `dev.sh` / `dev.ps1` 对闭源仓库是「不存在则跳过」；`pack-installer.sh` 依赖 `../wind-installer`，缺失时报错退出 | 开源用户可构建核心，打不出安装包，符合预期 |
-| CI / Release | `.github/workflows/` 已有完整 CI（ubuntu 交叉编译，`dev.sh ci` + TSF make）与 Release（tag 触发，经 `WIND_REPOS_TOKEN` PAT 检出私有兄弟仓库打完整安装包） | 开源后照常工作；secret 不会暴露给 fork PR |
+| 仓库边界 | 本仓库只含 `moodflow_input/`（18 crate）、`moodflow_tsf/`、`moodflow_macos/`、`data/`、`scripts/`、`docs/`；三个闭源组件一直是 `../moodflow-setting` 等**兄弟独立仓库** | 无需拆分，边界天然成立 |
+| 构建脚本 | `dev.sh` / `dev.ps1` 对闭源仓库是「不存在则跳过」；`pack-installer.sh` 依赖 `../moodflow-installer`，缺失时报错退出 | 开源用户可构建核心，打不出安装包，符合预期 |
+| CI / Release | `.github/workflows/` 已有完整 CI（ubuntu 交叉编译，`dev.sh ci` + TSF make）与 Release（tag 触发，经 `MOODFLOW_REPOS_TOKEN` PAT 检出私有兄弟仓库打完整安装包） | 开源后照常工作；secret 不会暴露给 fork PR |
 | git 历史 | `.claude/` `.superpowers/` `.remember/` `scripts/deploy.local`（真实配置）从未入库，只有 `.example` 入库 | 历史干净；后续已用 filter-repo 从全历史移除 `docs/superpowers/`（转为本地任务指引，gitignore）与过时的 `CHANGELOG.md`，**推送需 force-push** |
-| LICENSE | 已存在，MIT，`Copyright (c) 2026 WindInput Contributors`，与原项目一致 | 不用动 |
-| 远程仓库 | `github.com/huanfeng/WindInput`，当前 PRIVATE | 补文件 → 审计 → 更名为 WindInput → 转 public |
+| LICENSE | 已存在，MIT，`Copyright (c) 2026 Moodflow Contributors`，与原项目一致 | 不用动 |
+| 远程仓库 | `github.com/huanfeng/WindInput`，当前 PRIVATE | 补文件 → 审计 → 更名为 Moodflow → 转 public |
 
 ## 二、许可证与第三方数据
 
 ### 源代码
 
 - 全仓库源代码：**MIT**（沿用现有 LICENSE 文件）。
-- 可选：`wind_input/Cargo.toml` workspace 增加 `license = "MIT"`、`repository` 元数据（若未来发 crates.io 则必须）。
+- 可选：`moodflow_input/Cargo.toml` workspace 增加 `license = "MIT"`、`repository` 元数据（若未来发 crates.io 则必须）。
 
 ### 词库与数据（NOTICE.md 已声明）
 
@@ -55,8 +55,8 @@ CLA 尤其值得保留，继续用 CLA Assistant 机器人流程。
 
 ### 已完成（`worktree-opensource-prep` 分支）
 
-- [x] 根 `README.md`：精简版，产品名直接为清风输入法 (WindInput)，
-  声明开源边界（配套组件未开源，成品从 Releases 获取），尾部链接 WindInput-Go
+- [x] 根 `README.md`：精简版，产品名直接为 Moodflow 输入法，
+  声明开源边界（配套组件未开源，成品从 Releases 获取），尾部链接 Moodflow-Go
 - [x] `NOTICE.md`：按「已入库 / 构建期下载」两类重写，新增 OpenCC 与 Squirrel 参考
 - [x] `CONTRIBUTING.md`：开发环境改为 Rust 工具链（dev.ps1 / dev.sh / mac），
   沿用 alpha PR 政策、CLA 流程与 Conventional Commits
@@ -65,7 +65,7 @@ CLA 尤其值得保留，继续用 CLA Assistant 机器人流程。
   新增安装方式（安装包/便携版/pkg/源码）与三平台日志路径；功能建议模板新增「涉及平台」
 - [x] `.github/PULL_REQUEST_TEMPLATE.md`：Rust 化（`dev.ps1 ci`、cargo fmt、AGENTS.md 同步）
 - [x] `.github/workflows/ci.yml`：在既有 ubuntu 交叉编译 CI 上**新增 macOS 门控
-  编译校验**（paths-filter 命中 wind_macos/wind_input/scripts/mac 时 `swift build` + `cargo check`）
+  编译校验**（paths-filter 命中 moodflow_macos/moodflow_input/scripts/mac 时 `swift build` + `cargo check`）
 - [x] `.github/workflows/cla.yml`：CLA Assistant（需配置 `CLA_TOKEN` secret）
 - [x] `.github/release.yml`：Release Notes 自动分类配置
 - [x] 根目录内部计划文档归档至 `docs/archive/`
@@ -73,35 +73,35 @@ CLA 尤其值得保留，继续用 CLA Assistant 机器人流程。
 ### 转 public 前待办
 
 1. **最终敏感信息扫描**：gitleaks（或 trufflehog）全历史扫描兜底（初查已干净）。
-2. **仓库 Secrets**：确认 `WIND_REPOS_TOKEN`（Release 用）与 `CLA_TOKEN`
+2. **仓库 Secrets**：确认 `MOODFLOW_REPOS_TOKEN`（Release 用）与 `CLA_TOKEN`
    （CLA Assistant 用）已配置。
-3. **仓库更名**：旧名 → WindInput（GitHub 自动重定向旧 URL）；
-   原 Go 仓库先更名为 WindInput-Go 腾出名字。仓库内的旧名字样
+3. **仓库更名**：旧名 → Moodflow（GitHub 自动重定向旧 URL）；
+   原 Go 仓库先更名为 Moodflow-Go 腾出名字。仓库内的旧名字样
    （release.yml、pack-installer.sh、config/app.toml、scripts、日志文案、docs 现行文档）
-   已统一替换为 WindInput（历史文档 docs/archive/ 刻意保留原文；docs/superpowers/
+   已统一替换为 Moodflow（历史文档 docs/archive/ 刻意保留原文；docs/superpowers/
    已从仓库与历史中移除，转为本地任务指引）。
-   **跨仓库同步（必须与本地目录改名同时做）**：`wind-setting` 的 `Cargo.toml`
-   （`wind-ipc = { path = "../WindInput/..." }`）与 `build.rs` 引用需改为
-   `../WindInput`；在其同步前，Release workflow（checkout path 已改为 WindInput）
+   **跨仓库同步（必须与本地目录改名同时做）**：`moodflow-setting` 的 `Cargo.toml`
+   （`moodflow-ipc = { path = "../Moodflow/..." }`）与 `build.rs` 引用需改为
+   `../Moodflow`；在其同步前，Release workflow（checkout path 已改为 Moodflow）
    打 tag 会构建失败。
 4. **GitHub 仓库设置**：description、topics（ime / input-method / tsf / rust /
    wubi / pinyin）、启用 Discussions（issue 模板 config.yml 已链接）、
    branch protection（main 需 PR + CLA 检查）。
-5. **转 public**；原 WindInput-Go 仓库 README 加指引说明 Rust 版所在。
+5. **转 public**；原 Moodflow-Go 仓库 README 加指引说明 Rust 版所在。
 
 ### 开源后逐步完善
 
 6. 新写面向用户的 `CHANGELOG.md` 发布说明（旧 Go 时代版本已连同历史移除）。
 7. Cargo workspace 补 `license` / `repository` 元数据（可选）。
 
-## 四、文档站（WindInputDocs）
+## 四、文档站（MoodflowDocs）
 
-独立仓库 `WindInputDocs`（VitePress），当前内容面向 Go 版。规划（暂不动手）：
+独立仓库 `MoodflowDocs`（VitePress），当前内容面向 Go 版。规划（暂不动手）：
 
 - 文档站保持独立仓库不变，便于社区贡献与主仓库解耦。
 - Rust 版发布后需重写的内容：下载/安装页（新产物名与 macOS pkg）、
   配置说明（config.toml 键位已迁移）、快捷键/方案文档、FAQ。
-- 主仓库更名为 WindInput 后，文档站中指向主仓库的链接虽有 GitHub 自动重定向，
+- 主仓库更名为 Moodflow 后，文档站中指向主仓库的链接虽有 GitHub 自动重定向，
   仍建议统一更新；在线文档地址与徽章同理。
 - 本仓库 README 暂不链接文档站，待其内容替换为 Rust 版后再加入。
 
@@ -112,8 +112,8 @@ CLA 尤其值得保留，继续用 CLA Assistant 机器人流程。
   代码是加载关系而非代码链接，原 Go 项目已按此模式发布，维持现状。
 - **来源不详资源**（拆字库、字根字体）：以透明声明换取可用性，
   与原项目一致；备选方案是改为「构建期可选下载」但改动成本高，暂不做。
-- **wind-rpc / webdata 协议随核心开源**：设置端 JSON-RPC 协议公开，
+- **moodflow-rpc / webdata 协议随核心开源**：设置端 JSON-RPC 协议公开，
   第三方可自写设置界面。这属于「可学习」的范畴，接受。
 - **Release workflow 引用私有仓库**：public 仓库中 workflow 文件可见（他人可知
-  存在私有配套仓库），但 `WIND_REPOS_TOKEN` secret 不会暴露，fork 的 PR 无法读取。
+  存在私有配套仓库），但 `MOODFLOW_REPOS_TOKEN` secret 不会暴露，fork 的 PR 无法读取。
 - **AGENTS.md / docs 设计文档**：无敏感信息，公开保留。

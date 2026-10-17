@@ -33,7 +33,7 @@
 | 4 | `pinyin/mod.rs:1403` | `word_syls == 0` → `continue`，长词上浮跳过 | 长词排到 300 名外＝打不出来 |
 | 5 | `pinyin/mod.rs:526 should_promote_user_completion` | 同上 | 同上 |
 | 6 | `pinyin/lattice.rs:356` `mask_path` | 返回 `MaskCheck::NoInfo` → 降级放行 | 整句不设防 |
-| 7 | `wind-store/src/abbrev_index.rs:67 group_of` | 落进 `\u{1}{首字母}` 兜底组 | **规模随导入量增长的线性扫描** |
+| 7 | `moodflow-store/src/abbrev_index.rs:67 group_of` | 落进 `\u{1}{首字母}` 兜底组 | **规模随导入量增长的线性扫描** |
 | 8 | 码表自动造词沿用 0 | 污染扩散 | — |
 
 第 7 条尤其值得注意：`abbrev_index` 这个模块存在的全部理由就是根除「逐键路径上的
@@ -56,7 +56,7 @@ fn is_valid_code(code: &str) -> bool {
 | `ni'hao` | Rime 的另一种音节分隔写法 | flat 域不变量是「剥除 `'` 后的串」，key 留着 `'` ⇒ **查询恒不命中**。全仓无一处处理 `'`（已 grep 确认） |
 | `NiHao` | 部分第三方词库 | 查询侧全链路 `is_ascii_lowercase`（`lattice.rs:461/469/543`、`mixed_abbrev.rs:111`、`scorer.rs:31`），而 `search_user_words_prefix` 是**裸字节前缀匹配、无大小写归一** |
 | `ni3hao3` | 带声调数字 | 同上 |
-| `wgkq` | 五笔词库导进拼音方案 | 跨引擎校验（`webdata/lib.rs:632`）**只对 WindDict 格式生效**，Rime/TSV 路径注释写着「不拦截」 |
+| `wgkq` | 五笔词库导进拼音方案 | 跨引擎校验（`webdata/lib.rs:632`）**只对 MoodflowDict 格式生效**，Rime/TSV 路径注释写着「不拦截」 |
 
 ★ **判据建错了一侧。** `is_valid_code` 问的是「这串是不是可打印」（几乎无约束），
 而拼音码的形态约束强得多。这与 `.dict.yaml` 列序那次 bug（见
@@ -92,7 +92,7 @@ text 任意文本）。理由：拼音的处理流程（DAG 切分 / 简拼索�
 ⚠️ 提示文案必须讲明短语**不是等价替换**：短语触发靠打完整 code，不参与候选竞争、
 前缀补全与整句；且存 `user_data.db`，与词库是两套导入入口。
 
-★ 逃生口在 main 上已经具体化：`wind:p1` 短语文本导入（`web_phrase_import_text`）支持整段
+★ 逃生口在 main 上已经具体化：`moodflow:p1` 短语文本导入（`web_phrase_import_text`）支持整段
 粘贴分发，所以「改用短语」不再是一句无处落地的建议，用户有可操作的批量入口。
 ⚠️ 它写的是短语库（`import_phrases_appending`），**不经过本契约的闸口**——这是正确的：
 短语 code 是任意 ASCII、本就无音节语义，套上边界不变量反而会把逃生口一起堵死。
@@ -164,13 +164,13 @@ text 任意文本）。理由：拼音的处理流程（DAG 切分 / 简拼索�
 
 ### 3.2 无 code（纯词表）：**已合规，本次不动**
 
-★★ 这条路径的编排整个在 **wind-setting 仓**（`src/pages/dict/state.rs` 的
+★★ 这条路径的编排整个在 **moodflow-setting 仓**（`src/pages/dict/state.rs` 的
 `import_word_list` / `encode_word_batches`），主仓只提供 `dict.encodeWords` 一个 RPC。
 其设计注释写明了这个取舍：
 
 > 复用 TSV 而不新开一条导入协议，是因为出好码之后这就是标准的 `code<TAB>text<TAB>weight`
 > ——那条路的解析、去重、merge/replace 语义全部现成，core 侧因此只需新增一个批量出码
-> RPC，`wind-store` 一行都不用动。
+> RPC，`moodflow-store` 一行都不用动。
 
 **已验证的完整链路**（每一跳都保住了空格）：
 
@@ -204,7 +204,7 @@ dict.encodeWords → encode_texts（webdata/lib.rs:1333）
 | 纯词表（只有 `重庆`） | `encode_texts` 推导 | 真问题，只能按权重猜 |
 
 ⚠️ **有 code 时绝不调用 `encode_texts`**。用推导码覆盖作者的 code = 用更差的信息源
-覆盖更好的。`gen_pinyin` 的缺陷是确证的：`wind-reverse/src/lib.rs:1042`，其测试名就叫
+覆盖更好的。`gen_pinyin` 的缺陷是确证的：`moodflow-reverse/src/lib.rs:1042`，其测试名就叫
 `test_gen_pinyin_uses_first_reading`——「重要」侥幸对，「重庆」必错。
 `generate_word_pinyin` 的层 3 兜底同样是 `index.representative(r)`（权重最高读音），
 新词走不到层 1 的词典验证时也会错。
@@ -252,7 +252,7 @@ enum BoundaryResolution {
 返回枚举而非 `Option<u64>`，因为预览要按类型分别计数（§5）。
 
 ⚠️ **不要改 `syllable_boundary_of`**。它的契约是「点查取真值，不做推断」，
-`wind-engine/tests/pinyin_abbrev_index.rs:111` 有专门的测试防止它被当成重复实现合并掉
+`moodflow-engine/tests/pinyin_abbrev_index.rs:111` 有专门的测试防止它被当成重复实现合并掉
 （测试注释原文：「这是它与 `generate_word_pinyin` 的分水岭」）。新方法语义是「求解」，
 两者必须并存。
 
@@ -271,7 +271,7 @@ enum BoundaryResolution {
 - **大写 → 小写**（仅拼音目标）。
 - `is_valid_code` 由 §2.1 的判据 ② 取代。
 
-⚠️ **落点约束**：`import_formats` 在 wind-store 层，按设计拿不到 `engine_mgr`
+⚠️ **落点约束**：`import_formats` 在 moodflow-store 层，按设计拿不到 `engine_mgr`
 （落库规则须两类方案通用）。故不要把引擎判断塞进去，而是给 `parse_words_auto` 加一个
 显式策略参数（如 `CodePolicy { lowercase, syllable_separators }`），由 webdata 按目标
 引擎填。store 层仍然只认识「策略」，不认识「引擎」。
@@ -309,7 +309,7 @@ code 里的空格（旧路径逐字节不变）。`import_user_words` 与 `previ
 
 ### 5.0 实测：求解率与正确率（2026-08-22）
 
-夹具 `wind-engine/tests/pinyin_boundary_solve_rate.rs`（`#[ignore]` eval）。
+夹具 `moodflow-engine/tests/pinyin_boundary_solve_rate.rs`（`#[ignore]` eval）。
 样本 = 出厂合并词典 `rime_frost.merged.wdat` 里**全部**多字词条，把码拍平模拟「用户导入
 无空格词表」，**绕开层 2** 只跑层 4 → 层 3：
 
@@ -382,7 +382,7 @@ unresolvable:  M   // 「非法」档行数
 `boundarySkipped`（用户自己刚做的选择）是两种不同的下一步，合并成一个「跳过 N 行」
 讲不清。预览侧同理，并且**非法档一定要列样例**。
 
-⚠️ 跨仓：`dict.import` / `dict.previewImport` 在 wind-setting 有手写 mock，本次已按
+⚠️ 跨仓：`dict.import` / `dict.previewImport` 在 moodflow-setting 有手写 mock，本次已按
 schemaId 分流出一个拼音样例——只留原来的码表样例的话，新增的那一行选择在 mock 模式下
 **永远不显示，等于没法离线验证**。
 
@@ -395,9 +395,9 @@ schemaId 分流出一个拼音样例——只留原来的码表样例的话，�
 
 | 层 | 仓 | 内容 |
 |---|---|---|
-| 落库 + 格式解析 | 主仓 `wind-store` | `split_spaced_code`、`import_user_words`、`parse_words_*` |
-| 求解 / 出码能力 + RPC | 主仓 `wind-webdata` | `dict.import` / `previewImport` / `encodeWords` |
-| **编排 + UI** | **wind-setting** | 选文件、预览回显、纯词表出码 → 拼 TSV → 复用 `dict.import` |
+| 落库 + 格式解析 | 主仓 `moodflow-store` | `split_spaced_code`、`import_user_words`、`parse_words_*` |
+| 求解 / 出码能力 + RPC | 主仓 `moodflow-webdata` | `dict.import` / `previewImport` / `encodeWords` |
+| **编排 + UI** | **moodflow-setting** | 选文件、预览回显、纯词表出码 → 拼 TSV → 复用 `dict.import` |
 
 本次改动的归属，**主要逻辑在主仓**：
 
@@ -405,19 +405,19 @@ schemaId 分流出一个拼音样例——只留原来的码表样例的话，�
 |---|---|---|
 | `SegGraph::paths_with_edges` + `resolve_boundary` | 主仓 `pinyin/{dag,generate,mod}.rs` | 重 ✅ |
 | 求解链接入导入闸口 | 主仓 `webdata/lib.rs:632/696` | 中 |
-| `normalize_code` 策略化 + `is_valid_code` 替换 | 主仓 `wind-store/import_formats.rs` | 中 |
+| `normalize_code` 策略化 + `is_valid_code` 替换 | 主仓 `moodflow-store/import_formats.rs` | 中 |
 | 运行时探测器 | 主仓 `user_words.rs` 等 | 轻 |
-| 预览三档字段渲染 + 二选一对话框 | wind-setting `pages/dict/state.rs` | 轻 |
+| 预览三档字段渲染 + 二选一对话框 | moodflow-setting `pages/dict/state.rs` | 轻 |
 
 ⚠️ **`dict.previewImport` 在 setting 仓有手写 mock**（`src/rpc.rs:1353`，非快照生成），
 新增响应字段必须同步改它——否则 mock 模式下新分支离线验证不到。同理 `dict.import`
 （`:1349`）与 `dict.encodeWords`（`:1333`）。
 
-⚠️ 跨仓时序：setting 仓 `Cargo.toml` 用 path 依赖指向 `../WindInput/...`，故主仓改动
+⚠️ 跨仓时序：setting 仓 `Cargo.toml` 用 path 依赖指向 `../Moodflow/...`，故主仓改动
 必须先落到**那份工作区**（不是 worktree / 别的分支）setting 侧才做得动。见
 `reference_wind_setting_repo`。**未验证**：本次只改 RPC 响应字段、不加 config key，
 预计不触发 `capabilities.snapshot.json` / `mockdata/config.json` 那两道快照守门
-（它们从 `wind-config` + `data/config.toml` 现算），但动手前应确认。
+（它们从 `moodflow-config` + `data/config.toml` 现算），但动手前应确认。
 
 ## 6. 其余写入路径
 
@@ -513,8 +513,8 @@ count，若在那条路径上无差别断言 `boundary != 0`，告警会全是�
    ⚠️ `is_valid_code` **有意保留**：store 层拿不到引擎，判据② 只能在 webdata 层做。
    分工变成：store 只做**归一化** + 拦乱码，webdata 做**准入**。
 4. ~~导入闸口接求解链 + 预览三档字段（§5）。~~ ✅ **已完成**，Rime/TSV 与
-   **WindDict 多段**两条路径都已接（后者含 `words` 与 `temp_words` 两段）。
-5. ~~wind-setting UI 对话框。~~ ✅ **已完成**（wind-setting `919a69c`），落地形态见 §5.2。
+   **MoodflowDict 多段**两条路径都已接（后者含 `words` 与 `temp_words` 两段）。
+5. ~~moodflow-setting UI 对话框。~~ ✅ **已完成**（moodflow-setting `919a69c`），落地形态见 §5.2。
    后端配套：`dict.import` 新增 `fillBoundary`（缺省 true）与 `boundarySkipped` 计数。
 6. ~~其余写入路径装探测器（§6）。~~ ✅ **已完成**，但落点与原计划不同：
    原定的 `on_word_selected` 实测无生产调用点，探测器改落 `normalize_add_code`，见 §6.1。
@@ -526,8 +526,8 @@ count，若在那条路径上无差别断言 `boundary != 0`，告警会全是�
   （`generate_word_pinyin` 要枚举 410 音节的笛卡尔积，`MAX_READING_COMBOS` 封顶）。
   第 4 层的 DAG 只在单行的短码上建，**很可能比第 3 层便宜，把 4 提到 3 前面大概率更快**。
   需在 19 万词量级实测后定序。
-- ~~本次接线只覆盖 Rime/TSV 路径~~ ✅ **WindDict 多段路径已接**（2026-08-22）。
-  闸口以 `&mut dyn FnMut(DictSection, Vec<WordIo>) -> Vec<WordIo>` **注入** `wind-store`——
+- ~~本次接线只覆盖 Rime/TSV 路径~~ ✅ **MoodflowDict 多段路径已接**（2026-08-22）。
+  闸口以 `&mut dyn FnMut(DictSection, Vec<WordIo>) -> Vec<WordIo>` **注入** `moodflow-store`——
   求解链要引擎，store 拿不到 `engine_mgr`（同 `CodePolicy` 的理由）。store 只负责
   「少了几行 → 进 `skipped`」，不关心为什么少；分类计数由 webdata 逐段并进响应。
   ⚠️ 闸口是注入的 ⇒ **漏接一段不会有任何编译错误或运行时报错**，表现是「导入成功，

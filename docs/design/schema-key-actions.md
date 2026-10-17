@@ -458,7 +458,7 @@ handle_select_key_up（二三候选键，有候选时赢）
 存量配置因此零改动继续生效，而新写法可以逐方案覆盖它。代价是 z 在两处可配，靠文档与
 设置页说明消化——比起为迁移瞎猜一个目标方案，这个代价更小。
 
-`ZKeyAction` 类型改名 `KeyAction`（值域扩充，解析逻辑不变）。注意与 `wind-coordinator`
+`ZKeyAction` 类型改名 `KeyAction`（值域扩充，解析逻辑不变）。注意与 `moodflow-coordinator`
 既有的 `KeyAction`（按键返回值）**重名**——建议叫 `KeyBinding` 或 `BoundAction`，命名在
 实施时定。
 
@@ -591,7 +591,7 @@ A 类反过来排到最后——它是功能完整性，不是任何人的诉求
   语法 `a-x/`，设置页再写一份解析器就是两处慢慢漂移——跨仓契约无编译期约束，本仓
   已在 `schema.rs` × 工具站那条上栽过。
 - 字符集构造走 `CodeCharSet::new`，与引擎构建同一个构造器；组装符号键名放**协调器**，
-  引擎层不依赖 `wind-keys`（层次倒置）。
+  引擎层不依赖 `moodflow-keys`（层次倒置）。
 - `symbol_keys()` 的键名加了快照测试：改 `KEY_TABLE` 某行的**首个**别名不会破坏本仓
   任何功能（其余别名仍能解析），却会静默切断设置页的匹配。
 - `READONLY_SIDECAR_FIELDS` 的测试改为**逐个覆盖**——新增旁路字段却忘登记正是那个坑

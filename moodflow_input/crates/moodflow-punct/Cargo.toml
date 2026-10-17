@@ -1,0 +1,11 @@
+[package]
+name = "moodflow-punct"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+moodflow-config = { path = "../moodflow-config" }
+moodflow-transform = { path = "../moodflow-transform" }
+
+[lints]
+workspace = true

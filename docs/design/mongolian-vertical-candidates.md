@@ -283,10 +283,10 @@ tate-chu-yoko）。单位数下两种做法完全相同；逐格切会把多位�
 - ⚠️ 改的是**已有变体**而不是新加一个 `KeyedMap`：`FieldType::Map` 有约十处 match，
   其中 `patch.rs` 的 `is_map_key` 与 `config_schema` 的 flatten 边界是**语义闸门**，
   漏一处是静默行为改变。改已有变体 ⇒ 编译器逐个报错，一个都漏不掉。
-- 真相源仍只有一份：`FONT_SCRIPT_KEYS` 在 wind-config，`ScriptClass::ALL` 在 wind-ui，
-  由 wind-ui 侧的 `script_class_keys_match_config_registry` 比对（含**顺序**——
+- 真相源仍只有一份：`FONT_SCRIPT_KEYS` 在 moodflow-config，`ScriptClass::ALL` 在 moodflow-ui，
+  由 moodflow-ui 侧的 `script_class_keys_match_config_registry` 比对（含**顺序**——
   设置端按这个顺序铺行，顺序漂了用户每次打开对话框都看到行序变化）。
-  只能在 wind-ui 侧测：wind-config 依赖不到 wind-ui。
+  只能在 moodflow-ui 侧测：moodflow-config 依赖不到 moodflow-ui。
 
 ---
 
@@ -342,9 +342,9 @@ tate-chu-yoko）。单位数下两种做法完全相同；逐格切会把多位�
 
 ## 跨仓收尾（未做）
 
-- `wind-setting`：✅ 已完成（C/A/B 三部分的控件、布局值域、守门测试）；
+- `moodflow-setting`：✅ 已完成（C/A/B 三部分的控件、布局值域、守门测试）；
   `upright` 取值与字体类别预填待接。
-- `WindInputDocs`：两个新全局键 + 一个新方案键的参考条目（`pnpm check:config` 会查覆盖），
+- `MoodflowDocs`：两个新全局键 + 一个新方案键的参考条目（`pnpm check:config` 会查覆盖），
   以及**已失效的既有陈述**——「候选排列有横排和竖排两种」「方案行为面板共三项」这类
   不含新键名、grep 找不到的句子。
 

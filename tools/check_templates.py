@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""心晴 · 出厂模板校验（CI 中运行，见 14 第 6 节）
+"""Moodflow · 出厂模板校验（CI 中运行，见 14 第 6 节）
 
 用法：python3 check_templates.py <hub_templates 目录>
 检查：所有 TOML 能解析；暖心话每组 ≥ 15 句、6–30 个汉字、id 唯一、不含禁用词和“打字/检测”；

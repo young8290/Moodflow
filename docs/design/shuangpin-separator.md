@@ -154,8 +154,8 @@ r.syllables.last().is_some_and(|s| s.raw_end >= raw_input.len())
 
 ## 8. 测试
 
-`crates/wind-engine/tests/shuangpin_separator.rs`，**必须走真词库**——混合简拼的召回
-靠 `wind_store::abbrev_index`，内存夹具建不出那个索引，拿它测会一律空候选、分不清是
+`crates/moodflow-engine/tests/shuangpin_separator.rs`，**必须走真词库**——混合简拼的召回
+靠 `moodflow_store::abbrev_index`，内存夹具建不出那个索引，拿它测会一律空候选、分不清是
 分隔符没生效还是索引不在场（首版探针就栽在这里，白查一轮）。
 
 核心用例同时钉两头：`nhc` 不出「你好」+ `n'hc` 出「你好」。**只钉后者的话，

@@ -6,13 +6,13 @@
 
 **Architecture:** 核心 `schema.getConfig` 补一个只读旁路字段 `auxCodeBaseFiles`（方案文件自己声明的 `files`，不含 override），设置端据此区分「跟随方案」与「用户选的」；可选项来自第 1 期的 `schema.auxCodeSources`。设置端的判定与落盘写成纯函数（可测），界面行照卡片上既有两行的 R8.1 勾选行形态。
 
-**Tech Stack:** Rust；核心 workspace `wind_input/`；设置端 wind-setting（windui，经 xwin + wine 跑测试）。
+**Tech Stack:** Rust；核心 workspace `moodflow_input/`；设置端 moodflow-setting（moodflowui，经 xwin + wine 跑测试）。
 
 **Spec:** `docs/design/aux-code-schema-source.md` §6；R8 呈现规范 `docs/architecture/config-design-rules.md`。
 
 **工作位置：**
-- 核心：worktree `/home/dufeng/develop/windinput/wt-auxsrc/WindInput`，分支 `feat/aux-code-source`。
-- 设置端：worktree `/home/dufeng/develop/windinput/wt-auxsrc/wind-setting`，分支 `feat/aux-code-source`（`Cargo.toml` 的 `../WindInput` 正好指向上面那个核心 worktree；`../wind-ui-rust` 是软链到主 checkout）。
+- 核心：worktree `/home/dufeng/develop/moodflow/wt-auxsrc/Moodflow`，分支 `feat/aux-code-source`。
+- 设置端：worktree `/home/dufeng/develop/moodflow/wt-auxsrc/moodflow-setting`，分支 `feat/aux-code-source`（`Cargo.toml` 的 `../Moodflow` 正好指向上面那个核心 worktree；`../moodflow-ui-rust` 是软链到主 checkout）。
 - harness 每条命令后 cwd 会复位——**每条 Bash 都显式 `cd`**。
 
 ## Global Constraints
@@ -24,8 +24,8 @@
 - 「全部恢复跟随」一并清这一行；卡片摘要「已自定义 N 项」计入它。
 - 下拉选项：方案在前、码表在后；每项右侧徽章区分「输入方案」/「辅助码表」。
 - 核心新增的旁路字段必须登记进 `READONLY_SIDECAR_FIELDS`（否则会随 saveConfig 落进 override）。
-- 核心测试：`cd <核心 worktree>/wind_input && mkdir -p /tmp/wct-auxsrc && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p wind-webdata <filter>`。
-- 设置端测试：`cd /home/dufeng/develop/windinput/wt-auxsrc/wind-setting && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-setting-auxsrc ./scripts/dev.sh st`（全量，经 wine）；检查 `... ./scripts/dev.sh sk`。
+- 核心测试：`cd <核心 worktree>/moodflow_input && mkdir -p /tmp/wct-auxsrc && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p moodflow-webdata <filter>`。
+- 设置端测试：`cd /home/dufeng/develop/moodflow/wt-auxsrc/moodflow-setting && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-setting-auxsrc ./scripts/dev.sh st`（全量，经 wine）；检查 `... ./scripts/dev.sh sk`。
 - 格式化只对改动文件 `rustfmt --edition 2024`；禁 `cargo fmt --all`。
 - 提交：`git commit -F - --only -- <路径>`（新文件先 `git add -- <文件>`）；禁 `git add -A` / `.` / `commit -a` / `stash` / `reset --hard`。两个 worktree 各有一处与本任务无关的未提交 `Cargo.lock` 改动，**不要提交它**。
 - 注释中文，风格对齐所在文件。
@@ -43,18 +43,18 @@
 ### Task 1: 核心 `getConfig` 补 `auxCodeBaseFiles` 旁路字段
 
 **Files:**
-- Modify: `wind_input/crates/wind-webdata/src/lib.rs`（`web_schema_get_config` 里 `followedBehavior` 插入处附近；`READONLY_SIDECAR_FIELDS`；测试模块）
+- Modify: `moodflow_input/crates/moodflow-webdata/src/lib.rs`（`web_schema_get_config` 里 `followedBehavior` 插入处附近；`READONLY_SIDECAR_FIELDS`；测试模块）
 
 **Interfaces:**
 - Produces: `schema.getConfig` 结果顶层 `"auxCodeBaseFiles": [String]`——方案文件（不含 override 层）的 `[engine.aux_code].files`，没写则为 `[]`。
 
-- [ ] **Step 1: 失败测试**（wind-webdata 测试模块，照 `schema_overlay_section_roundtrips_through_save_config` 的夹具写法）
+- [ ] **Step 1: 失败测试**（moodflow-webdata 测试模块，照 `schema_overlay_section_roundtrips_through_save_config` 的夹具写法）
 
 ```rust
     /// 设置页区分「跟随方案」与「用户选的来源」要看方案文件自己的 files——合并值答不了。
     #[test]
     fn get_config_exposes_aux_code_base_files_and_strips_it_on_save() {
-        let dir = std::env::temp_dir().join(format!("wind_webdata_aux_base_{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("moodflow_webdata_aux_base_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let schemas = dir.join("schemas");
         std::fs::create_dir_all(&schemas).unwrap();
@@ -67,9 +67,9 @@
         let ov = dir.join("overrides");
         std::fs::create_dir_all(&ov).unwrap();
         std::fs::write(ov.join("zz_py.toml"), "[engine.aux_code]\nfiles = [\"schema:wubi86\"]\n").unwrap();
-        let store = std::sync::Arc::new(wind_store::Store::open(&dir.join("s.redb")).unwrap());
+        let store = std::sync::Arc::new(moodflow_store::Store::open(&dir.join("s.redb")).unwrap());
         let c = Coordinator::new_headless_with_store_override(
-            wind_config::Config::default(), Some(&dir), store, Some(ov.clone()),
+            moodflow_config::Config::default(), Some(&dir), store, Some(ov.clone()),
         );
         let v = c.web_data_rpc("schema.getConfig", &json!({ "id": "zz_py" })).unwrap();
         assert_eq!(v["auxCodeBaseFiles"], json!(["aux_code/stroke.txt"]), "方案文件自己的 files");
@@ -84,7 +84,7 @@
 
 - [ ] **Step 2: 跑，确认失败**（`auxCodeBaseFiles` 为 null）
 
-`cd /home/dufeng/develop/windinput/wt-auxsrc/WindInput/wind_input && mkdir -p /tmp/wct-auxsrc && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p wind-webdata get_config_exposes_aux_code_base_files`
+`cd /home/dufeng/develop/moodflow/wt-auxsrc/Moodflow/moodflow_input && mkdir -p /tmp/wct-auxsrc && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-auxsrc TMPDIR=/tmp/wct-auxsrc cargo test -p moodflow-webdata get_config_exposes_aux_code_base_files`
 
 - [ ] **Step 3: 实现**
 
@@ -110,14 +110,14 @@
     "auxCodeBaseFiles",
 ```
 
-- [ ] **Step 4: 跑该测试与 `cargo test -p wind-webdata` 全量，确认通过**
+- [ ] **Step 4: 跑该测试与 `cargo test -p moodflow-webdata` 全量，确认通过**
 
 - [ ] **Step 5: 格式化并提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-auxsrc/WindInput/wind_input
-rustfmt --edition 2024 crates/wind-webdata/src/lib.rs
-git commit -F - --only -- crates/wind-webdata/src/lib.rs <<'EOF'
+cd /home/dufeng/develop/moodflow/wt-auxsrc/Moodflow/moodflow_input
+rustfmt --edition 2024 crates/moodflow-webdata/src/lib.rs
+git commit -F - --only -- crates/moodflow-webdata/src/lib.rs <<'EOF'
 feat(webdata): schema.getConfig 附带 auxCodeBaseFiles —— 设置页区分「跟随方案」与用户选的辅助码来源
 
 engine.aux_code.files 是方案文件 ⊕ override 的合并值，两种来源都是一个数组，设置页判不出
@@ -148,7 +148,7 @@ EOF
 
 ```rust
         // 辅助码来源的可选项（对齐核心 `schema.auxCodeSources`）：码表方案 + aux_code/*.txt。
-        // 名字给中文，下拉与跟随档文字在 `WIND_RPC_MOCK=1` 下才有得看。
+        // 名字给中文，下拉与跟随档文字在 `MOODFLOW_RPC_MOCK=1` 下才有得看。
         "schema.auxCodeSources" => json!({
             "schemas": [
                 { "id": "wubi86", "name": "五笔 86" },
@@ -212,7 +212,7 @@ EOF
     }
 ```
 
-运行 `cd /home/dufeng/develop/windinput/wt-auxsrc/wind-setting && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-setting-auxsrc ./scripts/dev.sh st`，确认编译失败（函数不存在）。
+运行 `cd /home/dufeng/develop/moodflow/wt-auxsrc/moodflow-setting && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-setting-auxsrc ./scripts/dev.sh st`，确认编译失败（函数不存在）。
 
 - [ ] **Step 3: 实现纯函数**
 
@@ -333,7 +333,7 @@ fn aux_src_write(over: bool, pick: Option<&str>) -> Value {
 - [ ] **Step 7: 格式化并提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-auxsrc/wind-setting
+cd /home/dufeng/develop/moodflow/wt-auxsrc/moodflow-setting
 rustfmt --edition 2024 src/rpc.rs src/dialogs/schema_manager.rs
 git commit -F - --only -- src/rpc.rs src/dialogs/schema_manager.rs <<'EOF'
 feat(schema): 辅助码来源的判定与落盘 —— 跟随方案 / 选一个来源 / 多条只读，接 schema.auxCodeSources
@@ -362,13 +362,13 @@ EOF
             // 不看徽章分不出来。
             let src_over = state.settings_aux_src_over;
             let src_manual = state.settings_aux_src_manual;
-            let items: Vec<windui::ui::select::DropdownItem> = state
+            let items: Vec<moodflowui::ui::select::DropdownItem> = state
                 .settings_aux_src_opts
                 .borrow()
                 .items
                 .iter()
                 .map(|i| {
-                    windui::ui::select::DropdownItem::new(&i.label)
+                    moodflowui::ui::select::DropdownItem::new(&i.label)
                         .badge(if i.is_schema { "输入方案" } else { "辅助码表" }, Intent::Neutral)
                 })
                 .collect();
@@ -390,7 +390,7 @@ EOF
             );
 ```
 
-（`DropdownItem` / `Intent` 的实际路径、`badge` 取哪个 Intent 以 windui 现有用法为准；`AUX_SRC_W` 新常量，宽度要放得下最长的「五笔 86 + 徽章」，先取 220 目视再定。manual 态下 `gate` 为 false，`override_control` 显示 `reason` 文案——若它的语义不是这样，改为 manual 时用一个只读 label 显示各条名字 + 「在方案文件里编辑」，并在报告里说明。）`override_group_card` 的行向量改为 `vec![row_on, row_src, row_len]`。
+（`DropdownItem` / `Intent` 的实际路径、`badge` 取哪个 Intent 以 moodflowui 现有用法为准；`AUX_SRC_W` 新常量，宽度要放得下最长的「五笔 86 + 徽章」，先取 220 目视再定。manual 态下 `gate` 为 false，`override_control` 显示 `reason` 文案——若它的语义不是这样，改为 manual 时用一个只读 label 显示各条名字 + 「在方案文件里编辑」，并在报告里说明。）`override_group_card` 的行向量改为 `vec![row_on, row_src, row_len]`。
 
 - [ ] **Step 2: 检索项**：`src/search/index.rs` 辅助码那两行之后加
   `SchemaLevelItem { title: "辅助码来源", tab: "方案自定义", section: "辅助码", keywords: "辅码 码表 笔画 五笔 小鹤 自然码 跟随方案" },`
@@ -399,13 +399,13 @@ EOF
 - [ ] **Step 3: 全量测试** `./scripts/dev.sh st`（带上面的 CARGO_TARGET_DIR），0 失败。
 
 - [ ] **Step 4: 目视**：在 mock 下截这一屏两张图（跟随态、勾选态）：
-  `cd /home/dufeng/develop/windinput/wt-auxsrc/wind-setting && WIND_RPC_MOCK=1 CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-setting-auxsrc cargo xwin run --target x86_64-pc-windows-msvc -- <打开方案设置对话框到拼音族方案「方案自定义」页的参数> --screenshot /tmp/wct-auxsrc/aux-src-follow.png`
+  `cd /home/dufeng/develop/moodflow/wt-auxsrc/moodflow-setting && MOODFLOW_RPC_MOCK=1 CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-setting-auxsrc cargo xwin run --target x86_64-pc-windows-msvc -- <打开方案设置对话框到拼音族方案「方案自定义」页的参数> --screenshot /tmp/wct-auxsrc/aux-src-follow.png`
   （参数以 `src/main.rs` 的截图 / 直达参数为准；若该对话框没有直达参数，报告里说明并改为给出人工验证判据。）用 Read 看图，确认：行在两行之间、跟随文字「跟随方案（笔画）」完整不截断、三行右侧控件左边界对齐。
 
 - [ ] **Step 5: 格式化并提交**
 
 ```bash
-cd /home/dufeng/develop/windinput/wt-auxsrc/wind-setting
+cd /home/dufeng/develop/moodflow/wt-auxsrc/moodflow-setting
 rustfmt --edition 2024 src/dialogs/schema_manager.rs src/search/index.rs
 git commit -F - --only -- src/dialogs/schema_manager.rs src/search/index.rs <<'EOF'
 feat(schema): 辅助码卡片加「辅助码来源」一行 —— 跟随方案或选一个输入方案 / 辅助码表

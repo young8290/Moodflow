@@ -1,6 +1,6 @@
-# WindInput 软键盘
+# Moodflow 软键盘
 #
-# 自定义：把本文件拷贝到 %APPDATA%\WindInput\system.softkeyboard.toml 后修改，
+# 自定义：把本文件拷贝到 %APPDATA%\Moodflow\system.softkeyboard.toml 后修改，
 # 重启输入法服务生效。用户目录那份按面合并，不必抄全文（见下「用户覆盖」）。
 #
 # 面分两种：符号面出符号（敲哪个键、点哪个键帽都出这里配的字符），

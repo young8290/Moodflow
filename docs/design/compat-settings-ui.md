@@ -4,7 +4,7 @@
 
 ## 1. 目标与非目标
 
-**目标**：在设置端（`wind-setting`）新增「应用兼容性」页，统一管理 `compat.toml`，取代手改文件。
+**目标**：在设置端（`moodflow-setting`）新增「应用兼容性」页，统一管理 `compat.toml`，取代手改文件。
 
 1. 区分系统默认与用户配置，可还原到系统默认（字段级 / 单条 / 全部）。
 2. 后续新增兼容字段时，GUI 自动适配，不需要逐字段手写界面。
@@ -17,11 +17,11 @@
 
 ## 2. 现状（设计依据）
 
-- 核心 `wind-config/src/app_compat.rs`：`AppCompatRule` 27 字段，全部容错反序列化。三层加载：`data/compat.toml` < `data_custom` < 用户层。同名进程整条覆盖，唯独 `ProtocolFields` 的 4 个字段（`composition_start_pair_guard`、`pin_anchor_when_start_drifts`、`ignore_host_ime_close`、`host_drawn_candidates`）用户未写时继承。
-- 没有「禁用 / 删除系统条目」的语法；没有 compat 的 schema（字段含义只在注释里）；`wind-rpc` 没有任何 compat 方法。
+- 核心 `moodflow-config/src/app_compat.rs`：`AppCompatRule` 27 字段，全部容错反序列化。三层加载：`data/compat.toml` < `data_custom` < 用户层。同名进程整条覆盖，唯独 `ProtocolFields` 的 4 个字段（`composition_start_pair_guard`、`pin_anchor_when_start_drifts`、`ignore_host_ime_close`、`host_drawn_candidates`）用户未写时继承。
+- 没有「禁用 / 删除系统条目」的语法；没有 compat 的 schema（字段含义只在注释里）；`moodflow-rpc` 没有任何 compat 方法。
 - 重载只有 `Coordinator::reload_app_compat`（`handle_menu.rs:901`），且只被右键菜单路径调用；同 pid 的 `active_compat` 缓存不会自动刷新。
 - 用户层写入是 `update_user_rule` → `render_user_compat` 整份重写，非原子；TOML 语法错误时整份文件被静默跳过。
-- 设置端是纯 Rust 原生 GUI（`windui`），无 Wails / 前端包。manifest 驱动只覆盖全局配置；没有帮助页组件，没有进程选择器。
+- 设置端是纯 Rust 原生 GUI（`moodflowui`），无 Wails / 前端包。manifest 驱动只覆盖全局配置；没有帮助页组件，没有进程选择器。
 
 ## 3. 架构：核心 RPC + 字段元数据（方案 A）
 
@@ -59,7 +59,7 @@
 
 ### 3.4 字段元数据
 
-核心 `wind-config` 新增 `compat_schema`（静态注册表），每字段登记：
+核心 `moodflow-config` 新增 `compat_schema`（静态注册表），每字段登记：
 
 | 项 | 说明 |
 |---|---|
@@ -102,18 +102,18 @@
 
 ## 7. 测试
 
-- 核心：合并 / 禁用 / 写时复制 / 字段还原 / 导入预览单测；元数据守护测试；`wind-rpc` 的 `FakeCore` 用例；`value_domain_guard` 元测试覆盖新增枚举。
+- 核心：合并 / 禁用 / 写时复制 / 字段还原 / 导入预览单测；元数据守护测试；`moodflow-rpc` 的 `FakeCore` 用例；`value_domain_guard` 元测试覆盖新增枚举。
 - 设置端：`mock_reply` + `take_mock_calls` 断言 RPC 形状；补 `search/index.rs` 登记（`sections_have_placement` 等）；新汉字需重生成拼音表（本机无 pwsh，用等价流程）；交叉编译 + wine 跑测试并离屏出图。
-- 跨仓：`cargo test -p wind-rpc --test wind_setting_assets` 对账。
+- 跨仓：`cargo test -p moodflow-rpc --test wind_setting_assets` 对账。
 
 ## 8. 分期（每期独立可提交）
 
 | 期 | 内容 | 仓 |
 |---|---|---|
-| P1 | `disabled` 语法、写时复制、`compat.schema`、`compat.*` RPC、守护测试、原子写、错误上报 | WindInput |
-| P2 | 列表 + 详情编辑、通用渲染器、状态徽章、字段/单条/全部还原 | wind-setting |
-| P3 | 手动添加、进程选择、导入导出 + 预览 | wind-setting（少量核心） |
-| P4 | 帮助页、搜索索引登记、文档站说明 | wind-setting + WindInputDocs |
+| P1 | `disabled` 语法、写时复制、`compat.schema`、`compat.*` RPC、守护测试、原子写、错误上报 | Moodflow |
+| P2 | 列表 + 详情编辑、通用渲染器、状态徽章、字段/单条/全部还原 | moodflow-setting |
+| P3 | 手动添加、进程选择、导入导出 + 预览 | moodflow-setting（少量核心） |
+| P4 | 帮助页、搜索索引登记、文档站说明 | moodflow-setting + MoodflowDocs |
 
 ## 9. 已定决策与风险
 
@@ -225,7 +225,7 @@
 
 ## 12. 设置端界面设计（P2～P4）
 
-核心侧（P1）已完成并上靶机验证；本节定设置端（`wind-setting`，纯 Rust + `windui`）怎么做。
+核心侧（P1）已完成并上靶机验证；本节定设置端（`moodflow-setting`，纯 Rust + `moodflowui`）怎么做。
 设计依据是对设置端现状的两轮调研，下面凡标「调研」的都有代码出处。
 
 ### 12.1 先纠正的几个假设
@@ -233,7 +233,7 @@
 - `backup.rs` / `integration.rs` 不是页面，是「高级」页里的**卡片**；整页手写的先例只有 `stats`，master-detail 的先例是
   词库页（`dict/`，目前在独立窗里）。master-detail 页**不能套 `page()`**（它是无限高的滚动容器，里面放 `weight` 会塌），
   要自己返回 `Element::row().fill()`。
-- windui **没有**带徽章的可选列表、也没有三态控件；控件**没有变更回调**（只写绑定的 `Signal`，靠 `reactive_effect` 监听
+- moodflowui **没有**带徽章的可选列表、也没有三态控件；控件**没有变更回调**（只写绑定的 `Signal`，靠 `reactive_effect` 监听
   版本号）；没有「窗口重新获得焦点」的公开回调；`compat.*` 在设置端 `rpc.rs` 里连 mock 都没有（落到 `Value::Null`）。
 - 设置端所有 manifest 控件都走「保存时统一 diff」（`FieldRegistry`）。**compat 页不走这条路**：每次改动立即 `compat.*`
   落盘，所以不调 `manifest::field`，只借它的控件构造；底栏的「恢复本页 / 应用设置」对本页无意义，要隐藏。
@@ -300,14 +300,14 @@
 - **不能出现写回循环**：控件只写 `Signal`、靠版本轮询触发请求，而请求成功后的重拉又会回写 `Signal`。每个字段控件持有
   「上次同步值」与全局「正在回填」标志：回填期间的信号变化不发请求；变化后的值与上次同步值相同也不发。
 - **文本 / 数字不能每个键都落盘**：`text_input` 只有 `on_submit`（回车），`stepper` 没有提交事件。首选回车提交 + 旁边一个
-  「✓」按钮；先做一个小 spike 确认 windui 有没有失焦事件，有则加上失焦提交。
+  「✓」按钮；先做一个小 spike 确认 moodflowui 有没有失焦事件，有则加上失焦提交。
 - **调用同步 `call_core`**：与现有页面一致（`compat.*` 是本地读写，毫秒级，最坏卡 5 秒且与别的页同级）。同步还让页面测试能用
   `take_mock_calls()`（thread_local）直接断言请求形状；改成后台线程 + channel 会失去这一点，不划算。
 - **失败一律 toast 核心给的中文报错**（补丁被拒、用户层读不进来、目录相同拒写等）。`compat.list` 本身报错（用户层损坏）时，
   右栏显示醒目的横幅：原因 + 「全部还原（会先备份）」按钮，其余操作置灰。
 - **刷新时机**：进入本页、收到 `compat.changed` 事件（核心在 RPC 写成功后广播；自己写的也会收到回声，回填标志防冲）、
-  手动刷新按钮。右键菜单的写入**不广播**，所以还要靠「回到设置窗」刷新——windui 没有公开回调，先用
-  `caret::window_active()` 边沿轮询，**未实测**，列为 spike，不行就给 windui 加一个 `on_window_activated`。
+  手动刷新按钮。右键菜单的写入**不广播**，所以还要靠「回到设置窗」刷新——moodflowui 没有公开回调，先用
+  `caret::window_active()` 边沿轮询，**未实测**，列为 spike，不行就给 moodflowui 加一个 `on_window_activated`。
 
 ### 12.5 添加、导入导出、还原、帮助
 
@@ -315,19 +315,19 @@
   已存在同名则跳到那一条。新规则先是**草稿**（左栏置顶显示「未保存」），第一次设置字段才 `compat.upsert`；
   没设置就离开则丢弃草稿——空壳规则本来就不落盘。
 - **进程枚举放设置端**：`CreateToolhelp32Snapshot`（`windows` crate 加 `Win32_System_Diagnostics_ToolHelp`），
-  `#[cfg(windows)]` 实现 + 非 Windows 返回空的桩（本机 Linux 要能跑单测与截图）。放核心会让 `wind-webdata`（要给 Android
+  `#[cfg(windows)]` 实现 + 非 Windows 返回空的桩（本机 Linux 要能跑单测与截图）。放核心会让 `moodflow-webdata`（要给 Android
   闭包用）背上 Windows 依赖，不划算。
 - **导出**：对话框选范围（仅我的改动 / 全部生效规则，前者默认）→ 保存对话框 → `compat.export` 拿文本，设置端自己写文件。
 - **导入**：选文件 → `compat.import` `dryRun` → **预览对话框**（`RichDoc` 分节：新增 / 覆盖 / 禁用 / 无变化 / 将被移除，
   以及忽略的键、被丢弃的无效值、被拒绝的规则）→ 选「合并 / 替换」→ 确认 → 真正导入，toast 报备份文件名。
 - **全部还原**：确认对话框（说明会先备份）→ `compat.resetAll`。
 - **帮助**：大对话框，按 `compat.schema` 的分组列出每个字段的功能、解决的问题、已知宿主、取值。字段行的信息角标点开时只看该字段
-  （带「查看全部」），省掉「滚动到某个锚点」这个 windui 里不好做的事。全部文案来自核心，设置端不自己写字段说明。
+  （带「查看全部」），省掉「滚动到某个锚点」这个 moodflowui 里不好做的事。全部文案来自核心，设置端不自己写字段说明。
 
 ### 12.6 复用与缺口
 
 复用：`SubNav` 之外的页面骨架照 `dict/view.rs`（`host_signal` + epoch、`reactive_effect`、`toast_sink`、
-`Feedback`）；选中态照 `dict/sidebar.rs` 的「选中 / 未选中 / 指示条三元素 + `visible_when`」（windui 没有响应式样式）；
+`Feedback`）；选中态照 `dict/sidebar.rs` 的「选中 / 未选中 / 指示条三元素 + `visible_when`」（moodflowui 没有响应式样式）；
 徽章照 `dict/view.rs` 的手画徽章；对话框用 `build_confirm_dialog_shell` / `build_group_dialog_shell_large`；
 导入预览用 `RichDoc`（先例 `schema_manager.rs` 的导入报告）；文件对话框照 `backup.rs`。
 缺口：带徽章的规则列表（自己拼）、三态控件（`segmented` 拼）、文本列表编辑（多行文本框，一行一项）、
@@ -337,22 +337,22 @@
 
 | 期 | 内容 | 仓 |
 |---|---|---|
-| **P2-0** | 核心：`RuleView.fields`（逐字段四态视图）+ 测试；`compat.list` 的 `warnings` 带结构（段 / 进程 / 键 / 说明） | WindInput |
-| **P2-1** | 设置端基础设施：`compat.*` 的 mock（静态、覆盖每种状态与每种字段类型）+ 与核心真实输出的契约漂移测试；`CompatState`；Tab 注册（`cli.rs` / `pages/mod.rs` / `icons.rs` / `state.rs` / `shell.rs`，隐藏底栏无关按钮）；`compat.changed` 分支 | wind-setting |
-| **P2-2** | 页面骨架：左栏（三段切换、搜索、筛选、规则行与徽章）、右栏头部与只读字段渲染、刷新时机、`list` 失败横幅 | wind-setting |
-| **P2-3** | 字段编辑：Bool / TriBool / Enum / Int / Text / TextList 六类控件、回填标志防循环、`depends_on` 置灰、还原字段 / 整条、禁用启用、删除 | wind-setting |
-| **P3** | 添加规则 + 进程选择器（含桩）、导出、导入预览与确认、全部还原 | wind-setting |
-| **P4** | 帮助对话框、搜索索引登记（`HANDWRITTEN` / `page_label` / 拼音首字母表）、文档站说明、发布说明里的迁移提示 | wind-setting + WindInputDocs |
+| **P2-0** | 核心：`RuleView.fields`（逐字段四态视图）+ 测试；`compat.list` 的 `warnings` 带结构（段 / 进程 / 键 / 说明） | Moodflow |
+| **P2-1** | 设置端基础设施：`compat.*` 的 mock（静态、覆盖每种状态与每种字段类型）+ 与核心真实输出的契约漂移测试；`CompatState`；Tab 注册（`cli.rs` / `pages/mod.rs` / `icons.rs` / `state.rs` / `shell.rs`，隐藏底栏无关按钮）；`compat.changed` 分支 | moodflow-setting |
+| **P2-2** | 页面骨架：左栏（三段切换、搜索、筛选、规则行与徽章）、右栏头部与只读字段渲染、刷新时机、`list` 失败横幅 | moodflow-setting |
+| **P2-3** | 字段编辑：Bool / TriBool / Enum / Int / Text / TextList 六类控件、回填标志防循环、`depends_on` 置灰、还原字段 / 整条、禁用启用、删除 | moodflow-setting |
+| **P3** | 添加规则 + 进程选择器（含桩）、导出、导入预览与确认、全部还原 | moodflow-setting |
+| **P4** | 帮助对话框、搜索索引登记（`HANDWRITTEN` / `page_label` / 拼音首字母表）、文档站说明、发布说明里的迁移提示 | moodflow-setting + MoodflowDocs |
 
-每期独立可提交、可截图验证；本机用离屏截图（`WIND_RPC_MOCK=1 cargo run -- --page compat --screenshot …`）和 Linux 原生
-`cargo test`（windui 有 Linux 后端，`NullTextEngine` 不依赖字体）；Windows 独有的部分（进程枚举）只在真机验证；
+每期独立可提交、可截图验证；本机用离屏截图（`MOODFLOW_RPC_MOCK=1 cargo run -- --page compat --screenshot …`）和 Linux 原生
+`cargo test`（moodflowui 有 Linux 后端，`NullTextEngine` 不依赖字体）；Windows 独有的部分（进程枚举）只在真机验证；
 交叉检查走核心仓 `scripts/dev.sh sk`（设置端 check）/ `st`（编译测试二进制，运行要 wine）。
 
 ### 12.8 风险
 
 1. **写回循环**（12.4）是最容易出隐蔽 bug 的地方，必须有专门的测试：程序化回填不发请求、同值不发请求。
 2. **窗口激活刷新**无公开回调，方案未实测（12.4 spike）。
-3. **文本 / 数字提交语义**取决于 windui 有无失焦事件（12.4 spike）。
+3. **文本 / 数字提交语义**取决于 moodflowui 有无失焦事件（12.4 spike）。
 4. **列表性能**：选中态每行三元素，几十条没问题，上百条需评估；规则数量级不会到那里，先不做虚拟列表。
 5. **拼音首字母表**：新页标题带新汉字会让 `table_covers_every_title_char` 变红，而本机没有 pwsh，需按记忆里的等价流程重算。
 6. **`PAGES` 插入会让 `advanced` / `about` 的下标后移**，`cli.rs` 里有单测硬编码了下标；`PAGES` 与 `all_tabs` 错位不会报错，只会让深链与二级导航错一格。
@@ -363,7 +363,7 @@
 - **写回循环用「重建」而不是「回填标志」消解**：写入成功后整体重拉 `compat.list`，选中项的视图变了就**整体重建详情**
   （`host_signal`），新控件以新值为基线、effect 以构建时的版本为基线，构建帧不触发，所以不存在「回填期间的信号变化」这回事。
   `apply_list` 只在内容真的变化时才动信号——核心对自己写入的回声广播不会造成重建、丢焦点。
-- **窗口激活刷新**：给 windui 加了 `App::on_window_activated` / `Window::on_window_activated`（只在真实的激活边沿触发，
+- **窗口激活刷新**：给 moodflowui 加了 `App::on_window_activated` / `Window::on_window_activated`（只在真实的激活边沿触发，
   初始视为已激活），不再用 `caret::window_active()` 轮询；右键菜单的写入也已经会广播 `compat.changed`。
 - **文本 / 数字提交**：`text_input` 只有回车回调、`stepper` 没有提交事件，结论是文本类字段 = 输入框 + 「应用」按钮
   （回车同效），数字字段用 stepper + 「应用」（审查后改：stepper 的输入框逐字回写信号，按信号写盘会在首位数字后

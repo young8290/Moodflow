@@ -34,7 +34,7 @@
 
 ## 2. 现状（本仓）
 
-- **无任何通配查询**。`DictLayer`（`wind-dict/src/layer.rs:32-97`）只有精确 / 前缀 / 简拼。
+- **无任何通配查询**。`DictLayer`（`moodflow-dict/src/layer.rs:32-97`）只有精确 / 前缀 / 简拼。
 - **首位 z 在五笔 86 已有四重身份**：
   出厂 `system.phrases.toml` 的 `zz*` 短语使 z 恒为活码前缀（`has_code_prefix`，`handle_temp.rs:71`）；
   `z_key_repeat`（出厂开）；`z_key_action`；z 夺取 `try_z_fallback`（`handle_temp.rs:175`）。
@@ -126,7 +126,7 @@ wildcard = false
 wildcard_key = "z"
 ```
 
-同步点（`wind-config/AGENTS.md`「新增配置字段」）：`CodetableGlobal` 字段 + `Default`；
+同步点（`moodflow-config/AGENTS.md`「新增配置字段」）：`CodetableGlobal` 字段 + `Default`；
 `CodeTableSpec` 的 `Option` 字段；`resolved()` 折叠；`REGISTRY`；`schema_overridden_keys`；
 `data/config.toml` 显式写出；`CommitOptions` 带入引擎（`build_engine` 与 `codetable_settings()` 两处
 折叠点判据一致）。`wildcard_key` 非法（空、多字符、非 ASCII 可打印、**数字、空格**）⇒ 告警并视为关闭。数字不可：
@@ -135,19 +135,19 @@ wildcard_key = "z"
 设置端方案对话框的 `make_sig` 不支持自由文本，通配键做成**下拉选择**；设置项 label 的「通」字
 不在拼音检索表 `pinyin_initials.txt` 中，需重算。
 
-**wind-setting**：`settings_manifest.toml` 两项（文案写明首位/非首位让位规则）、
+**moodflow-setting**：`settings_manifest.toml` 两项（文案写明首位/非首位让位规则）、
 `SPEC_BEHAVIOR_FIELDS`、`capabilities.snapshot.json`、`mockdata/config.json`。
 
 ---
 
 ## 5. 实现
 
-### 5.1 词库层（wind-dict）
+### 5.1 词库层（moodflow-dict）
 
 - `DictLayer::search_pattern(pattern: &str, wildcard: char, limit: usize, with_prefix: bool)`，
   默认实现返回空；`CompositeDict` 的 `Query` 加 `Pattern` 变体。现有 `merge_search` 只按 text 去重
   并按 `better` 截断，通配查询需独立合并：`(text, code)` 去重、等长优先。
-- 系统层适配点：`CachedDict` 分派（`cached.rs:160`）与 `SystemDictLayer`（`wind-dict/src/manager.rs:212`）。
+- 系统层适配点：`CachedDict` 分派（`cached.rs:160`）与 `SystemDictLayer`（`moodflow-dict/src/manager.rs:212`）。
 - **DAT**（`datformat.rs`）：DFS 逐位走，通配位遍历该状态全部有效转移（`1..=max_code`，稀疏）；
   到达末位取 `terminal_leaf`；`with_prefix` 时以所有末位状态为多起点压入现有分支限界 `pq`
   （需改 `build_code` 的单前缀假设，`datformat.rs:1321`）。
@@ -183,19 +183,19 @@ wildcard_key = "z"
 
 | 期 | 内容 | 完成判据 |
 |---|---|---|
-| P1 | wind-dict `search_pattern`（DAT / BTreeMap / redb / Composite） | 三种层与全遍历对拍一致（多通配、首位通配、`with_prefix`） |
+| P1 | moodflow-dict `search_pattern`（DAT / BTreeMap / redb / Composite） | 三种层与全遍历对拍一致（多通配、首位通配、`with_prefix`） |
 | P2 | 引擎通配分支 + 三处短路 | 引擎单测：不自动上屏 / 不顶字 / 不清空 / 全码注释 / 等长优先 |
 | P3 | 配置字段全链路 + 协调器裁决 + 冲突体检 | 配置一致性测试绿；协调器集成测试（§7）绿 |
-| P4 | wind-setting 设置项 + 文档站 + `engine-candidate-pipeline.md` | 设置端测试与生成器（`dev.sh sk/st/sg`）绿 |
+| P4 | moodflow-setting 设置项 + 文档站 + `engine-candidate-pipeline.md` | 设置端测试与生成器（`dev.sh sk/st/sg`）绿 |
 
 ---
 
 ## 7. 测试
 
-- **wind-dict**：`search_pattern` 与 `for_each_entry` 全遍历过滤结果对拍（仿 `datformat.rs` 的
+- **moodflow-dict**：`search_pattern` 与 `for_each_entry` 全遍历过滤结果对拍（仿 `datformat.rs` 的
   `topn_prefix_matches_full_sort_*` 与 `reference_prefix`）。
 - **引擎单测**（`engine.rs` 内联，`engine_with` 夹具）：§3.2 表逐行；超码长含通配不顶字（回归 §2 的误判）。
-- **协调器集成**（`wind-coordinator/tests/`，五笔 86 真实数据；注意 `build_dev/data` 缺失时静默跳过，
+- **协调器集成**（`moodflow-coordinator/tests/`，五笔 86 真实数据；注意 `build_dev/data` 缺失时静默跳过，
   以耗时判断数据在位）：
   - **默认关闭 ⇒ 行为完全不变**（对照组：`az`、首位 z、`zzbd` 短语）；
   - 开启：`az` 出候选且注释为全码；`azzd` 多通配；

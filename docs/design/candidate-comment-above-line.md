@@ -44,7 +44,7 @@
 `ui.candidate.comment_above`（bool，默认 `false`），全局一份，不进模式级 / 方案级三态，
 不分横竖。三态规则（R3）的适用前提是「各作用域有不同的合理取值」，而这是一个纯排版偏好。
 
-### 3.2 拆分（`wind-coordinator/src/comment.rs`）
+### 3.2 拆分（`moodflow-coordinator/src/comment.rs`）
 
 - 渲染节点时，`Builder` 记录**第一个来自 `Node::Text` 的 `\n`** 在输出中的位置。
   变量值（`Node::Var`）里的 `\n` 不记。
@@ -67,7 +67,7 @@
 - 上段里剩下的 `\n` 只可能来自变量值（如注释库词条 `a\nb`），渲染后折成单个空格：
   上方条恒单行，否则会撑破按页等高。下段里的变量换行不动，行为同开关关。
 
-### 3.3 布局（`wind-ui/src/candidate_window.rs`，`build_tree`）
+### 3.3 布局（`moodflow-ui/src/candidate_window.rs`，`build_tree`）
 
 - 开关关，或该候选无上段：item 结构不变。
 - 有上段：item 变为 `Column[上方条叶子, Row[序号, 文字, 右注释]]`。
@@ -88,7 +88,7 @@
   截断按段计，与开关关时不完全等价，可接受）。
 - 悬停气泡 tooltip 不受影响。
 
-### 3.4 主题：`views.comment_above`（`wind-theme`）
+### 3.4 主题：`views.comment_above`（`moodflow-theme`）
 
 新增一个 `ViewNode`，与 `views.comment` 同型（margin / padding / 字体 / 字号偏移 / 颜色 /
 `roles` / `selected` / `hover`）。
@@ -121,11 +121,11 @@ margin / padding 不继承的原因：基础主题里 `comment.margin.left = 6` 
 
 ## 4 跨仓与同步
 
-- 主题编辑器（`WindInputThemeEditor`，独立仓）：字段在引擎渲染**消费之后**再同步
+- 主题编辑器（`MoodflowThemeEditor`，独立仓）：字段在引擎渲染**消费之后**再同步
   （`types` / `resolve` / `defaultViews` / `candidateBox` 预览 / `engineParity.test.ts`）。
-- 设置端（`wind-setting`）：`settings_manifest.toml` 新增开关一项，同步
+- 设置端（`moodflow-setting`）：`settings_manifest.toml` 新增开关一项，同步
   `capabilities.snapshot.json`、`mockdata/config.json`；模板输入框旁补「`\n` 拆上方条」的说明。
-- 文档站（`WindInputDocs`）：`settings/appearance/candidate-comment.mdx` 补开关、写法约束、
+- 文档站（`MoodflowDocs`）：`settings/appearance/candidate-comment.mdx` 补开关、写法约束、
   主题字段。
 - 出厂 `data/config.toml` 补键与注释；`docs/config-key-migration.md` 无需迁移（新增键）。
 
@@ -139,7 +139,7 @@ margin / padding 不继承的原因：基础主题里 `comment.margin.left = 6` 
    上方条左缩进 = 文字起点；`placeholder_row` 同构；横排主行对齐；直立态回退；
    超长上段被 UI 层省略。
 3. `render_golden.rs`：新增带上方条的金图（竖排 + 横排 + 选中态）。
-4. `wind-theme`：`comment_above` 回退规则（继承与不继承两组）、`roles` 各态。
+4. `moodflow-theme`：`comment_above` 回退规则（继承与不继承两组）、`roles` 各态。
 
 ## 6 分期
 

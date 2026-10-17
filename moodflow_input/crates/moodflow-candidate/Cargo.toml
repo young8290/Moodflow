@@ -1,0 +1,12 @@
+[package]
+name = "moodflow-candidate"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+moodflow-utils = { path = "../moodflow-utils" }
+unicode-segmentation = { workspace = true }
+
+[lints]
+workspace = true

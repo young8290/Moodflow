@@ -7,7 +7,7 @@
 > 关键论断已用 grep 抽验 file:line 属实；Rust 侧由本人直接通读）。
 > 方法：Go 设计要点 / Rust 现状 / 差距 / **Go 坏设计（不照搬）** / **Rust 目标边界（决策）**。
 >
-> 体量：Go `internal/engine` ≈ 1.1 万行生产代码；Rust `wind-engine` ≈ 2.5k 行。
+> 体量：Go `internal/engine` ≈ 1.1 万行生产代码；Rust `moodflow-engine` ≈ 2.5k 行。
 > 这是"质量不如 Go"最集中的子系统——核心差距在**打分模型**与**码表/混输交互**。
 
 ---
@@ -108,7 +108,7 @@ weight = int(score * 1_000_000)
 4. **字符集偏好 / WeightMode / inner_order 重排**：码表无权重时按文件序，这是五笔等"字根序"体验的关键。
 5. **ProtectTopN**：锁定码表原始前 N 位。
 6. **Shadow**。
-- `WeightAsOrder/inner_order` 对齐：Rust 当前完全依赖 weight，码表若是 inner_order 类型会错乱——需先在 wind-dict 暴露"是否有权重"标记（跨子系统依赖，记入 dict 差分）。
+- `WeightAsOrder/inner_order` 对齐：Rust 当前完全依赖 weight，码表若是 inner_order 类型会错乱——需先在 moodflow-dict 暴露"是否有权重"标记（跨子系统依赖，记入 dict 差分）。
 
 ### 2.4 Go 坏设计（不照搬）
 - `ConvertRaw` 与 `ConvertEx` 两套平行流水线（codetable.go:219 vs :358），仅 Shadow/Filter 差异 → Rust 单流水线 + 测试用入参开关。
@@ -187,5 +187,5 @@ Rust：仅 3 行空模块，方案被 manager 过滤。
 5. **双拼**（§4，独立较大项）。
 6. **manager 英文 + 热配置**（§5.2，部分对齐阶段 C）。
 
-> 每项落地前在本目录补一份更细的实现笔记或直接在 PR 描述；每步用 `wind_input/scripts/dev.sh ci` 把关。
-> 注意跨子系统依赖：码表 WeightMode、双拼方案表、英文词库均牵动 wind-dict / wind-config，需在对应差分中同步记录。
+> 每项落地前在本目录补一份更细的实现笔记或直接在 PR 描述；每步用 `moodflow_input/scripts/dev.sh ci` 把关。
+> 注意跨子系统依赖：码表 WeightMode、双拼方案表、英文词库均牵动 moodflow-dict / moodflow-config，需在对应差分中同步记录。

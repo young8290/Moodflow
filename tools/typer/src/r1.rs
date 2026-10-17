@@ -1,6 +1,6 @@
 //! R1 打错字判定的离线复刻，只用来自检生成的脚本：标了 `typo` 的键都应命中，其余都不应命中。
 //!
-//! 规则与常量照抄 `xinqing_hub/core/src/domain/features/typo.rs`（FR-STA-04），那边改了这里要跟着改。
+//! 规则与常量照抄 `moodflow_hub/core/src/domain/features/typo.rs`（FR-STA-04），那边改了这里要跟着改。
 //! 不直接依赖 Hub core，是为了让 typer 保持轻量、能单独在测试机上编译。
 
 use crate::script::{Key, Step};

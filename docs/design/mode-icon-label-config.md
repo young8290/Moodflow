@@ -8,7 +8,7 @@
 
 ## 一、改造前：一个"单一真相源"，七处硬编码
 
-`icon_label` 在架构上是协调器单点预计算、下发给各消费面的（`wind-host` 的 `ModeFlags`
+`icon_label` 在架构上是协调器单点预计算、下发给各消费面的（`moodflow-host` 的 `ModeFlags`
 注释写着"宿主不得自记一份"）。但**这条真相源的取值本身**散在七处：
 
 | # | 位置 | 场景 | 消费面 |
@@ -17,9 +17,9 @@
 | 2 | `handle_menu.rs` | 英文半角 / CapsLock | 工具栏模式格 |
 | 3 | `coordinator.rs` `status_indicator_text` | 英文半角 / CapsLock | 状态气泡 |
 | 4 | `coordinator/langbar_icon.rs` | 不可输入（密码框等） | 语言栏图标覆盖层 |
-| 5 | `wind-ui/toolbar.rs` | 不可输入 | 工具栏覆盖层 |
+| 5 | `moodflow-ui/toolbar.rs` | 不可输入 | 工具栏覆盖层 |
 | 6 | `handle_mode.rs` | 临时英文 | 模式指示（另一条线） |
-| 7 | `wind-bridge/push.rs` | 握手早期 | 无调用点 |
+| 7 | `moodflow-bridge/push.rs` | 握手早期 | 无调用点 |
 
 1/2/3 是同一段 `effective_chinese ? schema : caps ? "A" : "英"` 抄了三遍。
 
@@ -73,7 +73,7 @@ caps_lock = "A"  # 大写锁定
 2 个标量值，最坏 2 char = 4 wchar + NUL = 5，故 `_inputTypeLabel` 由 `[4]` 扩到 `[8]`，
 与 `STATUS_UPDATE_DATA::iconLabel` 对齐。
 
-截断口径收在 `wind_config::schema::icon_label_trunc`，三个调用点共用：方案标签
+截断口径收在 `moodflow_config::schema::icon_label_trunc`，三个调用点共用：方案标签
 `schema_icon_label`、特殊模式 `overlay_modes`、非中文态 `LabelsConfig`。
 **前两处从前各写一份 `.chars().next()`，靠注释声明彼此一致**——改一处漏一处的表现是
 "方案切换显 `Wb`、进特殊模式显 `符`"，没有测试会发现。
@@ -109,7 +109,7 @@ caps_lock = "A"  # 大写锁定
 两个消费面**处理方式不同，不要"统一"**：
 
 - 工具栏：协调器直接算好 `ToolbarState.icon_label`（不下发 TSF，无持久值顾虑）。
-  `wind-ui` 侧原有的覆盖已撤——那个 crate 读不到配置，留着只会让用户配的 `En` 在密码框里
+  `moodflow-ui` 侧原有的覆盖已撤——那个 crate 读不到配置，留着只会让用户配的 `En` 在密码框里
   变回 `英`。
 - 语言栏图标：只能在 `IconSpec` 上覆盖，**不能动 `icon_label` 本身**——它会经 StatusUpdate
   写进 TSF 的 `_inputTypeLabel`（持久值），把随焦点来去的临时态烧进去，漏一次刷新就长期卡住。
@@ -169,5 +169,5 @@ target)`：`base_width > target && !has_cjk`。汉字即使被缩小也不补偿
 
 ## 八、待做
 
-- 文档站（WindInputDocs）：config 参考页 + 用法页**两处**。
+- 文档站（MoodflowDocs）：config 参考页 + 用法页**两处**。
 - 真机复验：`En` 的字重与字号分档改动后的观感（首版已反馈"E 有些细"，见 §5.2）。

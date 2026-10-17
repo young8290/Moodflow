@@ -144,7 +144,7 @@ outside: rare                # 作用域内、名单外  ← 缺了它「换一�
 此时在编辑器里开着它，谁后保存谁赢，另一方的改动静默丢失。「偶尔的小量写入」恰恰是
 文件最不擅长的形态。
 
-⇒ 用户层落进 redb（`wind_store::charsets`，key = 类 key，**value 就是 yaml 文本**），
+⇒ 用户层落进 redb（`moodflow_store::charsets`，key = 类 key，**value 就是 yaml 文本**），
 文件降级为**交换格式**：
 
 | | 之前（目录） | 现在（库） |
@@ -158,7 +158,7 @@ outside: rare                # 作用域内、名单外  ← 缺了它「换一�
 三处不变：
 
 - **出厂 / 定制层仍是目录**——人是唯一写者，没有这个冲突；
-- **格式只有一份**——解析与渲染都在 `charset_def`，`wind-store` 不认识 `CharsetDoc`，
+- **格式只有一份**——解析与渲染都在 `charset_def`，`moodflow-store` 不认识 `CharsetDoc`，
   存的是文本字节。库里的、备份包里的、编辑态打开的，是同一种文本；
 - **常用性逐条覆盖仍在 `COMMON_CHARS` 表**——高频单条、不需要可读、必须稀疏，三条理由
   一条都没变。
@@ -601,7 +601,7 @@ vs 逐条覆盖（精确、用于例外）。
 
 ### 7.5 跨仓契约
 
-JSON 字段 `block` / `blockRange` / `blockBulkEditable` 被 wind-setting 的 `spec.rs` /
+JSON 字段 `block` / `blockRange` / `blockBulkEditable` 被 moodflow-setting 的 `spec.rs` /
 `view.rs` 直接读，**不改名**，只换取值来源。设置页的「字符集分类」两层视图需要**新增**
 一个列类的 RPC。
 
@@ -646,9 +646,9 @@ JSON 字段 `block` / `blockRange` / `blockBulkEditable` 被 wind-setting 的 `s
 | — | `BlockMask` 降为 `#[cfg(test)]` 的等价性对照 | `3d713c54` |
 | P3f | 常用字列表加「所属字符类」列 | `73de5637` |
 | P4a | 设置页读写 `charset.list/set/reset/clearRedundant` | `5fc878c2` |
-| P4b | 设置仓：「字符集分类」两层视图 | wind-setting `b495d06` |
+| P4b | 设置仓：「字符集分类」两层视图 | moodflow-setting `b495d06` |
 
-**2026-09-04 用户复盘后的四处调整**（`b87dd254` / `c83058f5` / wind-setting `08f2579`）：
+**2026-09-04 用户复盘后的四处调整**（`b87dd254` / `c83058f5` / moodflow-setting `08f2579`）：
 
 | 反馈 | 处理 |
 |---|---|
@@ -671,7 +671,7 @@ JSON 字段 `block` / `blockRange` / `blockBulkEditable` 被 wind-setting 的 `s
 两个列头从被迫缩写的两字回到四字。
 
 ⚠️ 旧注释里「表格没有『按钮弹菜单』的 API」是**错的**——`EventCtx::show_dropdown_menu`
-一直都在（windui 的 `Dropdown` 就用它）。一句未经核实的「做不到」在代码里放了一年，
+一直都在（moodflowui 的 `Dropdown` 就用它）。一句未经核实的「做不到」在代码里放了一年，
 代价是三枚按钮把两个列头挤成了缩写。
 
 ### ★ 关于「区块表固化在代码里」这条，我原来的理由站不住
@@ -706,5 +706,5 @@ meta 头是 YAML **数组**即多类文件（不带列表体，一份列表归�
 - **P4 设置页**：「字符集分类」两层 TAB + §7.2 的逐条覆盖提示与「清理冗余」。
 - `ranges` 语法：`U+0020-U+007F` 够用，还是要 ICU `UnicodeSet` 子集
   （`[[:Emoji:]]`、并交差）——后者需要真正的解析器。
-- ⚠️ 命名：`wind-config` 已有 `code_charset.rs` / `CodeCharSet`（**码元**字符集，
+- ⚠️ 命名：`moodflow-config` 已有 `code_charset.rs` / `CodeCharSet`（**码元**字符集，
   ASCII 按键域，完全无关）。代码里别叫 `CharSet`，建议 `CharsetDef` / `CharsetRegistry`。

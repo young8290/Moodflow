@@ -12,7 +12,7 @@
 # ══════════════════════════════════════════════════════════════════════════
 #
 #  ⚠️ 编译机必须是 Windows —— 不能用 Linux / WSL / macOS。
-#     原因见 scripts\remote-build.ps1 顶部: clang 交叉编译的 xinqing_tsf.dll 在加固宿主
+#     原因见 scripts\remote-build.ps1 顶部: clang 交叉编译的 moodflow_tsf.dll 在加固宿主
 #     (企业微信 / TIM / QQ / UU浏览器) 里 COM 激活失败, 已由 A/B 实测锁定。
 #
 #  1. 开 SSH 并配免密 (在编译机的【管理员 PowerShell】里):
@@ -55,13 +55,13 @@
 # ══════════════════════════════════════════════════════════════════════════
 
 # 编译机主机名或 IP。不定义此变量 = 远程构建整体关闭。
-$WIND_REMOTE_HOST = "192.0.2.10"
+$MOODFLOW_REMOTE_HOST = "192.0.2.10"
 
 # SSH 登录用户
-$WIND_REMOTE_USER = "Admin"
+$MOODFLOW_REMOTE_USER = "Admin"
 
 # 编译机上的仓库路径 (会被本机源码覆盖同步; 不存在则自动创建)
-$WIND_REMOTE_ROOT = "C:\build\WindInput"
+$MOODFLOW_REMOTE_ROOT = "C:\build\Moodflow"
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -70,33 +70,33 @@ $WIND_REMOTE_ROOT = "C:\build\WindInput"
 
 # 编译机上用哪个 PowerShell 跑 dev.ps1。默认 pwsh (7.x)。
 # 编译机只有 Windows PowerShell 5.1 时改成 "powershell"。
-# $WIND_REMOTE_PS = "powershell"
+# $MOODFLOW_REMOTE_PS = "powershell"
 
 # 需要一并同步的伴生仓 (与产品仓平级的目录名)。
 # dm1 / dm2 与细粒度 cargo 用不到; 只有 m3/m4 (setting/portable) 和 8/9 (打包) 才需要。
 # ⚠️ 列漏了不会有明确提示, 只会在编译机上报「系统找不到指定的路径 (os error 3)」——
-#    伴生仓之间还有 path 依赖: wind-setting 依赖 ../wind-ui-rust, 两个都得列。
-# $WIND_REMOTE_SIBLINGS = @("wind-setting", "wind-ui-rust", "wind-portable", "wind-installer")
+#    伴生仓之间还有 path 依赖: moodflow-setting 依赖 ../moodflow-ui-rust, 两个都得列。
+# $MOODFLOW_REMOTE_SIBLINGS = @("moodflow-setting", "moodflow-ui-rust", "moodflow-portable", "moodflow-installer")
 
 # 哪些 dev.ps1 命令走远程。不设则用 dev.ps1 里的 $RemoteCommands 默认清单。
 # 只想让核心 exe 走远程、C++ 仍在本机编, 就把 dm1/m1 去掉。
-# $WIND_REMOTE_COMMANDS = @("1","release","d1","dev","m1","m2","dm1","dm2")
+# $MOODFLOW_REMOTE_COMMANDS = @("1","release","d1","dev","m1","m2","dm1","dm2")
 
 
 # ══════════════════════════════════════════════════════════════════════════
 #  四、环境变量 (临时覆盖, 不写进本文件)
 # ══════════════════════════════════════════════════════════════════════════
 #
-#  $env:WIND_NO_REMOTE = "1"
+#  $env:MOODFLOW_NO_REMOTE = "1"
 #      本会话内一律本机编 —— 编译机关机 / 不在内网 / 想和远程做 A-B 对照时用。
 #      设为 $null 恢复。dev.ps1 与 remote-build.ps1 都认它。
 #
-#  $env:WIND_REMOTE_SLOT = "fx"
+#  $env:MOODFLOW_REMOTE_SLOT = "fx"
 #      把编译机上的【父目录】换成 C:\build-fx\, 供 worktree 并行编译而互不覆盖。
 #      不设时: 在 linked worktree 里按 worktree 目录名自动派生, 主树无槽位 (行为不变)。
 #      设为 "off" / "none" / "0" 可关掉槽位, 与主树共用目录 (串台风险自负)。
-#      ⚠️ 换的是父目录而非主仓目录名 —— 伴生仓与主仓平级, wind-setting 写死了
-#         ../WindInput/wind_input/crates/... 三条 path 依赖, 只改主仓名会让它取到
+#      ⚠️ 换的是父目录而非主仓目录名 —— 伴生仓与主仓平级, moodflow-setting 写死了
+#         ../Moodflow/moodflow_input/crates/... 三条 path 依赖, 只改主仓名会让它取到
 #         主树代码, 编译照样成功、错得毫无提示。
 #      ⚠️ 每个槽位各带一份 target\ (几十 GB), 用完记得 -Clean 或直接删掉槽位目录。
 #
@@ -116,6 +116,6 @@ $WIND_REMOTE_ROOT = "C:\build\WindInput"
 #     照绿。remote-build.ps1 会在开跑前拦住这种情况, 不必自己记着。
 #
 #  ⚠️ 改了 C++ 但没改 docs\VERSION 时, CMake 增量构建可能跳过重编 —— 这个坑在远程一样
-#     存在且更难察觉。判据不变: 输出里要有「已构建: xinqing_tsf_dev.dll」。
+#     存在且更难察觉。判据不变: 输出里要有「已构建: moodflow_tsf_dev.dll」。
 #
 #  ⚠️ 部署始终在本机执行 —— 编译机不注册 COM、不装输入法。远程构建只搬产物, 不碰部署链。

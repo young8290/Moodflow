@@ -1,0 +1,6 @@
+{
+  "id": "qingqing",
+  "displayName": "晴晴",
+  "description": "Moodflow 的小精灵，身体颜色跟着当前的“心情天气”变。",
+  "spritesheetPath": "spritesheet.png"
+}

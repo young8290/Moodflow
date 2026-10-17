@@ -1,6 +1,6 @@
 # Rime 词库（`.dict.yaml`）格式契约与加载链路
 
-> **现状文档**。基于 2026-07-19 对 `wind-dict` / `wind-engine` 实际代码的核查整理，
+> **现状文档**。基于 2026-07-19 对 `moodflow-dict` / `moodflow-engine` 实际代码的核查整理，
 > 并对照 rime/librime 源码逐条查证格式语义。行号为核查时快照，以函数/结构名为准。
 >
 > 候选生成与排序见 [engine-candidate-pipeline.md](./engine-candidate-pipeline.md)（本文是其 §2 的展开）。
@@ -66,7 +66,7 @@
 
 ## 2. 我们的实现与 librime 的差异
 
-| 语义 | librime | WindInput | 差异后果 |
+| 语义 | librime | Moodflow | 差异后果 |
 |---|---|---|---|
 | 无 `columns:` 时列序 | 恒 `[text, code, weight]` | **投票探测**列序，权重仍取第 3 列 | 见 §3.3；兜底默认与 librime 一致 |
 | 必需列 | 仅 `text` | **text 与 code 都必需** | 缺任一 → 整库跳过并 ERROR（不静默降级），见 §6 R1 |
@@ -286,7 +286,7 @@ DictManager（每方案一个）→ CompositeDict
 配置热重载（清空全部引擎）、单方案失效（override 写入/方案包导入/删除）。
 **扩展词库开关不重建引擎**，只翻 `AtomicBool`。
 
-**路径解析**：`DictSpec.path` 相对 `schemas/` 目录；用户目录（`%APPDATA%\WindInput[Dev]\schemas\`）
+**路径解析**：`DictSpec.path` 相对 `schemas/` 目录；用户目录（`%APPDATA%\Moodflow[Dev]\schemas\`）
 优先于安装目录（`data/schemas/`）。
 
 > **注意**：本项目**不读取**官方 Rime/小狼毫的 `%APPDATA%\Rime\` 目录（代码中零引用）。
@@ -308,7 +308,7 @@ DictManager（每方案一个）→ CompositeDict
 > `unigram`（`WUNI`）已随语言模型移除：词图打分改用词条自身的词典权重。老用户缓存目录里
 > 残留的 `unigram.wdb` 由方案缓存清理逻辑扫走。
 
-缓存根：`%LOCALAPPDATA%\WindInput[Dev]\cache\{方案名}\`。
+缓存根：`%LOCALAPPDATA%\Moodflow[Dev]\cache\{方案名}\`。
 `CACHE_DIR` 为 None 时**回退写到源文件旁**（安装目录可能只读）。
 
 ### 5.2 新鲜度判定
@@ -472,7 +472,7 @@ librime 完全允许 `columns: [code, text, weight]` 的**拼音**词库，旧�
 
 但 `##` **不是 Rime 语义**（§1.4），是第三方编辑器 wubi-dict-editor 的约定，
 librime 一视同仁当注释丢弃。要保留它等于**新增我方语义**：把分组名与条目区间解析出来
-供词库管理界面用。它完全不影响候选输出，且界面在独立仓 wind-setting，需两仓协同。
+供词库管理界面用。它完全不影响候选输出，且界面在独立仓 moodflow-setting，需两仓协同。
 当前**保持与 librime 一致的丢弃行为**，待真正需要该编辑器功能时再做。
 
 ### R7 其他
@@ -489,4 +489,4 @@ librime 一视同仁当注释丢弃。要保留它等于**新增我方语义**�
 - **`rime_source_paths` 的 YAML 头部定位是朴素子串搜索**（`content.find("---")` /
   `after.find("...")`），而非 `codetable.rs::rime_body_offset` 那种行精确匹配。
   若头部某个值里含字面量 `...`，会被提前截断从而读不到 `import_tables`。
-  现存词库无一命中；要收紧须把行精确的分隔行定位提升为 wind-dict 的公开 API。
+  现存词库无一命中；要收紧须把行精确的分隔行定位提升为 moodflow-dict 的公开 API。

@@ -1,0 +1,790 @@
+<script setup lang="ts">
+// 桌面小组件（07 FR-WGT-01～06）：桌宠（ADR 0044）站在桌面上，头顶一个气泡装着原来卡片上的东西——状态行、一句话区
+// （消息优先级，FR-WGT-04）、底栏（FR-WGT-05）、离线 / 研究 / 演示角标；悬停、来了新消息、开着面板时气泡出现。
+// 单击打开对话、拖动（甩出去会落到屏幕底边）、右键菜单、贴边隐藏、悬停状态行显示解释、“我现在…”自评与研究模式的邀请。
+// 窗口透明：鼠标不在宠物和气泡上时点穿到桌面。
+// 日程、待办、提醒、休息、自评回应、晚间小结、周信这些卡片在卡片层窗口（../cards，FR-WGT-07）。
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRef, watch } from 'vue'
+import { LogicalPosition, getCurrentWindow } from '@tauri-apps/api/window'
+import { Menu } from '@tauri-apps/api/menu'
+import { commands, events, unwrap, type ComfortVerdict, type SelfWeather, type Verdict } from '@/api'
+import ExplainPanel from '@/components/ExplainPanel.vue'
+import PetSprite from '@/components/PetSprite.vue'
+import WeatherSprite from '@/components/WeatherSprite.vue'
+import { t } from '@/i18n'
+import { useSettingsStore } from '@/stores/settings'
+import { useStatusStore } from '@/stores/status'
+import { menuEntries, type MenuAction } from './menu'
+import MessageLine from './MessageLine.vue'
+import { NOTICE_MS, type Message } from './messages'
+import FocusPanel from './FocusPanel.vue'
+import OutfitPanel from './OutfitPanel.vue'
+import SpriteOutfit from '@/components/SpriteOutfit.vue'
+import { clock as focusClock } from './focus'
+import SelfReportPanel from './SelfReportPanel.vue'
+import { statusLine } from './statusLine'
+import { onCards, openDashboard } from '../shared/bus'
+import { takeGreeting } from '../shared/firstRun'
+import { useExplain } from './useExplain'
+import { useCollection } from './useCollection'
+import { useFocus } from './useFocus'
+import { useFooter } from './useFooter'
+import { useMessages } from './useMessages'
+import { useSelfReport } from './useSelfReport'
+import { useWidgetWindow } from './useWidgetWindow'
+import { CELL_H, CELL_W, type Mood } from './pet'
+import { PET_KEYS, usePet } from './usePet'
+import { usePetMotion } from './usePetMotion'
+
+const status = useStatusStore()
+const settings = useSettingsStore()
+const selfReport = useSelfReport()
+const focus = useFocus()
+const outfit = useCollection()
+const msgs = useMessages()
+const footer = useFooter()
+const line = computed(() => (status.snapshot ? statusLine(status.snapshot, selfReport.active.value) : null))
+const setting = <T,>(key: string, fallback: T) =>
+  computed(() => {
+    const v = settings.values[key]
+    return typeof v === typeof fallback ? (v as T) : fallback
+  })
+const opacity = setting('widget.opacity', 1)
+const autohide = setting('widget.autohide', false)
+const topmost = setting('widget.topmost', true)
+// 研究模式：填了编号并打开开关才生效（ADR 0025），状态行旁显示“研究模式”（FR-DMO-04）
+const researchOn = setting('research.enabled', false)
+const researchId = setting('research.id', '')
+const research = computed(() => researchOn.value && researchId.value !== '')
+const demo = ref(false)
+// 刚走完首次引导：晴晴先打个招呼（FR-ONB-05）
+if (takeGreeting()) msgs.notice(t('greeting.first_run'), NOTICE_MS)
+const menuOpen = ref(false)
+/** 卡片层现在有几张卡片（卡片层窗口告诉我们） */
+const cards = ref(0)
+
+// 菜单、自评面板开着，或卡片层有卡片时不贴边收起
+const holdOpen = computed(
+  () =>
+    menuOpen.value ||
+    selfReport.panelOpen.value ||
+    focus.panelOpen.value ||
+    outfit.panelOpen.value ||
+    cards.value > 0,
+)
+/** 底栏左侧：专注中换成倒计时（FR-RST-10），否则今日输入时长 */
+const footerLeft = computed(() =>
+  focus.active.value ? t('focus.footer', { time: focusClock(focus.remaining.value) }) : footer.left.value,
+)
+
+async function equip(item: string | null): Promise<void> {
+  try {
+    await outfit.equip(item)
+  } catch (e) {
+    msgs.error(e)
+  }
+}
+
+async function startFocus(minutes: number): Promise<void> {
+  try {
+    await focus.start(minutes)
+  } catch (e) {
+    msgs.error(e)
+  }
+}
+const place = useWidgetWindow({ autohide, topmost, holdOpen })
+const mood = computed<Mood | null>(() =>
+  line.value
+    ? { weather: line.value.weather, eyesClosed: line.value.eyesClosed, focusing: focus.active.value }
+    : null,
+)
+const pet = usePet(mood)
+/** 气泡区的大小（逻辑像素）：解释、自评、专注、换装面板都放在这里 */
+const BUBBLE_W = 300
+const BUBBLE_H = 156
+const petW = computed(() => Math.round(CELL_W * pet.scale.value))
+const petH = computed(() => Math.round(CELL_H * pet.scale.value))
+/** 换装叠在内置晴晴身上：装扮图层按 96 × 96 的小精灵画（身体圆心 48,50、半径 30），晴晴的身体圆心 96,122、半径 54 */
+const OUTFIT_K = 54 / 30
+const outfitStyle = computed(() => {
+  const k = pet.scale.value
+  return { left: `${(96 - 48 * OUTFIT_K) * k}px`, top: `${(122 - 50 * OUTFIT_K) * k}px` }
+})
+const showOutfit = computed(
+  () =>
+    pet.sheet.value?.builtin === true &&
+    outfit.equipped.value !== null &&
+    ['idle', 'waiting', 'review'].includes(pet.state.value),
+)
+const focusWithin = ref(false)
+/** 新消息到来后气泡留这么久 */
+const BUBBLE_FLASH_MS = 8000
+const flashUntil = ref(0)
+const nowTick = ref(Date.now())
+const bubbleOpen = computed(
+  () =>
+    place.over.value ||
+    focusWithin.value ||
+    holdOpen.value ||
+    explain.lines.value !== null ||
+    flashUntil.value > nowTick.value,
+)
+let clock: ReturnType<typeof setInterval> | undefined
+// 新消息：气泡亮一会儿，宠物招手；求助入口不表演，操作失败哭一下（ADR 0044）
+watch(
+  () => msgs.shown.value,
+  (m, old) => {
+    if (!m || (old && m.at === old.at && m.kind === old.kind)) return
+    if (m.kind === 'today' || m.kind === 'idle') return
+    flashUntil.value = Date.now() + BUBBLE_FLASH_MS
+    pet.react(m.kind === 'safety' ? 'calm' : m.kind === 'error' ? 'error' : 'message')
+  },
+)
+const petEl = ref<HTMLElement | null>(null)
+const bubbleEl = ref<HTMLElement | null>(null)
+const motion = usePetMotion({
+  area: place.area,
+  moveTo: place.moveTo,
+  drive: place.drive,
+  motion: pet.motion,
+  react: pet.react,
+  mood,
+  roam: pet.roam,
+  reducedMotion: pet.reducedMotion,
+  busy: computed(() => bubbleOpen.value || menuOpen.value),
+  onClick: () => void openChat(),
+})
+// 换了宠物大小：窗口跟着变，脚底不动
+watch([petW, petH], ([w, h]) => void place.fit(Math.max(BUBBLE_W, w), BUBBLE_H + h))
+const explain = useExplain(
+  toRef(status, 'snapshot'),
+  computed(() => selfReport.active.value !== null),
+)
+const penEl = ref<HTMLElement | null>(null)
+
+/** 打开“我现在…”（状态行的 ✎ 或右键菜单，FR-WGT-06） */
+function openSelfReport(): void {
+  explain.close()
+  selfReport.panelOpen.value = true
+}
+
+/** 关面板后把焦点还给 ✎，键盘用户不至于掉到窗口外。研究模式的邀请被关掉等于跳过。 */
+async function closeSelfReport(skip = false): Promise<void> {
+  try {
+    await (skip ? selfReport.skip() : selfReport.close())
+  } catch (e) {
+    msgs.error(e)
+  }
+  await nextTick()
+  penEl.value?.focus()
+}
+
+async function onSelfSubmit(weather: SelfWeather, note: string): Promise<void> {
+  try {
+    await selfReport.submit(weather, note)
+    await nextTick()
+    penEl.value?.focus()
+  } catch (e) {
+    msgs.error(e)
+  }
+}
+const panel = ref<{ $el: HTMLElement } | null>(null)
+
+const statusEl = ref<HTMLElement | null>(null)
+const thanksEl = ref<HTMLElement | null>(null)
+// 投票后按钮换成致谢：被删掉的按钮如果有焦点，会发一个 relatedTarget 为空的 focusout，这期间不算离开
+let swapping = false
+
+/** 焦点在状态行与面板里的按钮之间移动不算离开；移出这两处才收起 */
+function onFocusOut(e: FocusEvent): void {
+  if (swapping) return
+  const to = e.relatedTarget
+  if (to instanceof Node && (statusEl.value?.contains(to) || panel.value?.$el.contains(to))) return
+  explain.close()
+}
+
+/** “准 / 不准”（FR-STA-07）：记到最近一条状态记录（即当前显示的状态），“不准”会让后端上调个人阈值 */
+async function vote(verdict: Verdict): Promise<void> {
+  try {
+    await unwrap(commands.submitFeedback('mood_state', null, verdict))
+    const hadFocus = panel.value?.$el.contains(document.activeElement) ?? false
+    swapping = true
+    explain.voted.value = true
+    await nextTick()
+    swapping = false
+    // 焦点原来在按钮上（键盘用户）：交给致谢那句，Esc 照样能收起面板
+    if (hadFocus) thanksEl.value?.focus()
+  } catch (e) {
+    msgs.error(e)
+  }
+}
+
+/** 暖心话的 👍 / 👎 / 🔕（FR-CMF-05）。🔕 让今天剩下的时间不再主动关怀，休息提醒不受影响。 */
+async function voteComfort(id: number, verdict: ComfortVerdict): Promise<void> {
+  try {
+    await unwrap(commands.comfortFeedback(id, verdict))
+  } catch (e) {
+    msgs.error(e)
+  }
+}
+
+/** 点一句带动作的消息：求助入口开一段安全模式的对话并显示求助卡片（ADR 0028 第 4 条）；周信提示打开信箱。 */
+async function onMessageAct(m: Message): Promise<void> {
+  if (!m.action) return
+  try {
+    if (m.action.type === 'safety') {
+      await unwrap(commands.safetyOpen())
+      msgs.dismiss('safety')
+    } else {
+      await openDashboard({ page: 'mailbox', letter: m.action.id })
+      msgs.dismiss('review')
+    }
+  } catch (e) {
+    msgs.error(e)
+  }
+}
+
+onMounted(async () => {
+  void place.start()
+  try {
+    await Promise.all([
+      status.init(),
+      settings.init([
+        'widget.opacity',
+        'widget.autohide',
+        'widget.topmost',
+        'research.enabled',
+        'research.id',
+        ...PET_KEYS,
+      ]),
+    ])
+  } catch (e) {
+    msgs.error(e)
+  }
+  // 自评覆盖期取不到时只是少显示“你说的”，不打扰用户
+  selfReport.init().catch((e) => console.warn('读取自评失败', e))
+  // 新的暖心话由上面的 watch 让宠物招手（FR-CMF-04 第 5 条）；取不到“今日一句”时只是少一句话
+  msgs.init().catch((e) => console.warn('订阅一句话区消息失败', e))
+  footer.init().catch((e) => console.warn('读取底栏失败', e))
+  focus.init().catch((e) => console.warn('读取专注状态失败', e))
+  outfit.init().catch((e) => console.warn('读取晴天收集失败', e))
+  onCards((c) => (cards.value = c.count)).catch((e) => console.warn('订阅卡片层失败', e))
+  // 打错字：宠物吓一跳，天气不变（FR-WGT-03、DS-MOTION-02）；闭眼（暂停）时不动
+  events.moodTypo.listen(() => pet.react('typo')).catch((e) => console.warn('订阅打错字事件失败', e))
+  // 专注结束：跑两圈庆祝一下
+  events.focusDone.listen(() => pet.react('focus_done')).catch((e) => console.warn('订阅专注结束失败', e))
+  pet.start()
+  clock = setInterval(() => (nowTick.value = Date.now()), 500)
+  void place.fit(Math.max(BUBBLE_W, petW.value), BUBBLE_H + petH.value)
+  place.passThrough(() =>
+    [petEl.value, bubbleOpen.value ? bubbleEl.value : null]
+      .filter((el): el is HTMLElement => el !== null)
+      .map((el) => el.getBoundingClientRect()),
+  )
+  motion.scheduleWalk()
+  try {
+    demo.value = (await unwrap(commands.demoStatus())).enabled
+  } catch (e) {
+    console.warn('读取演示模式失败', e)
+  }
+})
+
+async function run(action: () => Promise<unknown>): Promise<void> {
+  try {
+    await action()
+  } catch (e) {
+    msgs.error(e)
+  }
+}
+
+const openChat = () => run(() => unwrap(commands.openWindow('chat')))
+const openSchedule = () => run(() => openDashboard({ page: 'schedule' }))
+
+const ACTIONS: Record<MenuAction, () => Promise<unknown>> = {
+  self_report: async () => openSelfReport(),
+  focus: async () => {
+    explain.close()
+    focus.panelOpen.value = true
+  },
+  focus_stop: () => focus.stop(),
+  outfit: async () => {
+    explain.close()
+    await outfit.refresh()
+    outfit.panelOpen.value = true
+  },
+  pause: () => status.setPaused(true),
+  resume: () => status.setPaused(false),
+  dashboard: () => unwrap(commands.openWindow('dashboard')),
+  pending: () => openDashboard({ page: 'schedule' }),
+  settings: () => unwrap(commands.openWindow('settings')),
+  hide: () => getCurrentWindow().hide(),
+}
+
+/** 待确认的日程与待办一共几件（菜单项上的数字）；取不到就不显示数字 */
+async function pendingCount(): Promise<number> {
+  try {
+    const [s, td] = await Promise.all([
+      unwrap(commands.scheduleList('pending')),
+      unwrap(commands.todoList('pending')),
+    ])
+    return s.length + td.length
+  } catch (e) {
+    console.warn('读取待确认日程失败', e)
+    return 0
+  }
+}
+
+/** 系统原生菜单：能伸出小组件窗口之外，读屏和高对比度也由系统负责。`at` 省略时在鼠标处弹出。 */
+async function openMenu(at?: LogicalPosition): Promise<void> {
+  if (menuOpen.value) return
+  menuOpen.value = true
+  try {
+    const items = menuEntries(
+      status.snapshot,
+      await pendingCount(),
+      focus.active.value,
+      outfit.canDress.value,
+    ).map(({ id, text }) => ({
+      id,
+      text,
+      action: () => void run(ACTIONS[id]),
+    }))
+    const menu = await Menu.new({ items })
+    await menu.popup(at)
+  } catch (e) {
+    msgs.error(e)
+  } finally {
+    menuOpen.value = false
+  }
+}
+
+function onKeydown(e: KeyboardEvent): void {
+  // FR-WGT-06：Shift+F10（以及键盘上的菜单键）在小组件左上角打开右键菜单
+  if ((e.key === 'F10' && e.shiftKey) || e.key === 'ContextMenu') {
+    e.preventDefault()
+    void openMenu(new LogicalPosition(16, 16))
+  } else if (e.key === 'Enter') {
+    void openChat()
+  } else if (e.key === 'Escape') {
+    explain.close()
+  }
+}
+
+/** 焦点离开整个小组件才收起气泡 */
+function onRootFocusOut(e: FocusEvent): void {
+  const to = e.relatedTarget
+  const root = e.currentTarget as HTMLElement | null
+  if (!(to instanceof Node && root?.contains(to))) focusWithin.value = false
+}
+
+onBeforeUnmount(() => clearInterval(clock))
+</script>
+
+<template>
+  <div class="root" @pointerenter="place.pointerEnter" @pointerleave="place.pointerLeave">
+    <button
+      v-if="place.collapsed.value"
+      class="tab"
+      :style="{ opacity }"
+      :aria-label="t('widget.expand')"
+      @click="place.expand"
+      @focus="place.expand"
+    >
+      <WeatherSprite v-if="line" :weather="line.weather" :eyes-closed="line.eyesClosed" :size="20" />
+    </button>
+    <main
+      v-else
+      class="widget"
+      :style="{ opacity }"
+      tabindex="0"
+      @contextmenu.prevent="openMenu()"
+      @keydown="onKeydown"
+      @focusin="focusWithin = true"
+      @focusout="onRootFocusOut"
+    >
+      <h1 class="visually-hidden">{{ t('window.widget') }}</h1>
+      <section
+        ref="bubbleEl"
+        class="bubble"
+        :class="{ open: bubbleOpen }"
+        :style="{ bottom: `${petH + 6}px` }"
+        :aria-label="t('widget.bubble_label')"
+      >
+        <!-- 状态行：悬停或键盘聚焦时显示解释（FR-WGT-06、FR-STA-09）；右侧依次是离线角标和 ✎“我现在…” -->
+        <div class="status-row">
+          <p
+            ref="statusEl"
+            class="status"
+            :title="line?.text"
+            tabindex="0"
+            aria-live="polite"
+            :aria-describedby="explain.lines.value ? 'mf-explain' : undefined"
+            @pointerenter="explain.hover"
+            @pointerleave="explain.leave"
+            @focus="explain.open"
+            @focusout="onFocusOut"
+          >
+            {{ line?.text }}
+          </p>
+          <span v-if="demo" class="badge">{{ t('widget.demo_badge') }}</span>
+          <span v-if="research" class="badge">{{ t('widget.research_badge') }}</span>
+          <span v-if="status.snapshot?.offline" class="badge">{{ t('widget.offline_badge') }}</span>
+          <button
+            ref="penEl"
+            class="pen"
+            :aria-label="t('widget.self_report_prompt')"
+            :title="t('widget.self_report_prompt')"
+            @pointerdown.stop
+            @keydown.enter.stop
+            @click.stop="openSelfReport"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M3 13l.8-3.2L10.6 3a1.4 1.4 0 0 1 2 2L5.8 11.8z" />
+            </svg>
+          </button>
+        </div>
+        <SelfReportPanel
+          v-if="selfReport.panelOpen.value"
+          class="overlay"
+          :invited="selfReport.invited.value"
+          @submit="onSelfSubmit"
+          @close="closeSelfReport()"
+          @skip="closeSelfReport(true)"
+        />
+        <OutfitPanel
+          v-if="outfit.panelOpen.value && outfit.view.value"
+          class="overlay"
+          :view="outfit.view.value"
+          @equip="equip"
+          @close="outfit.panelOpen.value = false"
+        />
+        <FocusPanel
+          v-if="focus.panelOpen.value"
+          class="overlay"
+          @start="startFocus"
+          @close="focus.panelOpen.value = false"
+        />
+        <ExplainPanel
+          v-if="explain.lines.value"
+          id="mf-explain"
+          ref="panel"
+          class="overlay"
+          role="tooltip"
+          :lines="explain.lines.value"
+          @pointerenter="explain.hover"
+          @pointerleave="explain.leave"
+          @focusout="onFocusOut"
+        >
+          <template #actions>
+            <span v-if="explain.voted.value" ref="thanksEl" class="voted" role="status" tabindex="-1">{{
+              t('widget.feedback.thanks')
+            }}</span>
+            <!-- 按钮上按下不算“单击小组件打开对话”，也不开始拖动 -->
+            <div v-else class="vote" role="group" :aria-label="t('widget.feedback.label')" @pointerdown.stop>
+              <button class="compact" @click.stop="vote('fit')" @keydown.enter.stop>
+                {{ t('widget.feedback.fit') }}
+              </button>
+              <button class="compact" @click.stop="vote('unfit')" @keydown.enter.stop>
+                {{ t('widget.feedback.unfit') }}
+              </button>
+            </div>
+          </template>
+        </ExplainPanel>
+        <!-- FR-WGT-04：消息优先级、最多 2 行、悬停显示全文与反馈按钮 -->
+        <MessageLine :msg="msgs.shown.value" @act="onMessageAct" @vote="voteComfort" />
+        <!-- FR-WGT-05：左边今日输入时长，右边下一个日程或待办数，点了打开看板“日程与待办” -->
+        <footer class="footer">
+          <span v-if="footerLeft" class="footer-left" :class="{ focusing: focus.active.value }">{{
+            footerLeft
+          }}</span>
+          <button
+            v-if="footer.right.value"
+            class="footer-right"
+            :title="t('widget.footer.open')"
+            :aria-label="`${footer.right.value}，${t('widget.footer.open')}`"
+            @pointerdown.stop
+            @keydown.enter.stop
+            @click.stop="openSchedule"
+          >
+            {{ footer.right.value }}
+          </button>
+        </footer>
+      </section>
+      <!-- 桌宠（ADR 0044）：按住拖动、甩出去会落到底边，单击打开对话 -->
+      <div
+        ref="petEl"
+        class="pet-wrap"
+        :style="{ width: `${petW}px`, height: `${petH}px` }"
+        :data-state="pet.state.value"
+        @pointerdown="motion.onPointerDown"
+        @pointermove="motion.onPointerMove"
+        @pointerup="motion.onPointerUp"
+        @pointercancel="motion.onPointerCancel"
+      >
+        <template v-if="line">
+          <PetSprite
+            v-if="pet.sheet.value"
+            :sheet="pet.sheet.value"
+            :col="pet.cell.value.col"
+            :row="pet.cell.value.row"
+            :scale="pet.scale.value"
+            :weather="line.weather"
+          />
+          <WeatherSprite
+            v-else
+            :weather="line.weather"
+            :eyes-closed="line.eyesClosed"
+            :focusing="focus.active.value"
+            :size="Math.round(petW * 0.7)"
+          />
+          <SpriteOutfit
+            v-if="showOutfit && outfit.equipped.value"
+            class="pet-outfit"
+            :item="outfit.equipped.value"
+            :size="Math.round(96 * OUTFIT_K * pet.scale.value)"
+            :style="outfitStyle"
+          />
+          <!-- 导入的宠物不随天气变色：旁边挂一个小天气，颜色之外还有图形区分（DS-COLOR-02） -->
+          <span v-if="pet.sheet.value && !pet.sheet.value.builtin" class="weather-chip">
+            <WeatherSprite :weather="line.weather" :eyes-closed="line.eyesClosed" :size="24" />
+          </span>
+        </template>
+      </div>
+    </main>
+  </div>
+</template>
+
+<style>
+/* 小组件窗口是透明的，气泡与宠物之外不铺底色 */
+html,
+body {
+  background: transparent;
+  overflow: hidden;
+}
+</style>
+
+<style scoped>
+.root {
+  height: 100%;
+}
+
+.widget {
+  position: relative;
+  height: 100%;
+  user-select: none;
+  cursor: default;
+  outline: none;
+}
+
+/* 气泡：原来卡片上的内容。平时藏起来（仍在页面里，读屏照样读得到状态行），悬停、新消息、开面板时出现 */
+.bubble {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: 156px;
+  padding: var(--mf-sp-3) var(--mf-sp-4);
+  border: 1px solid var(--mf-border);
+  border-radius: var(--mf-radius-window);
+  background: var(--mf-surface);
+  box-shadow: var(--mf-shadow-card);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(6px);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease,
+    visibility 0s linear 160ms;
+}
+
+.bubble.open {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+/* 气泡底下的小尖角，指向宠物 */
+.bubble::after {
+  position: absolute;
+  bottom: -7px;
+  left: calc(50% - 7px);
+  width: 12px;
+  height: 12px;
+  border-right: 1px solid var(--mf-border);
+  border-bottom: 1px solid var(--mf-border);
+  background: var(--mf-surface);
+  transform: rotate(45deg);
+  content: '';
+}
+
+.widget:focus-visible .bubble {
+  outline: 2px solid var(--mf-focus);
+  outline-offset: 2px;
+}
+
+.pet-wrap {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  transform: translateX(-50%);
+  cursor: grab;
+  touch-action: none;
+}
+
+.pet-wrap:active {
+  cursor: grabbing;
+}
+
+.pet-outfit {
+  position: absolute;
+}
+
+.weather-chip {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble,
+  .bubble.open {
+    transition: none;
+  }
+}
+
+/* 贴边隐藏后的小标签：24 px 宽，只露出小精灵（FR-WGT-01）。窗口本身就是标签大小 */
+.tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border-radius: var(--mf-radius-sm);
+  background: var(--mf-surface);
+}
+
+.status-row {
+  display: flex;
+  gap: var(--mf-sp-1);
+  align-items: center;
+  margin: 0 0 var(--mf-sp-2);
+}
+
+.status {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  color: var(--mf-text-2);
+  font-size: var(--mf-fs-sm);
+  line-height: var(--mf-lh-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ✎ 仍守 32 × 32 的点击目标（DS-A11Y-03），用负边距不撑高 20 px 的状态行 */
+.pen {
+  flex: none;
+  margin: calc(-1 * var(--mf-sp-2)) calc(-1 * var(--mf-sp-2)) calc(-1 * var(--mf-sp-2)) 0;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--mf-text-2);
+}
+
+.pen path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+/*
+ * 解释、自评、专注、换装面板盖住气泡的整个内容区（约 276 × 132 px）：解释最多 3 条说明、两行附注再加 32 px 高的
+ * “准 / 不准”，自评是标题、备注和两行选项，只有这么宽才放得下。
+ */
+.overlay {
+  position: absolute;
+  inset: var(--mf-sp-3) var(--mf-sp-4);
+  z-index: 1;
+  background: var(--mf-surface);
+}
+
+.vote {
+  display: flex;
+  flex: none;
+  gap: var(--mf-sp-1);
+}
+
+/* 仍守 32 × 32 的点击目标（DS-A11Y-03），只收窄左右留白 */
+.compact {
+  padding: 0 var(--mf-sp-2);
+  font-size: var(--mf-fs-xs);
+}
+
+.voted {
+  flex: none;
+  color: var(--mf-text-2);
+  font-size: var(--mf-fs-xs);
+  line-height: var(--mf-lh-xs);
+}
+
+.footer {
+  display: flex;
+  gap: var(--mf-sp-2);
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--mf-lh-xs);
+  color: var(--mf-text-2);
+  font-size: var(--mf-fs-xs);
+  line-height: var(--mf-lh-xs);
+  white-space: nowrap;
+}
+
+/* 放大文字时右边（日程）先收窄，收到最窄左边再收，各自显示省略号，不画出窗口 */
+.footer-left {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 专注倒计时：数字等宽，不跟着跳动 */
+.footer-left.focusing {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 底栏很矮：点击目标靠负边距撑到 32 px 高（DS-A11Y-03），不把底栏撑高 */
+.footer-right {
+  flex-shrink: 1000;
+  min-width: 0;
+  margin: calc(-1 * var(--mf-sp-2)) calc(-1 * var(--mf-sp-1)) calc(-1 * var(--mf-sp-2)) 0;
+  padding: 0 var(--mf-sp-1);
+  overflow: hidden;
+  border-color: transparent;
+  background: transparent;
+  color: var(--mf-text-2);
+  font-size: var(--mf-fs-xs);
+  text-overflow: ellipsis;
+}
+
+.badge {
+  flex: none;
+  padding: 0 var(--mf-sp-2);
+  border-radius: var(--mf-radius-sm);
+  background: var(--mf-surface-2);
+  color: var(--mf-text-2);
+  font-size: var(--mf-fs-xs);
+  line-height: var(--mf-lh-xs);
+}
+</style>

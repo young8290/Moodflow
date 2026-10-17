@@ -16,7 +16,7 @@
 
 1. **`data/config.toml` 写不进去**——写出即冻结快照（该文件 §29-38 的豁免注释），于是
    "本文件同时是全部可配置项的说明书"这条契约在这一项上是破的。
-2. **设置页套不上**——`wind-setting/src/capabilities.rs` 的豁免注释已诊断到位：
+2. **设置页套不上**——`moodflow-setting/src/capabilities.rs` 的豁免注释已诊断到位：
    *"没有固定 id、条目随已安装方案增删，manifest 的『一个 key 一个控件』模型套不上"*。
    于是只能"按 `schema` 字段定位条目、没有就新建"，且**必须保存原始 `Value` 而非结构体**，
    否则重建会把手写字段静默抹掉。
@@ -97,7 +97,7 @@ auto_commit_at_full = true
 "config 数组序"换成"**overlay 注册表序**"。
 
 ```rust
-// wind-engine
+// moodflow-engine
 pub struct OverlayEntry {
     pub schema_id: String,     // = 实例身份
     pub name: String,          // [schema] name
@@ -169,9 +169,9 @@ backslash = "special:kf"       # 引导键与直达热键从此是同一张表�
 
 沿用 schema-config-layering.md 的口径。**理由是收益面与风险不成比例**：
 
-- 呈现类字段要写进 `schema_overrides/{id}.toml`，而 `normalize()` 在 wind-config、
+- 呈现类字段要写进 `schema_overrides/{id}.toml`，而 `normalize()` 在 moodflow-config、
   零 IO、幂等纯内存（五c 明确立过"在内存里做，不写盘——回退一版就能工作"），
-  写盘 API 在 wind-engine，**依赖方向反不过来**。要落地就得引入本仓从未有过的
+  写盘 API 在 moodflow-engine，**依赖方向反不过来**。要落地就得引入本仓从未有过的
   "一次性副作用型迁移"：新执行点 + 迁移状态标记 + 幂等守卫 + 带临时目录的测试。
 - 而手工重配约 5 行，且项目未发布。
 
@@ -184,21 +184,21 @@ backslash = "special:kf"       # 引导键与直达热键从此是同一张表�
 
 | 文件 | 改动 |
 |---|---|
-| `wind-config/src/schema.rs` | 新增 `OverlaySpec`；`Schema.overlay: Option<OverlaySpec>` |
-| `wind-config/src/config.rs` | 删 `SpecialModeConfig`、`SchemaConfig.special_modes`；加残留 warn |
-| `wind-config/src/config_schema.rs` | 删注册表项 `schema.special_modes` 与 `ABSENT_FROM_DATA_CONFIG` 里的同名豁免 |
-| `wind-config/src/hotkey.rs` | 删 `special_modes` 遍历；白名单加 `special:`；策略位按动词分 |
-| `wind-engine/src/manager.rs` | 新增 `OverlayEntry` + `overlay_modes()` 注册表（枚举源 `installed_schemas`） |
-| `wind-coordinator/src/handle_special.rs` | `special_mode_idx` / `special_schema` / `special_mode_show_all` 三处改查注册表 |
-| `wind-coordinator/src/handle_mode.rs` | name/short_name 直接取注册表（不再"缺省回落"两段） |
-| `wind-coordinator/src/layout.rs` | `intent_for` 加 `&[OverlayEntry]` 参数 |
-| `wind-coordinator/src/comment.rs` | `template_for` 加 `&[OverlayEntry]` 参数 |
-| `wind-coordinator/src/webdata.rs` | `schema.getConfig` 带出 `[overlay]`；`saveConfig` 照常 diff 落盘 |
+| `moodflow-config/src/schema.rs` | 新增 `OverlaySpec`；`Schema.overlay: Option<OverlaySpec>` |
+| `moodflow-config/src/config.rs` | 删 `SpecialModeConfig`、`SchemaConfig.special_modes`；加残留 warn |
+| `moodflow-config/src/config_schema.rs` | 删注册表项 `schema.special_modes` 与 `ABSENT_FROM_DATA_CONFIG` 里的同名豁免 |
+| `moodflow-config/src/hotkey.rs` | 删 `special_modes` 遍历；白名单加 `special:`；策略位按动词分 |
+| `moodflow-engine/src/manager.rs` | 新增 `OverlayEntry` + `overlay_modes()` 注册表（枚举源 `installed_schemas`） |
+| `moodflow-coordinator/src/handle_special.rs` | `special_mode_idx` / `special_schema` / `special_mode_show_all` 三处改查注册表 |
+| `moodflow-coordinator/src/handle_mode.rs` | name/short_name 直接取注册表（不再"缺省回落"两段） |
+| `moodflow-coordinator/src/layout.rs` | `intent_for` 加 `&[OverlayEntry]` 参数 |
+| `moodflow-coordinator/src/comment.rs` | `template_for` 加 `&[OverlayEntry]` 参数 |
+| `moodflow-coordinator/src/webdata.rs` | `schema.getConfig` 带出 `[overlay]`；`saveConfig` 照常 diff 落盘 |
 | `data/config.toml` | 删 §29-38 豁免注释里的 `schema.special_modes` 一条 |
 
 `coordinator.rs` 只需更新 `special_id` 字段的文档注释（下标语义换源），无逻辑改动。
 
-### wind-setting
+### moodflow-setting
 
 | 文件 | 改动 |
 |---|---|
@@ -248,7 +248,7 @@ backslash = "special:kf"       # 引导键与直达热键从此是同一张表�
 键形态判据用「键串含 `+`」近似 core 的 `route_of_key_action`——对实际取值足够，且
 不必在本仓再写一份键名解析器（跨仓两份解析器慢慢漂移是本仓栽过的）。
 
-### 文档站（WindInputDocs）
+### 文档站（MoodflowDocs）
 
 配置参考页删 `schema.special_modes`、新增方案文件 `[overlay]` 段；用法页改写快符配置示例。
 
@@ -260,7 +260,7 @@ backslash = "special:kf"       # 引导键与直达热键从此是同一张表�
 | 2 | 6 个消费点切到注册表 | `057b28b` ✅ |
 | 3 | `hotkey` 收编 + 删除 `SpecialModeConfig` + 残留 warn | `602f14b` ✅ |
 | 4 | `saveConfig` 往返测试 + `schema.list` 带 overlay 标志 | `61c3e1f` / `4639b08` ✅ |
-| 5 | wind-setting：清理 + 新增「特殊模式」配置节 | `d69a41e` / `85f43d1` ✅ |
+| 5 | moodflow-setting：清理 + 新增「特殊模式」配置节 | `d69a41e` / `85f43d1` ✅ |
 | 6 | 真机反馈修正：崩溃修复 / 节的显示条件 / 控件形态 / 冲突检测换源 | `ea8a666` / `5162889` / `ed9d0b0` ✅ |
 
 **真机已验证**（2026-08-09，Dev 变体）：两个引导键各进各的模式（按候选内容与图标短称
@@ -268,7 +268,7 @@ backslash = "special:kf"       # 引导键与直达热键从此是同一张表�
 
 ### ★ 真机才暴露的一个崩溃：`.small()` 用在了 segmented 上
 
-windui 的 `.small()` 只对 Button/CheckBox/Switch 有定义，落到别的 widget 会走
+moodflowui 的 `.small()` 只对 Button/CheckBox/Switch 有定义，落到别的 widget 会走
 `config_button` 的 `debug_assert!(false, "small() 只能用于 Element::button(..)")`。
 于是「特殊模式」节一打开就 panic，而**编译与既有 419 个测试全绿**——这套链式 API 用
 **运行时 downcast** 做类型检查，写错只在真机上炸。

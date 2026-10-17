@@ -2,17 +2,17 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: 用 superpowers:subagent-driven-development(推荐)或 superpowers:executing-plans 按任务逐条实现。步骤用 `- [ ]` 复选框跟踪。
 
-**Goal:** 交付用户词库整库导入导出的 RPC 三件套(`dict.export` / `dict.import` / `dict.previewImport`),含 Merge/Replace 策略与 dry-run 预览,供 wind-setting 对接。
+**Goal:** 交付用户词库整库导入导出的 RPC 三件套(`dict.export` / `dict.import` / `dict.previewImport`),含 Merge/Replace 策略与 dry-run 预览,供 moodflow-setting 对接。
 
-**Architecture:** store 层新增"批量导入带分类"(added/updated/unchanged 三分类,单写事务)与 `clear_user_words`,P1 的 `import_user_words_wdict` 重构为委托新方法(外部签名不变);RPC 层在 `webdata.rs` 按既有 dict.* 范式接线,消费 P1 的 `wind_transfer::merge::{Strategy, ImportOutcome, ImportPreview}` 类型。
+**Architecture:** store 层新增"批量导入带分类"(added/updated/unchanged 三分类,单写事务)与 `clear_user_words`,P1 的 `import_user_words_wdict` 重构为委托新方法(外部签名不变);RPC 层在 `webdata.rs` 按既有 dict.* 范式接线,消费 P1 的 `moodflow_transfer::merge::{Strategy, ImportOutcome, ImportPreview}` 类型。
 
-**Tech Stack:** Rust、redb、serde/serde_json、wind-transfer(P1)、chrono(coordinator 已有)。
+**Tech Stack:** Rust、redb、serde/serde_json、moodflow-transfer(P1)、chrono(coordinator 已有)。
 
 **关联:** 设计 `docs/design/import-export-backup-design.md`;P1 计划 `import-export-backup-plan-p1.md`。
 
 ## Global Constraints
 
-- 工作目录:所有 `cargo` 命令在 `wind_input/` 下执行。
+- 工作目录:所有 `cargo` 命令在 `moodflow_input/` 下执行。
 - 格式化:**只用 `cargo fmt -p <crate>` 限定本 crate**,严禁裸 `cargo fmt`(会污染整 workspace);提交前 `git status` 核查并 `git restore` 任何非本任务文件。
 - 提交信息:conventional commit,**不带** Co-Authored-By 与任何 AI trailer。
 - 日志:INFO 及以下不得含用户敏感信息(词条内容、编码)。
@@ -27,7 +27,7 @@
 ### Task 1: store 批量导入带分类 + clear_user_words
 
 **Files:**
-- Modify: `wind_input/crates/wind-store/src/user_words.rs`(`impl Store` 内追加;并重构既有 `import_user_words_wdict`)
+- Modify: `moodflow_input/crates/moodflow-store/src/user_words.rs`(`impl Store` 内追加;并重构既有 `import_user_words_wdict`)
 - Test: 同文件 `mod tests`
 
 **Interfaces:**
@@ -46,7 +46,7 @@
 ```rust
 #[test]
 fn import_user_words_classifies_added_updated_unchanged() {
-    let path = tmp("wind_uw_batch.redb");
+    let path = tmp("moodflow_uw_batch.redb");
     let s = Store::open(&path).unwrap();
     s.add_user_word("wb", "a", "工", 100).unwrap();
     let rows = vec![
@@ -69,7 +69,7 @@ fn import_user_words_classifies_added_updated_unchanged() {
 
 #[test]
 fn preview_import_is_readonly_and_matches_import() {
-    let path = tmp("wind_uw_preview.redb");
+    let path = tmp("moodflow_uw_preview.redb");
     let s = Store::open(&path).unwrap();
     s.add_user_word("wb", "a", "工", 100).unwrap();
     let rows = vec![
@@ -89,7 +89,7 @@ fn preview_import_is_readonly_and_matches_import() {
 
 #[test]
 fn clear_user_words_only_target_schema() {
-    let path = tmp("wind_uw_clear.redb");
+    let path = tmp("moodflow_uw_clear.redb");
     let s = Store::open(&path).unwrap();
     s.add_user_word("wb", "a", "工", 1).unwrap();
     s.add_user_word("wb", "b", "了", 1).unwrap();
@@ -104,7 +104,7 @@ fn clear_user_words_only_target_schema() {
 
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `cd wind_input && cargo test -p wind-store user_words::tests::import_user_words_classifies -- --nocapture`
+Run: `cd moodflow_input && cargo test -p moodflow-store user_words::tests::import_user_words_classifies -- --nocapture`
 Expected: 编译错误,`import_user_words` / `WordsImportCounts` 未定义。
 
 - [ ] **Step 3: 实现三方法 + 重构 P1 委托**
@@ -246,14 +246,14 @@ pub struct WordsImportCounts {
 
 - [ ] **Step 4: 跑测试确认通过(含 P1 回归)**
 
-Run: `cd wind_input && cargo test -p wind-store user_words`
+Run: `cd moodflow_input && cargo test -p moodflow-store user_words`
 Expected: PASS——3 个新测试 + P1 的 `export_import_user_words_roundtrip` / `import_user_words_merges_max_weight` 及全部既有测试仍绿。
 
 - [ ] **Step 5: 格式化并提交**
 
 ```bash
-cd wind_input && cargo fmt -p wind-store
-git add wind_input/crates/wind-store/src/user_words.rs
+cd moodflow_input && cargo fmt -p moodflow-store
+git add moodflow_input/crates/moodflow-store/src/user_words.rs
 git commit -m "feat(store): 用户词批量导入分类计数 + 只读预览 + clear_user_words"
 ```
 
@@ -262,23 +262,23 @@ git commit -m "feat(store): 用户词批量导入分类计数 + 只读预览 + c
 ### Task 2: RPC 三件套 dict.export / dict.import / dict.previewImport
 
 **Files:**
-- Modify: `wind_input/crates/wind-coordinator/Cargo.toml`(追加 wind-transfer 依赖)
-- Modify: `wind_input/crates/wind-coordinator/src/webdata.rs`(dispatch 三分支 + 三 handlers + `web_dict_clear` 改用 `clear_user_words` + 契约测试)
+- Modify: `moodflow_input/crates/moodflow-coordinator/Cargo.toml`(追加 moodflow-transfer 依赖)
+- Modify: `moodflow_input/crates/moodflow-coordinator/src/webdata.rs`(dispatch 三分支 + 三 handlers + `web_dict_clear` 改用 `clear_user_words` + 契约测试)
 - Modify: `docs/design/import-export-backup-design.md`(RPC 表 dict.import 返回值对齐 `{added, updated, skipped}`)
 
 **Interfaces:**
-- Consumes(Task 1): `Store::{clear_user_words, import_user_words, preview_import_user_words, export_user_words_wdict}`、`WordsImportCounts{added,updated,unchanged}`;`wind_store::wdict::parse_words_wdict(text) -> Result<(Vec<WordIo>, usize), String>`;P1 的 `wind_transfer::merge::{Strategy, ImportOutcome, ImportPreview}`(Strategy::from_param;ImportPreview serde camelCase)。
-- Produces(wind-setting 契约):
+- Consumes(Task 1): `Store::{clear_user_words, import_user_words, preview_import_user_words, export_user_words_wdict}`、`WordsImportCounts{added,updated,unchanged}`;`moodflow_store::wdict::parse_words_wdict(text) -> Result<(Vec<WordIo>, usize), String>`;P1 的 `moodflow_transfer::merge::{Strategy, ImportOutcome, ImportPreview}`(Strategy::from_param;ImportPreview serde camelCase)。
+- Produces(moodflow-setting 契约):
   - `dict.export {schemaId}` → `{content}`(wdict 文本,exported_at=本地 RFC3339)
   - `dict.import {schemaId, content, strategy?}` → `{added, updated, skipped}`(strategy 缺省/未知=merge;replace=先清后写)
   - `dict.previewImport {schemaId, content}` → `{willAdd, willUpdate, willConflict, unchanged, samples}`(willConflict 恒 0,词库域无独立冲突语义,字段保留给后续域)
 
 - [ ] **Step 1: 加依赖**
 
-`wind_input/crates/wind-coordinator/Cargo.toml` 的 `[dependencies]` 中,`wind-store = { path = "../wind-store" }` 一行之后追加:
+`moodflow_input/crates/moodflow-coordinator/Cargo.toml` 的 `[dependencies]` 中,`moodflow-store = { path = "../moodflow-store" }` 一行之后追加:
 
 ```toml
-wind-transfer = { path = "../wind-transfer" }
+moodflow-transfer = { path = "../moodflow-transfer" }
 ```
 
 - [ ] **Step 2: 写失败契约测试**
@@ -353,7 +353,7 @@ fn dict_export_import_preview_contract() {
 
 - [ ] **Step 3: 跑测试确认失败**
 
-Run: `cd wind_input && cargo test -p wind-coordinator dict_export_import_preview -- --nocapture`
+Run: `cd moodflow_input && cargo test -p moodflow-coordinator dict_export_import_preview -- --nocapture`
 Expected: FAIL,`web_data_rpc` 返回 `unknown method: dict.export`(或类似错误,来自 dispatch 兜底)。
 
 - [ ] **Step 4: 实现 dispatch 分支与 handlers**
@@ -382,7 +382,7 @@ handlers 区(建议紧邻 `web_dict_clear` 之后)追加,并把 `web_dict_clear`
     }
 
     fn web_dict_import(&self, params: &Value) -> anyhow::Result<Value> {
-        use wind_transfer::merge::{ImportOutcome, Strategy};
+        use moodflow_transfer::merge::{ImportOutcome, Strategy};
         let schema = str_param(params, "schemaId")?;
         let schema = self.engine_mgr.data_schema_id(schema); // 拼音族折叠到 "pinyin"
         let content = str_param(params, "content")?;
@@ -394,7 +394,7 @@ handlers 区(建议紧邻 `web_dict_clear` 之后)追加,并把 `web_dict_clear`
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("无持久化存储"))?;
         let (rows, skipped) =
-            wind_store::wdict::parse_words_wdict(content).map_err(|e| anyhow::anyhow!(e))?;
+            moodflow_store::wdict::parse_words_wdict(content).map_err(|e| anyhow::anyhow!(e))?;
         if strategy == Strategy::Replace {
             store.clear_user_words(&schema)?;
         }
@@ -407,7 +407,7 @@ handlers 区(建议紧邻 `web_dict_clear` 之后)追加,并把 `web_dict_clear`
     }
 
     fn web_dict_preview_import(&self, params: &Value) -> anyhow::Result<Value> {
-        use wind_transfer::merge::ImportPreview;
+        use moodflow_transfer::merge::ImportPreview;
         let schema = str_param(params, "schemaId")?;
         let schema = self.engine_mgr.data_schema_id(schema); // 拼音族折叠到 "pinyin"
         let content = str_param(params, "content")?;
@@ -416,7 +416,7 @@ handlers 区(建议紧邻 `web_dict_clear` 之后)追加,并把 `web_dict_clear`
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("无持久化存储"))?;
         let (rows, _skipped) =
-            wind_store::wdict::parse_words_wdict(content).map_err(|e| anyhow::anyhow!(e))?;
+            moodflow_store::wdict::parse_words_wdict(content).map_err(|e| anyhow::anyhow!(e))?;
         let (c, samples) = store.preview_import_user_words(&schema, &rows)?;
         // 按 Merge 语义预览(与设计 RPC 表一致,不收 strategy);willConflict 词库域恒 0,字段保留。
         Ok(serde_json::to_value(ImportPreview {
@@ -446,7 +446,7 @@ handlers 区(建议紧邻 `web_dict_clear` 之后)追加,并把 `web_dict_clear`
 
 - [ ] **Step 5: 跑测试确认通过(含既有契约测试回归)**
 
-Run: `cd wind_input && cargo test -p wind-coordinator webdata`
+Run: `cd moodflow_input && cargo test -p moodflow-coordinator webdata`
 Expected: PASS——新契约测试 + 全部既有 webdata 契约测试仍绿。
 
 - [ ] **Step 6: 设计文档 RPC 表对齐**
@@ -466,8 +466,8 @@ Expected: PASS——新契约测试 + 全部既有 webdata 契约测试仍绿。
 - [ ] **Step 7: 格式化并提交**
 
 ```bash
-cd wind_input && cargo fmt -p wind-coordinator
-git add wind_input/crates/wind-coordinator/Cargo.toml wind_input/crates/wind-coordinator/src/webdata.rs docs/design/import-export-backup-design.md
+cd moodflow_input && cargo fmt -p moodflow-coordinator
+git add moodflow_input/crates/moodflow-coordinator/Cargo.toml moodflow_input/crates/moodflow-coordinator/src/webdata.rs docs/design/import-export-backup-design.md
 git commit -m "feat(rpc): dict.export/import/previewImport 词库整库导入导出三件套"
 ```
 
@@ -475,14 +475,14 @@ git commit -m "feat(rpc): dict.export/import/previewImport 词库整库导入导
 
 ## P2 收尾验证
 
-- [ ] `cd wind_input && cargo test -p wind-store -p wind-coordinator -p wind-transfer` 全绿。
-- [ ] `cd wind_input && cargo build` 成功。
-- [ ] `cd wind_input && cargo fmt -p wind-store -p wind-coordinator -- --check` 干净。
+- [ ] `cd moodflow_input && cargo test -p moodflow-store -p moodflow-coordinator -p moodflow-transfer` 全绿。
+- [ ] `cd moodflow_input && cargo build` 成功。
+- [ ] `cd moodflow_input && cargo fmt -p moodflow-store -p moodflow-coordinator -- --check` 干净。
 
 ## P2 交付物
 
 - store:批量导入三分类(dry-run 与落盘同一套分类规则,满足"预览数=实际落盘"约束)+ 单事务 `clear_user_words`。
-- RPC:`dict.export` / `dict.import`(merge|replace)/ `dict.previewImport` 契约就位,wind-setting 可直接对接。
+- RPC:`dict.export` / `dict.import`(merge|replace)/ `dict.previewImport` 契约就位,moodflow-setting 可直接对接。
 - P1 遗留接线完成:`Strategy`/`ImportOutcome`/`ImportPreview` 类型首次投入使用。
 
 ## 后续(各自成计划)

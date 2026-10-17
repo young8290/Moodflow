@@ -15,7 +15,7 @@
 #
 # ⚠️ user-facing 标记块有两个下游消费者,改动其格式前先看它们:
 #   - 文档仓 scripts/sync_release_notes.py → data/releases.json → 官网 /changelog
-#   - wind-setting src/update/notes.rs     → 应用内「有新版本」对话框
+#   - moodflow-setting src/update/notes.rs     → 应用内「有新版本」对话框
 #   两者都把内容为「暂未填写」的块视作未填写而跳过。注意 Rust 侧是**全等**比较,
 #   占位符前面不能加 `>` 等任何修饰,否则占位文本会被当成正文弹给用户。
 set -euo pipefail

@@ -7,10 +7,10 @@
 
 部分用户反馈「某些应用完全无法输入」。经代码定位，根因在 C++ TSF 层的禁用门闸：
 
-- `wind_tsf/src/KeyEventSink.cpp` 三处 `if (_pTextService->IsKeyboardDisabled()) return S_OK;`（约 186 / 1095 / 1251 行）——该状态为真时 DLL **放行所有按键、完全不拦截**，表现即「打不了字」。
+- `moodflow_tsf/src/KeyEventSink.cpp` 三处 `if (_pTextService->IsKeyboardDisabled()) return S_OK;`（约 186 / 1095 / 1251 行）——该状态为真时 DLL **放行所有按键、完全不拦截**，表现即「打不了字」。
 - 该状态 `_bKeyboardDisabled` 由 `GUID_COMPARTMENT_KEYBOARD_DISABLED` compartment sink 驱动（`TextService.cpp` 的 `_InitKeyboardDisabledCompartment`，GUID 见 `kGuidCompartmentKeyboardDisabled`）。Chromium 系密码框会置位，但**某些应用可能异常置位**，是主要可疑点。
 - 该禁用状态**目前只活在 DLL 内部，从未上报给 Rust 服务端**，无法观测。
-- 另一路信号 `input_scope_mask`（含 IS_PASSWORD=bit31 / IS_NUMERIC_PASSWORD=bit63）虽由 `focus_gained` 发到服务端（`wind-bridge/src/handler.rs:157` 的 `FocusData.input_scope_mask`），但 `coordinator.rs:3977 handle_focus_gained` **完全未读取**——即 Go 对齐项 P0#1「数据到位、消费缺失」。
+- 另一路信号 `input_scope_mask`（含 IS_PASSWORD=bit31 / IS_NUMERIC_PASSWORD=bit63）虽由 `focus_gained` 发到服务端（`moodflow-bridge/src/handler.rs:157` 的 `FocusData.input_scope_mask`），但 `coordinator.rs:3977 handle_focus_gained` **完全未读取**——即 Go 对齐项 P0#1「数据到位、消费缺失」。
 
 本设计一次交付两件事：
 
@@ -37,7 +37,7 @@
 
 ### A. 数据链路（C++ → Rust）
 
-上报时机（`wind_tsf`）：
+上报时机（`moodflow_tsf`）：
 
 1. `CTextService::OnSetFocus`（已上报 `focus_gained`，**扩展载荷**再带禁用态字段）。
 2. `GUID_COMPARTMENT_KEYBOARD_DISABLED` compartment sink 触发时（**新增**一条独立上报，覆盖「不换焦点但 compartment 变更」，如网页内密码框获焦）。
@@ -58,7 +58,7 @@
 协议落点：
 
 - 扩展 `focus_gained` 编解码，新增 `disabled`/`reason` 两字段（`input_scope_mask` 已有）。
-- 新增独立命令 `CMD_INPUT_STATE_REPORT`（`wind-ipc` 协议常量 + `wind-bridge` 解码），仅用于 compartment 变更时的最新态上报。
+- 新增独立命令 `CMD_INPUT_STATE_REPORT`（`moodflow-ipc` 协议常量 + `moodflow-bridge` 解码），仅用于 compartment 变更时的最新态上报。
 
 ### B. 状态存储（coordinator）
 
@@ -67,9 +67,9 @@
 - `handle_focus_gained` 与 `CMD_INPUT_STATE_REPORT` 处理均写入该状态；`process_name` 复用已有 `pid_names` 缓存 / `cached_proc_name`（`coordinator.rs:506/1115`），避免重复 `OpenProcess`。
 - 写入后若 HUD 可见，触发一次 HUD 重绘推送。
 
-### C. HUD 浮窗（wind-ui）
+### C. HUD 浮窗（moodflow-ui）
 
-- 新增 `InputDiagHud`，仿 `StatusTip`（`wind-ui/src/status_tip.rs`）：`LayeredWindow` + `TextRenderer`（View 盒模型 + DirectWrite），深色半透明圆角底。
+- 新增 `InputDiagHud`，仿 `StatusTip`（`moodflow-ui/src/status_tip.rs`）：`LayeredWindow` + `TextRenderer`（View 盒模型 + DirectWrite），深色半透明圆角底。
 - 窗口样式追加 `WS_EX_NOACTIVATE`，置顶；初始屏角默认右下（避让全屏检测 `is_foreground_fullscreen`）。
 - **可拖动改位置**：鼠标按住拖动即可移动。非激活窗口拖动不会抢走应用 X 的焦点（点击不激活）。拖动经手动 `WM_LBUTTONDOWN` + 移动实现（或 `WM_NCHITTEST` 返回 `HTCAPTION`），需与「复制」区分——见下。
 - **不自动隐藏**（区别于 StatusTip 的 ~1s 自隐）；由菜单开关控制显隐。
@@ -83,7 +83,7 @@
 
 ### D. 抑制策略（P0#1 接线）
 
-> 定性：密码框强制英文**是用户功能，不是诊断功能**。最终归宿是**设置程序**（`wind-setting` 独立仓）里的一个用户可见选项。本次先把引擎侧逻辑接通，并临时挂在「高级」菜单开关上用于测试（见 E 节），后续再迁移到设置界面。
+> 定性：密码框强制英文**是用户功能，不是诊断功能**。最终归宿是**设置程序**（`moodflow-setting` 独立仓）里的一个用户可见选项。本次先把引擎侧逻辑接通，并临时挂在「高级」菜单开关上用于测试（见 E 节），后续再迁移到设置界面。
 
 - `handle_focus_gained` 与 compartment 上报处：解码 `input_scope_mask`，命中 IS_PASSWORD / IS_NUMERIC_PASSWORD → 置瞬态 `password_suppress` 标志。
 - 效果 = **强制英文、图标不变**（对齐 Go `applyPasswordFieldPolicyNoLock`，参考 Go `handle_lifecycle.go` 约 440 行 IS_PASSWORD=31 / IS_NUMERIC_PASSWORD=63 判定）。实现为：`password_suppress` 为真时，键处理走英文直通，不改 `state.chinese_mode` 的持久值与工具栏图标。
@@ -109,10 +109,10 @@
 应用X TSF context
   │ OnSetFocus / compartment 变更
   ▼
-wind_tsf: 判定 disabled + reason + mask
+moodflow_tsf: 判定 disabled + reason + mask
   │ focus_gained(扩展) 或 CMD_INPUT_STATE_REPORT
   ▼
-wind-bridge 解码 → FocusData / InputStateReport
+moodflow-bridge 解码 → FocusData / InputStateReport
   ▼
 coordinator: 写 last_input_diag ──┬─► HUD 可见? → 重绘 InputDiagHud
                                    └─► 命中密码位 & 抑制启用? → 置 password_suppress
@@ -120,13 +120,13 @@ coordinator: 写 last_input_diag ──┬─► HUD 可见? → 重绘 InputDia
 
 ## 涉及文件（预估）
 
-- `wind_tsf/src/TextService.cpp`：compartment sink 回调新增上报；`OnSetFocus` 上报扩展 disabled/reason。
-- `wind_tsf/src/IPCClient.cpp` + `BinaryProtocol.h`：focus_gained 载荷扩展 + `CMD_INPUT_STATE_REPORT`。
-- `wind-ipc`：协议常量 `CMD_INPUT_STATE_REPORT` + 编解码。
-- `wind-bridge/src/handler.rs` `server.rs` `server_unix.rs`：`FocusData` 扩展 + 新命令分发。
-- `wind-coordinator/src/coordinator.rs`：`last_input_diag`、上报处理、`handle_focus_gained` 消费 mask、`password_suppress`。
-- `wind-coordinator/src/handle_menu.rs`：两个「高级」菜单项 + `run_menu_cmd` 分支。
-- `wind-ui`：新增 `InputDiagHud`（仿 `status_tip.rs`）+ `manager.rs` 的 `MenuCmd` 两个变体与 UI 指令。
+- `moodflow_tsf/src/TextService.cpp`：compartment sink 回调新增上报；`OnSetFocus` 上报扩展 disabled/reason。
+- `moodflow_tsf/src/IPCClient.cpp` + `BinaryProtocol.h`：focus_gained 载荷扩展 + `CMD_INPUT_STATE_REPORT`。
+- `moodflow-ipc`：协议常量 `CMD_INPUT_STATE_REPORT` + 编解码。
+- `moodflow-bridge/src/handler.rs` `server.rs` `server_unix.rs`：`FocusData` 扩展 + 新命令分发。
+- `moodflow-coordinator/src/coordinator.rs`：`last_input_diag`、上报处理、`handle_focus_gained` 消费 mask、`password_suppress`。
+- `moodflow-coordinator/src/handle_menu.rs`：两个「高级」菜单项 + `run_menu_cmd` 分支。
+- `moodflow-ui`：新增 `InputDiagHud`（仿 `status_tip.rs`）+ `manager.rs` 的 `MenuCmd` 两个变体与 UI 指令。
 
 ## 测试
 
@@ -153,7 +153,7 @@ Rust 单测：
 
 ## 未决/评审点
 
-1. 后续把「密码框强制英文」迁到设置程序时的选项文案与位置（属 `wind-setting` 仓，另行处理）。
+1. 后续把「密码框强制英文」迁到设置程序时的选项文案与位置（属 `moodflow-setting` 仓，另行处理）。
 
 ---
 

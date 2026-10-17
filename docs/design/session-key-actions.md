@@ -28,13 +28,13 @@
 
 ### 已有能力：Tab 翻页其实不用改内核
 
-`NavKeys::from_config`（`wind-keys/src/keymap.rs:112`）的 page 组已有 `shift_tab`：
+`NavKeys::from_config`（`moodflow-keys/src/keymap.rs:112`）的 page 组已有 `shift_tab`：
 Tab → 下一页、Shift+Tab → 上一页。出厂默认把 Tab 给了高亮组
 （`data/config.toml:473`：`highlight_keys = ["arrows", "tab"]`）。
 
 把 `page_keys` 加 `"shift_tab"`、`highlight_keys` 去掉 `"tab"` 即达成诉求一。C++ 侧也通：
-Tab 在 `_IsSessionKey` 表里（`wind_tsf/include/KeyEventSink.h:225`），有会话时恒吃恒转发。
-**待确认的只是设置页有没有暴露 `shift_tab` 这个选项**（wind-setting 仓）。
+Tab 在 `_IsSessionKey` 表里（`moodflow_tsf/include/KeyEventSink.h:225`），有会话时恒吃恒转发。
+**待确认的只是设置页有没有暴露 `shift_tab` 这个选项**（moodflow-setting 仓）。
 
 ## 2. ★★ 状态归属判据（本文档最该留下来的一节）
 
@@ -411,7 +411,7 @@ CapsLock / NumLock / ScrollLock 的锁定态由系统在**输入线程状态机*
 
 ★ 可复用判据：**事后修正在竞态下没有正确解**。这类需求只能「在它发生之前阻止它发生」。
 
-### 7.3 现方案：`WH_KEYBOARD_LL`（`wind-keys/src/capslock_hook.rs`）
+### 7.3 现方案：`WH_KEYBOARD_LL`（`moodflow-keys/src/capslock_hook.rs`）
 
 低级键盘钩子是用户态唯一在锁定态更新**之前**的位置（MS 文档：「the callback function is
 called before the asynchronous state of the key is updated」），返回非零即阻止该事件继续传递。
@@ -451,7 +451,7 @@ called before the asynchronous state of the key is updated」），返回非零�
 
 1. **`printable` 标志不能在收编时丢**。`-` `=` `[` `]` `,` `.` 作导航键时，在临英 / 快捷输入
    里必须回落成输入字符——这就是 `NavKeys::classify(..., include_printable)` 那个参数的由来
-   （`wind-keys/src/keymap.rs:135-147`）。换成 Map 表达后要有等价物，否则临英里打不出减号。
+   （`moodflow-keys/src/keymap.rs:135-147`）。换成 Map 表达后要有等价物，否则临英里打不出减号。
 2. **每条通路都要接**。`apply_session_action` 的消费点是：主路径、`handle_mix_key`，
    以及 `handle_candidate_nav`（临拼 / 临英 / 特殊模式三个 handler 共用它）。只接主路径
    的表现是「快捷输入里 Tab 不翻页」——本仓「一个能力多条通路、闸门必须每条都接」已反复
@@ -477,7 +477,7 @@ called before the asynchronous state of the key is updated」），返回非零�
 | 一 | 建 `keys.session_actions`；`page_keys` / `highlight_keys` 折算；CapsLock keyup 通路（含 C++ 那处） | 两个翻页诉求可用；Esc 一行不动 | ✅ 已实施，**未真机** |
 | 二 | `cancel` 动词 + 六处 Esc 收敛为单点 | 「Tab 清空」；此后同类需求零成本 | ✅ 已实施，**未真机** |
 | 三 | `select_key_groups` / `select_char_keys` 折算 | 二三候选键、以词定字键可自由改绑 | ✅ 已实施，**未真机** |
-| 四 | 设置页改造（wind-setting 仓） | 不必手改 config.toml | 未开始 |
+| 四 | 设置页改造（moodflow-setting 仓） | 不必手改 config.toml | 未开始 |
 
 一期不碰 Esc：它是硬编码多处，风险与收益都在二期，而用户当时等的是翻页。
 
@@ -485,13 +485,13 @@ called before the asynchronous state of the key is updated」），返回非零�
 
 - **`NavKeys` 泛化成 `KeyBinds<A>`**。一期写死 `NavAction` 的表在加 `cancel` 时立刻不够用
   ——新动词没有对应的 `NavAction`。★ 判据：**一张「键 → 动作」的表，动作类型不该由表来
-  规定**。泛型后 `wind-keys` 仍不认识 `SessionAction`（那住在 `wind-config`，反向依赖会成环），
+  规定**。泛型后 `moodflow-keys` 仍不认识 `SessionAction`（那住在 `moodflow-config`，反向依赖会成环），
   实例化由协调器做。
 - **六处 Esc 收敛为 `cancel_session`**，按 `state.active` 分派回各自的 `exit_*`。收敛前六处
   形态逐字相同、只有退出函数不同。
 - **菜单与快捷加词刻意不收**（§2 的 C 类模态窗口）：菜单把键直接转发给 UI 窗口自行解释
   （`UiCommand::MenuKey`），协调器这边不决定语义；加词模式消费全部按键。要让自定义取消键
-  在那两处生效，得改 `wind-ui` 的键解释器，是另一层的事。
+  在那两处生效，得改 `moodflow-ui` 的键解释器，是另一层的事。
 - C++ 两处 CapsLock 判据同步从 `_hasCandidates` 放宽到 `_HasInputSession()`，与服务端的
   `has_input_session` 保持逐字一致（§7 的 ⚠️ 已预告这一步）。
 
@@ -507,7 +507,7 @@ called before the asynchronous state of the key is updated」），返回非零�
   `select_key_vks` / `select_char_vks`）。留着不用就是第二套真相源——此前
   `select_key_vks`（不含 `brackets`）与 `select_char_vks`（含）就被张冠李戴过一次，
   `brackets` 配置静默失效。收编后两者靠**动词**区分而非靠解析器区分。
-- ⚠️ **补了一个一期的遗漏**：`lshift` / `rctrl` 这类修饰键名 `hotkey.rs` 认得、`wind-keys`
+- ⚠️ **补了一个一期的遗漏**：`lshift` / `rctrl` 这类修饰键名 `hotkey.rs` 认得、`moodflow-keys`
   的表里没有，而跨 crate 一致性测试的键名列表恰好没覆盖到它们。★ 那条测试的**覆盖面就是
   它的全部价值**——漏一个名字等于那个名字没被守。三期用到这些键名时才暴露。
 - 顺带删掉 `coordinator.rs` 里一个重复的 `#[test]` 属性（既有，非本次引入）。它本身无害，

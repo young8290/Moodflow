@@ -4,7 +4,7 @@
 > 由真机反馈引出：全拼下 `nhao` 候选为空，用户期望 `n`(简) + `hao`(全) → 「你好」。
 > 属**功能缺失**，不是缺陷——这种形态从未被支持过。
 >
-> 实现：`wind-engine/src/pinyin/mixed_abbrev.rs`（模式表示与枚举）+ `mod.rs` step 5b（系统词
+> 实现：`moodflow-engine/src/pinyin/mixed_abbrev.rs`（模式表示与枚举）+ `mod.rs` step 5b（系统词
 > 召回）+ step 6 内的用户词分支。测试：`tests/pinyin_mixed_abbrev.rs`、
 > `tests/pinyin_user_word_boundary.rs::shuangpin_mixed_abbrev_survives_boundary_check`。
 >
@@ -446,7 +446,7 @@ wmyiqizou   → 我们一起走   ✓    nhaoma      → 你好吗     ✓
 | C 多音节含缩合音 | 1000 | 92.30% | 99.30% | 0.9518 | 94.80% |
 
 ```
-cargo test -p wind-engine --test pinyin_eval -- --ignored --nocapture
+cargo test -p moodflow-engine --test pinyin_eval -- --ignored --nocapture
 ```
 
 ⚠️ 需要 `build_dev/data`（`scripts/dev.ps1 d1` 产出）。**该目录缺失时依赖真实词库的测试族
@@ -488,19 +488,19 @@ cargo test -p wind-engine --test pinyin_eval -- --ignored --nocapture
 
 | 关注点 | 位置 |
 |---|---|
-| **混合模式表示与枚举** | `wind-engine/src/pinyin/mixed_abbrev.rs` |
-| **混合系统词召回** | `wind-engine/src/pinyin/mod.rs` step 5b |
+| **混合模式表示与枚举** | `moodflow-engine/src/pinyin/mixed_abbrev.rs` |
+| **混合系统词召回** | `moodflow-engine/src/pinyin/mod.rs` step 5b |
 | **混合用户词召回** | `mod.rs` step 6 内的 `mixed` 分支（与纯简拼共用同一次全表枚举） |
 | **boundary → 音节序列** | `mixed_abbrev::syllables_from_boundary`（与 `abbrev_of_code` 同源，须同步） |
-| 简拼判据 | `wind-engine/src/pinyin/scorer.rs:24` `is_abbreviation` |
-| 系统词简拼召回 | `wind-engine/src/pinyin/mod.rs` step 5 |
-| 用户词简拼召回 | `wind-engine/src/pinyin/mod.rs` step 6 末段 |
+| 简拼判据 | `moodflow-engine/src/pinyin/scorer.rs:24` `is_abbreviation` |
+| 系统词简拼召回 | `moodflow-engine/src/pinyin/mod.rs` step 5 |
+| 用户词简拼召回 | `moodflow-engine/src/pinyin/mod.rs` step 6 末段 |
 | 整串投影 | `mod.rs` `abbrev_of_code(code, boundary)` |
-| 简拼索引 | `wind-dict/src/datformat.rs` AbbrevSection（v5 存全拼码）；写入端 `wind-engine/src/manager.rs` `agg_ab` |
-| 切分 | `wind-engine/src/pinyin/dag.rs` |
-| 三域映射 | `wind-engine/src/pinyin/interp.rs` `SylSpan` / `map_fp_to_raw` |
+| 简拼索引 | `moodflow-dict/src/datformat.rs` AbbrevSection（v5 存全拼码）；写入端 `moodflow-engine/src/manager.rs` `agg_ab` |
+| 切分 | `moodflow-engine/src/pinyin/dag.rs` |
+| 三域映射 | `moodflow-engine/src/pinyin/interp.rs` `SylSpan` / `map_fp_to_raw` |
 | 双拼边界校验 | `mod.rs` `boundary_compatible` 调用处（含 `is_abbrev` 豁免） |
-| 层级比较 | `wind-candidate/src/candidate.rs:312` `cmp_match_layers` |
+| 层级比较 | `moodflow-candidate/src/candidate.rs:312` `cmp_match_layers` |
 
 ## 8. 相关文档
 

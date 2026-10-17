@@ -1,4 +1,4 @@
-# 心晴 · 周报一句话总结（FR-DSH-04）
+# Moodflow · 周报一句话总结（FR-DSH-04）
 # 本地模板生成，不调用 AI。选取规则（按顺序，命中第一条即用）：
 #   late_tired：周内“低落/疲劳”最高频时段在 22:00 之后 → late_tired
 #   rest_high：休息完成率 ≥ 70% → rest_high

@@ -2,23 +2,23 @@
 
 ## 背景与目标
 
-Go 版 WindInput 提供三类数据流转能力:方案的导入导出、用户词库的导入导出、整机数据的备份/还原。Rust 版目前这三层基本空白,但底层已具备可复用基座:
+Go 版 Moodflow 提供三类数据流转能力:方案的导入导出、用户词库的导入导出、整机数据的备份/还原。Rust 版目前这三层基本空白,但底层已具备可复用基座:
 
-- `wind-store` 已有 `wdict.rs` 版本化文本编解码、phrase 的 upsert 合并导入(`export/import_user_phrases_wdict`)、freq 的 `export_records/import_records`。
-- `wind-coordinator/webdata.rs` 已有数据域 RPC 转发框架(`web_data_rpc`),并已实现 `phrase.export/import`、`theme.importFromText/Url`。
+- `moodflow-store` 已有 `wdict.rs` 版本化文本编解码、phrase 的 upsert 合并导入(`export/import_user_phrases_wdict`)、freq 的 `export_records/import_records`。
+- `moodflow-coordinator/webdata.rs` 已有数据域 RPC 转发框架(`web_data_rpc`),并已实现 `phrase.export/import`、`theme.importFromText/Url`。
 
 本设计将三类功能统一为**同一分层栈的不同组合**,避免三套重复实现,并让现有 `phrase`/`theme` 的导入导出自然归位。
 
 ### 交付边界
 
 - **本仓(core)**:实现引擎/存储侧的打包解包逻辑,并暴露 `web_data_rpc` 方法契约。
-- **wind-setting(独立原生程序仓)**:文件对话框、导入向导、冲突预览界面。本设计给出其所需 RPC 契约,UI 实现不在本仓范围。
+- **moodflow-setting(独立原生程序仓)**:文件对话框、导入向导、冲突预览界面。本设计给出其所需 RPC 契约,UI 实现不在本仓范围。
 
 ### 关键决策(已定)
 
 | 决策点 | 结论 |
 |---|---|
-| 交付边界 | 核心 + RPC 契约(UI 在 wind-setting) |
+| 交付边界 | 核心 + RPC 契约(UI 在 moodflow-setting) |
 | 备份格式 | 单一自描述 `.zip`(含 `manifest.json`) |
 | 冲突语义 | 用户可选,默认合并(Merge);另提供 Replace |
 | Go 版兼容 | 不兼容旧版(全新格式,不解析 bbolt/旧文件树) |
@@ -29,7 +29,7 @@ Go 版 WindInput 提供三类数据流转能力:方案的导入导出、用户�
 ## 核心抽象:三层复用栈
 
 ```
-┌─ RPC 契约层 (webdata.rs)  scheme.* / dict.* / backup.*   ← wind-setting 调用
+┌─ RPC 契约层 (webdata.rs)  scheme.* / dict.* / backup.*   ← moodflow-setting 调用
 ├─ 功能编排层  scheme.rs   dict(复用现有) backup.rs
 ├─ 归档层 (Bundle)         manifest.json + zip 读写         ← 方案包、整机备份共用
 ├─ 合并引擎 (Merge)        strategy(Merge/Replace) + dry-run 预览  ← 所有导入共用
@@ -54,7 +54,7 @@ Go 版 WindInput 提供三类数据流转能力:方案的导入导出、用户�
 ### manifest.toml(整机备份用;方案包 v2 不再走 Bundle 层)
 
 ```toml
-format = "windinput-bundle"
+format = "moodflow-bundle"
 kind = "backup"
 spec_version = 1
 app_version = "x.y.z"
@@ -165,11 +165,11 @@ state/state.toml                       type="state"      (include_state)
 - **Dry-run 预览**:每个导入方法配套 `previewImport`,返回 `{ willAdd, willUpdate, willConflict, unchanged }` 的计数与样本。
 - **去重 key**:沿用各表既有复合 key(`user_words`/`temp`/`freq`/`shadow` 为 `schema\0code\0text`,`phrases` 为 `code\0text`),与 store 现状一致。
 
-## RPC 契约(交付给 wind-setting)
+## RPC 契约(交付给 moodflow-setting)
 
 **传输约定**:
 
-- zip 类走**文件路径**(避免大 base64 过 IPC);wind-setting 侧先弹文件对话框拿到路径再调用。
+- zip 类走**文件路径**(避免大 base64 过 IPC);moodflow-setting 侧先弹文件对话框拿到路径再调用。
 - 文本类(wdict)走 **content 字符串**。
 
 | 域 | 方法 | 入参 | 返回 |
@@ -189,8 +189,8 @@ state/state.toml                       type="state"      (include_state)
 
 - `strategy`: `"merge"`(默认)| `"replace"`。
 - `backup.restore` 的 `sections`(可选):限定只还原部分域,如 `["dict", "config"]`,缺省还原全部。
-- 现有 `phrase.export/import`、`theme.importFromText/Url` **签名不变**,内部逐步统一到 `wind-transfer` 的 codec/merge。
-- 主题包的三条走 `wind-transfer::theme`,与方案包的 `scheme` 平行但不共用条目判据(一个认
+- 现有 `phrase.export/import`、`theme.importFromText/Url` **签名不变**,内部逐步统一到 `moodflow-transfer` 的 codec/merge。
+- 主题包的三条走 `moodflow-transfer::theme`,与方案包的 `scheme` 平行但不共用条目判据(一个认
   `*.schema.toml` 根条目,一个认 `theme.toml`)。`theme.importPackage` 的同名冲突是**可预期的
   业务性失败**,走 `conflict: true` 回执而非 error 通道——客户端据此弹「是否覆盖」再以
   `force=true` 重推;靠匹配报错文案认冲突的话,core 改一次文案客户端就静默失效。
@@ -200,15 +200,15 @@ state/state.toml                       type="state"      (include_state)
 
 ## 代码落点
 
-### 新增 crate `wind-transfer`
+### 新增 crate `moodflow-transfer`
 
-依赖 `wind-store`、`wind-config`、`zip`、`serde` / `serde_json`。
+依赖 `moodflow-store`、`moodflow-config`、`zip`、`serde` / `serde_json`。
 
 ```
-wind-transfer/src/
+moodflow-transfer/src/
   lib.rs
   codec/
-    wdict.rs      从 wind-store 上抽为通用(phrases / words 共用同一版本化格式)
+    wdict.rs      从 moodflow-store 上抽为通用(phrases / words 共用同一版本化格式)
     jsonl.rs      freq / shadow / stats 的逐行 JSON 编解码
   bundle.rs       manifest 定义 / 校验 + zip 读写(打包、解包、免解压读 manifest)
   merge.rs        Strategy 枚举 + dry-run 预览的通用骨架
@@ -216,7 +216,7 @@ wind-transfer/src/
   backup.rs       整机 export / restore(组合 codec + merge + bundle)
 ```
 
-### wind-store 需补的能力
+### moodflow-store 需补的能力
 
 对齐现有 phrase/freq 已有件:
 
@@ -224,11 +224,11 @@ wind-transfer/src/
 - `temp_words` / `shadow` / `stats` 的逐表文本导入导出。
 - 批量 upsert 带 strategy(`Merge`/`Replace`),供还原/导入统一调用。
 
-`wdict.rs` 由 store 私有编解码上抽到 `wind-transfer/codec`,store 侧改为调用通用 codec(或 store 依赖 wind-transfer 的 codec 子模块;方向在 P1 定,避免循环依赖——倾向把纯 codec 放在不依赖 store 的独立层)。
+`wdict.rs` 由 store 私有编解码上抽到 `moodflow-transfer/codec`,store 侧改为调用通用 codec(或 store 依赖 moodflow-transfer 的 codec 子模块;方向在 P1 定,避免循环依赖——倾向把纯 codec 放在不依赖 store 的独立层)。
 
-### wind-coordinator/webdata.rs
+### moodflow-coordinator/webdata.rs
 
-新增上述 RPC 方法,注入 `store` 与 `Config` 路径,转发到 `wind-transfer`。
+新增上述 RPC 方法,注入 `store` 与 `Config` 路径,转发到 `moodflow-transfer`。
 
 ### redb 文件锁
 
@@ -238,7 +238,7 @@ wind-transfer/src/
 
 | 阶段 | 内容 | 依赖 |
 |---|---|---|
-| **P1 底座** | `wind-transfer` crate + codec 上抽 + manifest/bundle + store 逐表 export/import + merge 引擎 + 单元测试 | — |
+| **P1 底座** | `moodflow-transfer` crate + codec 上抽 + manifest/bundle + store 逐表 export/import + merge 引擎 + 单元测试 | — |
 | **P2 词库** | `dict.export/import/previewImport` RPC(最独立,复用 phrase 范式) | P1 |
 | **P3 方案包** | `scheme.exportPackage/importPackage/previewImport` + 资源收集 + 用户方案目录落地 | P1 |
 | **P4 整机备份** | `backup.create/inspect/restore`(组合全部层) | P1–P3 |

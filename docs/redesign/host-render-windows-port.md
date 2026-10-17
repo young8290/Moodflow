@@ -6,11 +6,11 @@
 > **§11 实现偏差与真机修复**（改代码前以 §11 为准）。
 
 - 分支：`worktree-host-render-rust`（已合并，worktree 已清理）
-- 对照基准（Go 版，同级 `../WindInput-Go`）：
-  - `wind_input/internal/bridge/host_render.go` —— HostRenderManager / SharedMemory / NamedEvent
-  - `wind_input/internal/bridge/shared_memory.go` —— Windows 共享内存写端（WriteFrame/WriteHide）
-  - `wind_input/internal/coordinator/handle_lifecycle.go` —— 生命周期与 composition 终止竞态处理
-  - `wind_input/internal/ipc/binary_protocol.go` —— `HostRenderSetupEntry` / `SharedRenderHeader`
+- 对照基准（Go 版，同级 `../Moodflow-Go`）：
+  - `moodflow_input/internal/bridge/host_render.go` —— HostRenderManager / SharedMemory / NamedEvent
+  - `moodflow_input/internal/bridge/shared_memory.go` —— Windows 共享内存写端（WriteFrame/WriteHide）
+  - `moodflow_input/internal/coordinator/handle_lifecycle.go` —— 生命周期与 composition 终止竞态处理
+  - `moodflow_input/internal/ipc/binary_protocol.go` —— `HostRenderSetupEntry` / `SharedRenderHeader`
   - `docs/archive/startmenu-zorder-solution.md` —— 完整设计史与已知遗留问题
 - 相关本仓库文档：
   - `docs/superpowers/specs/2026-06-22-macos-w4-hostrender-design.md`（W4：render_frame 抽取 + macOS forwarder，已实施）
@@ -21,7 +21,7 @@
 Win11 开始菜单 / 任务栏搜索（SearchHost.exe）的 TSF 环境高度受限：普通进程创建的
 候选窗口无法盖过其 Band 层级，导致候选框不可见。Go 版通过 **HostRender**（DLL 代理渲染）
 解决：服务进程渲染好完整位图 → 全局命名共享内存 → 命名 Event 唤醒宿主进程内的
-`wind_tsf.dll` → DLL 用 `CreateWindowInBand` 创建的 Band 窗口 `UpdateLayeredWindow` 上屏。
+`moodflow_tsf.dll` → DLL 用 `CreateWindowInBand` 创建的 Band 窗口 `UpdateLayeredWindow` 上屏。
 
 Rust 重写后该链路的**服务进程侧尚未实现**。本设计目标：
 
@@ -29,7 +29,7 @@ Rust 重写后该链路的**服务进程侧尚未实现**。本设计目标：
 2. 保持 **全局 SHM 架构**（用户决策：per-instance SHM 内存代价不可接受），在该架构内
    **根治** Go 版遗留的「单进程多实例致 special 模式退出后候选窗不隐藏」bug。
 3. macOS 侧不改架构（W4 的 host-render forwarder 已实施），本轮一并规划 **W9 接线缺口**。
-4. `wind_tsf` C++ 端（`HostWindow.cpp`）**零改动**。
+4. `moodflow_tsf` C++ 端（`HostWindow.cpp`）**零改动**。
 
 ## 2. 现状盘点（本仓库已就位 / 缺失）
 
@@ -38,7 +38,7 @@ Rust 重写后该链路的**服务进程侧尚未实现**。本设计目标：
 | C++ `HostWindow.cpp`（CreateWindowInBand、band 降级、渲染线程、鼠标交互） | ✅ 已在仓库，零改动 |
 | C++ `TextService::_EnsureHostRenderSetup` + `IPCClient::SendHostRenderRequest` | ✅ 已在仓库（由响应 `STATUS_HOST_RENDER_AVAIL` 位触发） |
 | 协议常量 `CMD_HOST_RENDER_REQUEST/SETUP`（0x0501） | ✅ Rust/C++ 两侧均已定义 |
-| `SharedRenderHeader` 64B 布局 | ✅ `wind-ipc/src/protocol.rs` 已定义（darwin 在用） |
+| `SharedRenderHeader` 64B 布局 | ✅ `moodflow-ipc/src/protocol.rs` 已定义（darwin 在用） |
 | POSIX SHM 写端（`shared_memory_posix.rs`） | ✅ 已实施（macOS） |
 | 窗口无关光栅化 `render_frame()`（candidate_window.rs） | ✅ W4 已抽取，直接复用 |
 | bridge 路由 `CMD_HOST_RENDER_REQUEST`（server.rs:514） | ⚠️ 已路由但 handler 为空桩、**不回 setup payload** |
@@ -52,17 +52,17 @@ Rust 重写后该链路的**服务进程侧尚未实现**。本设计目标：
 ## 3. 架构（Windows）
 
 ```
-coordinator ──UiCommand──▶ wind-ui manager_windows（UiManager）
+coordinator ──UiCommand──▶ moodflow-ui manager_windows（UiManager）
                                │  host-render 激活时（按目标实例分流）
                                ▼
                      candidate_window::render_frame()      ← W4 已有，复用
                                ▼
-                wind-bridge HostRenderManager（新，Windows-only）
+                moodflow-bridge HostRenderManager（新，Windows-only）
                    ├─ 全局 SHM per kind（懒建，3 段：SHM / SHM_TIP / SHM_STS）
                    ├─ 帧头 stamp targetInstanceID
                    └─ SetEvent 唤醒同 PID 全部实例
                                ▼
-                wind_tsf HostWindow.cpp（零改动）
+                moodflow_tsf HostWindow.cpp（零改动）
                    ├─ 匹配 targetInstanceID → UpdateLayeredWindow 显示
                    └─ 不匹配 / flags 无 VISIBLE → 隐藏
 ```
@@ -72,24 +72,24 @@ coordinator ──UiCommand──▶ wind-ui manager_windows（UiManager）
 对齐 Go 并叠加本仓库的 endpoint suffix 机制（名字经 `CMD_HOST_RENDER_SETUP` 下发，
 C++ 端只按名字打开，因此服务端可自由命名）：
 
-- SHM：`Local\WindInput_SHM{suffix}`、`..._TIP`、`..._STS`（全局，per kind 单段，4MB = `MAX_SHARED_RENDER_SIZE`）
-- Event：`Local\WindInput_EVT{suffix}_C{clientID}`、`..._TIP`、`..._STS`（per instance 私有）
+- SHM：`Local\Moodflow_SHM{suffix}`、`..._TIP`、`..._STS`（全局，per kind 单段，4MB = `MAX_SHARED_RENDER_SIZE`）
+- Event：`Local\Moodflow_EVT{suffix}_C{clientID}`、`..._TIP`、`..._STS`（per instance 私有）
 
 ### 3.2 新增 / 改动模块
 
 | 文件 | 动作 |
 |---|---|
-| `wind-bridge/src/shared_render_frame.rs`（新，跨平台） | 从 `shared_memory_posix.rs` 抽出 64B header + BGRA + hit-rect 表的**纯编帧逻辑**（`write_frame_into(&mut [u8], …)` / `write_hidden_into`），POSIX 与 Windows 写端共用；Linux 可测 |
-| `wind-bridge/src/shared_memory_windows.rs`（新，cfg windows） | `CreateFileMappingW`（页面文件后备）+ `MapViewOfFile` 写端；`write_frame(img, x, y, rects, hover, target_instance_id)` / `write_hidden()`，内部调用公共编帧逻辑；`sequence` 单调递增 |
-| `wind-bridge/src/named_event.rs`（新，cfg windows） | `CreateEventW`（auto-reset）/ `SetEvent` / `Close` 封装 |
-| `wind-bridge/src/host_render_windows.rs`（新，cfg windows） | `HostRenderManager`（见 §4） |
-| `wind-bridge/src/handler.rs` | `handle_host_render_request` 改签名：`fn handle_host_render_setup(&self, client_id: u32, pid: u32) -> Vec<HostRenderSetupEntry>`（darwin/unix 默认实现返回空）；`handle_host_render_ready` 保留语义 |
-| `wind-bridge/src/server.rs` | `CMD_HOST_RENDER_REQUEST` 分支：取当前连接 clientID + 宿主 PID → 调 manager `setup` → `encode_host_render_setup(entries)` 作为响应 payload（空 entries 时回 ack，DLL 视为不可用）；连接断开路径挂 `cleanup_client(client_id, expected_seq)` |
-| `wind-ipc/src/protocol.rs` + `codec.rs` | `HostRenderSetupEntry { window_kind: u8, max_buffer_size: u32, shm_name, event_name }` + `encode_host_render_setup`（字节布局对照 C++ `BinaryProtocol.h` 解码端，小端、长度前缀 UTF-16/UTF-8 以 C++ 现实现为准）+ 字节断言单测 |
-| `wind-bridge/src/push.rs` | `host_render_avail` 位接真实值：由 server 持有的评估回调（焦点进程是否命中白名单）决定；该位翻转会促使 DLL 走 `_EnsureHostRenderSetup` |
-| `wind-ui/src/manager_windows.rs` | UpdateCandidates/Tooltip/Status 分流：存在 host-render 目标 → `render_frame()` → `HostRenderManager::write_frame_for_kind(...)`；**失败必须回退本地 LayeredWindow 路径，不得静默 return**（Go 经验 #6）；本地窗口与 host 窗口互斥（走 host 路径时隐藏本地窗口，反之亦然） |
-| `wind-coordinator` | host-render 目标评估与生命周期（见 §5）；经 `UiCommand::SetHostRenderTarget(Option<HostRenderTarget{pid, client_id}>)` 通知 UiManager |
-| `wind-config` | `compat.host_render_processes` 默认值改为 `["SearchHost.exe"]`（对齐 Go；空列表 = 功能关闭） |
+| `moodflow-bridge/src/shared_render_frame.rs`（新，跨平台） | 从 `shared_memory_posix.rs` 抽出 64B header + BGRA + hit-rect 表的**纯编帧逻辑**（`write_frame_into(&mut [u8], …)` / `write_hidden_into`），POSIX 与 Windows 写端共用；Linux 可测 |
+| `moodflow-bridge/src/shared_memory_windows.rs`（新，cfg windows） | `CreateFileMappingW`（页面文件后备）+ `MapViewOfFile` 写端；`write_frame(img, x, y, rects, hover, target_instance_id)` / `write_hidden()`，内部调用公共编帧逻辑；`sequence` 单调递增 |
+| `moodflow-bridge/src/named_event.rs`（新，cfg windows） | `CreateEventW`（auto-reset）/ `SetEvent` / `Close` 封装 |
+| `moodflow-bridge/src/host_render_windows.rs`（新，cfg windows） | `HostRenderManager`（见 §4） |
+| `moodflow-bridge/src/handler.rs` | `handle_host_render_request` 改签名：`fn handle_host_render_setup(&self, client_id: u32, pid: u32) -> Vec<HostRenderSetupEntry>`（darwin/unix 默认实现返回空）；`handle_host_render_ready` 保留语义 |
+| `moodflow-bridge/src/server.rs` | `CMD_HOST_RENDER_REQUEST` 分支：取当前连接 clientID + 宿主 PID → 调 manager `setup` → `encode_host_render_setup(entries)` 作为响应 payload（空 entries 时回 ack，DLL 视为不可用）；连接断开路径挂 `cleanup_client(client_id, expected_seq)` |
+| `moodflow-ipc/src/protocol.rs` + `codec.rs` | `HostRenderSetupEntry { window_kind: u8, max_buffer_size: u32, shm_name, event_name }` + `encode_host_render_setup`（字节布局对照 C++ `BinaryProtocol.h` 解码端，小端、长度前缀 UTF-16/UTF-8 以 C++ 现实现为准）+ 字节断言单测 |
+| `moodflow-bridge/src/push.rs` | `host_render_avail` 位接真实值：由 server 持有的评估回调（焦点进程是否命中白名单）决定；该位翻转会促使 DLL 走 `_EnsureHostRenderSetup` |
+| `moodflow-ui/src/manager_windows.rs` | UpdateCandidates/Tooltip/Status 分流：存在 host-render 目标 → `render_frame()` → `HostRenderManager::write_frame_for_kind(...)`；**失败必须回退本地 LayeredWindow 路径，不得静默 return**（Go 经验 #6）；本地窗口与 host 窗口互斥（走 host 路径时隐藏本地窗口，反之亦然） |
+| `moodflow-coordinator` | host-render 目标评估与生命周期（见 §5）；经 `UiCommand::SetHostRenderTarget(Option<HostRenderTarget{pid, client_id}>)` 通知 UiManager |
+| `moodflow-config` | `compat.host_render_processes` 默认值改为 `["SearchHost.exe"]`（对齐 Go；空列表 = 功能关闭） |
 
 ## 4. HostRenderManager 设计
 
@@ -169,7 +169,7 @@ C++ 端零改动：`target_instance_id` 不匹配即隐藏是现有行为，`0` 
 > **核验结论（Task 10，2026-07-04）：Group 1 四项全部已实现，无真实缺口，待 macOS 真机验证。**
 
 1. ✅ **1a 统一菜单树下发**：`coordinator.rs:2577 query_menu_encoded` 已覆写；
-   `wind-bridge/src/server.rs:720-724` macOS `CMD_SHOW_CONTEXT_MENU` 分支返回菜单树帧（非 ack）。
+   `moodflow-bridge/src/server.rs:720-724` macOS `CMD_SHOW_CONTEXT_MENU` 分支返回菜单树帧（非 ack）。
    待 macOS 真机验证。
 2. ✅ **1b 菜单命令 id 映射**：`MenuKind::to_menu_id`（manager.rs:255）与
    `from_menu_id`（:291）完全对称；构建树 `handle_menu.rs:348` 与还原 `coordinator.rs:2598`
@@ -227,8 +227,8 @@ host_render_processes = ["SearchHost.exe"]  # 进程名白名单，支持 * / ? 
 代码前以本节为准**，它覆盖 §5 的两条过时描述。
 
 ### 11.1 关键值域约定（三套，勿混）
-翻页按钮在三层各有不同值域，写帧时必须重映射（`wind-ui/src/manager.rs`）：
-- **Rust 内部 tag**：`HOVER_PAGE_PREV/NEXT = 100000/100001`（`wind-ui/src/manager.rs`）。
+翻页按钮在三层各有不同值域，写帧时必须重映射（`moodflow-ui/src/manager.rs`）：
+- **Rust 内部 tag**：`HOVER_PAGE_PREV/NEXT = 100000/100001`（`moodflow-ui/src/manager.rs`）。
 - **SHM hit-rect 表 & `CMD_CANDIDATE_SELECT` 上行**：`-1 上页 / -2 下页`（C++ `HostWindow.cpp::_HitTest`）。
 - **`CMD_CANDIDATE_HOVER` 上行**：`-1 无 / -2 上页 / -3 下页`（hover 需独立的「无」，故整体平移一位）。
 - 帧头 `rendered_hover_index` 用 C++ hover 值域（-2/-3）。
@@ -271,7 +271,7 @@ Rust 无 Go 的 `last_key_time` 竞态窗口，改为 `host_render_active()` 时
 
 ### 11.7 白名单迁入 compat.toml（2026-07-30）
 `compat.host_render_processes`（`config.toml` 全局字符串列表，支持 `*`/`?` 通配）已删除，
-改为 `AppCompatRule::host_render: bool`（`wind-config/src/app_compat.rs`），随 `caret_use_top`
+改为 `AppCompatRule::host_render: bool`（`moodflow-config/src/app_compat.rs`），随 `caret_use_top`
 等字段一起走按进程名匹配的 compat.toml（系统层 `data/compat.toml` + 用户层覆盖）。
 
 - 现算白名单：`AppCompat::host_render_processes()`（遍历 `host_render=true` 的规则，取进程名，

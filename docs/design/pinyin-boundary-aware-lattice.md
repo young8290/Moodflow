@@ -18,7 +18,7 @@
 
 ### 2.1 切分只保留一条路径
 
-`Dag::maximum_match`（`wind-engine/src/pinyin/dag.rs:51`）是 DP 最大覆盖切分，回溯后返回单个 `Vec<String>`。
+`Dag::maximum_match`（`moodflow-engine/src/pinyin/dag.rs:51`）是 DP 最大覆盖切分，回溯后返回单个 `Vec<String>`。
 
 对 `lianzhengtixing`：位置 0 上 `match_at` 按长音节优先返回 `["lian","li"]`，`lian` 先写入 `dp[4]`；`li`+`an` 随后以相同覆盖长度到达位置 4，被 `dag.rs:72` 的严格大于判据 `covered > dp[end]` 丢弃。
 
@@ -33,7 +33,7 @@ let code: String = syllables[start..end].join("");   // "lian"
 let results = dict.search(&code);                     // 裸 search，不带边界
 ```
 
-词库中「李安」的编码是 `li an`（两个音节），存储时拍平为 `lian`，边界另存于 `DictEntry::boundary`（`wind-dict/src/binformat.rs:99`）。`search` 不校验该字段，于是「李安」从单音节边 `lian` 上被返回。
+词库中「李安」的编码是 `li an`（两个音节），存储时拍平为 `lian`，边界另存于 `DictEntry::boundary`（`moodflow-dict/src/binformat.rs:99`）。`search` 不校验该字段，于是「李安」从单音节边 `lian` 上被返回。
 
 ### 2.3 畸形状态与打分放大
 
@@ -102,9 +102,9 @@ librime 的 `Code = vector<SyllableId>` 形态**不应照搬**，原因有二：
 
 1. **wdat v4 的边界数据已经足够。** `DictEntry::boundary: u64`（`binformat.rs:94-99`）存的是 code 中各音节起始字节位的 bitmask，与音节切分**一一对应、无损**（音节长度 = 相邻起始位之差），唯一限制是 code ≤ 64 字节。真值来自 rime 源数据 `你好\tni hao` 中的空格。
 
-2. **`wind-dict` 是码表引擎共用的。** 码表编码是五笔字根串，无音节语义。全仓 `search*` 调用点 114 处，拼音专属的只有十几处。librime 没有码表引擎共用同一个 trie，我们有。
+2. **`moodflow-dict` 是码表引擎共用的。** 码表编码是五笔字根串，无音节语义。全仓 `search*` 调用点 114 处，拼音专属的只有十几处。librime 没有码表引擎共用同一个 trie，我们有。
 
-**这个判断在仓库里已有先例。** `d096846` 的作者留了字条（`wind-dict/src/cached.rs:167-170`）：
+**这个判断在仓库里已有先例。** `d096846` 的作者留了字条（`moodflow-dict/src/cached.rs:167-170`）：
 
 > 边界只对拼音有意义，而 `search` 的消费方遍布码表/英文/cmdbar/composite 等无音节概念的场景，不应被拼音的需求污染接口。仅拼音引擎改用本方法。
 
@@ -173,7 +173,7 @@ librime 的 `Code = vector<SyllableId>` 形态**不应照搬**，原因有二：
 - `build_dev/data/schemas/pinyin/cn_dicts/base.dict.yaml` — 376,820 行 `词\t拼音(空格分隔)\t权重`，**拼音中的空格即音节真值**，可直接生成「输入串 → 期望输出 + ground truth 切分」
 - `.../ext.dict.yaml` — 235,599 行
 - `.../unigram.txt` — 607,270 行 `词\t频次`，可用于按词频分层抽样
-- 加载模板可复用 `wind-engine/tests/pinyin_long_word.rs:16-33` 的 `data_dir()` + `EngineManager`
+- 加载模板可复用 `moodflow-engine/tests/pinyin_long_word.rs:16-33` 的 `data_dir()` + `EngineManager`
 
 产出：
 1. 评测集生成器（分层抽样，覆盖普通词 / 1110 条缩合音词 / 多音节含缩合音词三类）
@@ -184,14 +184,14 @@ librime 的 `Code = vector<SyllableId>` 形态**不应照搬**，原因有二：
 
 #### Phase 0 已完成（2026-07-21）
 
-产出：`wind_input/crates/wind-engine/tests/pinyin_eval.rs`（两个 `#[ignore]` 测试，无新依赖）。零生产代码改动。
+产出：`moodflow_input/crates/moodflow-engine/tests/pinyin_eval.rs`（两个 `#[ignore]` 测试，无新依赖）。零生产代码改动。
 
 运行：
 
 ```bash
-cd wind_input
-cargo test -p wind-engine --release --test pinyin_eval -- --ignored --nocapture pinyin_eval_report
-# 环境变量：WIND_PINYIN_EVAL_OUT / _N(默认1000) / _SEED(默认20260721) / _DUMP(默认40)
+cd moodflow_input
+cargo test -p moodflow-engine --release --test pinyin_eval -- --ignored --nocapture pinyin_eval_report
+# 环境变量：MOODFLOW_PINYIN_EVAL_OUT / _N(默认1000) / _SEED(默认20260721) / _DUMP(默认40)
 ```
 
 一轮约 4 秒，同种子结果完全可复现。
@@ -265,7 +265,7 @@ cargo test -p wind-engine --release --test pinyin_eval -- --ignored --nocapture 
 
 单音节候选列表（`xian`、`lian`）改动前后**逐字节相同**，证实候选路径未被触及，与 §6.1 的预测一致。
 
-回归：`cargo test -p wind-engine` 184 项全绿（已确认 `build_dev/data` 在 worktree 中正常解析，非假绿）。
+回归：`cargo test -p moodflow-engine` 184 项全绿（已确认 `build_dev/data` 在 worktree 中正常解析，非假绿）。
 
 ### Phase 2 — B：边界感知词图
 
@@ -420,13 +420,13 @@ Phase 3 初次报告曾称残余 C 类漏网「绝大多数是切分正确的同
 - 定点：`lianzhengtixing` 首选**不是**「李安整体性」
 - 定点：`xianjiaotongdaxue` / `qietubiao` / `liandaoyan` 保持 Phase 3 已修复的结果
 - 预编辑区不再出现 `ye'xi'an`、`guo'ti'an`、`hu'a'long`
-- `cargo test -p wind-engine` 全绿
+- `cargo test -p moodflow-engine` 全绿
 
 ## 8. 确认不受影响
 
-- **码表 / 五笔 / 英文 / cmdbar**：`wind-engine/src/codetable/engine.rs` 全走 `dm.search*`，只要保持 `search` / `search_with_boundary` 双 API 并存即零波及
+- **码表 / 五笔 / 英文 / cmdbar**：`moodflow-engine/src/codetable/engine.rs` 全走 `dm.search*`，只要保持 `search` / `search_with_boundary` 双 API 并存即零波及
 - **双拼路径**（`mod.rs:653-670`）：`syllables` 直接来自 `sp_result.syllables`（真值），从不走 DAG。**目标形态其实已在双拼那边跑通，全拼是唯一还在猜的路径**
-- **`wind-reverse` / `wind-phrase` / `wind-coordinator`**：对 `Dag`/`SyllableTrie`/`maximum_match` 零引用
+- **`moodflow-reverse` / `moodflow-phrase` / `moodflow-coordinator`**：对 `Dag`/`SyllableTrie`/`maximum_match` 零引用
 - **wdat 二进制格式与 `PARSE_SEMANTICS_VERSION`**：v4 数据已足够，无需动
 
 ## 9. 风险与回滚
@@ -602,7 +602,7 @@ step 1.5 用 `syllables.len() > max_word_len` 守住了这条线，但 step 2 �
 
 ### 12.6 `e10933f` 用户长词打部分拼音即上浮
 
-已入库的长用户词「清风输入法」打到 `qingfengshu` 不出，要打完整全拼才出现。根因是
+已入库的长用户词「Moodflow 输入法」打到 `qingfengshu` 不出，要打完整全拼才出现。根因是
 `store_layer` 对前缀补全**无条件**标 `is_prefix = true`，而它在 `cmp_match_layers` 里排在
 weight **之前** → 用户长词沉到所有首音节同音子短语（50~100+ 条）之下，权重再高也没用。
 

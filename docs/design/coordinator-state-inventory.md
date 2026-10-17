@@ -12,14 +12,14 @@
 
 | 线程 | 数量 | 入口 | 说明 |
 |---|---|---|---|
-| `bridge-client` | **每宿主进程连接一条** | `MessageHandler` 全部回调 | wind-bridge server.rs 为每个连接 spawn；多个应用进程的 TSF DLL **并发**进入按键/焦点/caret 回调 |
+| `bridge-client` | **每宿主进程连接一条** | `MessageHandler` 全部回调 | moodflow-bridge server.rs 为每个连接 spawn；多个应用进程的 TSF DLL **并发**进入按键/焦点/caret 回调 |
 | UI 事件线程 | 1 | `handle_ui_event` | 桌面 `new()` 里 spawn，消费 `UiEvent` channel（候选点击/翻页/CandidateFlipped/全局热键） |
 | RPC 线程 | service 侧 | `web_data_rpc`（经 `WebDataHost` 窄面）、`reload_user_config` | 设置页数据域 + 配置热重载 |
 | push server 线程 | 1 | `on_push_client_connected`、各 `push_*` | 客户端握手时补推配置帧 |
 | `FirstShowTimer` | 1（共享） | `fire_pending_first_show` | 首显兜底；覆盖式待办，绝不在其上执行阻塞调用 |
 | 全屏探测线程 | 单飞 | 写 `fullscreen_cached` | `notify_toolbar_async`；`fullscreen_probing` 是单飞闸 |
 | capslock 消费线程 | 1 | `handle_capslock_hook_press` | 钩子线程只投递 channel，动作在消费线程执行 |
-| `wind-prepare` 预热线程 | 1 | **走完整按键路径**（喂 'a' + 退格） | 预热与真实路径同源，见 `prepare` 文档 |
+| `moodflow-prepare` 预热线程 | 1 | **走完整按键路径**（喂 'a' + 退格） | 预热与真实路径同源，见 `prepare` 文档 |
 | $CC 异步执行线程 | 按需 | 经 `self_weak` 升级 | 命令候选副作用；独立线程以避免持 state 锁回调自锁 |
 
 ★ **关键事实**：`handle_key_event` 不是单线程专属——bridge-client 按连接并发，预热线程也走同一条路。

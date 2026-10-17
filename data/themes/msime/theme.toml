@@ -1,6 +1,6 @@
 # v3-C schema: base 单链继承唯一基础主题 _base。msime = 微软输入法观感。
 #
-# 与 _base（清风蓝）的关键分歧：**选中候选不用蓝底**。整窗保持中性灰白、选中项只比
+# 与 _base（Moodflow 蓝）的关键分歧：**选中候选不用蓝底**。整窗保持中性灰白、选中项只比
 # 底色深一档，选中身份交给左侧蓝色强调条。故成套覆盖中性色 token，而非只换 primary
 # ——只换主色会得到「淡蓝选中块 + 蓝条」的双重强调。
 #
@@ -12,7 +12,7 @@ base = "_base"
 [meta]
 name = "微软风格"
 version = "3.0"
-author = "清风输入法"
+author = "Moodflow 输入法"
 order = 10
 
 [behavior]

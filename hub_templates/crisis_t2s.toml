@@ -1,4 +1,4 @@
-# 心晴 · 危机词表繁转简字表（由 tools/gen_crisis_t2s.py 生成，不要手改）
+# Moodflow · 危机词表繁转简字表（由 tools/gen_crisis_t2s.py 生成，不要手改）
 # 只含转换结果出现在 crisis_lexicon.toml 中的字；数据来自 OpenCC TSCharacters（Apache-2.0）。
 # Hub safety 模块与 eval/tools/check_crisis.py 共用本表（判定算法第 1 步“繁转简”）。
 

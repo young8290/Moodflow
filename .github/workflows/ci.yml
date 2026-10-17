@@ -4,39 +4,39 @@ name: CI
 on:
   push:
     branches: [main]
-    # 心晴：只动心晴部分（Hub、开发工具、模板、评测；由 xinqing.yml 把关）时不跑输入法核心的交叉编译。
-    # crates/xqp、protocol/ 将来被 wind-xinqing-tap 引用，不在忽略之列。
-    paths-ignore: ['**.md', 'docs/**', 'xinqing_hub/**', 'tools/**', 'hub_templates/**', 'eval/**', 'Cargo.toml', 'Cargo.lock', '.github/workflows/xinqing*.yml']
+    # Moodflow：只动 Moodflow 部分（Hub、开发工具、模板、评测；由 moodflow.yml 把关）时不跑输入法核心的交叉编译。
+    # crates/mfp、protocol/ 将来被 moodflow-tap 引用，不在忽略之列。
+    paths-ignore: ['**.md', 'docs/**', 'moodflow_hub/**', 'tools/**', 'hub_templates/**', 'eval/**', 'Cargo.toml', 'Cargo.lock', '.github/workflows/moodflow*.yml']
   pull_request:
     branches: [main]
-    # 心晴：只改文档的 PR 也不跑（以前推一个改 AGENTS.md 的提交会取消正在跑的整轮 CI）
-    paths-ignore: ['**.md', 'docs/**', 'xinqing_hub/**', 'tools/**', 'hub_templates/**', 'eval/**', 'Cargo.toml', 'Cargo.lock', '.github/workflows/xinqing*.yml']
+    # Moodflow：只改文档的 PR 也不跑（以前推一个改 AGENTS.md 的提交会取消正在跑的整轮 CI）
+    paths-ignore: ['**.md', 'docs/**', 'moodflow_hub/**', 'tools/**', 'hub_templates/**', 'eval/**', 'Cargo.toml', 'Cargo.lock', '.github/workflows/moodflow*.yml']
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # 心晴：原来一个 job 串行跑 fmt → clippy(msvc) → 本机测试，约 15 分钟，几乎全花在两套 target
+  # Moodflow：原来一个 job 串行跑 fmt → clippy(msvc) → 本机测试，约 15 分钟，几乎全花在两套 target
   # 各编一遍工作区上（测试本身只跑 20 秒）。拆成 check（fmt、clippy、Android、TSF）与 test
   # 两个并行 job，墙钟时间约减半；job 名 check 保持不变。
   check:
     runs-on: ubuntu-latest
-    # 心晴：私有仓库的 runner 磁盘小，msvc 交叉编译和本机测试两套 target 带完整调试信息会写满磁盘
+    # Moodflow：私有仓库的 runner 磁盘小，msvc 交叉编译和本机测试两套 target 带完整调试信息会写满磁盘
     # （No space left on device）。调试信息只留行号表，测试失败时回溯仍有文件和行号。
     env:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
     steps:
-      # 心晴：删掉本任务用不到的预装 SDK（.NET、Android、GHC、CodeQL），腾出二十多 GB。
+      # Moodflow：删掉本任务用不到的预装 SDK（.NET、Android、GHC、CodeQL），腾出二十多 GB。
       # 放到后台删：前台删要 2 分钟，而前面几步装工具链用不了多少磁盘，编译开始前就删完了
       - name: 释放 runner 磁盘空间
         run: sudo nohup rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL >/dev/null 2>&1 &
 
       - uses: actions/checkout@v7
 
-      # 心晴：身份改造不得有残留（docs/xinqing/identity.md）
-      - name: 心晴身份改造检查
-        run: python3 scripts/xinqing/rebrand.py --check
+      # 改名前的名字不得再出现（ADR 0045）
+      - name: 产品名检查
+        run: python3 scripts/moodflow/check_names.py
 
       # 统一 MSVC 工具链:clang-19(C++ TSF 需 clang≥19)+ lld-19 + llvm-19;
       # cargo-xwin 交叉编 Rust、clang 交叉编 C++ TSF,均经 MSVC SDK(无需 mingw)。
@@ -62,9 +62,9 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: wind_input
+          workspaces: moodflow_input
 
-      # 心晴：原来是 dev.sh ci（fmt + clippy + test），测试移到下面的 test job
+      # Moodflow：原来是 dev.sh ci（fmt + clippy + test），测试移到下面的 test job
       - name: fmt 检查
         run: ./scripts/dev.sh fmt-check
 
@@ -72,47 +72,47 @@ jobs:
         run: ./scripts/dev.sh clippy-deny
 
       # headless/Android 防走样三道闸:
-      # ① check 对象是 **wind-mobile 全包**(移动端门面,闭包含 coordinator headless):
-      #    同时锁三件事——headless 可编译、依赖闭包过 Android、wind-ui-types 没长出
+      # ① check 对象是 **moodflow-mobile 全包**(移动端门面,闭包含 coordinator headless):
+      #    同时锁三件事——headless 可编译、依赖闭包过 Android、moodflow-ui-types 没长出
       #    无条件平台依赖。此前只 check coordinator,主线改动破坏门面要等安卓仓 build 才炸。
       #
-      #    ⚠ 曾经 check 的是 wind-android 全包,还多锁一件「FFI 层自身(uniffi 宏/cdylib/
-      #    tracing-android 的 cfg 分支)在 Android target 可编」。绑定层搬去 WindInputAndroid
+      #    ⚠ 曾经 check 的是 moodflow-android 全包,还多锁一件「FFI 层自身(uniffi 宏/cdylib/
+      #    tracing-android 的 cfg 分支)在 Android target 可编」。绑定层搬去 MoodflowAndroid
       #    仓后这一件**本仓锁不住了**,由该仓 scripts/build-rust.ps1 交叉编译真 .so 时把关
-      #    (比 check 更强,但反馈晚一个仓)。改动 wind-mobile 的公开面时请顺手跑一次安卓仓构建。
-      # ② tree-grep 断言依赖边本身——wind-ui 的平台代码全在 cfg 内,理论上可能在 android
-      #    下编成空壳而不报错,①抓不到"coordinator 又直连 wind-ui"的回归,须对边断言。
-      # ③ C 依赖卫兵:webdata(wind-transfer→zip→zstd-sys/bzip2-sys、fontdb)独立成
-      #    wind-webdata 后,Android 闭包为纯 Rust——check 因此**不再需要 NDK**,本机也可跑。
+      #    (比 check 更强,但反馈晚一个仓)。改动 moodflow-mobile 的公开面时请顺手跑一次安卓仓构建。
+      # ② tree-grep 断言依赖边本身——moodflow-ui 的平台代码全在 cfg 内,理论上可能在 android
+      #    下编成空壳而不报错,①抓不到"coordinator 又直连 moodflow-ui"的回归,须对边断言。
+      # ③ C 依赖卫兵:webdata(moodflow-transfer→zip→zstd-sys/bzip2-sys、fontdb)独立成
+      #    moodflow-webdata 后,Android 闭包为纯 Rust——check 因此**不再需要 NDK**,本机也可跑。
       #    刻意不配 NDK 环境变量:谁把 -sys crate 混回闭包,这一步会当场编不过而暴露。
-      - name: wind-mobile headless (aarch64-linux-android)
-        working-directory: wind_input
-        run: cargo check -p wind-mobile --target aarch64-linux-android
+      - name: moodflow-mobile headless (aarch64-linux-android)
+        working-directory: moodflow_input
+        run: cargo check -p moodflow-mobile --target aarch64-linux-android
 
-      - name: android 依赖树无 wind-ui / 无 C 依赖
-        working-directory: wind_input
+      - name: android 依赖树无 moodflow-ui / 无 C 依赖
+        working-directory: moodflow_input
         run: |
-          ! cargo tree -p wind-coordinator --no-default-features -e normal | grep -q "wind-ui v"
-          ! cargo tree -p wind-mobile --target aarch64-linux-android -e normal | grep -qE "zstd-sys|bzip2-sys|fontdb"
+          ! cargo tree -p moodflow-coordinator --no-default-features -e normal | grep -q "moodflow-ui v"
+          ! cargo tree -p moodflow-mobile --target aarch64-linux-android -e normal | grep -qE "zstd-sys|bzip2-sys|fontdb"
 
-      # wind_tsf 里被刻意剥出来的纯逻辑（判据/表结构，不含 Win32 头）——g++ 就能跑，
+      # moodflow_tsf 里被刻意剥出来的纯逻辑（判据/表结构，不含 Win32 头）——g++ 就能跑，
       # 约 10 秒。⚠ 上面那步交叉编译只保证 DLL 能编出来，**一条断言都不会执行**；
       # 这些测试此前只有手敲 g++ 才跑得到，等于不存在。在「游戏兼容这类改动无法在
       # CI 里真机验」的前提下，它们是唯一会自动执行的判据闸门，故单列一步。
-      - name: wind_tsf 纯逻辑单测
+      - name: moodflow_tsf 纯逻辑单测
         run: |
           for t in skip_key_table installer_guard uielement_policy; do
-            g++ -std=c++17 -Wall -Wextra -Iwind_tsf/include -o "/tmp/$t" "wind_tsf/tests/${t}_test.cpp"
+            g++ -std=c++17 -Wall -Wextra -Imoodflow_tsf/include -o "/tmp/$t" "moodflow_tsf/tests/${t}_test.cpp"
             "/tmp/$t"
           done
 
       - name: 交叉编译 TSF DLL (x64 + x86)
         run: |
           V="$(tr -d '[:space:]' < docs/VERSION)"
-          make -C wind_tsf VERSION="$V"
-          make -C wind_tsf x86 VERSION="$V"
+          make -C moodflow_tsf VERSION="$V"
+          make -C moodflow_tsf x86 VERSION="$V"
 
-  # 心晴：从 check 拆出来的本机测试（dev.sh ci 的第三步），与 check 并行
+  # Moodflow：从 check 拆出来的本机测试（dev.sh ci 的第三步），与 check 并行
   test:
     runs-on: ubuntu-latest
     env:
@@ -128,7 +128,7 @@ jobs:
       # 测试失败也存缓存：默认只在成功时存，一红就每轮从零编译（约 15 分钟）
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: wind_input
+          workspaces: moodflow_input
           cache-on-failure: true
 
       - name: cargo test (本机，全工作区)
@@ -139,7 +139,7 @@ jobs:
   changes:
     name: Detect macOS-related changes
     runs-on: ubuntu-latest
-    # 心晴：私有仓库的默认令牌读不到 PR 文件列表，paths-filter 会报 Resource not accessible
+    # Moodflow：私有仓库的默认令牌读不到 PR 文件列表，paths-filter 会报 Resource not accessible
     permissions:
       contents: read
       pull-requests: read
@@ -152,8 +152,8 @@ jobs:
         with:
           filters: |
             macos:
-              - 'wind_macos/**'
-              - 'wind_input/**'
+              - 'moodflow_macos/**'
+              - 'moodflow_input/**'
               - 'scripts/mac/**'
 
   # macOS 门禁: Swift 与 Rust 双侧编译 + 单测, 不打包 .app(打包见 release.yml)。
@@ -165,7 +165,7 @@ jobs:
   macos-check:
     name: macOS Build & Test
     needs: changes
-    # 心晴只做 Windows（产品书 02 C-PLT-01），fork 内不跑 macOS 门禁：私有仓库 macOS 分钟数按 10 倍计费
+    # Moodflow 只做 Windows（产品书 02 C-PLT-01），fork 内不跑 macOS 门禁：私有仓库 macOS 分钟数按 10 倍计费
     if: github.repository == 'huanfeng/WindInput' && needs.changes.outputs.macos == 'true'
     runs-on: macos-14
     steps:
@@ -177,14 +177,14 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: wind_input
+          workspaces: moodflow_input
 
-      - name: Build wind_macos (Swift IMKit)
-        working-directory: wind_macos
+      - name: Build moodflow_macos (Swift IMKit)
+        working-directory: moodflow_macos
         run: swift build
 
-      - name: Test wind_macos (Swift)
-        working-directory: wind_macos
+      - name: Test moodflow_macos (Swift)
+        working-directory: moodflow_macos
         run: swift test
 
       # 与 Linux job 的 dev.sh ci 同一门禁口径：--all-targets 覆盖测试代码，-D warnings 挂新警告。
@@ -192,10 +192,10 @@ jobs:
       # --keep-going 与下一步的 --no-fail-fast 同理由：两者默认都是首错即停，一轮只报得出
       # 一个问题，于是「推一次修一个」。macOS 是 darwin 侧代码的唯一关卡（上面的 check job
       # 全程跑 windows target），没有第二条路能提前发现剩下的，这里尤其需要一次看全。
-      - name: Clippy wind_input (darwin)
-        working-directory: wind_input
+      - name: Clippy moodflow_input (darwin)
+        working-directory: moodflow_input
         run: cargo clippy --keep-going --workspace --all-targets -- -D warnings
 
-      - name: Test wind_input (Rust core, darwin)
-        working-directory: wind_input
+      - name: Test moodflow_input (Rust core, darwin)
+        working-directory: moodflow_input
         run: cargo test --workspace --no-fail-fast
