@@ -27,6 +27,7 @@ members = [
     "crates/moodflow-assoc",
     "crates/moodflow-buffer",
     "crates/moodflow-chord",
+    "crates/moodflow-clipboard",
     "crates/moodflow-coordinator",
     "crates/moodflow-webdata",
     "crates/moodflow-rpc",

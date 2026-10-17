@@ -1203,6 +1203,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "moodflow-clipboard"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "moodflow-cmdbar"
 version = "0.1.0"
 dependencies = [
