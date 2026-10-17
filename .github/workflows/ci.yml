@@ -76,10 +76,10 @@ jobs:
       #    同时锁三件事——headless 可编译、依赖闭包过 Android、moodflow-ui-types 没长出
       #    无条件平台依赖。此前只 check coordinator,主线改动破坏门面要等安卓仓 build 才炸。
       #
-      #    ⚠ 曾经 check 的是 moodflow-android 全包,还多锁一件「FFI 层自身(uniffi 宏/cdylib/
-      #    tracing-android 的 cfg 分支)在 Android target 可编」。绑定层搬去 MoodflowAndroid
-      #    仓后这一件**本仓锁不住了**,由该仓 scripts/build-rust.ps1 交叉编译真 .so 时把关
-      #    (比 check 更强,但反馈晚一个仓)。改动 moodflow-mobile 的公开面时请顺手跑一次安卓仓构建。
+      #    ⚠ 本步不覆盖 JNI 绑定层自身(cdylib / jni / logcat 的 cfg 分支):它在本仓
+      #    moodflow_android/rust(独立 workspace),由 android.yml 用 cargo-ndk 交叉编译真 .so
+      #    并打进 APK 时把关(比 check 更强)。moodflow-mobile 在 android.yml 的路径过滤里,
+      #    改它的公开面两条工作流都会跑。
       # ② tree-grep 断言依赖边本身——moodflow-ui 的平台代码全在 cfg 内,理论上可能在 android
       #    下编成空壳而不报错,①抓不到"coordinator 又直连 moodflow-ui"的回归,须对边断言。
       # ③ C 依赖卫兵:webdata(moodflow-transfer→zip→zstd-sys/bzip2-sys、fontdb)独立成

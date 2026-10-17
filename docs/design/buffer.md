@@ -1,6 +1,7 @@
 # Buffer（上屏前的文本工作台）
 
-> 状态：P1 纯逻辑已实现（`moodflow_input/crates/moodflow-buffer`），协调器与两端宿主尚未接入。
+> 状态：P1 纯逻辑已实现（`moodflow_input/crates/moodflow-buffer`）；Android 门面（`moodflow-mobile::buffer`）与
+> 键盘内 Buffer 栏已搭好（未真机验证）；协调器与 Windows 宿主尚未接入。
 > 来源：[XSIME 吸收计划](xsime-feature-port-plan.md) §2.1；行为契约取自 XSIME 在 macOS / Windows / Android 上验证过的规则。
 
 ## 1. 是什么
@@ -48,5 +49,6 @@
 
 1. 协调器：Buffer 开启时把上屏路由到 `Buffer`；新增 `UiCommand::UpdateBuffer`（`moodflow-ui-types`）。
 2. Windows：`moodflow-ui` Buffer 浮窗（不激活、焦点留在宿主）；TSF 投递与授权复核。
-3. Android：`moodflow-mobile` 门面方法；`moodflow_android/` 的键盘内 Buffer 栏。
+3. ~~Android：`moodflow-mobile` 门面方法；`moodflow_android/` 的键盘内 Buffer 栏。~~ 已搭好，待真机验收
+   （Android 上 Buffer 直接截获宿主侧的上屏指令，不经协调器路由；协调器接入后改走第 1 条）。
 4. 长按发送逐块投递（默认约 1.2 秒，可配 500–3000 ms）、可选 1/2/3/5 秒节奏投递：在协调器里用 `begin_next` 循环实现，本 crate 不管计时。
