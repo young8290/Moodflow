@@ -739,6 +739,8 @@ impl MessageHandler for Coordinator {
         // 上屏换行改写。与 record_input_stats / note_commit_action 同一收口理由（上屏路径
         // 40+ 个返回点，散点接线必漏），而且这里还多一条：换行形式是**平台/宿主**的表达
         // 约定，属于服务端的职责——DLL 拿到什么就写什么，不再自己判断（A3-3）。
+        // Buffer 截获在插件变换之前：收进 Buffer 的是原文，投递时整段只变换一次。
+        let action = self.route_commit_to_buffer(action);
         let action = self.apply_plugin_transform(action);
         let action = self.apply_commit_newline(action);
         self.record_input_stats(&action);
@@ -1175,6 +1177,18 @@ impl MessageHandler for Coordinator {
             } else if action == hotkey::MOODFLOW_REWRITE_ACTION {
                 // Moodflow：温柔改写（FR-RWR-01）。Moodflow 没启动时同上，不吞键。
                 if let Some(act) = self.moodflow_enter_rewrite() {
+                    return act;
+                }
+            } else if action == "clipboard_panel" {
+                // 剪贴板历史面板、Buffer：固定字段热键，不在 `BoundAction` 值域里，单独分派。
+                self.show_clipboard_panel();
+                return KeyAction::Consumed;
+            } else if action == "toggle_buffer" {
+                self.toggle_buffer();
+                return KeyAction::Consumed;
+            } else if action == "buffer_send" {
+                // Buffer 没打开时返回 None：落回常规链路（见 handle_buffer 模块文档）。
+                if let Some(act) = self.buffer_send_keyed() {
                     return act;
                 }
             } else if let Some(act) = self.dispatch_bound_action_hotkey(&action) {
@@ -2381,6 +2395,7 @@ impl MessageHandler for Coordinator {
         // 各发一条），全靠 menu_close_on_focus_change 的守卫期挡住刚弹出的菜单。
         self.menu_close_on_focus_change("focus_gained");
         self.close_softkeyboard_on_focus_change("focus_gained");
+        self.buffer_focus_gained(data.client_token);
         // 解析焦点进程的 caret 兼容态（微信 caret_use_top、per-app caret_offset_* 等）。
         // ★★ 必须在下面的 `apply_focus_caret` **之前**跑：那一步会读 `active_compat` 做
         // `caret_use_top`/`caret_offset_*` 变换，若仍在这之后调用，本次焦点事件带来的第一份
@@ -2606,6 +2621,8 @@ impl MessageHandler for Coordinator {
         if self.is_stale_focus_event(client_token, "handle_focus_lost") {
             return;
         }
+        // Buffer：任何有效失焦都撤销投递授权（契约 4，见 handle_buffer 模块文档）。
+        self.buffer_focus_lost();
         // ★ 探针：放行了一条「从未上报过 focus_gained 的 token」的失焦。
         //
         // `is_stale_focus_event` 挡不住它——`active_token` 有两个来源，`ime_activated`

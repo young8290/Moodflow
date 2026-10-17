@@ -1123,6 +1123,11 @@ take_screenshot = "ctrl+shift+f11"
 softkeyboard = "ctrl+shift+k"
 # 打开剪贴板历史面板（[clipboard] enabled = true 时才有记录）。同上，标量字段，清空即禁用。
 clipboard_panel = "ctrl+shift+h"
+# Buffer：选好的词先攒在光标上方的小窗里，再一次发到绑定的输入框。
+# toggle_buffer 打开并绑定当前输入框（换过框后再按一次重新绑定，已绑定时再按关闭，内容保留）；
+# buffer_send 发送（Buffer 关着时这个键照常交给应用）。同上，标量字段，清空即禁用。
+toggle_buffer = "alt+shift+b"
+buffer_send = "ctrl+shift+enter"
 # 改用系统级 RegisterHotKey 抢占的**动作名**列表（不是键串）：列进来的动作会绕开宿主
 # 自身的同名快捷键。仅支持无需按键上下文的 9 个动作：
 #   switch_engine / toggle_full_width / toggle_punct / toggle_toolbar /

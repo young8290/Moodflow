@@ -2015,6 +2015,8 @@ pub struct Coordinator {
     pub(crate) clipboard: crate::handle_clipboard::ClipboardState,
     /// 插件注册表（`handle_plugins`）。
     pub(crate) plugins: crate::handle_plugins::PluginState,
+    /// Buffer 上屏前工作台（`handle_buffer`）。
+    pub(crate) buffer: crate::handle_buffer::BufferState,
 }
 
 /// 拆字资产当前生效状态：库的解析后绝对路径 + 已下发的字根字体（路径, DWrite 家族名）。
@@ -2799,6 +2801,7 @@ impl Coordinator {
                 &config.clipboard,
             ),
             plugins: Default::default(),
+            buffer: Default::default(),
         });
         // CapsLock 钩子的动作消费线程。钩子回调只做非阻塞投递（它超时会被系统静默移除且
         // 无从察觉），真正的动作在这里执行，可安全加锁。未装钩子时它一直阻塞在 channel 上。
@@ -6836,6 +6839,7 @@ impl Coordinator {
             UiEvent::ClipboardChanged { text, sensitive } => {
                 self.on_clipboard_changed(&text, sensitive)
             }
+            UiEvent::RequestBufferMenu { x, y } => self.show_buffer_menu(x, y),
         }
     }
 
@@ -7745,6 +7749,7 @@ impl Coordinator {
                     .then(|| self.schema_switch_key_action(commit))
             }
             "switch_engine" => Some(self.schema_switch_key_action(self.cycle_schema())),
+            "buffer_send" => self.buffer_send_keyed(),
             _ => self
                 .dispatch_hotkey(action)
                 .then(|| KeyAction::StatusUpdate(self.build_status())),
@@ -7825,6 +7830,17 @@ impl Coordinator {
             }
             "clipboard_panel" => {
                 self.show_clipboard_panel();
+                true
+            }
+            "toggle_buffer" => {
+                self.toggle_buffer();
+                true
+            }
+            "buffer_send" => {
+                if !self.buffer.is_open() {
+                    return false;
+                }
+                self.run_buffer_menu_cmd(moodflow_ui_types::MenuCmd::BufferSend);
                 true
             }
             "open_settings" => {

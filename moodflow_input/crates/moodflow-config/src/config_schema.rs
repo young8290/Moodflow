@@ -551,6 +551,8 @@ static REGISTRY: &[ConfigField] = &[
     f("keys.take_screenshot", Str),
     f("keys.softkeyboard", Str),
     f("keys.clipboard_panel", Str),
+    f("keys.toggle_buffer", Str),
+    f("keys.buffer_send", Str),
     f("keys.global_hotkeys", StrList),
     // `keys.schema_hotkeys` 已废弃并**从登记表移除**（与当年 `schema.special_modes` 同样
     // 的处置）：改写进下面的 key_actions（动词 `switch_schema:<id>`），**没有兼容折算**

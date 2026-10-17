@@ -147,6 +147,8 @@ impl UiManager {
             }
         };
         let mut toast_hide_at: Option<std::time::Instant> = None;
+        // Buffer 浮窗（惰性创建：首次 ShowBuffer 时构造，best-effort）。
+        let mut buffer_panel: Option<crate::buffer_panel::BufferPanel> = None;
         // 剪贴板监听（SetClipboardMonitor(true) 时创建，false 时销毁）。
         let mut clipboard_monitor: Option<crate::clipboard_monitor::ClipboardMonitor> = None;
         // 软键盘面板（惰性创建：首次 ShowSoftKeyboard 时构造，best-effort）
@@ -1144,6 +1146,22 @@ impl UiManager {
                     UiCommand::SoftKeyboardLayer { shift } => {
                         if let Some(k) = &mut soft_keyboard {
                             k.set_layer(shift);
+                        }
+                    }
+                    UiCommand::ShowBuffer(v) => {
+                        if buffer_panel.is_none() {
+                            match crate::buffer_panel::BufferPanel::new(event_tx.clone()) {
+                                Ok(p) => buffer_panel = Some(p),
+                                Err(e) => warn!("Buffer 浮窗创建失败: {}", e),
+                            }
+                        }
+                        if let Some(p) = &mut buffer_panel {
+                            p.show(&v);
+                        }
+                    }
+                    UiCommand::HideBuffer => {
+                        if let Some(p) = &buffer_panel {
+                            p.hide();
                         }
                     }
                     UiCommand::SetClipboardMonitor(on) => {

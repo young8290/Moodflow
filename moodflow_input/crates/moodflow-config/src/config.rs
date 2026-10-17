@@ -4924,6 +4924,12 @@ pub struct KeysConfig {
     /// 打开剪贴板历史面板。标量字段（出厂绑定可被用户清空），见 buffer.md 与 AGENTS.md。
     #[serde(default = "default_clipboard_panel")]
     pub clipboard_panel: String,
+    /// 打开 / 重新绑定 / 关闭 Buffer（docs/design/buffer.md）。标量字段，清空即禁用。
+    #[serde(default = "default_toggle_buffer")]
+    pub toggle_buffer: String,
+    /// 把 Buffer 投递到绑定的输入框。Buffer 没打开时这个键原样交给应用。
+    #[serde(default = "default_buffer_send")]
+    pub buffer_send: String,
     #[serde(default)]
     pub global_hotkeys: Vec<String>,
     /// **已废弃且不再生效**：方案直达热键已并入 [`Self::key_actions`]，动词
@@ -5044,6 +5050,12 @@ fn default_softkeyboard() -> String {
 }
 fn default_clipboard_panel() -> String {
     "ctrl+shift+h".to_string()
+}
+fn default_toggle_buffer() -> String {
+    "alt+shift+b".to_string()
+}
+fn default_buffer_send() -> String {
+    "ctrl+shift+enter".to_string()
 }
 fn default_activate_ime() -> String {
     "ctrl+shift+[".to_string()
@@ -5237,6 +5249,8 @@ impl Default for KeysConfig {
             take_screenshot: default_take_screenshot(),
             softkeyboard: default_softkeyboard(),
             clipboard_panel: default_clipboard_panel(),
+            toggle_buffer: default_toggle_buffer(),
+            buffer_send: default_buffer_send(),
             global_hotkeys: Vec::new(),
             legacy_schema_hotkeys: HashMap::new(),
             key_actions: BTreeMap::new(),

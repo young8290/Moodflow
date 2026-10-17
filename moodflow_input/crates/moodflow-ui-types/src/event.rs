@@ -111,4 +111,6 @@ pub enum UiEvent {
     /// 剪贴板内容变了（Windows 经 `AddClipboardFormatListener`；Android 由宿主在键盘可见期间注入）。
     /// `sensitive` 为真时 `text` 为空，协调器整条丢弃（密码管理器等的排除标记）。正文不进日志。
     ClipboardChanged { text: String, sensitive: bool },
+    /// Buffer 浮窗上右键：请求其菜单（发送、删末块、清空、关闭）。
+    RequestBufferMenu { x: i32, y: i32 },
 }

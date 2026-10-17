@@ -71,6 +71,14 @@ pub enum MenuCmd {
     ClipboardRemove(u16),
     /// 剪贴板面板：清空未收藏的条目。
     ClipboardClear,
+    /// Buffer：全部发送到绑定的输入框。
+    BufferSend,
+    /// Buffer：删除最后一块。
+    BufferDeleteLast,
+    /// Buffer：清空。
+    BufferClear,
+    /// Buffer：关闭（保留内容，下次打开还在）。
+    BufferClose,
     /// 切到英文模式
     SchemaEnglish,
     /// 选择第 N 个输入方案
@@ -309,6 +317,10 @@ impl MenuKind {
                 MenuCmd::TooltipCopyLine => 135,
                 MenuCmd::TooltipCommitLine => 136,
                 MenuCmd::ClipboardClear => 137,
+                MenuCmd::BufferSend => 138,
+                MenuCmd::BufferDeleteLast => 139,
+                MenuCmd::BufferClear => 140,
+                MenuCmd::BufferClose => 141,
                 MenuCmd::ClipboardPaste(i) => 19000 + i as i32,
                 MenuCmd::ClipboardTogglePin(i) => 20000 + i as i32,
                 MenuCmd::ClipboardRemove(i) => 21000 + i as i32,
@@ -386,6 +398,10 @@ impl MenuKind {
             135 => MenuCmd::TooltipCopyLine,
             136 => MenuCmd::TooltipCommitLine,
             137 => MenuCmd::ClipboardClear,
+            138 => MenuCmd::BufferSend,
+            139 => MenuCmd::BufferDeleteLast,
+            140 => MenuCmd::BufferClear,
+            141 => MenuCmd::BufferClose,
             19000..=19999 => MenuCmd::ClipboardPaste((id - 19000) as u16),
             20000..=20999 => MenuCmd::ClipboardTogglePin((id - 20000) as u16),
             21000..=21999 => MenuCmd::ClipboardRemove((id - 21000) as u16),

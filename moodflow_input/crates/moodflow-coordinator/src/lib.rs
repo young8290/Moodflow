@@ -26,6 +26,7 @@ mod freq_learn_tests;
 pub mod handle_addword;
 pub mod handle_assoc;
 pub mod handle_aux_code;
+pub(crate) mod handle_buffer;
 pub mod handle_candidate;
 pub mod handle_charset;
 pub(crate) mod handle_clipboard;
