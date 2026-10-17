@@ -18,7 +18,8 @@ use tracing::error;
 ///   SYNCHRONIZE（事件等待需要 GX），不给建实例与改 ACL（XSIME 同口径，见
 ///   docs/design/xsime-feature-port-plan.md §3.6）
 /// - `S:(ML;;NW;;;LW)` — 低完整性级别（UWP 进程必需）
-pub(crate) const SDDL: &str = "D:P(A;;GA;;;WD)(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;AC)(A;;GRGWGX;;;S-1-15-2-2)S:(ML;;NW;;;LW)";
+pub(crate) const SDDL: &str =
+    "D:P(A;;GA;;;WD)(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;AC)(A;;GRGWGX;;;S-1-15-2-2)S:(ML;;NW;;;LW)";
 
 /// SDDL_REVISION_1 = 1
 const SDDL_REVISION_1: u32 = 1;
