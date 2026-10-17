@@ -11,7 +11,7 @@
    把 librime 拉进来等于并行维护两套引擎、两套用户词库，**不做**。
 2. **先进纯逻辑 crate，再接两个宿主。** 每个功能的状态机、数据格式、失效规则写在零平台依赖的
    crate 里，必须过 `cargo check-android`；Windows（TSF + `moodflow-ui`）与 Android
-   （`moodflow-mobile` → 平台仓 UniFFI）只做薄薄的呈现与投递。这是本仓「平台分层策略」的
+   （`moodflow-mobile` → `moodflow_android/` 里的 UniFFI 绑定）只做薄薄的呈现与投递。这是本仓「平台分层策略」的
    直接应用（见 AGENTS.md 同名一节）。
 3. **首批只拿六项基础功能**（§2），其余 XSIME 能力（Mailbox 终端、截图录屏、音乐、摩斯、
    密码库、iCloud 等）明确不在范围内（§7）。
@@ -148,7 +148,7 @@ XSIME 五端导入同一份标准 Rime ZIP（含 Lua/OpenCC/多方案依赖）�
 候选；选九宫格布局时自动用拼音，选其他中文方案则回到全键盘。
 
 落点：T9 序列到拼音的展开放 `moodflow-engine`（纯逻辑，以现有拼音音节表为准）；
-Android 平台仓只做键盘布局。Windows 不提供。
+`moodflow_android/` 只做键盘布局。Windows 不提供。
 
 ## 3. 两边都有的功能：吸收 XSIME 的长处
 
@@ -221,7 +221,7 @@ Moodflow 已注册 `IMMERSIVESUPPORT`，UI-less 候选已实施（`docs/design/g
 
 ### 3.7 Android 键盘细节（P3 对照清单）
 
-Android 工程尚未并入本仓（§4.1），现状需迁入后核对。XSIME Android 已验证、值得对照的做法：
+Android 应用尚未开始写（§4.1），以下作为从零搭建时的设计输入。XSIME Android 已验证、值得对照的做法：
 
 - 标点表**一份数据、多端共用**，用同一个夹具文件在两端测试（Moodflow 可用 `moodflow-assoc` 的
   `punct` 模块承担这个角色）；中文下 123/符号页输出全角标点，但保留半角 `.` 给小数；
@@ -247,10 +247,10 @@ Android 工程尚未并入本仓（§4.1），现状需迁入后核对。XSIME A
 |---|---|---|
 | 纯逻辑（共用） | `moodflow-buffer` / `moodflow-chord` / `moodflow-clipboard` / `moodflow-candidate` 矩阵 / `moodflow-transfer` 导入 / `moodflow-engine` T9 | 同左 |
 | 协调器接入 | `Coordinator`（`desktop-ui` feature） | headless `Coordinator`，经 `moodflow-mobile` 门面 |
-| 呈现 | `moodflow-ui`：Buffer 浮窗、矩阵候选窗、剪贴板历史条 | 平台仓：键盘内 Buffer 栏、候选区矩阵、剪贴板面板、九宫格布局 |
+| 呈现 | `moodflow-ui`：Buffer 浮窗、矩阵候选窗、剪贴板历史条 | `moodflow_android/`：键盘内 Buffer 栏、候选区矩阵、剪贴板面板、九宫格布局 |
 | 投递 | TSF edit session（`moodflow_tsf`） | `InputConnection.commitText`，失败保留 |
 | 焦点/目标失效 | TSF 上下文切换、焦点事件 | `onStartInput` / `onFinishInput` / `onWindowHidden` |
-| 设置界面 | 邻仓 `moodflow-setting`（新增配置键要跑 `wind_setting_assets` 对账） | 平台仓设置页 |
+| 设置界面 | 邻仓 `moodflow-setting`（新增配置键要跑 `wind_setting_assets` 对账） | `moodflow_android/` 设置页 |
 
 `moodflow-mobile` 只新增**与绑定框架无关**的能力（Buffer/剪贴板/矩阵的门面方法）；
 UniFFI 类型投影仍在 Android 工程里。
@@ -261,8 +261,8 @@ XSIME 的 Android 端在主仓 `platforms/android/`，与其他平台共用 `mai
 每个平台有自己的 CI 工作流（按路径过滤触发）、自己的 `VERSION` 和自己的标签（`android-v*`、
 `windows-v*`），Android 发布标记为非 latest，不抢占主发布页。本仓照此执行：
 
-- **Android 工程并入本仓**，放根目录 `moodflow_android/`，与 `moodflow_tsf/`、`moodflow_macos/` 对位；
-  不再维护独立的 Android 平台仓。核心一改坏 Android，在同一个 PR 里就会红，而不是几天后在
+- **Android 应用在本仓从零搭建**，放根目录 `moodflow_android/`，与 `moodflow_tsf/`、`moodflow_macos/` 对位；
+  不另开独立的 Android 仓库。核心一改坏 Android，在同一个 PR 里就会红，而不是几天后在
   另一个仓库才发现（`moodflow-mobile` 模块文档里记的正是这个代价）。
 - **不设长期平台分支**：所有平台都合入 `main`，功能在短期分支上开发，合并后删除分支。
 - **CI 按路径触发**：新增 Android 工作流，路径过滤覆盖 `moodflow_android/**`、`moodflow_input/crates/`
@@ -270,8 +270,8 @@ XSIME 的 Android 端在主仓 `platforms/android/`，与其他平台共用 `mai
 - **版本与标签按平台独立**：产品版本仍以 `docs/VERSION` 为唯一真源；Android 另设
   `moodflow_android/VERSION`，主次版本号必须与产品版本一致，补丁号可独立递增且不低于产品版本的补丁号；
   标签用 `android-vX.Y.Z`，发布时不设为 latest。
-- **前提**：Android 工程源码目前不在本会话可访问的任何 GitHub 仓库里，需要先把源码推上来，
-  再整体迁入 `moodflow_android/`，并同步更新 AGENTS.md 的仓库地图与构建命令。
+- **现状**：目前没有任何 Android 应用代码（`moodflow-mobile` 模块文档里提到的 MoodflowAndroid 仓库并不存在）。
+  P3 开工时新建 `moodflow_android/` 工程，同步更新 AGENTS.md 的仓库地图与构建命令。
 
 ## 5. 阶段与验收
 
@@ -283,7 +283,7 @@ XSIME 的 Android 端在主仓 `platforms/android/`，与其他平台共用 `mai
 | **P0 准备**（约 1 周） | 许可证核查（§6）；六项功能各写一页设计文档放 `docs/design/`；确认 TSF keyup 能否扩展到字母键；§3.1 的 ADR；§3.5 五笔对照测试；§3.6–3.8 核查项出结论 | 设计文档与 ADR 合入；并击 Windows 可行性有结论；对照测试的差异逐条有处理决定 |
 | **P1 纯逻辑**（约 3 周） | 四个新/扩展 crate + T9 + 导入转换器；§3.2 用户库异常状态与提示命令；§3.4 数据清单生成与校验，全部带单测 | `cargo test` 全绿且耗时合理（防「数据缺失假绿」）；`cargo check-headless`、`cargo check-android` 通过；CI `cargo tree` 断言不破 |
 | **P2 Windows**（约 3 周） | 协调器接入 + `moodflow-ui` 呈现 + TSF 投递；配置键与设置页；§3.1 Hub 密钥规则；§3.6 Windows e2e 与核查结果的修复 | 编译机原生 MSVC 产物（不用交叉产物验收）；真实宿主（记事本、Word、浏览器、企业微信）连续输入；换框/失焦/密码框不串投；换 AI 地址不带旧密钥；用户库损坏时有可见提示且原库未被改动；`dev.ps1 ci` 通过 |
-| **P3 Android**（约 3 周，可与 P2 并行） | `moodflow-mobile` 门面 + 平台仓 UI + 九宫格；§3.7 对照清单；末尾做触屏并击 | 真机：Buffer 换字段/隐藏键盘清理、密码框禁用、剪贴板仅前台采集、九宫格与全键盘切换、物理键盘并击、旧组字不重放到新输入框 |
+| **P3 Android**（约 5 周，从零搭建，可与 P2 并行） | 新建 `moodflow_android/` 工程 + `moodflow-mobile` 门面 + 键盘 UI + 九宫格；§3.7 对照清单；末尾做触屏并击 | 真机：Buffer 换字段/隐藏键盘清理、密码框禁用、剪贴板仅前台采集、九宫格与全键盘切换、物理键盘并击、旧组字不重放到新输入框 |
 | **P4 二批** | §3.3 日常统计与打字测速、Buffer 上的 AI 生成/润色/翻译（复用 Hub AI 配置） | 另立计划 |
 
 建议顺序：**Buffer → 候选矩阵 → 剪贴板历史 → 导入 → 九宫格 → 并击**。
