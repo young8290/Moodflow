@@ -353,6 +353,12 @@ impl MobileCore {
             .inject_ui_event(UiEvent::MenuAction(MenuKind::Command(menu_cmd)));
     }
 
+    /// 用户词库是否可用。`false` 时宿主应常驻提示「学到的词不会保存」（XSIME 吸收计划 §3.2）；
+    /// 原库不删除、不重建。
+    pub fn user_store_available(&self) -> bool {
+        self.coord.user_store_available()
+    }
+
     /// 可选方案列表。下标即 [`MobileCommand::SelectSchema`] 的取值
     /// ——顺序取自引擎管理器，与协调器内部的选择下标同源，宿主不要自行排序。
     pub fn schemas(&self) -> Vec<SchemaEntry> {

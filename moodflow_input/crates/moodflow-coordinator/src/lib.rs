@@ -64,6 +64,8 @@ mod quick_eval;
 pub(crate) mod schema_scope;
 pub(crate) mod short_code_yield;
 pub mod stats;
+#[cfg(test)]
+mod store_notice_tests;
 pub mod theme_query;
 pub mod theme_style;
 pub(crate) mod tooltip;
