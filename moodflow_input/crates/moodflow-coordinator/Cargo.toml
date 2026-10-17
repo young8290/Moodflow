@@ -35,6 +35,8 @@ moodflow-punct = { path = "../moodflow-punct" }
 moodflow-clipboard = { path = "../moodflow-clipboard" }
 # Buffer 上屏前工作台（纯逻辑，handle_buffer 接入）
 moodflow-buffer = { path = "../moodflow-buffer" }
+# 并击结算（纯逻辑，handle_chord 接入）
+moodflow-chord = { path = "../moodflow-chord" }
 # 插件注册表（WASM 沙箱插件，handle_plugins 接入；纯 Rust、无 JIT，不破坏 Android 闭包）
 moodflow-plugin-registry = { path = "../moodflow-plugin-registry" }
 # Moodflow：核心侧 MFP 服务端（纯 Rust，无 C 依赖，不影响 Android 闭包）

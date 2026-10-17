@@ -162,6 +162,7 @@ impl Coordinator {
     pub(crate) fn sync_extensions(&self) {
         self.sync_clipboard_monitor();
         self.sync_plugins();
+        self.sync_chord();
     }
 
     /// 按当前配置开关剪贴板监听。

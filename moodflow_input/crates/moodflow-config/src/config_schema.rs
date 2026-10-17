@@ -723,6 +723,8 @@ static REGISTRY: &[ConfigField] = &[
     f("clipboard.retention_days", Int),
     f("plugins.enabled", StrList),
     f("plugins.safe_mode", Bool),
+    f("chord.enabled", Bool),
+    f("chord.keymap", Str),
     f("moodflow.hub_autostart", Bool),
     // -- debug（调试）--
     // `off` = 整个日志功能关闭：主日志文件不创建，连 `startup_stage.log` 也不写

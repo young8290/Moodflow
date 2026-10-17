@@ -1334,6 +1334,7 @@ dependencies = [
  "moodflow-bridge",
  "moodflow-buffer",
  "moodflow-candidate",
+ "moodflow-chord",
  "moodflow-clipboard",
  "moodflow-cmdbar",
  "moodflow-config",

@@ -2017,6 +2017,8 @@ pub struct Coordinator {
     pub(crate) plugins: crate::handle_plugins::PluginState,
     /// Buffer 上屏前工作台（`handle_buffer`）。
     pub(crate) buffer: crate::handle_buffer::BufferState,
+    /// 并击（`handle_chord`）。
+    pub(crate) chord: crate::handle_chord::ChordState,
 }
 
 /// 拆字资产当前生效状态：库的解析后绝对路径 + 已下发的字根字体（路径, DWrite 家族名）。
@@ -2802,6 +2804,7 @@ impl Coordinator {
             ),
             plugins: Default::default(),
             buffer: Default::default(),
+            chord: Default::default(),
         });
         // CapsLock 钩子的动作消费线程。钩子回调只做非阻塞投递（它超时会被系统静默移除且
         // 无从察觉），真正的动作在这里执行，可安全加锁。未装钩子时它一直阻塞在 channel 上。

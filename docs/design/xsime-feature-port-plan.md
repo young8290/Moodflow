@@ -341,6 +341,15 @@ Buffer 是 AI/翻译二批的地基；并击风险最高（TSF keyup），放最
 | §3.5 五笔对照 | `moodflow-engine/tests/xsime_wubi_parity.rs` | 4 条，与 XSIME 行为一致 |
 | §3.8 联想历史上限 | `moodflow-store::assoc_history`（每上文 8 条、整表 4800 条） | 2 个新单测 |
 
+**P2 Windows 接入（2026-10-17，未真机验证）**
+
+| 项 | 落点 | 说明 |
+|---|---|---|
+| 剪贴板历史 | `moodflow-ui::clipboard_monitor`、协调器 `handle_clipboard` | `[clipboard] enabled`（出厂关）；`keys.clipboard_panel` 打开菜单式面板；密码管理器排除标记、隐私环境不记 |
+| Buffer | `moodflow-ui::buffer_panel`、协调器 `handle_buffer` | `keys.toggle_buffer` 绑定 / `keys.buffer_send` 发送；已知差距见 `buffer.md` §4 |
+| 并击 | 协调器 `handle_chord`、TSF `_DispatchChordKeyUp` | `[chord] enabled` + 用户目录方案 JSON；并击键集合经 `CONFIG_KEY_CHORD_KEYS` 推给 TSF，集合非空时才转发字母键 keyup |
+| 候选矩阵 | — | 尚未接入候选窗（需要候选窗支持多行网格排版） |
+
 **核查结论**
 
 - §3.6 LPAC：**已补**（2026-10-17）。管道、共享内存与命名事件共用的 SDDL 原先只放行 `WD`、`SY`、`BA`、`AC`，

@@ -688,6 +688,33 @@ pub struct Config {
     /// 插件（ADR 0054，docs/design/plugin-system.md）。
     #[serde(default)]
     pub plugins: PluginsConfig,
+    /// 并击（XSIME 吸收计划 §2.3）。
+    #[serde(default)]
+    pub chord: ChordConfig,
+}
+
+/// 并击：多键同按出拼音。出厂关闭；方案文件放在用户目录。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChordConfig {
+    /// 是否启用。启用但方案读不出或校验不过时不生效，并提示一次。
+    #[serde(default)]
+    pub enabled: bool,
+    /// 键位方案文件（JSON，格式见 `moodflow-chord`）。相对路径按用户目录解析。
+    #[serde(default = "default_chord_keymap")]
+    pub keymap: String,
+}
+
+fn default_chord_keymap() -> String {
+    "chord_keymap.json".to_string()
+}
+
+impl Default for ChordConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            keymap: default_chord_keymap(),
+        }
+    }
 }
 
 /// 剪贴板历史。出厂关闭：剪贴板里常有验证码、地址这类东西，记录与否由用户决定。

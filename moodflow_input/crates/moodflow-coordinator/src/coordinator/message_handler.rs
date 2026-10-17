@@ -948,6 +948,10 @@ impl MessageHandler for Coordinator {
         // 于 keyUp 转发该键事件（_SendKeyToService(..., KEY_EVENT_UP)）。因此服务端
         // 收到 toggle 键的 keyUp 即应直接切换，无需 keydown/pending（对齐 Go HandleKeyEvent）。
         if data.event_type == EVENT_KEY_UP {
+            // 并击键的松开（TSF 只在并击开启时转发字母键的 keyup，见 handle_chord）。
+            if let Some(act) = self.chord_key_up(data) {
+                return act;
+            }
             // 修饰键作二三候选键（select_key_groups 含 lrshift / lrctrl）：**先于**下面一切。
             // 同一个键可能多个身份都配了（设置页会提示冲突，但配置文件里拦不住），既有裁决是
             // 「有候选选词、无候选切换」——输入到一半按 Ctrl 想选词的意图远比切中英文常见，而
@@ -1119,6 +1123,11 @@ impl MessageHandler for Coordinator {
         #[cfg(any(not(ext_presenter), target_os = "linux"))]
         if self.is_menu_open() && self.forward_menu_key(data.key_code) {
             return KeyAction::Consumed;
+        }
+
+        // ── 并击：中文态的并击键按下只交给结算器（见 handle_chord）──
+        if let Some(act) = self.chord_key_down(data) {
+            return act;
         }
 
         // ── key_down 热键匹配 ──
