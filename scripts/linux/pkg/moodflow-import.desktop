@@ -5,9 +5,9 @@
 Type=Application
 Name=Moodflow 输入法导入
 Name[en]=Moodflow Import
-Exec=/usr/lib/moodflow/moodflow_setting %f
+Exec=/usr/lib/moodflow/wind_setting %f
 Icon=moodflow
 Terminal=false
 NoDisplay=true
 MimeType=application/x-moodflow-package;application/x-moodflow-theme;
-StartupWMClass=moodflow_setting
+StartupWMClass=wind_setting

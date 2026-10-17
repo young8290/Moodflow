@@ -104,7 +104,7 @@
 
 - 核心：合并 / 禁用 / 写时复制 / 字段还原 / 导入预览单测；元数据守护测试；`moodflow-rpc` 的 `FakeCore` 用例；`value_domain_guard` 元测试覆盖新增枚举。
 - 设置端：`mock_reply` + `take_mock_calls` 断言 RPC 形状；补 `search/index.rs` 登记（`sections_have_placement` 等）；新汉字需重生成拼音表（本机无 pwsh，用等价流程）；交叉编译 + wine 跑测试并离屏出图。
-- 跨仓：`cargo test -p moodflow-rpc --test moodflow_setting_assets` 对账。
+- 跨仓：`cargo test -p moodflow-rpc --test wind_setting_assets` 对账。
 
 ## 8. 分期（每期独立可提交）
 

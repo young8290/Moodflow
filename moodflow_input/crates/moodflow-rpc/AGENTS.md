@@ -5,7 +5,7 @@
 
 ## Purpose
 
-为 moodflow_input core 提供本地 JSON-RPC IPC 服务，架起 coordinator（服务进程）与设置端（moodflow_setting_native）之间的双向通信：控制通道（请求-响应）和事件通道（单向广播）。去掉了旧版 moodflow-webapi 的 axum/CORS/PNA/token/端口发现，本地授权靠 OS ACL。
+为 moodflow_input core 提供本地 JSON-RPC IPC 服务，架起 coordinator（服务进程）与设置端（wind_setting_native）之间的双向通信：控制通道（请求-响应）和事件通道（单向广播）。去掉了旧版 moodflow-webapi 的 axum/CORS/PNA/token/端口发现，本地授权靠 OS ACL。
 
 ## Key Files
 

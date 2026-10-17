@@ -208,7 +208,7 @@ log_level = "debug"   # 或 "trace"
 - 滚动策略：**每次服务启动滚动一次**（`log_rotate::rotate_on_startup`，上次运行整体搬入
   历史文件），另按大小兜底（默认 10 MB/文件）；历史文件默认保留 10 个（`debug.log_max_files`）
 - 文件命名：`moodflow_input.1.log`（本次运行）、`moodflow_input.2.log`（上次）… `moodflow_input.11.log`。
-  **每份都带序号、数字越小越新**，与设置程序的 `moodflow_setting.N.log` 同一规则——早先当前那份
+  **每份都带序号、数字越小越新**，与设置程序的 `wind_setting.N.log` 同一规则——早先当前那份
   叫 `moodflow_input.log`（无序号），用户打包发日志时认不出它才是最新的，发来的常常只有 `.1.log`。
   **序号在扩展名之前**，滚动后仍是 `.log`（编辑器可双击、按 `*.log` 可搜）；勿改回 `.log.N` 旧式，
   也别把当前那份改回无序号
@@ -218,7 +218,7 @@ log_level = "debug"   # 或 "trace"
   - 正常安装 release：`%LOCALAPPDATA%\Moodflow\logs\`
   - 正常安装 dev：`%LOCALAPPDATA%\MoodflowDev\logs\`
   - 便携模式：`<exe目录>\localdata\logs\`（以 exe 同目录存在 `portable_mode` 文件为标记；
-    旧名 `moodflow_portable_mode` 仅保留读取兼容，新写入一律用新名）
+    旧名 `wind_portable_mode` 仅保留读取兼容，新写入一律用新名）
 - 可通过 `RUST_LOG` 环境变量覆盖级别（优先级最高，仅用于开发排查）
 
 ### 写日志准则
@@ -362,7 +362,7 @@ Windows 目标一切正常**，测试二进制交给 wine 执行即可：
 #### 改了 core 的配置注册表，先跑这条
 
 ```bash
-cargo test -p moodflow-rpc --test moodflow_setting_assets
+cargo test -p moodflow-rpc --test wind_setting_assets
 ```
 
 在 core 这边对账邻仓三份检入产物（capability 快照逐键比、`mockdata` 比键集合、设置清单覆盖
@@ -395,7 +395,7 @@ cargo test -p moodflow-rpc --test moodflow_setting_assets
   两段。每一步的判据与检查点见 [docs/design/release-from-linux.md](docs/design/release-from-linux.md)
   —— 脚本固化的是命令，「为什么是这个顺序」只写在那里。
 - 产品版本**唯一真源 = `docs/VERSION`**。构建脚本读取后分发到 5 类产物
-  （`moodflow_input.exe` / `moodflow_tsf.dll` / `moodflow_setting.exe` / `moodflow_portable.exe` / 安装包），
+  （`moodflow_input.exe` / `moodflow_tsf.dll` / `wind_setting.exe` / `wind_portable.exe` / 安装包），
   跨仓经环境变量 `MOODFLOW_APP_VERSION` 注入（不经脚本独立构建时各仓自行回退）。
   发版只改 `docs/VERSION` 一处，**不要**手改各仓 `Cargo.toml` 的 `version`。
 - Linux 包（`.deb`，amd64 + arm64）由 `release.yml` 并行调 `linux-build.yml` 构建，**不阻塞** Windows/macOS 发布；

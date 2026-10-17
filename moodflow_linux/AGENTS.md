@@ -21,7 +21,7 @@ Fcitx5 的 `InputContext`。引擎/词库/候选逻辑全在服务里，这里**
 | `include/ResponseRouter.h` + `src/core/ResponseRouter.cpp` | 响应帧 → 宿主操作。Swift `BridgeResponseRouter` 的逐条移植（待定标点 / 定格前缀 / hold 计时器 / 数字后智能标点记账） |
 | `include/Utf.h` + `src/core/Utf.cpp` | UTF-16 码元 ↔ UTF-8 字节换算（服务端光标以 UTF-16 计，Fcitx5 要字节偏移） |
 | `include/ServiceLauncher.h` + `src/core/ServiceLauncher.cpp` | 连不上服务时拉起它（节流 20 秒）。`spawnDetached`（设置程序共用）：双 fork（fcitx5 不替我们回收子进程，实测 posix_spawn 出来的服务退出后留 defunct）、新会话、清信号掩码并复位处置、stdio 接 /dev/null、关掉 3 起的 fd |
-| `include/SettingsLauncher.h` + `src/core/SettingsLauncher.cpp` | 下行扩展信封 `settings.open` 的 body 解析（JSON argv）与设置程序路径（`MOODFLOW_INPUT_SETTING` / `/usr/lib/moodflow/moodflow_setting`）。只启动自己的设置程序，信封内容只进参数位 |
+| `include/SettingsLauncher.h` + `src/core/SettingsLauncher.cpp` | 下行扩展信封 `settings.open` 的 body 解析（JSON argv）与设置程序路径（`MOODFLOW_INPUT_SETTING` / `/usr/lib/moodflow/wind_setting`）。只启动自己的设置程序，信封内容只进参数位 |
 | `include/Menu.h` + `src/core/Menu.cpp` | 自绘菜单的纯逻辑：kind ↔ 级、候选窗右键的目标、空闲超时（`MOODFLOW_MENU_IDLE_TIMEOUT_MS`） |
 | `include/HostUi.h` + `src/core/HostUi.cpp` | 交给 Fcitx5 呈现的部分：模式镜像（托盘图标：服务端按主字运行时渲染的 `moodflow-lbl-[dev-]<状态>-<主字十六进制，超长为 h+散列>`，没写出时退回种子 `moodflow-zh/en/caps`；中英、大写锁定位与标签从服务端四种状态帧学）、addon 加载时预建用户图标目录、大写锁定的本端判定（`CapsLockTracker`）、应用内预编辑过滤掉单空格占位组合 |
 | `include/OverlayInput.h` + `src/core/OverlayInput.cpp` | 光栅浮层与候选悬停的鼠标交互纯逻辑：按键 → 动作（拖动 / 菜单 / 关闭）、菜单 target、悬停门控、提示的悬停延后与离开重定、拖动落位 |
@@ -70,10 +70,10 @@ Shift 切中英 / Ctrl+Shift+E 切方案后等 `moodflow-status` 出现再等它
 `$W/fakebin/xclip`（写入记进 `$W/clipboard.log`）——为此 Xvfb 先于服务起，服务要继承 `DISPLAY`
 才会选 xclip 后端。e2e 把 `ui.status.duration` 调到 2 秒（出厂 800ms，来不及把指针挪上去）。
 
-设置程序用例：e2e 经包装脚本（`$W/svc/moodflow_setting`，记下 argv 再 exec 真程序，真程序默认取
-`~/.cache/wi-tgt-setting-linux/debug/moodflow_setting`，`MOODFLOW_E2E_SETTING` 可覆盖，缺它 e2e 直接失败）
+设置程序用例：e2e 经包装脚本（`$W/svc/wind_setting`，记下 argv 再 exec 真程序，真程序默认取
+`~/.cache/wi-tgt-setting-linux/debug/wind_setting`，`MOODFLOW_E2E_SETTING` 可覆盖，缺它 e2e 直接失败）
 设 `MOODFLOW_INPUT_SETTING`，按 `Ctrl+Shift+]` 验「热键 → 信封 → 拉起 → 连上服务 → 再按一次转交首实例
-→ 退出」。设置窗口按 WM_CLASS 实例名 `moodflow_setting` 找；映射早于首帧，截图要轮询到有内容。
+→ 退出」。设置窗口按 WM_CLASS 实例名 `wind_setting` 找；映射早于首帧，截图要轮询到有内容。
 
 e2e 的坑，都踩过：
 

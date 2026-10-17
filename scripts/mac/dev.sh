@@ -17,7 +17,7 @@
 #   d1 / dev          Dev 全构建 (MOODFLOW_VARIANT=dev 身份)
 #   m1 / dm1          仅构建 app   (Moodflow.app / MoodflowDev.app)  release/dev  [= Win m1 tsf]
 #   m2 / dm2          仅构建 service (cargo build -p moodflow_service)     release/dev  [= Win m2 core]
-#   m3 / dm3          仅构建 moodflow_setting.app (../moodflow-setting, 不存在则跳过) release/dev
+#   m3 / dm3          仅构建 wind_setting.app (../moodflow-setting, 不存在则跳过) release/dev
 #   p1 / pd1          系统安装全部 (service LaunchAgent + IME app + 设置 app)
 #   pm1 / pdm1        仅装 app 模块   pm2 / pdm2  仅装 service   pm3 / pdm3  仅装 设置 app
 #   u/u1 / ud/ud1     系统卸载 release / dev (撤销 app+service+设置+LaunchAgent, 保留用户数据)
@@ -161,7 +161,7 @@ kick_ime_app() {
 # ───────────────────────── 子步骤: 编译 ─────────────────────────
 
 # 通用二进制 (arm64 + x86_64) 总开关。**分发包必须开**, 本地开发默认关 (单架构快一倍)。
-# app_build 自己读同一个环境变量, 故这里的全局只服务 Rust 侧 (service / moodflow_setting);
+# app_build 自己读同一个环境变量, 故这里的全局只服务 Rust 侧 (service / wind_setting);
 # 三处读同一个 MOODFLOW_MAC_UNIVERSAL, CI 在 job 级设一次即可全线贯通。
 UNIVERSAL="${MOODFLOW_MAC_UNIVERSAL:-0}"
 
@@ -405,7 +405,7 @@ app_build() {
     done
 
     # 应用图标 (.icns, Finder/安装器/关于面板). plist 经 CFBundleIconFile=AppIcon 引用.
-    # 源 moodflow_setting/build/appicon.png (1024²), 重新生成 Resources/AppIcon.icns:
+    # 源 wind_setting/build/appicon.png (1024²), 重新生成 Resources/AppIcon.icns:
     #   ICONSET=$(mktemp -d)/AppIcon.iconset; mkdir -p "$ICONSET"
     #   for s in 16 32 128 256 512; do sips -z $s $s appicon.png --out "$ICONSET/icon_${s}x${s}.png"; \
     #     sips -z $((s*2)) $((s*2)) appicon.png --out "$ICONSET/icon_${s}x${s}@2x.png"; done
@@ -483,18 +483,18 @@ build_app() {
 }
 
 # ───────────── build_setting (拼装 Moodflow 输入法设置[开发版].app) ─────────────
-# moodflow_setting 是独立 Rust 项目 (../moodflow-setting, moodflowui GUI 框架); 原生 cargo build 产 bare
+# wind_setting 是独立 Rust 项目 (../moodflow-setting, moodflowui GUI 框架); 原生 cargo build 产 bare
 # 二进制, 这里按标准 macOS .app 结构拼壳 (Info.plist + AppIcon.icns + codesign)。所有资源
 # (品牌图标/manifest/svg/png) 已在二进制内 include_bytes! 嵌入, 故壳内只需 二进制 + plist + icns。
 #
 # IME 经 LaunchServices 按 bundleID 拉起设置 app (见 Swift ModeStatusController.openSettings):
-#   release IME → com.wails.moodflow_setting        release 设置 app
-#   dev     IME → com.wails.moodflow_setting_debug  dev 设置 app  (Swift 判 bundleID 以 "Dev" 结尾)
+#   release IME → com.wails.wind_setting        release 设置 app
+#   dev     IME → com.wails.wind_setting_debug  dev 设置 app  (Swift 判 bundleID 以 "Dev" 结尾)
 # 故壳的 CFBundleIdentifier 必须与之对齐, 否则 IME 的'设置…'找不到程序。
 #
-# 变体身份 (连对服务): dev 壳的 CFBundleExecutable/二进制名带 _dev 后缀 → moodflow_setting 的
+# 变体身份 (连对服务): dev 壳的 CFBundleExecutable/二进制名带 _dev 后缀 → wind_setting 的
 #   mode::detect 规则3 (exe 名 _dev) 命中 → 连 MoodflowDev 服务 (无需注入 MOODFLOW_VARIANT);
-#   与 Windows 的 moodflow_setting_dev.exe 模型一致。release 壳用 moodflow_setting → 连正式服务。
+#   与 Windows 的 wind_setting_dev.exe 模型一致。release 壳用 wind_setting → 连正式服务。
 #   两变体 bundleID/文件名/壳名均隔离, 可共存。
 #
 # 独立仓库不存在 → 告警跳过 (返回 0, 对齐 dev.ps1 Build-Setting 的 skip-if-absent);
@@ -502,7 +502,7 @@ build_app() {
 # 输出: moodflow_macos/build/<APP_NAME>.app  (APP_NAME = Moodflow 输入法设置 / Moodflow 输入法设置开发版)
 build_setting() {
     if [[ ! -d "$SETTING_DIR" ]]; then
-        warn "moodflow_setting: ../moodflow-setting 不存在, 跳过 (对齐 dev.ps1 skip-if-absent)"
+        warn "wind_setting: ../moodflow-setting 不存在, 跳过 (对齐 dev.ps1 skip-if-absent)"
         return 0
     fi
     command -v codesign >/dev/null || { err "codesign 未安装 (装 Xcode CLT)"; return 1; }
@@ -514,38 +514,38 @@ build_setting() {
     local ver; ver="$(repo_version)"
     if [[ -n "$ver" ]]; then
         export MOODFLOW_APP_VERSION="$ver"
-        info "version: $ver (注入 moodflow_setting build.rs)"
+        info "version: $ver (注入 wind_setting build.rs)"
     fi
 
     # 变体派生。
     local disp exe_name bid cargo_sub
     local cargo_flags=()
     if [[ "$VARIANT" == dev ]]; then
-        disp="Moodflow 输入法设置开发版"; exe_name="moodflow_setting_dev"
-        bid="com.wails.moodflow_setting_debug"; cargo_sub="debug"; cargo_flags=()
+        disp="Moodflow 输入法设置开发版"; exe_name="wind_setting_dev"
+        bid="com.wails.wind_setting_debug"; cargo_sub="debug"; cargo_flags=()
     else
-        disp="Moodflow 输入法设置"; exe_name="moodflow_setting"
-        bid="com.wails.moodflow_setting"; cargo_sub="release"; cargo_flags=(--release)
+        disp="Moodflow 输入法设置"; exe_name="wind_setting"
+        bid="com.wails.wind_setting"; cargo_sub="release"; cargo_flags=(--release)
     fi
     local APP_BUNDLE="$MACOS_DIR/build/$disp.app"
 
-    # 1. cargo build (moodflow_setting package → target/[universal/]<sub>/moodflow_setting)。
+    # 1. cargo build (wind_setting package → target/[universal/]<sub>/wind_setting)。
     local BIN_PATH
     if [[ $UNIVERSAL -eq 1 ]]; then
-        bold "==> 编译 moodflow_setting ($VARIANT, universal)"
-        cargo_build_universal "$SETTING_DIR" "$cargo_sub" moodflow_setting \
+        bold "==> 编译 wind_setting ($VARIANT, universal)"
+        cargo_build_universal "$SETTING_DIR" "$cargo_sub" wind_setting \
             ${cargo_flags[@]+"${cargo_flags[@]}"} || {
-            err "moodflow_setting 通用构建失败 (见上; 非致命, 设置 app 将缺失)"; return 1
+            err "wind_setting 通用构建失败 (见上; 非致命, 设置 app 将缺失)"; return 1
         }
-        BIN_PATH="$(cargo_target_dir "$SETTING_DIR")/$UNIVERSAL_SUBDIR/$cargo_sub/moodflow_setting"
+        BIN_PATH="$(cargo_target_dir "$SETTING_DIR")/$UNIVERSAL_SUBDIR/$cargo_sub/wind_setting"
     else
-        bold "==> 编译 moodflow_setting ($VARIANT, native)"
+        bold "==> 编译 wind_setting ($VARIANT, native)"
         ( cd "$SETTING_DIR" && cargo build ${cargo_flags[@]+"${cargo_flags[@]}"} ) || {
-            err "moodflow_setting 构建失败 (见上; 非致命, 设置 app 将缺失)"; return 1
+            err "wind_setting 构建失败 (见上; 非致命, 设置 app 将缺失)"; return 1
         }
-        BIN_PATH="$(cargo_target_dir "$SETTING_DIR")/$cargo_sub/moodflow_setting"
+        BIN_PATH="$(cargo_target_dir "$SETTING_DIR")/$cargo_sub/wind_setting"
     fi
-    [[ -x "$BIN_PATH" ]] || { err "未找到 moodflow_setting 二进制: $BIN_PATH"; return 1; }
+    [[ -x "$BIN_PATH" ]] || { err "未找到 wind_setting 二进制: $BIN_PATH"; return 1; }
     info "binary: $BIN_PATH ($(stat -f%z "$BIN_PATH") bytes)"
 
     # 2. 组 .app 壳。
@@ -613,8 +613,8 @@ PLIST_EOF
     plutil -lint "$APP_BUNDLE/Contents/Info.plist" >/dev/null
     printf "APPL????" > "$APP_BUNDLE/Contents/PkgInfo"
 
-    # 3. AppIcon.icns (从 res/moodflow_setting_icon.png 256² 生成; 缺 png/工具则跳过图标, 非致命)。
-    local ICON_PNG="$SETTING_DIR/res/moodflow_setting_icon.png"
+    # 3. AppIcon.icns (从 res/wind_setting_icon.png 256² 生成; 缺 png/工具则跳过图标, 非致命)。
+    local ICON_PNG="$SETTING_DIR/res/wind_setting_icon.png"
     if [[ -f "$ICON_PNG" ]] && command -v iconutil >/dev/null; then
         local ICONSET_ROOT; ICONSET_ROOT="$(mktemp -d)"
         local ICONSET="$ICONSET_ROOT/AppIcon.iconset"; mkdir -p "$ICONSET"
@@ -626,7 +626,7 @@ PLIST_EOF
             fi
         done
         if iconutil -c icns "$ICONSET" -o "$APP_BUNDLE/Contents/Resources/AppIcon.icns" 2>/dev/null; then
-            info "icon: AppIcon.icns (源 res/moodflow_setting_icon.png)"
+            info "icon: AppIcon.icns (源 res/wind_setting_icon.png)"
         else
             warn "AppIcon.icns 生成失败 (无图标, 非致命)"
         fi
@@ -673,9 +673,9 @@ setting_install() {
 
     local disp exe_name bid
     if [[ $dev -eq 1 ]]; then
-        disp="Moodflow 输入法设置开发版"; exe_name="moodflow_setting_dev"; bid="com.wails.moodflow_setting_debug"
+        disp="Moodflow 输入法设置开发版"; exe_name="wind_setting_dev"; bid="com.wails.wind_setting_debug"
     else
-        disp="Moodflow 输入法设置"; exe_name="moodflow_setting"; bid="com.wails.moodflow_setting"
+        disp="Moodflow 输入法设置"; exe_name="wind_setting"; bid="com.wails.wind_setting"
     fi
     local APP_NAME="$disp.app"
     local INSTALL_DIR="$HOME/Applications"
@@ -704,7 +704,7 @@ setting_install() {
 
     # -------- install --------
     if [[ ! -d "$SRC" ]]; then
-        warn "未找到设置 app: $SRC (moodflow_setting 仓缺失或未构建), 跳过设置安装 (非致命)"
+        warn "未找到设置 app: $SRC (wind_setting 仓缺失或未构建), 跳过设置安装 (非致命)"
         return 0
     fi
     bold "==> Install $SRC -> $DST"
@@ -736,7 +736,7 @@ setting_install() {
 
 # 组合: 编 + 装 设置 app (best-effort: 构建失败/仓缺失不中断上层安装)。
 install_setting() {
-    build_setting || warn "moodflow_setting 构建失败/跳过 (设置 app 可能缺失)"
+    build_setting || warn "wind_setting 构建失败/跳过 (设置 app 可能缺失)"
     bold "==> 安装 设置 app ($VARIANT)"
     setting_install ${APP_VARIANT_FLAG[@]+"${APP_VARIANT_FLAG[@]}"}
     # 防复发: 清 build/ 里的设置壳并注销其 LS 登记 (与 install_app 同策略)。它与 ~/Applications
@@ -1586,9 +1586,9 @@ do_full() {
     # 「某步失败了却一路跑到『全构建完成』」——正是 codesign 失败仍报成功的老形态。
     build_service || { err "service 构建失败, 中止全构建"; return 1; }
     build_app     || { err ".app 构建失败, 中止全构建"; return 1; }
-    # moodflow_setting 是独立仓库, 允许缺席; 但失败与否要如实反映在下方产物清单里。
+    # wind_setting 是独立仓库, 允许缺席; 但失败与否要如实反映在下方产物清单里。
     local setting_ok=1
-    build_setting || { setting_ok=0; warn "moodflow_setting 构建跳过/失败 (非致命, 设置 app 缺失)"; }
+    build_setting || { setting_ok=0; warn "wind_setting 构建跳过/失败 (非致命, 设置 app 缺失)"; }
     do_gendata        || { err "gen-data 失败, 中止全构建"; return 1; }
     verify_dist_data  || { err "发布数据校验失败, 中止全构建"; return 1; }
 
@@ -1602,7 +1602,7 @@ do_full() {
     if (( setting_ok )) && [[ -d "$MACOS_DIR/build/$setting_disp.app" ]]; then
         info "  setting = $MACOS_DIR/build/$setting_disp.app"
     else
-        warn "  setting = (缺失: moodflow_setting 未构建成功; 装出来的系统里没有设置程序)"
+        warn "  setting = (缺失: wind_setting 未构建成功; 装出来的系统里没有设置程序)"
     fi
     info "  data    = $DATA_SNAPSHOT"
     info "下一步: scripts/mac/dev.sh $([[ $VARIANT == dev ]] && echo pd1 || echo p1)  (系统安装)"
@@ -1837,7 +1837,7 @@ pkg_build() {
     local SERVICE_DATA="$DATA_SNAPSHOT"                                     # gd 产物 (变体无关)
     # 设置 app: build_setting 组装的壳 (变体名不同); 可选 (设置仓缺失则跳过)。
     local SETTING_DISP="Moodflow 输入法设置"; [[ "$PROFILE" == dev ]] && SETTING_DISP="Moodflow 输入法设置开发版"
-    local SETTING_EXE="moodflow_setting"; [[ "$PROFILE" == dev ]] && SETTING_EXE="moodflow_setting_dev"
+    local SETTING_EXE="wind_setting"; [[ "$PROFILE" == dev ]] && SETTING_EXE="wind_setting_dev"
     local SETTING_APP="$MACOS_DIR/build/$SETTING_DISP.app"
 
     local DIST_DIR="$MACOS_DIR/dist"
@@ -1874,11 +1874,11 @@ pkg_build() {
         app_build ${APP_VARIANT_FLAG[@]+"${APP_VARIANT_FLAG[@]}"}   # IME .app
         # 构建失败即中止打包 —— **不再降级成 warn**。build_setting 已经把两种情形分开了:
         # 设置仓不在场返回 0(fork/精简检出的正当跳过), 真正的编译失败返回 1。此前调用点
-        # 把两者一起 warn 掉, 于是 moodflow_setting 编译报错也只是日志里一行黄字, .pkg 照出、
+        # 把两者一起 warn 掉, 于是 wind_setting 编译报错也只是日志里一行黄字, .pkg 照出、
         # workflow 照报 success, 发布出去的包里没有设置 app —— v0.121.0 就是这么发的
         # (issue #125: 装完打不开设置, 因为压根没装上)。同本函数下方 universal 硬校验的
         # 立场: 宁可在这里出不了包, 也不能把它发出去。
-        build_setting || { err "moodflow_setting 构建失败, 中止打包 (见上)"; exit 1; }
+        build_setting || { err "wind_setting 构建失败, 中止打包 (见上)"; exit 1; }
     fi
 
     # -------- 校验必备产物 (设置 app 可选) --------
@@ -1946,7 +1946,7 @@ exec "\$(cd "\$(dirname "\$0")" && pwd)/dev.sh" __setting_install${WRAP_VFLAG} "
 WRAP
     fi
     chmod +x "$DEST"/*.sh "$DEST/service/moodflow_input"
-    info "payload: $APP_NAME.app + service(moodflow_input+data)$([[ $HAVE_SETTING -eq 1 ]] && echo ' + moodflow_setting.app') + 安装脚本"
+    info "payload: $APP_NAME.app + service(moodflow_input+data)$([[ $HAVE_SETTING -eq 1 ]] && echo ' + wind_setting.app') + 安装脚本"
 
     # -------- universal 硬校验 --------
     # 要了通用二进制却少一个架构 = "名义通用、实则单架构"。这种包在 Intel Mac 上**装得上**
@@ -2069,7 +2069,7 @@ show_menu() {
     printf "\033[33m  单模块构建 (前缀 d = dev):\033[0m\n"
     echo   "    m1   仅 app  (Moodflow.app)    dm1"
     echo   "    m2   仅 service (moodflow_service)  dm2"
-    echo   "    m3   仅 设置 app (moodflow_setting) dm3"
+    echo   "    m3   仅 设置 app (wind_setting) dm3"
     printf "\033[33m  系统安装 / 卸载:\033[0m\n"
     echo   "    p1   安装全部 (release)         pd1   安装全部 (dev)"
     echo   "    pm1/pm2/pm3  装模块(app/svc/设置)  pdm1/pdm2/pdm3 (dev)"

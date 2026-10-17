@@ -8,7 +8,7 @@
 #      --config config/app.toml \
 #      --version <VERSION>      # 覆盖 app.version
 #      --source-dir <DIR>       # 覆盖 package.source_dir
-#      --stub moodflow-installer.exe
+#      --stub wind-installer.exe
 # ============================================================================
 
 [app]
@@ -18,14 +18,14 @@ version         = "0.0.0"           # 构建时由 --version 覆盖，此处为�
 publisher       = "Moodflow 输入法项目"
 description     = "懂你心情的 AI 输入陪伴"
 main_exe        = "moodflow_core.exe"
-setting_exe     = "moodflow_setting.exe"
+setting_exe     = "wind_setting.exe"
 start_menu_folder = "Moodflow 输入法"
 window_title    = "Moodflow 输入法安装向导"
 url_protocol    = "moodflow"
 agreement_url   = ""
 portable_marker = "portable_mode"
 # Moodflow：moodflow_hub 是 Moodflow 主程序（Hub），升级、卸载前要和核心一起结束（11 FR-OPS-02）
-process_names   = ["moodflow_setting", "moodflow_portable", "moodflow_core", "moodflow_hub"]
+process_names   = ["wind_setting", "wind_portable", "moodflow_core", "moodflow_hub"]
 acl_dlls        = ["moodflow_tsf.dll", "moodflow_tsf_x86.dll"]
 legacy_files    = []
 legacy_dirs     = []
@@ -110,7 +110,7 @@ prestart = true
 conf_file = "datadir.conf"
 # 卸载删除用户数据前的安全判据：datadir.conf 是用户可编辑的明文路径，而下游动作是
 # remove_dir_all + 拷到桌面。目录非空时必须命中其一，否则跳过删除（空目录一律放行）。
-markers = ["config.toml", "compat.toml", "userdata.redb", "moodflow_setting.toml", "schemas", "themes"]
+markers = ["config.toml", "compat.toml", "userdata.redb", "wind_setting.toml", "schemas", "themes"]
 
 # ── 本机数据目录清理：%LOCALAPPDATA%\Moodflow 下由主程序运行期创建的东西 ────
 #    不声明这一段，卸载后这些会原样留下（连同目录本身）——安装器只撤销自己写过的
@@ -122,7 +122,7 @@ markers = ["config.toml", "compat.toml", "userdata.redb", "moodflow_setting.toml
 #
 #    cache_dirs  →「清除本地词库缓存」勾选。两项都是可重建产物：
 #      cache  词库 .wdat/.wridx（moodflow-config 的 Paths::cache_dir）
-#      logs   主程序 / moodflow_setting / TSF DLL 三方的日志，含 tsf_log/ 与 tsf_log_config
+#      logs   主程序 / wind_setting / TSF DLL 三方的日志，含 tsf_log/ 与 tsf_log_config
 #             （moodflow_tsf 的 FileLogger 直接往这里写，它不经过主程序的日志栈）
 #    state_files →「删除用户词库和配置数据」勾选。删了就没了，故跟随那个危险勾选：
 #      state.toml        工具栏位置等本机状态

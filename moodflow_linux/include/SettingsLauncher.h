@@ -1,5 +1,5 @@
 // 「打开设置」：服务端经下行扩展信封 `settings.open`（body = `{"args":[…]}`）让宿主启动
-// 设置程序（moodflow_setting）。对位 macOS `.app` 的 openSettings；Windows 由 TSF DLL 的
+// 设置程序（wind_setting）。对位 macOS `.app` 的 openSettings；Windows 由 TSF DLL 的
 // ShellExecuteW 承担同一件事。
 //
 // 安全边界：**只启动自己的设置程序**。程序路径只取编译期常量或环境变量

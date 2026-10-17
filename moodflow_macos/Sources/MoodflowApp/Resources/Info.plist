@@ -25,7 +25,7 @@
     <key>CFBundleExecutable</key>
     <string>Moodflow</string>
 
-    <!-- 应用图标 (Finder / 安装器 / 关于面板). 由 moodflow_setting/build/appicon.png 经
+    <!-- 应用图标 (Finder / 安装器 / 关于面板). 由 wind_setting/build/appicon.png 经
          sips+iconutil 生成 Resources/AppIcon.icns; 重生成命令见 scripts_mac/build/app.sh.
          注: 菜单栏输入法图标另走 tsInputMethodIconFileKey (单色 PDF), 与此无关. -->
     <key>CFBundleIconFile</key>

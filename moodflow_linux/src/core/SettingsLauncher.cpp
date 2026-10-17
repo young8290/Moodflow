@@ -4,7 +4,7 @@
 #include <cstdlib>
 
 #ifndef MOODFLOW_SETTING_PATH
-#define MOODFLOW_SETTING_PATH "/usr/lib/moodflow/moodflow_setting"
+#define MOODFLOW_SETTING_PATH "/usr/lib/moodflow/wind_setting"
 #endif
 
 namespace moodflowlinux {

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 系统关联端到端：`moodflow://` 协议与 `.wpkg` / `.wtheme` 包文件，从 XDG 查询一路到
-# 真的拉起设置程序（moodflow_setting）进导入确认。
+# 真的拉起设置程序（wind_setting）进导入确认。
 #
 #   scripts/linux/e2e-assoc.sh              # 先构建设置程序再跑
 #   SKIP_BUILD=1 scripts/linux/e2e-assoc.sh # 用现成产物
@@ -34,7 +34,7 @@ set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SETTING_REPO="$(cd "$REPO/.." && pwd)/moodflow-setting"
 SETTING_TARGET_DIR="${MOODFLOW_SETTING_TARGET_DIR:-$HOME/.cache/wi-tgt-setting-linux}"
-SETTING_BIN="${MOODFLOW_ASSOC_SETTING:-$SETTING_TARGET_DIR/debug/moodflow_setting}"
+SETTING_BIN="${MOODFLOW_ASSOC_SETTING:-$SETTING_TARGET_DIR/debug/wind_setting}"
 PKG="$REPO/scripts/linux/pkg"
 TOOLS=/tmp/wi-linux/assoc-tools
 W="${MOODFLOW_ASSOC_DIR:-/tmp/wi-linux/assoc.$$}"
@@ -110,10 +110,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# 本脚本拉起的 moodflow_setting：环境里 XDG_RUNTIME_DIR 指向本临时目录的那些。
+# 本脚本拉起的 wind_setting：环境里 XDG_RUNTIME_DIR 指向本临时目录的那些。
 our_pids() {
     local p
-    for p in $(pgrep -x moodflow_setting 2>/dev/null || true); do
+    for p in $(pgrep -x wind_setting 2>/dev/null || true); do
         if tr '\0' '\n' <"/proc/$p/environ" 2>/dev/null | grep -qx "XDG_RUNTIME_DIR=$W/rt"; then echo "$p"; fi
     done
 }
@@ -128,13 +128,13 @@ kill_ours() {
 wait_window() {  # 等设置程序主窗出现，打印窗口 id
     local id=""
     for _ in $(seq 1 150); do
-        id="$(xdo search --onlyvisible --classname moodflow_setting 2>/dev/null | head -1 || true)"
+        id="$(xdo search --onlyvisible --classname wind_setting 2>/dev/null | head -1 || true)"
         [[ -n "$id" ]] && { echo "$id"; return 0; }
         sleep 0.1
     done
     return 1
 }
-setting_log() { cat "$(find "$XDG_DATA_HOME" -name 'moodflow_setting*.1.log' 2>/dev/null | head -1)" 2>/dev/null || true; }
+setting_log() { cat "$(find "$XDG_DATA_HOME" -name 'wind_setting*.1.log' 2>/dev/null | head -1)" 2>/dev/null || true; }
 wait_log() {  # 等日志里出现某串
     for _ in $(seq 1 100); do setting_log | grep -qF -- "$1" && return 0; sleep 0.1; done
     return 1
@@ -196,10 +196,10 @@ log "Xvfb 就绪 DISPLAY=$DISPLAY，临时目录 $W"
 
 # ═════ 一、系统包形态 ═════════════════════════════════════════════════
 log "── 一、系统包形态（假 /usr/share 里装包内文件，Exec 指向本次构建的设置程序）"
-ln -s "$SETTING_BIN" "$W/sys/lib/moodflow/moodflow_setting"
+ln -s "$SETTING_BIN" "$W/sys/lib/moodflow/wind_setting"
 mkdir -p "$SYS/applications" "$SYS/mime/packages" "$SYS/icons"
 for f in moodflow-setting.desktop moodflow-import.desktop; do
-    sed "s#/usr/lib/moodflow/moodflow_setting#$W/sys/lib/moodflow/moodflow_setting#" "$PKG/$f" >"$SYS/applications/$f"
+    sed "s#/usr/lib/moodflow/wind_setting#$W/sys/lib/moodflow/wind_setting#" "$PKG/$f" >"$SYS/applications/$f"
 done
 cp "$PKG/moodflow-mime.xml" "$SYS/mime/packages/moodflow.xml"
 cp -r "$REPO/moodflow_linux/data/icons/hicolor" "$SYS/icons/"
@@ -309,7 +309,7 @@ expect_eq "e0 起点：协议无人处理" "" "$(default_of x-scheme-handler/moo
 # g) 启动自愈：用户目录里有本程序写过、指向已消失路径的 .desktop → 启动时改指本程序
 {
     echo "[Desktop Entry]"; echo "Type=Application"; echo "Name=Moodflow 输入法设置"
-    echo "Exec=\"$W/gone/moodflow_setting\" %u"; echo "MimeType=x-scheme-handler/moodflow;"
+    echo "Exec=\"$W/gone/wind_setting\" %u"; echo "MimeType=x-scheme-handler/moodflow;"
     echo "X-Moodflow-UserInstall=true"
 } >"$UAPPS/moodflow-setting.desktop"
 "$SETTING_BIN" --page advanced >/dev/null 2>&1 &

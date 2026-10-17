@@ -19,7 +19,7 @@
 造型：文档页（折角）+ 居中的应用图标（蓝底白「风」，与 moodflow 应用图标同源）+ 底部彩色角标：
 方案包蓝色「方案」、主题包橙色「主题」。字只在 128 及以上出现：48/64 下中文只剩 8~10px，
 放大看是一团糊，角标退成不带字的色块；16/22/24/32 再退成页脚的一条色带。两种包在任何尺寸
-都靠颜色分得开。应用图标那块在位图里直接取 moodflow-setting 仓 res/moodflow_setting.ico 里
+都靠颜色分得开。应用图标那块在位图里直接取 moodflow-setting 仓 res/wind_setting.ico 里
 逐尺寸手调过的那一档（小尺寸比缩放清楚得多），矢量里用描出来的「风」轮廓。
 """
 import argparse
@@ -35,7 +35,7 @@ from skimage import measure
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 OUT = os.path.join(REPO, "moodflow_linux", "data", "icons", "hicolor")
-DEFAULT_ICO = os.path.join(REPO, "..", "moodflow-setting", "res", "moodflow_setting.ico")
+DEFAULT_ICO = os.path.join(REPO, "..", "moodflow-setting", "res", "wind_setting.ico")
 SIZES = [16, 22, 24, 32, 48, 64, 128, 256]
 SS = 8  # 超采样倍数：几何按整像素对齐画在 SS 倍画布上再缩，边缘清楚又有抗锯齿
 
@@ -46,7 +46,7 @@ KINDS = {
 PAGE_FILL = (0xFF, 0xFF, 0xFF)
 PAGE_EDGE = (0xB8, 0xC1, 0xCC)
 FOLD_FILL = (0xDD, 0xE3, 0xEA)
-MARK_BLUE = (0x2F, 0x93, 0xEE)  # 与应用图标底色一致（取自 moodflow_setting.ico）
+MARK_BLUE = (0x2F, 0x93, 0xEE)  # 与应用图标底色一致（取自 wind_setting.ico）
 
 
 def find_font(explicit):

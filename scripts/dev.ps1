@@ -18,13 +18,13 @@
 #   d1           Dev 全构建 → build_dev/
 #   m1 / dm1     仅 tsf (x64+x86)            release / dev
 #   m2 / dm2     仅 moodflow_input (核心 exe)     release / dev
-#   m3 / dm3     仅 moodflow_setting (../moodflow-setting)              release / dev (不存在则跳过)
-#   m4 / dm4     仅 moodflow_portable (绿色版, ../moodflow-portable)   release / dev (不存在则跳过)
+#   m3 / dm3     仅 wind_setting (../moodflow-setting)              release / dev (不存在则跳过)
+#   m4 / dm4     仅 wind_portable (绿色版, ../moodflow-portable)   release / dev (不存在则跳过)
 #   p1 / pd1     系统安装全部 (release / dev): 复制 + 注册 TSF + 开机自启 + 启动服务
 #   u1/u / ud1/ud  系统卸载全部 (release / dev): 反注册 + 移出输入法列表 + 移除自启 + 删目录
 #   pm1..pm4     系统安装单模块 (tsf / 核心 / setting / portable, release)
 #   pdm1..pdm4   系统安装单模块 (dev)
-#   pb1 / pbd1   便携部署全部 (release / dev): 纯复制 + 写便携标记 + 启动 moodflow_portable
+#   pb1 / pbd1   便携部署全部 (release / dev): 纯复制 + 写便携标记 + 启动 wind_portable
 #   pbm1..pbm4   便携部署单模块 (release)      pbdm1..pbdm4  便携部署单模块 (dev)
 #   ub1/ub / ubd1/ubd  便携卸载 (release / dev): 停进程 + 删程序文件 (userdata\ 保留)
 #   8  / d8      生成安装包 (release / dev): 全构建 + moodflow-installer 打包 → dist\*-Setup.exe
@@ -67,7 +67,7 @@
 #   ── 便携部署 (纯复制, 免注册免自启; 无需管理员)
 #   MOODFLOW_DIR_PORTABLE_RELEASE = D:\MoodflowPortable            # pb1 / pbm* 目标
 #   MOODFLOW_DIR_PORTABLE_DEV     = D:\MoodflowPortableDev         # pbd1 / pbdm* 目标
-#   注: 便携目录【不可】落在 Program Files\ 或 Windows\ 下 —— moodflow_portable 的
+#   注: 便携目录【不可】落在 Program Files\ 或 Windows\ 下 —— wind_portable 的
 #       is_protected_dir (layout.rs) 会拒绝在系统保护目录启动便携模式。
 #   注: 便携用户数据在 <便携目录>\userdata\, 重新部署与卸载均保留该目录。
 #
@@ -138,7 +138,7 @@ $DistDir       = "$ProductRoot\dist"          # 安装包输出目录 (gitignore
 $MOODFLOW_DIR_RELEASE = "C:\Program Files\Moodflow"
 $MOODFLOW_DIR_DEV     = "C:\Program Files\MoodflowDev"
 # 便携部署目标 (绿色版: 纯复制 + 便携标记, 不注册 COM/不写自启, 无需管理员)。
-# 默认放 D:\ 而非 Program Files —— moodflow_portable 探测到自身位于系统保护目录会直接拒绝
+# 默认放 D:\ 而非 Program Files —— wind_portable 探测到自身位于系统保护目录会直接拒绝
 # 启动便携模式 (moodflow-portable\src\layout.rs is_protected_dir), 故此处不能沿用安装目录。
 $MOODFLOW_DIR_PORTABLE_RELEASE = "D:\MoodflowPortable"
 $MOODFLOW_DIR_PORTABLE_DEV     = "D:\MoodflowPortableDev"
@@ -148,7 +148,7 @@ $MOODFLOW_DIR_PORTABLE_DEV     = "D:\MoodflowPortableDev"
 # 改这两个常量时须同步此处、app.toml、moodflow-portable 与 IPCClient.cpp。
 $PortableMarkerName = "portable_mode"
 # 旧标记名: 仅用于部署时识别存量便携目录 (读取兼容), 不再写入。
-$PortableMarkerLegacy = "moodflow_portable_mode"
+$PortableMarkerLegacy = "wind_portable_mode"
 $PortableDataDir    = "userdata"
 # moodflow-installer: 通用安装器生成器 (兄弟项目, app.toml 驱动); 8/d8 打包命令调用其 pack.ps1。
 # 与 SettingDir/PortableDir 同源 (见上面的 Resolve-SiblingRoot), 否则 worktree 里打包会
@@ -169,7 +169,7 @@ $buildCfg = "$ScriptDir\build.local.ps1"
 if (Test-Path $buildCfg) { . $buildCfg }
 
 # ---------- 静态链接 MSVC CRT(+crt-static) ----------
-# 所有 Rust 产物(moodflow_input / moodflow_setting / moodflow_portable, 及子进程 pack.ps1 的
+# 所有 Rust 产物(moodflow_input / wind_setting / wind_portable, 及子进程 pack.ps1 的
 # installer stub)自包含, 目标机无需装 VC++ 运行库 —— VCRUNTIME140.dll 非系统内置,
 # 缺它则原生 cargo build 默认动态 CRT, 干净机器上 exe 报「找不到 VCRUNTIME140.dll」
 # / 0xc000007b 而无法启动。与 dev.sh 的 RUSTFLAGS 注入(+crt-static)对齐。
@@ -321,25 +321,25 @@ function Build-TsfAll ([string]$profile = "release", [string]$outdir = $null) {
 }
 
 # ---------- 构建: moodflow-setting (设置程序) ----------
-# 独立仓库; 不存在时跳过。dev 变体产物重命名为 moodflow_setting_dev.exe。
+# 独立仓库; 不存在时跳过。dev 变体产物重命名为 wind_setting_dev.exe。
 function Build-Setting ([string]$profile = "release", [string]$outdir = $null) {
     if (-not $outdir) { $outdir = Out-For $profile }
     if (-not (Test-Path $SettingDir)) { Warn "../moodflow-setting 仓库不存在, 跳过设置程序。"; return $true }
     $suffix = ""; $targetDir = "release"
     if ($profile -eq "dev") { $suffix = "_dev"; $targetDir = "debug" }
     New-Item -ItemType Directory -Path $outdir -Force | Out-Null
-    Say "`n[setting] 构建 moodflow_setting ($profile)..."
+    Say "`n[setting] 构建 wind_setting ($profile)..."
     $env:MOODFLOW_APP_VERSION = $Version   # 版本注入: docs/VERSION → moodflow-setting (与主仓统一)
     Push-Location $SettingDir
     try {
         if ($profile -eq "dev") { cargo build } else { cargo build --release }
-        if ($LASTEXITCODE -ne 0) { ErrMsg "moodflow_setting 构建失败!"; return $false }
+        if ($LASTEXITCODE -ne 0) { ErrMsg "wind_setting 构建失败!"; return $false }
     } finally { Pop-Location }
-    $exe = Join-Path (Get-CargoTargetDir $SettingDir) "$targetDir\moodflow_setting.exe"
+    $exe = Join-Path (Get-CargoTargetDir $SettingDir) "$targetDir\wind_setting.exe"
     if (-not (Test-Path $exe)) { ErrMsg "未找到产物: $exe"; return $false }
-    Copy-Item $exe "$outdir\moodflow_setting$suffix.exe" -Force
-    $sz = [math]::Round((Get-Item "$outdir\moodflow_setting$suffix.exe").Length / 1MB, 1)
-    Gray "已构建: moodflow_setting$suffix.exe (${sz}MB)"
+    Copy-Item $exe "$outdir\wind_setting$suffix.exe" -Force
+    $sz = [math]::Round((Get-Item "$outdir\wind_setting$suffix.exe").Length / 1MB, 1)
+    Gray "已构建: wind_setting$suffix.exe (${sz}MB)"
     return $true
 }
 
@@ -349,18 +349,18 @@ function Build-Portable ([string]$profile = "release", [string]$outdir = $null) 
     if (-not $outdir) { $outdir = Out-For $profile }
     if (-not (Test-Path $PortableDir)) { Warn "../moodflow-portable 仓库不存在, 跳过便携启动器。"; return $true }
     New-Item -ItemType Directory -Path $outdir -Force | Out-Null
-    Say "`n[portable] 构建 moodflow_portable ($profile → 单一二进制)..."
+    Say "`n[portable] 构建 wind_portable ($profile → 单一二进制)..."
     $env:MOODFLOW_APP_VERSION = $Version   # 版本注入: docs/VERSION → moodflow-portable (与主仓统一)
     Push-Location $PortableDir
     try {
         cargo build --release
-        if ($LASTEXITCODE -ne 0) { ErrMsg "moodflow_portable 构建失败!"; return $false }
+        if ($LASTEXITCODE -ne 0) { ErrMsg "wind_portable 构建失败!"; return $false }
     } finally { Pop-Location }
-    $exe = Join-Path (Get-CargoTargetDir $PortableDir) "release\moodflow_portable.exe"
+    $exe = Join-Path (Get-CargoTargetDir $PortableDir) "release\wind_portable.exe"
     if (-not (Test-Path $exe)) { ErrMsg "未找到产物: $exe"; return $false }
-    Copy-Item $exe "$outdir\moodflow_portable.exe" -Force
-    $sz = [math]::Round((Get-Item "$outdir\moodflow_portable.exe").Length / 1MB, 1)
-    Gray "已构建: moodflow_portable.exe (${sz}MB)"
+    Copy-Item $exe "$outdir\wind_portable.exe" -Force
+    $sz = [math]::Round((Get-Item "$outdir\wind_portable.exe").Length / 1MB, 1)
+    Gray "已构建: wind_portable.exe (${sz}MB)"
     return $true
 }
 
@@ -792,11 +792,11 @@ function Sync-VersionStamp {
     try { cargo clean -p moodflow_service 2>&1 | Out-Null } catch {} finally { Pop-Location }
     if (Test-Path $SettingDir) {
         Push-Location $SettingDir
-        try { cargo clean -p moodflow_setting 2>&1 | Out-Null } catch {} finally { Pop-Location }
+        try { cargo clean -p wind_setting 2>&1 | Out-Null } catch {} finally { Pop-Location }
     }
     if (Test-Path $PortableDir) {
         Push-Location $PortableDir
-        try { cargo clean -p moodflow_portable 2>&1 | Out-Null } catch {} finally { Pop-Location }
+        try { cargo clean -p wind_portable 2>&1 | Out-Null } catch {} finally { Pop-Location }
     }
 
     # 2. TSF: 删 CMake 缓存目录, 强制 configure_file 重新生成 version.rc。
@@ -936,8 +936,8 @@ function Do-Full ([string]$profile = "release") {
     } else {
     if (-not (Build-Core     $profile $outdir)) { return $false }   # moodflow_core[_dev].exe
     if (-not (Build-TsfAll   $profile $outdir)) { return $false }   # moodflow_tsf[_x86][_dev].dll
-    if (-not (Build-Setting  $profile $outdir)) { return $false }   # moodflow_setting[_dev].exe (可选)
-    if (-not (Build-Portable $profile $outdir)) { return $false }   # moodflow_portable.exe (可选)
+    if (-not (Build-Setting  $profile $outdir)) { return $false }   # wind_setting[_dev].exe (可选)
+    if (-not (Build-Portable $profile $outdir)) { return $false }   # wind_portable.exe (可选)
     }
     # Moodflow：Hub 在仓库根目录的另一个 cargo 工作区, 不进上面的并行分叉, 单独串行构建
     if (-not (Build-Hub      $profile $outdir)) { return $false }   # moodflow_hub.exe + hub_templates\ (可选)
@@ -1207,11 +1207,11 @@ function Set-AutoStart ([string]$dir, [string]$suffix) {
 }
 
 # 终止占用目标 exe 的进程 (按镜像名), 等其退出让出文件锁; 仅对 .exe 生效。
-# 背景: Stop-MoodflowService 只杀核心服务 moodflow_input; 独立打开的设置程序 moodflow_setting[_dev].exe /
-#       便携版 moodflow_portable.exe 不随之退出, 覆盖前需先按名杀掉 (对齐 ../moodflow-setting Do-Copy 的处理)。
+# 背景: Stop-MoodflowService 只杀核心服务 moodflow_input; 独立打开的设置程序 wind_setting[_dev].exe /
+#       便携版 wind_portable.exe 不随之退出, 覆盖前需先按名杀掉 (对齐 ../moodflow-setting Do-Copy 的处理)。
 # DLL 由宿主进程加载, 没有独立进程可杀 → 跳过, 仍靠 Copy-Replace 的改名让路兜底。
 # Moodflow: 只杀可执行文件位于 $dir 下的进程 (Get-InDirProcesses)。按镜像名杀会误伤同名进程:
-#       同一变体的系统安装与便携部署、以及与上游输入法同名的 moodflow_setting / moodflow_portable (TC-OPS-04)。
+#       同一变体的系统安装与便携部署、以及与上游输入法同名的 wind_setting / wind_portable (TC-OPS-04)。
 function Get-InDirProcesses ([string]$procName, [string]$dir) {
     $prefix = $dir.TrimEnd('\') + "\"
     @(Get-Process -Name $procName -ErrorAction SilentlyContinue | Where-Object {
@@ -1355,8 +1355,8 @@ function Deploy-Full ([string]$profile = "release") {
         foreach ($dll in (Get-ChildItem "$outdir\moodflow_tsf*.dll" -ErrorAction SilentlyContinue)) {
             Copy-Replace $targetDir $dll.Name $dll.FullName
         }
-        if (Test-Path "$outdir\moodflow_setting$suffix.exe") { Copy-Replace $targetDir "moodflow_setting$suffix.exe" "$outdir\moodflow_setting$suffix.exe" }
-        if (Test-Path "$outdir\moodflow_portable.exe")       { Copy-Replace $targetDir "moodflow_portable.exe"       "$outdir\moodflow_portable.exe" }
+        if (Test-Path "$outdir\wind_setting$suffix.exe") { Copy-Replace $targetDir "wind_setting$suffix.exe" "$outdir\wind_setting$suffix.exe" }
+        if (Test-Path "$outdir\wind_portable.exe")       { Copy-Replace $targetDir "wind_portable.exe"       "$outdir\wind_portable.exe" }
         if (Test-Path "$outdir\data") {
             if (-not (Copy-DataAtomic "$outdir\data" $targetDir)) { return $false }
         }
@@ -1389,9 +1389,9 @@ function Get-ModuleFiles ([string]$mod, [string]$suffix) {
         "tsf"     { @{ Required = @("moodflow_tsf$suffix.dll", "moodflow_tsf_x86${suffix}.dll"); Optional = @() } }
         # moodflow_cli.bat 两变体共用一份、且 Build-Core 里是"存在才复制", 故列为可选
         "core"    { @{ Required = @("moodflow_core$suffix.exe"); Optional = @("moodflow_cli.bat") } }
-        "setting" { @{ Required = @("moodflow_setting$suffix.exe"); Optional = @() } }
+        "setting" { @{ Required = @("wind_setting$suffix.exe"); Optional = @() } }
         # 便携启动器是单一二进制, 不带变体后缀 (运行时按同级有无 _dev exe 自辨变体)
-        "portable" { @{ Required = @("moodflow_portable.exe"); Optional = @() } }
+        "portable" { @{ Required = @("wind_portable.exe"); Optional = @() } }
         default   { $null }
     }
 }
@@ -1450,7 +1450,7 @@ function Deploy-Module ([string]$profile, [string]$mod) {
 
 # ---------- 便携部署 (绿色版: 纯复制到本地目录, 免注册免污染) ----------
 # 与系统安装的区别: 不 regsvr32、不写 HKCU Run、不装字体、不改用户输入法列表 —— 这些全部
-# 由 moodflow_portable.exe 运行期自行完成 (registration.rs 见到便携标记才走便携注册路径), 退出时
+# 由 wind_portable.exe 运行期自行完成 (registration.rs 见到便携标记才走便携注册路径), 退出时
 # 再自行撤销。故便携部署 = 复制文件 + 写标记 + 拉起 launcher, 全程无需管理员。
 function Portable-TargetFor ([string]$profile) {
     if ($profile -eq "dev") { return $MOODFLOW_DIR_PORTABLE_DEV }
@@ -1470,7 +1470,7 @@ function Test-PortableRoot ([string]$root, [string]$profile = "release") {
         $pl = $p.ToLower().TrimEnd('\')
         if ($lower -eq $pl -or $lower.StartsWith("$pl\")) {
             ErrMsg "便携目录不能位于系统保护目录下: $root"
-            ErrMsg "  (命中前缀: $p) —— moodflow_portable 会拒绝在此启动便携模式。"
+            ErrMsg "  (命中前缀: $p) —— wind_portable 会拒绝在此启动便携模式。"
             $varName = if ($profile -eq 'dev') { 'MOODFLOW_DIR_PORTABLE_DEV' } else { 'MOODFLOW_DIR_PORTABLE_RELEASE' }
             ErrMsg "请在 scripts\deploy.local.ps1 中把 `$$varName 改到普通目录, 如 D:\MoodflowPortable。"
             return $false
@@ -1482,7 +1482,7 @@ function Test-PortableRoot ([string]$root, [string]$profile = "release") {
 # 只停【本便携目录下】的进程。便携版与系统安装版镜像名完全相同 (都是 moodflow_core.exe),
 # 按名杀会连正在使用的系统安装版一起干掉, 故必须按 Path 前缀过滤。
 function Stop-PortableProcesses ([string]$root, [string]$suffix) {
-    $names = @("moodflow_portable", "moodflow_core$suffix", "moodflow_setting$suffix")
+    $names = @("wind_portable", "moodflow_core$suffix", "wind_setting$suffix")
     $rootPrefix = $root.TrimEnd('\') + "\"
     $killed = 0
     foreach ($n in $names) {
@@ -1503,7 +1503,7 @@ function Stop-PortableProcesses ([string]$root, [string]$suffix) {
 function Write-PortableMarker ([string]$root) {
     $marker = Join-Path $root $PortableMarkerName
     if (Test-Path $marker) { Gray "  - 便携标记已存在, 保留 ($PortableMarkerName)"; return }
-    [System.IO.File]::WriteAllText($marker, "moodflow_portable=1`n", (New-Object System.Text.UTF8Encoding($false)))
+    [System.IO.File]::WriteAllText($marker, "wind_portable=1`n", (New-Object System.Text.UTF8Encoding($false)))
     if (Test-Path (Join-Path $root $PortableMarkerLegacy)) {
         Gray "  - 已补写新便携标记 ($PortableMarkerName); 旧名 $PortableMarkerLegacy 保留"
     } else {
@@ -1514,13 +1514,13 @@ function Write-PortableMarker ([string]$root) {
 # 启动便携 launcher。WorkingDirectory 必须设为便携根 —— layout.rs 的候选根探测会用到
 # current_dir, 从别处拉起可能探到错误的根。
 function Start-Portable ([string]$root) {
-    $exe = Join-Path $root "moodflow_portable.exe"
+    $exe = Join-Path $root "wind_portable.exe"
     if (-not (Test-Path $exe)) {
-        Warn "  - 无 moodflow_portable.exe, 跳过启动 (可手动运行目录下的 moodflow_core*.exe)"
+        Warn "  - 无 wind_portable.exe, 跳过启动 (可手动运行目录下的 moodflow_core*.exe)"
         return
     }
     Start-Process -FilePath $exe -WorkingDirectory $root
-    Gray "  - 已启动 moodflow_portable.exe"
+    Gray "  - 已启动 wind_portable.exe"
 }
 
 # 便携部署全部 (pb1 / pbd1): build[_dev]\ 全量 → 便携目录。
@@ -1543,8 +1543,8 @@ function Deploy-Portable ([string]$profile = "release") {
     foreach ($dll in (Get-ChildItem "$outdir\moodflow_tsf*.dll" -ErrorAction SilentlyContinue)) {
         Copy-Replace $root $dll.Name $dll.FullName
     }
-    if (Test-Path "$outdir\moodflow_setting$suffix.exe") { Copy-Replace $root "moodflow_setting$suffix.exe" "$outdir\moodflow_setting$suffix.exe" }
-    if (Test-Path "$outdir\moodflow_portable.exe")       { Copy-Replace $root "moodflow_portable.exe"       "$outdir\moodflow_portable.exe" }
+    if (Test-Path "$outdir\wind_setting$suffix.exe") { Copy-Replace $root "wind_setting$suffix.exe" "$outdir\wind_setting$suffix.exe" }
+    if (Test-Path "$outdir\wind_portable.exe")       { Copy-Replace $root "wind_portable.exe"       "$outdir\wind_portable.exe" }
     # 便携版同样走原子替换 (理由见 Copy-DataAtomic)。此处不上 InstallerRunning 闸门:
     # 便携部署不要求管理员, 写不了 HKLM; 便携实例的服务由 launcher 托管、DLL 另走
     # portable_mode 标记路径, 抢跑面小于系统安装。
@@ -1772,17 +1772,17 @@ function New-InstallerConfig ([string]$profile, [string]$outdir, [string]$cfgPat
     if ($profile -eq "dev") {
         $id = "MoodflowDev"; $disp = "Moodflow 输入法 (开发版)"; $mainExe = "moodflow_core_dev.exe"
         $menu = "Moodflow 输入法 (开发版)"; $title = "Moodflow 输入法 (开发版) 安装向导"; $proto = "moodflowdev"
-        $settingExe = "moodflow_setting_dev.exe"
+        $settingExe = "wind_setting_dev.exe"
         # Moodflow：Hub 还没有 dev 变体，两个变体都是 moodflow_hub
-        $procs = '["moodflow_setting_dev", "moodflow_portable", "moodflow_core_dev", "moodflow_hub"]'
+        $procs = '["wind_setting_dev", "wind_portable", "moodflow_core_dev", "moodflow_hub"]'
         $acl   = '["moodflow_tsf_dev.dll", "moodflow_tsf_x86_dev.dll"]'
         $clsid = "{EF62DEB0-5ECF-413A-A476-48D1F29E827C}"; $prof = "{EF62DEB1-5ECF-413A-A476-48D1F29E827C}"
         $dllX64 = "moodflow_tsf_dev.dll"; $dllX86 = "moodflow_tsf_x86_dev.dll"; $outName = "MoodflowDev-Setup"
     } else {
         $id = "Moodflow"; $disp = "Moodflow 输入法"; $mainExe = "moodflow_core.exe"
         $menu = "Moodflow 输入法"; $title = "Moodflow 输入法安装向导"; $proto = "moodflow"
-        $settingExe = "moodflow_setting.exe"
-        $procs = '["moodflow_setting", "moodflow_portable", "moodflow_core", "moodflow_hub"]'
+        $settingExe = "wind_setting.exe"
+        $procs = '["wind_setting", "wind_portable", "moodflow_core", "moodflow_hub"]'
         $acl   = '["moodflow_tsf.dll", "moodflow_tsf_x86.dll"]'
         $clsid = "{EF62EE30-5ECF-413A-A476-48D1F29E827C}"; $prof = "{EF62EE31-5ECF-413A-A476-48D1F29E827C}"
         $dllX64 = "moodflow_tsf.dll"; $dllX86 = "moodflow_tsf_x86.dll"; $outName = "Moodflow-Setup"
@@ -1955,7 +1955,7 @@ function Do-PortableZip ([string]$profile = "release", [bool]$skipBuild = $false
     # 缺了它 moodflow_core.exe 会退化成安装版行为把用户数据写进 %APPDATA%。
     Write-PortableMarker "$stage\$name"
 
-    $hasLauncher = Test-Path "$stage\$name\moodflow_portable.exe"
+    $hasLauncher = Test-Path "$stage\$name\wind_portable.exe"
 
     # 压缩前签暂存区里的 PE。zip 本身签不了 (Authenticode 只认 PE), 便携版的可信度
     # 全靠包内每个 exe/dll 各自带签名。
@@ -1976,7 +1976,7 @@ function Do-PortableZip ([string]$profile = "release", [bool]$skipBuild = $false
     Say "`n便携版打包完成: $zip (${sz}MB)"
     if (-not $script:SignRequested) { Warn "本次【未签名】(要签名: dev.ps1 sign $(if($profile -eq 'dev'){'d9'}else{'9'}))" }
     if ($hasLauncher) {
-        Gray "使用: 解压后运行 moodflow_portable.exe (注册组件并拉起服务)"
+        Gray "使用: 解压后运行 wind_portable.exe (注册组件并拉起服务)"
     } else {
         Gray "使用: 包内无便携启动器 —— 需管理员 regsvr32 注册 moodflow_tsf.dll"
         Gray "      (x86 版用 %SystemRoot%\SysWOW64\regsvr32.exe), 再手动运行 moodflow_core.exe"
@@ -2152,9 +2152,9 @@ $StageManifestName = "stage.json"
 function Get-InstallerBinaries ([string]$dir = $InstallerDir) {
     $t = Get-CargoTargetDir $dir
     return [ordered]@{
-        "moodflow-installer.exe"   = Join-Path $t "release\moodflow-installer.exe"
-        "moodflow-packer.exe"      = Join-Path $t "release\moodflow-packer.exe"
-        "moodflow-uninstaller.exe" = Join-Path $t "release\moodflow-uninstaller.exe"
+        "wind-installer.exe"   = Join-Path $t "release\wind-installer.exe"
+        "wind-packer.exe"      = Join-Path $t "release\wind-packer.exe"
+        "wind-uninstaller.exe" = Join-Path $t "release\wind-uninstaller.exe"
     }
 }
 
@@ -2246,7 +2246,7 @@ function Do-Unstage ([string]$zipPath) {
 
     if (Test-Path "$tmp\installer") {
         $bins = Get-InstallerBinaries
-        $dst  = Split-Path $bins["moodflow-packer.exe"] -Parent
+        $dst  = Split-Path $bins["wind-packer.exe"] -Parent
         New-Item -ItemType Directory -Path $dst -Force | Out-Null
         foreach ($n in $bins.Keys) {
             $src = Join-Path "$tmp\installer" $n
@@ -2386,8 +2386,8 @@ function Show-Menu {
     Write-Host "`n  单模块构建 (前缀 d = dev):" -ForegroundColor Yellow
     Write-Host "    m1   仅 tsf (x64+x86)                dm1"
     Write-Host "    m2   仅 moodflow_input (核心)             dm2"
-    Write-Host "    m3   仅 moodflow_setting (../moodflow-setting)  dm3"
-    Write-Host "    m4   仅 moodflow_portable (../moodflow-portable) dm4"
+    Write-Host "    m3   仅 wind_setting (../moodflow-setting)  dm3"
+    Write-Host "    m4   仅 wind_portable (../moodflow-portable) dm4"
     Write-Host "`n  系统安装 / 卸载 (注册 TSF + 开机自启 + 默认启用, 自动提权):" -ForegroundColor Yellow
     Write-Host "    p1   安装全部 (release)        pd1   安装全部 (dev)"
     Write-Host "    pm1..pm4  安装模块(tsf/核心/setting/portable)   pdm1..pdm4 (dev)"

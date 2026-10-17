@@ -52,7 +52,7 @@ BOOL MoodflowIsPortableRoot(const WCHAR* root)
     if (root == nullptr || root[0] == L'\0')
         return FALSE;
 
-    static const WCHAR* const kMarkerNames[] = { L"portable_mode", L"moodflow_portable_mode" };
+    static const WCHAR* const kMarkerNames[] = { L"portable_mode", L"wind_portable_mode" };
     for (size_t i = 0; i < ARRAYSIZE(kMarkerNames); ++i)
     {
         WCHAR markerPath[MAX_PATH];

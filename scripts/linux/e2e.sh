@@ -26,7 +26,7 @@ DATA_DIR="${MOODFLOW_E2E_DATA:-$REPO/build_dev/data}"
 # 设置程序（兄弟仓库 moodflow-setting）：「从输入法打开设置」用例要真的把它拉起来。
 SETTING_REPO="$(cd "$REPO/.." && pwd)/moodflow-setting"
 SETTING_TARGET_DIR="${MOODFLOW_SETTING_TARGET_DIR:-$HOME/.cache/wi-tgt-setting-linux}"
-SETTING_BIN="${MOODFLOW_E2E_SETTING:-$SETTING_TARGET_DIR/debug/moodflow_setting}"
+SETTING_BIN="${MOODFLOW_E2E_SETTING:-$SETTING_TARGET_DIR/debug/wind_setting}"
 
 # socket 路径上限 108 字节：临时目录必须短。
 W="${MOODFLOW_E2E_DIR:-/tmp/wi-linux/e2e.$$}"
@@ -58,7 +58,7 @@ cleanup() {
     [[ -f "$W/svc.pid" ]] && kill "$(cat "$W/svc.pid")" 2>/dev/null || true
     # 自动拉起模式下服务由 addon 起，pid 不归我们；按本次独有的完整路径杀。
     pkill -f -- "^$W/svc/moodflow_input" 2>/dev/null || true
-    pkill -f -- "^$W/svc/moodflow_setting" 2>/dev/null || true
+    pkill -f -- "^$W/svc/wind_setting" 2>/dev/null || true
     if [[ -z "${KEEP:-}" ]]; then rm -rf "$W"; else log "保留临时目录 $W"; fi
 }
 trap cleanup EXIT
@@ -117,13 +117,13 @@ PHRASES
 } >"$W/svc/data/system.phrases.toml"
 # 设置程序经一层包装：先记下 addon 传来的 argv（用例据此断言深链参数），再换成真程序。
 # 它的单实例 socket 在 $XDG_RUNTIME_DIR 下，下面已指进临时目录，不会与本机开着的设置程序串台。
-ln -s "$SETTING_BIN" "$W/svc/moodflow_setting.bin"
-cat >"$W/svc/moodflow_setting" <<SETTING
+ln -s "$SETTING_BIN" "$W/svc/wind_setting.bin"
+cat >"$W/svc/wind_setting" <<SETTING
 #!/usr/bin/env bash
 printf '%s\\n' "\$*" >>"$W/setting.argv"
-exec "$W/svc/moodflow_setting.bin" "\$@"
+exec "$W/svc/wind_setting.bin" "\$@"
 SETTING
-chmod +x "$W/svc/moodflow_setting"
+chmod +x "$W/svc/wind_setting"
 # 用户配置：切到全拼方案（出厂默认是五笔），用例按全拼写。
 mkdir -p "$W/xdg/config/Moodflow"
 cat >"$W/xdg/config/Moodflow/config.toml" <<'EOF'
@@ -257,8 +257,8 @@ else
 fi
 
 export FCITX_CONFIG_HOME="$W/fcitx"
-# addon 收到 settings.open 时启动它（不设则是安装路径 /usr/lib/moodflow/moodflow_setting）。
-export MOODFLOW_INPUT_SETTING="$W/svc/moodflow_setting"
+# addon 收到 settings.open 时启动它（不设则是安装路径 /usr/lib/moodflow/wind_setting）。
+export MOODFLOW_INPUT_SETTING="$W/svc/wind_setting"
 export FCITX_ADDON_DIRS="$ADDON_BUILD:$SDK_ROOT/usr/lib/$MULTIARCH/fcitx5"
 export FCITX_DATA_DIRS="$ADDON_BUILD/share/fcitx5:$SDK_ROOT/usr/share/fcitx5"
 # kimpanel：客户端扮演 KDE/GNOME 的面板，点状态区动作「Moodflow 输入法设置」、听当前输入法图标

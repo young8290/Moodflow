@@ -287,7 +287,7 @@ Program 公证——已多次实测。
 （`""` / `"_debug"`）决定运行时目录（`…/Moodflow[Dev]`、socket / SHM），与 Rust 侧
 `moodflow-config/src/variant.rs` 对齐；`ModeStatusController` 菜单头读 `CFBundleDisplayName`
 （release「Moodflow 输入法」/ dev「Moodflow 输入法开发版」）、`openSettings` 按变体启动对应设置应用
-（`com.wails.moodflow_setting[_debug]`）。
+（`com.wails.wind_setting[_debug]`）。
 
 变体化的完整对照表在 `scripts/mac/dev.sh` 头部注释「变体身份」一节。
 

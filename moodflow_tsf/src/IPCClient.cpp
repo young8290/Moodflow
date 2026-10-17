@@ -508,12 +508,12 @@ BOOL CIPCClient::_StartService()
 
     // Guard: check portable mode marker file for stopped flag.
     // 标记名以 portable_mode 为准（与安装器清单 config/app.toml 的 [app] portable_marker
-    // 及 moodflow-config variant.rs 的 PORTABLE_MARKER_NAME 一致）；moodflow_portable_mode 是旧名，
+    // 及 moodflow-config variant.rs 的 PORTABLE_MARKER_NAME 一致）；wind_portable_mode 是旧名，
     // 仅为存量便携包保留读取兼容，新写入不再使用。三处必须同步。
     //
     // ⚠️ 标记在**安装/便携目录**下，不在 DLL 所在目录——系统目录部署后两者已不是同一处。
     {
-        static const WCHAR* const kMarkerNames[] = { L"portable_mode", L"moodflow_portable_mode" };
+        static const WCHAR* const kMarkerNames[] = { L"portable_mode", L"wind_portable_mode" };
 
         for (size_t i = 0; i < ARRAYSIZE(kMarkerNames); ++i)
         {
@@ -548,7 +548,7 @@ BOOL CIPCClient::_StartService()
                 return FALSE;
             }
             // 标记文件已找到并读完：新名存在时不再回看旧名，否则一个陈旧的
-            // moodflow_portable_mode 会盖过新名里刚被清掉的 stopped 标志。
+            // wind_portable_mode 会盖过新名里刚被清掉的 stopped 标志。
             break;
         }
     }

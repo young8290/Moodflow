@@ -35,7 +35,7 @@ name: Release
 #  moodflowui,不看本地仓,故不检出 moodflow-setting 时也没必要拉它):
 #   配了(本仓)    → 正常检出,产物含设置程序;检出失败即中止,不会静默少东西。
 #   没配(fork 等) → 跳过检出并告警。dev.ps1 / mac 的 dev.sh 本就把设置程序当可选模块
-#                   (仓库不存在则跳过),故构建照常完成,只是产物里没有 moodflow_setting。
+#                   (仓库不存在则跳过),故构建照常完成,只是产物里没有 wind_setting。
 # 于是 fork 既能跑 CI,也能跑通完整的发版流程。
 on:
   push:
@@ -121,7 +121,7 @@ jobs:
           token: ${{ secrets.MOODFLOW_REPOS_TOKEN }}
       - name: 提示跳过设置程序
         if: env.HAS_SETTING_TOKEN != 'true'
-        run: echo "::warning::未配置 secrets.MOODFLOW_REPOS_TOKEN,跳过私有仓 moodflow-setting(及其 path 依赖 moodflow-ui-rust);本次产物不含设置程序 moodflow_setting.exe。"
+        run: echo "::warning::未配置 secrets.MOODFLOW_REPOS_TOKEN,跳过私有仓 moodflow-setting(及其 path 依赖 moodflow-ui-rust);本次产物不含设置程序 wind_setting.exe。"
 
       # windows-2022 镜像自带 VS2022(含 C++ 工具链)+ CMake + Rust(stable-msvc),
       # 故不再需要 clang/lld/xwin。仍显式钉 Rust stable 以稳定缓存键与工具链版本。

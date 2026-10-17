@@ -1484,9 +1484,9 @@ async def overlay_restart_cases(bus, im, restart):
 
 
 def settings_windows():
-    """设置程序的顶层窗口（WM_CLASS 实例名 = 可执行文件名 moodflow_setting.bin，见 moodflowui
+    """设置程序的顶层窗口（WM_CLASS 实例名 = 可执行文件名 wind_setting.bin，见 moodflowui
     `x11.rs::wm_class`；e2e 里经包装脚本启动，真程序是那个软链）。"""
-    ids = sh("xdotool", "search", "--classname", "moodflow_setting").split()
+    ids = sh("xdotool", "search", "--classname", "wind_setting").split()
     return [i for i in ids if "IsViewable" in sh("xwininfo", "-id", i)]
 
 
@@ -1514,7 +1514,7 @@ async def settings_cases(bus, im):
     w = os.environ["W"]
     argv_log = os.path.join(w, "setting.argv")
     setting_log = os.path.join(os.environ["XDG_DATA_HOME"], "Moodflow", "logs",
-                               "moodflow_setting.1.log")
+                               "wind_setting.1.log")
     c = await new_ctx(bus, im, "e2e-settings")
 
     async def open_settings_hotkey():
@@ -1559,7 +1559,7 @@ async def settings_cases(bus, im):
           again and forwarded and len(settings_windows()) == 1,
           f"再次启动={again} 转交={forwarded} windows={settings_windows()}")
 
-    subprocess.run(["pkill", "-f", "--", "^" + os.path.join(w, "svc", "moodflow_setting")])
+    subprocess.run(["pkill", "-f", "--", "^" + os.path.join(w, "svc", "wind_setting")])
     closed = await wait_until(lambda: not settings_windows(), 5)
     check("设置：设置程序退出后窗口消失", closed, f"windows={settings_windows()}")
 
@@ -1570,7 +1570,7 @@ async def settings_cases(bus, im):
         mapped = await wait_until(lambda: len(settings_windows()) == 1, 20)
         check(f"设置：{label} → 拉起设置程序（默认页）", ok and args[:1] == [""] and mapped,
               f"拉起={ok} argv={args} 窗口={settings_windows()}")
-        subprocess.run(["pkill", "-f", "--", "^" + os.path.join(w, "svc", "moodflow_setting")])
+        subprocess.run(["pkill", "-f", "--", "^" + os.path.join(w, "svc", "wind_setting")])
         await wait_until(lambda: not settings_windows(), 5)
 
     # 空闲入口：Fcitx5 状态区动作「Moodflow 输入法设置」（托盘菜单 / kimpanel 面板里那一项）。

@@ -14,7 +14,7 @@
 - 直开热键默认值（verbatim）：`open_add_word_dialog = "ctrl+shift+equal"`。
 - 直开热键策略：**仅中文模式**（`HOTKEY_POLICY_CHINESE_ONLY`），与 `add_word` 一致。
 - 加词默认权重（verbatim）：`1200`。
-- 加词小窗单例 app_id（verbatim）：`format!("moodflow_setting_addword{}", crate::mode::pipe_suffix())`。
+- 加词小窗单例 app_id（verbatim）：`format!("wind_setting_addword{}", crate::mode::pipe_suffix())`。
 - 加词小窗**不**调用 `LoadedState::fetch()`；只做最小 RPC（`schema.list` 一次 + 出码/提交按需）。
 - 暂不做「连续添加」；编码**不**自动重算（仅「出码」按钮手动触发）。
 - 提交信息不带 Co-Authored-By 与 AI trailer（Constraint/Confidence 等），用中文 conventional commit。
@@ -652,7 +652,7 @@ pub(crate) fn load_schemas() -> Vec<SchemaInfo> {
 ```rust
 //! 快捷加词小窗 — 独立单例、紧凑窗、复用词库加词对话框，关窗即退进程。
 //!
-//! 与主设置窗用不同 app_id（`moodflow_setting_addword{suffix}`），互不劫持；自身单例，
+//! 与主设置窗用不同 app_id（`wind_setting_addword{suffix}`），互不劫持；自身单例，
 //! 连按只复用同一小窗重新预填。只做最小 RPC（schema.list 一次 + 出码/提交按需），
 //! 不走整页的 LoadedState::fetch。
 
@@ -689,7 +689,7 @@ pub fn run(params: AddWordParams) {
         .child(toast_sink(mgr.feedback))
         .child(close_on_hidden(mgr.edit_visible));
 
-    let app_id = format!("moodflow_setting_addword{}", crate::mode::pipe_suffix());
+    let app_id = format!("wind_setting_addword{}", crate::mode::pipe_suffix());
     // 二次启动：重新解析参数并预填，复用同一小窗（不新起进程）。
     let si_mgr = mgr.clone();
     App::new("添加用户词库", 460, 300)

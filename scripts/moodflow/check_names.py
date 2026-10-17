@@ -4,6 +4,7 @@
 旧名：心晴 / XinQing / 清风 / WindInput / wind_* 代码前缀 / XQP / xq- 前缀。
 例外只有出处声明：LICENSE、NOTICE.md、CLA 记录、指向上游仓库或网站的链接，
 以及少数写明“基于 WindInput”的署名句（见 ALLOWED_LINE）。
+外部仓库构建出的组件保留它们自己的文件名：wind_portable、wind_setting、wind-installer / packer / uninstaller。
 
     python3 scripts/moodflow/check_names.py   # 有残留则列出并以退出码 1 结束（CI 用）
 """
@@ -19,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 OLD = re.compile(
     r"心晴|清风|[Xx]in[Qq]ing|XINQING|[Ww]ind[Ii]nput|WINDINPUT|XQP|[Xx]qp"
-    r"|(?<![A-Za-z0-9])[Ww]ind[-_][A-Za-z0-9]|(?<![A-Za-z0-9])WIND_"
+    r"|(?<![A-Za-z0-9])[Ww]ind[-_](?!portable|setting|installer|packer|uninstaller)[A-Za-z0-9]|(?<![A-Za-z0-9])WIND_"
     r"|(?<![A-Za-z0-9_])(?:xq|XQ)(?=[-_:.][A-Za-z*])"
 )
 

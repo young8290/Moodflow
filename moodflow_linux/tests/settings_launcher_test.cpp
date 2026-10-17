@@ -47,13 +47,13 @@ int main()
     CASE("argv[0] 恒为设置程序路径；信封内容只进参数位");
     unsetenv("MOODFLOW_INPUT_SETTING");
     auto argv = settingsArgv({"/bin/sh", "-c", "evil"});
-    CHECK_EQ(argv[0], std::string("/usr/lib/moodflow/moodflow_setting"));
+    CHECK_EQ(argv[0], std::string("/usr/lib/moodflow/wind_setting"));
     CHECK_EQ(argv.size(), size_t(4));
     CHECK_EQ(argv[1], std::string("/bin/sh"));
 
     CASE("环境变量覆盖设置程序路径");
-    setenv("MOODFLOW_INPUT_SETTING", "/opt/x/moodflow_setting", 1);
-    CHECK_EQ(settingsArgv({})[0], std::string("/opt/x/moodflow_setting"));
+    setenv("MOODFLOW_INPUT_SETTING", "/opt/x/wind_setting", 1);
+    CHECK_EQ(settingsArgv({})[0], std::string("/opt/x/wind_setting"));
     unsetenv("MOODFLOW_INPUT_SETTING");
 
     TEST_MAIN_END();

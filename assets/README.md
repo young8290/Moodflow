@@ -40,7 +40,7 @@
 
 ```powershell
 # 看安装包里实际嵌入的 logo 字节数（应等于 assets\logo.png 的大小）
-moodflow-packer.exe inspect --file dist\MoodflowDev-Setup-<版本>.exe
+wind-packer.exe inspect --file dist\MoodflowDev-Setup-<版本>.exe
 ```
 
 ## 已知且刻意不处理：Setup.exe 内残留 W 字标图标组

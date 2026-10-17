@@ -117,7 +117,7 @@ public final class ModeStatusController: NSObject, NSMenuDelegate {
         menu.addItem(item)
     }
 
-    /// 打开设置应用 (moodflow_setting.app, Rust + moodflowui)。经 LaunchServices 按 bundleID 查找并启动,
+    /// 打开设置应用 (wind_setting.app, Rust + moodflowui)。经 LaunchServices 按 bundleID 查找并启动,
     /// 已在运行则激活已有窗口 (无参数时; 带深链参数的路径见 openSettings 注释)。
     @objc private func openSettingsMenuAction() { openSettings(arguments: []) }
 
@@ -139,9 +139,9 @@ public final class ModeStatusController: NSObject, NSMenuDelegate {
         // 设置应用按本 IME 变体启动: dev IME → dev 设置应用 (连 MoodflowDev 服务 rpc.sock),
         // release IME → 正式设置应用, 实现配置分离 (各编辑各自服务的配置)。
         // 判据用 bundleID 后缀 "Dev": dev IME bundleID = app.moodflow.inputmethod.MoodflowDev,
-        // 对应 dev 设置 app bundleID = com.wails.moodflow_setting_debug (见 scripts/mac/dev.sh build_setting)。
+        // 对应 dev 设置 app bundleID = com.wails.wind_setting_debug (见 scripts/mac/dev.sh build_setting)。
         let isDev = Bundle.main.bundleIdentifier?.hasSuffix("Dev") ?? false
-        let bundleID = isDev ? "com.wails.moodflow_setting_debug" : "com.wails.moodflow_setting"
+        let bundleID = isDev ? "com.wails.wind_setting_debug" : "com.wails.wind_setting"
         let ws = NSWorkspace.shared
         if let url = ws.urlForApplication(withBundleIdentifier: bundleID) {
             let cfg = NSWorkspace.OpenConfiguration()

@@ -44,14 +44,14 @@ pub fn app_dir_name() -> &'static str {
 /// 便携模式标记文件名。
 ///
 /// 与安装器清单 `config/app.toml` 的 `[app] portable_marker` **同名**——两侧曾各叫各的
-/// （安装器 `portable_mode` / 本侧 `moodflow_portable_mode`），导致安装包便携模式装出来的目录
+/// （安装器 `portable_mode` / 本侧 `wind_portable_mode`），导致安装包便携模式装出来的目录
 /// 主程序不认、数据落回 `%APPDATA%`。现已统一，改名须同步两仓。
 pub const PORTABLE_MARKER_NAME: &str = "portable_mode";
 
 /// 旧标记文件名，**仅用于读取兼容**：存量便携部署（已发布的便携包、用户现有目录）
 /// 里是这个名字，不认它会让这些用户的词库与配置一夜之间"消失"（实为落回 `%APPDATA%`）。
 /// 新写入一律用 [`PORTABLE_MARKER_NAME`]；待存量足够老后可删。
-pub const LEGACY_PORTABLE_MARKER_NAME: &str = "moodflow_portable_mode";
+pub const LEGACY_PORTABLE_MARKER_NAME: &str = "wind_portable_mode";
 
 /// 目录内是否存在便携标记（新名优先，旧名兼容）。抽出以便单测。
 fn has_portable_marker_in(dir: &std::path::Path) -> bool {
@@ -343,7 +343,7 @@ mod tests {
 
     /// 便携标记新旧两名都必须认出。
     ///
-    /// 旧名兼容不是洁癖：存量便携包里全是 `moodflow_portable_mode`，只认新名会让这些
+    /// 旧名兼容不是洁癖：存量便携包里全是 `wind_portable_mode`，只认新名会让这些
     /// 用户的词库配置落回 `%APPDATA%`——现象是「升级后我的词库全没了」。
     #[test]
     fn portable_marker_accepts_new_and_legacy_names() {

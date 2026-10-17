@@ -23,7 +23,7 @@ Moodflow 输入法核心（Rust core）已实现「快捷加词模式」：`Ctrl
   - `openAddWordDialogFromHistory()` — 独立快捷键直接打开，不进加词模式，仅取最近输入预填。
   - `openAddWordDialogWith(word, code, schemaID)` — 二者共用，构造 `add-word --text=… --code=… --schema=…`。
 - `moodflow_input/pkg/config/config.go` — 热键 `add_word = "ctrl+equal"`、`open_add_word_dialog = "none"`（默认）。
-- `moodflow_setting/frontend/src/pages/AddWordPage.vue` — 加词对话框：词/编码（自动出码，可手改）/权重（默认 1200）/
+- `wind_setting/frontend/src/pages/AddWordPage.vue` — 加词对话框：词/编码（自动出码，可手改）/权重（默认 1200）/
   连续添加；独立窗口模式关闭即 `Quit()`。
 
 > 与 Go 的差异（按本次需求）：`open_add_word_dialog` **默认绑定 `ctrl+shift+equal`**（Go 默认 none）；
@@ -94,7 +94,7 @@ Ctrl+Shift+= → open_add_word_from_history（不进加词模式，取最近输�
 - `main()` 早分支：`if let Some(params) = cli::parse_add_word(&args) { run_add_word_window(params); return; }`
   （在常规设置 App 构建之前，**不落入** `LoadedState::fetch()` / `shell::build` 分支）。
 - `run_add_word_window(params)`：
-  - 构建独立 `App`：较小尺寸（约 460×300）、`frameless()`、`centered()`、独立 `app_id = format!("moodflow_setting_addword{}", mode::pipe_suffix())`。
+  - 构建独立 `App`：较小尺寸（约 460×300）、`frameless()`、`centered()`、独立 `app_id = format!("wind_setting_addword{}", mode::pipe_suffix())`。
   - content = 复用的词库加词对话框（见 B-3），初始 `edit_visible = true`。
   - `single_instance(addword_app_id, closure)`：二次启动 argv 若为 add-word → 重新 `parse_add_word` → 重新预填并置顶
     （不新起进程 → 加词窗恒定封顶 1 个）。
@@ -113,8 +113,8 @@ Ctrl+Shift+= → open_add_word_from_history（不进加词模式，取最近输�
   **不**调用整页的 `LoadedState::fetch()`。
 
 ### B-4 单例隔离（满足"不与完整设置窗单例冲突"）
-- 主设置窗 app_id：`moodflow_setting{suffix}`（现状不变）。
-- 加词小窗 app_id：`moodflow_setting_addword{suffix}`（独立）。
+- 主设置窗 app_id：`wind_setting{suffix}`（现状不变）。
+- 加词小窗 app_id：`wind_setting_addword{suffix}`（独立）。
 - 效果：
   - 设置窗已开 + `Ctrl+Shift+=` → 加词参数走 addword 单例 → 独立小窗，**不劫持**设置窗 Tab。
   - 加词窗已开 + 再按 `Ctrl+Shift+=` → addword 单例转发 → 复用同一小窗重新预填，**不新起进程**。

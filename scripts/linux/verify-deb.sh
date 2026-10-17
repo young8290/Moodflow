@@ -43,7 +43,7 @@ for d in libc6 libstdc++6 libfcitx5core7 'fcitx5 (>= 5.0.14)'; do
 done
 
 # 关键文件
-for f in usr/lib/moodflow/moodflow_input usr/lib/moodflow/moodflow_setting \
+for f in usr/lib/moodflow/moodflow_input usr/lib/moodflow/wind_setting \
          usr/bin/moodflow-setup \
          usr/share/fcitx5/addon/moodflow.conf usr/share/fcitx5/inputmethod/moodflow.conf \
          usr/share/applications/moodflow-setting.desktop usr/share/mime/packages/moodflow.xml \
@@ -92,7 +92,7 @@ while IFS= read -r f; do
         ok "$rel ($desc, glibc ≤ ${top:-无})"
     fi
 done < <(find "$R" -type f \( -perm /111 -o -name '*.so*' \))
-(( n >= 3 )) || bad "只找到 $n 个 ELF（期望 moodflow_input / moodflow_setting / libmoodflow.so）"
+(( n >= 3 )) || bad "只找到 $n 个 ELF（期望 moodflow_input / wind_setting / libmoodflow.so）"
 
 # 权限
 # 先取结果再判断：`find | grep -q` 在 pipefail 下，grep 一匹配就退出、find 吃 SIGPIPE(141)，

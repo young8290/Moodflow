@@ -52,7 +52,7 @@
    只看 `active_reverse_key`、**从未读 `enabled`**，不改。
 8. **Task 顺序以「每次提交可编译、可测」为准**：先让协调器不再消费变体（Task 2），再在引擎删变体（Task 3）；新键先加（Task 1）、旧字段最后删
    （Task 5，届时已无生产代码读它）。被某 Task 的语义变更**直接打红**的既有用例在该 Task 内改写（Task 4 改写行内通配 3 个真实数据用例、
-   反查模式 1 个、夹具集成测试与引擎单测），Task 7 只做跨面新增验收。core 的 `moodflow-rpc --test moodflow_setting_assets` 在 Task 1–5 期间
+   反查模式 1 个、夹具集成测试与引擎单测），Task 7 只做跨面新增验收。core 的 `moodflow-rpc --test wind_setting_assets` 在 Task 1–5 期间
    **预期红**（新键不在 manifest、旧键仍在 manifest），Task 6 补齐。
 9. **孤儿缓存文件**：开发期开过方案级开关的机器上会留 `<cache>/<key>/<key>.with_disabled.wridx` 与旁边的 `.fp`；`purge_cache_files`
    按扩展名 `wridx` 清理，「重建缓存」即清。未发布，不写自动清理。
@@ -114,9 +114,9 @@ Task 2/3 还原签名时以它为准（只还原变体相关 hunk，`ModeKind::R
   `--test codetable_reverse` 输出里**没有**「跳过」字样为准。
 - **已知红**：moodflow-utils `line_ending_coverage::every_line_based_parser_normalizes`（主线已有，非本计划）。已知偶发红：
   `handle_direct_aux::tests::schema_source_not_ready_is_noop_then_warms`（并发时序；全量里红了单独重跑，单跑绿即记偶发）。
-- **预期红**：Task 1–5 期间 `cargo test -p moodflow-rpc --test moodflow_setting_assets`（裁决 8），Task 6 起必须绿。
+- **预期红**：Task 1–5 期间 `cargo test -p moodflow-rpc --test wind_setting_assets`（裁决 8），Task 6 起必须绿。
 - **日志**：`info!` 不得含用户输入 / 候选。
-- **moodflow-setting**：manifest 改完先在 `Moodflow/moodflow_input` 下 `cargo test -p moodflow-rpc --test moodflow_setting_assets`（core 侧对账，秒出），再在
+- **moodflow-setting**：manifest 改完先在 `Moodflow/moodflow_input` 下 `cargo test -p moodflow-rpc --test wind_setting_assets`（core 侧对账，秒出），再在
   `moodflow-setting/` 下 `./scripts/dev.sh sg`（重生成 `src/assets/capabilities.snapshot.json` / `src/mockdata/config.json`）与 `./scripts/dev.sh st`
   （xwin+wine 全量）。`sg` 后 `git diff` 里若只多了 `appVersion` 一行，手工改回、**不提交它**。新 label 每个字都须在
   `src/assets/pinyin_initials.txt` 里，否则 `search::pinyin::tests::table_covers_every_title_char` 红——本计划选定的新 label「反查含扩展词库」
@@ -241,7 +241,7 @@ Expected：三仓分支 `feat/reverse-rework`、工作区除本计划文件外�
     ```
 
 - [ ] **Step 4: 跑**：`cargo test -p moodflow-config --no-fail-fast` 全绿（含 `registry_covers_every_config_key` / `registry_types_match_default_values`）。
-  `cargo test -p moodflow-rpc --test moodflow_setting_assets` 预期红（新键不在 manifest），记下失败信息、不处理。
+  `cargo test -p moodflow-rpc --test wind_setting_assets` 预期红（新键不在 manifest），记下失败信息、不处理。
 
 - [ ] **Step 5: 格式与提交**
 
@@ -783,7 +783,7 @@ EOF
 - Modify: `../moodflow-setting/src/dialogs/schema_codetable.rs`（`SPEC_BEHAVIOR_FIELDS` ~87-115 删 `"lookup_disabled_dicts"`）
 - Regenerate: `../moodflow-setting/src/assets/capabilities.snapshot.json`、`../moodflow-setting/src/mockdata/config.json`
 
-- [ ] **Step 1: 对账红**：`cargo test -p moodflow-rpc --test moodflow_setting_assets`（`Moodflow/moodflow_input` 下）→ 红（Task 1–5 的预期红：新键缺项、两旧键多出）。
+- [ ] **Step 1: 对账红**：`cargo test -p moodflow-rpc --test wind_setting_assets`（`Moodflow/moodflow_input` 下）→ 红（Task 1–5 的预期红：新键缺项、两旧键多出）。
 
 - [ ] **Step 2: 改 manifest**
   - z 键引导功能 hint 删末句「选『反查模式』需先在 输入 → 反查模式 里启用」。
@@ -807,7 +807,7 @@ EOF
   - `SPEC_BEHAVIOR_FIELDS` 删 `"lookup_disabled_dicts"`；同文件里描述字段个数的注释（如「十二个扁平字段」~1217）按实际个数核对更正。
 
 - [ ] **Step 3: 跑**
-  - core：`cargo test -p moodflow-rpc --test moodflow_setting_assets` 绿。
+  - core：`cargo test -p moodflow-rpc --test wind_setting_assets` 绿。
   - `cd /home/dufeng/develop/moodflow/wt-rev2/moodflow-setting && ./scripts/dev.sh sg && git diff --stat`：快照与 mockdata 只应出现
     `input.reverse.enabled` 消失、`input.reverse.lookup_disabled_dicts` 出现、`schema.codetable.lookup_disabled_dicts` 消失三类变化；多出的 `appVersion` 行手工改回。
   - `./scripts/dev.sh st` 全绿（记 passed / failed / ignored；上次基线 1276 / 0 / 5，数量随删一项可能变动，以零失败为准）。

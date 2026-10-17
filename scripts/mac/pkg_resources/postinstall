@@ -74,8 +74,8 @@ rm -f "$HOME/Library/LaunchAgents/app.moodflow.service.plist"
 pkill -f "Application Support/Moodflow/service/" 2>/dev/null
 rm -rf "$HOME/Library/Application Support/Moodflow/service"
 # 2. 设置 app (若装过).
-pkill -f "Contents/MacOS/moodflow_setting" 2>/dev/null
-rm -rf "$HOME/Applications/Moodflow 输入法设置.app" "$HOME/Applications/moodflow_setting.app"
+pkill -f "Contents/MacOS/wind_setting" 2>/dev/null
+rm -rf "$HOME/Applications/Moodflow 输入法设置.app" "$HOME/Applications/wind_setting.app"
 # 3. IME + TIS/HIToolbox 清理.
 killall Moodflow 2>/dev/null
 rm -rf "$HOME/Library/Input Methods/Moodflow.app" "$HOME/Library/Caches/Moodflow"

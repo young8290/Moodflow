@@ -410,8 +410,8 @@ function Sync-Tree ([string]$src, [string]$remoteDir, [string]$label) {
 $ArtifactMap = @{
     'm1'  = @('moodflow_tsf.dll', 'moodflow_tsf_x86.dll');       'dm1' = @('moodflow_tsf_dev.dll', 'moodflow_tsf_x86_dev.dll')
     'm2'  = @('moodflow_core.exe', 'moodflow_cli.bat');         'dm2' = @('moodflow_core_dev.exe', 'moodflow_cli.bat')
-    'm3'  = @('moodflow_setting.exe');                       'dm3' = @('moodflow_setting_dev.exe')
-    'm4'  = @('moodflow_portable.exe');                      'dm4' = @('moodflow_portable.exe')
+    'm3'  = @('wind_setting.exe');                       'dm3' = @('wind_setting_dev.exe')
+    'm4'  = @('wind_portable.exe');                      'dm4' = @('wind_portable.exe')
 }
 
 # 命令 → 只回传 build[_dev]\ 下的这个子目录。gen-data 只产出 data\, 若照全构建那样整目录回传,

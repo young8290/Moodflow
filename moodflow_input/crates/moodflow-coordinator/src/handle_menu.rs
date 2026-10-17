@@ -1398,8 +1398,8 @@ impl Coordinator {
             .send(UiCommand::OpenPath(d.display().to_string()));
     }
 
-    /// 统一的「打开设置」入口：优先启动同目录的 moodflow_setting 桌面应用并跳转到指定页
-    /// （`--page <name>`，name 为 moodflow_setting cli 的规范页 id：
+    /// 统一的「打开设置」入口：优先启动同目录的 wind_setting 桌面应用并跳转到指定页
+    /// （`--page <name>`，name 为 wind_setting cli 的规范页 id：
     /// schema/input/keys/ui/dict/advanced/about，旧 web 别名如 dictionary 不被识别）；
     /// 找不到桌面应用再回退到内嵌 web 配置（签发 token 构造 URL，page 以 `#<name>` 片段附加）。
     /// page=None 打开默认页。设置/词库管理/关于等菜单项统一经此函数。
@@ -1459,7 +1459,7 @@ impl Coordinator {
                 let _ = self.ui_tx.send(UiCommand::OpenPath(url));
             }
         } else {
-            tracing::warn!("打开设置失败：未找到 moodflow_setting 程序，web 服务也未就绪");
+            tracing::warn!("打开设置失败：未找到 wind_setting 程序，web 服务也未就绪");
         }
     }
 

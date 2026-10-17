@@ -18,7 +18,7 @@
 #
 # 需要 docker。包内布局：
 #   /usr/lib/moodflow/{moodflow_input,data/}                服务及其词库（服务按可执行文件同目录找 data/）
-#   /usr/lib/moodflow/moodflow_setting                      设置程序（addon 收到 settings.open 时启动它）
+#   /usr/lib/moodflow/wind_setting                      设置程序（addon 收到 settings.open 时启动它）
 #   /usr/share/applications/moodflow-{setting,import}.desktop  应用菜单入口 + moodflow:// 协议 / 包文件关联
 #   /usr/share/mime/packages/moodflow.xml               .wpkg / .wtheme 的 MIME 类型
 #   /usr/share/icons/hicolor/{64x64,256x256}/apps/moodflow.png

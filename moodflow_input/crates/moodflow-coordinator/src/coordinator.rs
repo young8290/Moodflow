@@ -369,8 +369,8 @@ pub(crate) fn settings_url() -> Option<String> {
     SETTINGS_URL_PROVIDER.get().and_then(|f| f())
 }
 
-/// 取同目录下 moodflow_setting 设置应用的可执行路径（None=不存在）。
-/// 由当前 exe 名推导变体：moodflow_input[_dev].exe → moodflow_setting[_dev].exe，
+/// 取同目录下 wind_setting 设置应用的可执行路径（None=不存在）。
+/// 由当前 exe 名推导变体：moodflow_input[_dev].exe → wind_setting[_dev].exe，
 /// 故无需感知编译期变体，正式/dev 版自动对应。
 /// macOS 经 CmdOpenSettings(0x0507) 由 .app 按 bundleID 启动设置应用，不需可执行路径，故仅非 macOS。
 #[cfg(not(ext_presenter))]

@@ -152,9 +152,9 @@ rbuild_artifacts_for() {
         dm1)    echo "moodflow_tsf_dev.dll moodflow_tsf_x86_dev.dll" ;;
         m2)     echo "moodflow_core.exe moodflow_cli.bat" ;;
         dm2)    echo "moodflow_core_dev.exe moodflow_cli.bat" ;;
-        m3)     echo "moodflow_setting.exe" ;;
-        dm3)    echo "moodflow_setting_dev.exe" ;;
-        m4|dm4) echo "moodflow_portable.exe" ;;
+        m3)     echo "wind_setting.exe" ;;
+        dm3)    echo "wind_setting_dev.exe" ;;
+        m4|dm4) echo "wind_portable.exe" ;;
         *)      echo "" ;;
     esac
 }

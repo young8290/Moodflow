@@ -281,7 +281,7 @@ struct CodetableOverride {
    （含 wubi86 偏好，如 top_code_commit=true——wubi86 是主力码表方案，其偏好即全局默认）。
 6. **`data/schemas/*.schema.toml`**：删除所有迁出字段（行为 / learning / engine.filter_mode / freq_strategy 等）。
 7. **`moodflow-store`**：`temp_max_entries` 降为常量。
-8. **设置 UI（moodflow_setting_native）**：码表分"全局公共 + 方案覆盖（带开关）"两区；拼音/混输仅全局区。
+8. **设置 UI（wind_setting_native）**：码表分"全局公共 + 方案覆盖（带开关）"两区；拼音/混输仅全局区。
 9. **legacy 清理**：`auto_commit_unique` / `candidate_sort_mode` / `user_frequency` / `short_code_first` / `candidate_order` 删除。
 
 ## 7. 实现期再核对（非阻塞）

@@ -57,7 +57,7 @@ bash "$SRC_DIR/scripts/lib/gen-compat.sh" linux "$DATA_DIR/compat.toml" "$S/usr/
 install -Dm644 $WORK_DIR/cmake/share/fcitx5/addon/moodflow.conf "$S/usr/share/fcitx5/addon/moodflow.conf"
 install -Dm644 $WORK_DIR/cmake/share/fcitx5/inputmethod/moodflow.conf "$S/usr/share/fcitx5/inputmethod/moodflow.conf"
 install -Dm755 $SRC_DIR/scripts/linux/pkg/moodflow-setup "$S/usr/bin/moodflow-setup"
-install -Dm755 $SETTING_TARGET/release/moodflow_setting "$S/usr/lib/moodflow/moodflow_setting"
+install -Dm755 $SETTING_TARGET/release/wind_setting "$S/usr/lib/moodflow/wind_setting"
 install -Dm644 $SRC_DIR/scripts/linux/pkg/moodflow-setting.desktop "$S/usr/share/applications/moodflow-setting.desktop"
 install -Dm644 $SRC_DIR/scripts/linux/pkg/moodflow-import.desktop "$S/usr/share/applications/moodflow-import.desktop"
 install -Dm644 $SRC_DIR/scripts/linux/pkg/moodflow-mime.xml "$S/usr/share/mime/packages/moodflow.xml"
@@ -78,7 +78,7 @@ SHL="$WORK_DIR/shlibs"
 rm -rf "$SHL"; mkdir -p "$SHL/debian"
 printf 'Source: moodflow\n\nPackage: moodflow\nArchitecture: any\n' >"$SHL/debian/control"
 SHLIBS_DEPENDS="$(cd "$SHL" && dpkg-shlibdeps -O \
-    -e"$S/usr/lib/moodflow/moodflow_input" -e"$S/usr/lib/moodflow/moodflow_setting" \
+    -e"$S/usr/lib/moodflow/moodflow_input" -e"$S/usr/lib/moodflow/wind_setting" \
     -e"$(find "$S/usr/lib" -name libmoodflow.so -path '*fcitx5*')" | sed -n 's/^shlibs:Depends=//p')"
 [[ -n "$SHLIBS_DEPENDS" ]] || { echo "dpkg-shlibdeps 没有算出依赖" >&2; exit 1; }
 EXTRA_DEPENDS="fcitx5 (>= 5.0.14), libfontconfig1, fonts-noto-cjk | fonts-wqy-microhei | fonts-wqy-zenhei, python3, procps"

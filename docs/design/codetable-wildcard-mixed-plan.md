@@ -1161,10 +1161,10 @@ for f in src/assets/capabilities.snapshot.json src/mockdata/config.json; do
 done
 git diff --stat
 cd ../Moodflow && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix-ws ./scripts/dev.sh st
-cd moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p moodflow-rpc --test moodflow_setting_assets
+cd moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcmix TMPDIR=/tmp/wct-wcmix cargo test -p moodflow-rpc --test wind_setting_assets
 ```
 
-Expected: `git diff --stat` 只列 manifest，外加 snapshot / mockdata 中**因 hint 文本**产生的差异（若二者不含 hint，则只有 manifest 一个文件）；`st` 全绿；`moodflow_setting_assets` 全绿。label 未改，`pinyin_initials.txt` 不应变化——变了说明生成器取词范围与预期不符，停下回报。
+Expected: `git diff --stat` 只列 manifest，外加 snapshot / mockdata 中**因 hint 文本**产生的差异（若二者不含 hint，则只有 manifest 一个文件）；`st` 全绿；`wind_setting_assets` 全绿。label 未改，`pinyin_initials.txt` 不应变化——变了说明生成器取词范围与预期不符，停下回报。
 
 - [ ] **Step 3: 文档站**
 

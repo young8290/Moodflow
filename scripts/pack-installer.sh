@@ -7,7 +7,7 @@
 # 输出名 Moodflow-Setup-<版本>.exe,与 dev.ps1 本地打包口径一致。
 #
 # 前置:BUILD_DIR 内已含 moodflow_core.exe / moodflow_tsf.dll / moodflow_tsf_x86.dll / data/。
-#      Release workflow 还要求 moodflow_setting.exe / moodflow_portable.exe。
+#      Release workflow 还要求 wind_setting.exe / wind_portable.exe。
 #      (由 dev.sh release + build_tsf + assemble_data 产出)。
 #
 # 用法:
@@ -17,7 +17,7 @@
 #
 # 环境变量(等价覆盖,命令行参数优先):
 #   MOODFLOW_VERSION / MOODFLOW_COMPRESSION / MOODFLOW_BUILD_DIR / MOODFLOW_INSTALLER_DIR
-#   MOODFLOW_REQUIRE_COMPANIONS=1 时强制要求 moodflow_setting.exe / moodflow_portable.exe
+#   MOODFLOW_REQUIRE_COMPANIONS=1 时强制要求 wind_setting.exe / wind_portable.exe
 # ============================================================================
 set -euo pipefail
 
@@ -69,7 +69,7 @@ echo "================================================"
 
 # ---- 校验构建产物 ----
 required=(moodflow_core.exe moodflow_tsf.dll moodflow_tsf_x86.dll)
-companions=(moodflow_setting.exe moodflow_portable.exe)
+companions=(wind_setting.exe wind_portable.exe)
 if [[ "$REQUIRE_COMPANIONS" == "1" || "$REQUIRE_COMPANIONS" == "true" ]]; then
   required+=("${companions[@]}")
 fi
@@ -100,8 +100,8 @@ setup_xwin_env || exit 1
   cargo build --release --bin moodflow-packer --features packer
 )
 
-STUB="$INSTALLER_DIR/target/$TARGET/release/moodflow-installer.exe"
-UNINSTALLER="$INSTALLER_DIR/target/$TARGET/release/moodflow-uninstaller.exe"
+STUB="$INSTALLER_DIR/target/$TARGET/release/wind-installer.exe"
+UNINSTALLER="$INSTALLER_DIR/target/$TARGET/release/wind-uninstaller.exe"
 PACKER="$INSTALLER_DIR/target/release/moodflow-packer"
 for b in "$STUB" "$UNINSTALLER" "$PACKER"; do
   [[ -f "$b" ]] || { echo "[ERROR] 缺少编译产物: $b" >&2; exit 1; }

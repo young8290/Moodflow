@@ -4,7 +4,7 @@
     python3 scripts/linux/gen-icons.py [--ico 应用图标.ico]
 
 依赖 Pillow。`moodflow` 是输入法条目 / 设置程序的图标，只有位图源（兄弟仓库 moodflow-setting 的
-`res/moodflow_setting.ico`，逐尺寸手调过的 16…256），照原样按尺寸拆出来；22px 那档 ico 里没有，
+`res/wind_setting.ico`，逐尺寸手调过的 16…256），照原样按尺寸拆出来；22px 那档 ico 里没有，
 由 24px 缩。没有矢量源，故不出 scalable——拿位图包一层 SVG 不是真的可缩放。
 
 托盘 / 面板随模式切换的 `moodflow-zh` / `-en` / `-caps` / `-zh-<方案>` **不归本脚本**，由
@@ -44,7 +44,7 @@ def save_png(img, size, name):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--ico", default=os.path.join(REPO, "..", "moodflow-setting", "res", "moodflow_setting.ico"))
+    ap.add_argument("--ico", default=os.path.join(REPO, "..", "moodflow-setting", "res", "wind_setting.ico"))
     a = ap.parse_args()
     if not os.path.isfile(a.ico):
         sys.exit(f"找不到 {a.ico}")

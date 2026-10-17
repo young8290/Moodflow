@@ -132,7 +132,7 @@ addon。细节见 `moodflow_linux/AGENTS.md`「光栅浮层」。
 ## 5d. 与 Fcitx5 自身 UI 的衔接
 
 - **输入法图标**：条目 `Icon=moodflow`（`moodflow_linux/data/icons/hicolor`，16…256 各尺寸，出自
-  moodflow-setting 的 `moodflow_setting.ico`，`scripts/linux/gen-icons.py` 拆出）。**托盘 / 面板图标随模式
+  moodflow-setting 的 `wind_setting.ico`，`scripts/linux/gen-icons.py` 拆出）。**托盘 / 面板图标随模式
   切换**：引擎实现 `subModeIconImpl` / `subModeLabelImpl`（`HostUi.h` 的 `ModeIndicator`）。Fcitx5 的
   classicui 托盘、notificationitem（StatusNotifierItem，Deepin / KDE / GNOME 的 AppIndicator 扩展）、
   kimpanel 都经 `Instance::inputMethodIcon` 取这个值。模式来源是服务端的四种帧：焦点进入的
@@ -326,14 +326,14 @@ DBus 客户端能直接断言 `ForwardKey` 序列；代价是只作用于当前�
 
 ## 6b. 设置端（M3a 结论）
 
-- **能用**：`moodflow_setting` 在 Linux 原生编译、单测全绿；moodflowui 默认走 X11（Wayland 会话经
+- **能用**：`wind_setting` 在 Linux 原生编译、单测全绿；moodflowui 默认走 X11（Wayland 会话经
   XWayland，`WINDUI_BACKEND=wayland` 才试原生 Wayland），文字经 fontconfig，中文渲染正常。
   控制 socket、用户目录、日志目录与服务同一套规则（`$XDG_RUNTIME_DIR/moodflow_input[_dev]_ctrl.sock`、
   `~/.config/Moodflow[Dev]`），改设置写入用户 `config.toml` 并被服务热加载（实测）。
 - **入口**：应用菜单（`moodflow-setting.desktop`，兼 `moodflow://` 协议）、Fcitx5 状态区「Moodflow 输入法设置」
   与系统输入法配置里的「配置」（§5d），以及「打开设置」热键
   （出厂 `Ctrl+Shift+]`）。后者：服务 `open_settings_with` 推扩展信封 `settings.open` → addon
-  （`SettingsLauncher` + `spawnDetached`）启动 `/usr/lib/moodflow/moodflow_setting`
+  （`SettingsLauncher` + `spawnDetached`）启动 `/usr/lib/moodflow/wind_setting`
   （`MOODFLOW_INPUT_SETTING` 可覆盖）；只启动自己的设置程序，信封内容只当参数。e2e 覆盖整条链。
 - **系统关联**（`moodflow://`、`.wpkg`、`.wtheme`）：deb 装 `.desktop` ×2 + `moodflow.xml` + hicolor `mimetypes` 类型图标，开箱即用；高级页「系统集成」按 XDG 现查（`xdg-mime query default` + 读 `.desktop` 的
   `Exec`），系统包提供的注明「在此不能取消」。便携 / tarball 可按用户注册：包里同一份文件以本程序绝对路径写进
@@ -344,7 +344,7 @@ DBus 客户端能直接断言 `ForwardKey` 序列；代价是只作用于当前�
   软键盘热键、`activate_ime`、Dota2 兼容与热键的「全局」勾选。逐项依据见 moodflow-setting README
   「按平台屏蔽的设置项」。应用兼容性（按应用配置）**保留**：服务按 addon 报的程序名匹配规则，
   与 macOS 同一机制——§2「不做」指的是不为 Linux 维护内置规则，不是机制不可用。
-- **托盘 / 常驻（`run_resident`）缺失不影响设置端**：`moodflow_setting` 不用常驻模式也不用托盘；
+- **托盘 / 常驻（`run_resident`）缺失不影响设置端**：`wind_setting` 不用常驻模式也不用托盘；
   输入法自己的状态指示改由 Fcitx5 托盘图标承担（见 §5d）。
 - **已知问题**（moodflowui Linux 后端）：设置程序已开着时，深链转来的切页要等下一次输入事件才显示；
   文件对话框依赖 xdg-desktop-portal 或 zenity，都没有时点了无反应。

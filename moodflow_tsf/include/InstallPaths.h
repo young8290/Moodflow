@@ -29,7 +29,7 @@ BOOL MoodflowResolveInstallRoot(WCHAR* outDir, DWORD cchOutDir);
 // 该目录下是否有便携标记 ⇒ 本次部署是便携形态。
 //
 // 判据与 Rust 侧 `moodflow_config::variant::has_portable_marker_in` 逐条对齐：新名
-// `portable_mode` 优先，旧名 `moodflow_portable_mode` 仅为存量便携包保留读取兼容。
+// `portable_mode` 优先，旧名 `wind_portable_mode` 仅为存量便携包保留读取兼容。
 // 名字还须与安装器清单 `config/app.toml` 的 `[app] portable_marker` 一致——
 // **四处同名，无编译期约束**，改名时一起改。
 BOOL MoodflowIsPortableRoot(const WCHAR* root);

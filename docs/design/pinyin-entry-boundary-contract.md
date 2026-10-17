@@ -415,7 +415,7 @@ schemaId 分流出一个拼音样例——只留原来的码表样例的话，�
 
 ⚠️ 跨仓时序：setting 仓 `Cargo.toml` 用 path 依赖指向 `../Moodflow/...`，故主仓改动
 必须先落到**那份工作区**（不是 worktree / 别的分支）setting 侧才做得动。见
-`reference_moodflow_setting_repo`。**未验证**：本次只改 RPC 响应字段、不加 config key，
+`reference_wind_setting_repo`。**未验证**：本次只改 RPC 响应字段、不加 config key，
 预计不触发 `capabilities.snapshot.json` / `mockdata/config.json` 那两道快照守门
 （它们从 `moodflow-config` + `data/config.toml` 现算），但动手前应确认。
 

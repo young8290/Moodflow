@@ -688,7 +688,7 @@ fn init_logger() {
     //
     // ★ 当前这份**也带序号**，规则就一句话「数字越小越新，1 是最新」。此前当前那份
     // 叫 moodflow_input.log（无序号），收日志时用户认不出它才是最新的——发来的包里常常
-    // 只有 .1.log。与设置程序的 moodflow_setting.1.log 同一规则，见 log_rotate 模块文档。
+    // 只有 .1.log。与设置程序的 wind_setting.1.log 同一规则，见 log_rotate 模块文档。
     // 序号在扩展名之前，滚动后仍是 .log，编辑器认得、按 *.log 也搜得到。
     let log_path = log_dir.join(format!("moodflow_input.{}.log", log_rotate::CURRENT_INDEX));
 

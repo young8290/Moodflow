@@ -118,7 +118,7 @@
 - 集成测试依赖 `build_dev/data`（本 worktree 里是实拷贝，已核实 `schemas/wubi86/wubi86_jidian_extra_district.dict.yaml`
   等在位），缺失时静默跳过而计数照绿——以 `--test codetable_wildcard` / `--test codetable_reverse` 耗时 ≥ 1s 且输出无「跳过」为数据在位判据。
 - 日志：`info!` 不得含用户输入 / 候选。
-- **moodflow-setting 改动**：manifest 改完在 `Moodflow/` 下先 `env $T cargo test -p moodflow-rpc --test moodflow_setting_assets`（core 侧对账，秒出），
+- **moodflow-setting 改动**：manifest 改完在 `Moodflow/` 下先 `env $T cargo test -p moodflow-rpc --test wind_setting_assets`（core 侧对账，秒出），
   再 `./scripts/dev.sh sg`（重生成 `capabilities.snapshot.json` / `mockdata/config.json`）与 `./scripts/dev.sh st`（xwin+wine 全量）。
   `sg` 后 `git diff` 里若只剩 `appVersion` 一行，**不提交它**。新 label 带进 `src/assets/pinyin_initials.txt` 没有的字会让
   `search::pinyin::tests::table_covers_every_title_char` 红——本计划选定的 label（「通配仅出单字」「通配与反查含扩展词库」
@@ -282,11 +282,11 @@ Expected: 编译失败 `no field wildcard_single_only`。
 
 ```bash
 env $T cargo test -p moodflow-config --no-fail-fast
-env $T cargo test -p moodflow-rpc --test moodflow_setting_assets
+env $T cargo test -p moodflow-rpc --test wind_setting_assets
 ```
 
 Expected: moodflow-config 全绿（`registry_covers_every_config_key` / `data_config_toml_covers_registry` / `data_config_toml_has_no_orphan_keys` 在内）；
-`moodflow_setting_assets` 红在「manifest 未覆盖 `schema.codetable.wildcard_single_only`」一类——**预期**，Task 3 补齐，本任务不处理。
+`wind_setting_assets` 红在「manifest 未覆盖 `schema.codetable.wildcard_single_only`」一类——**预期**，Task 3 补齐，本任务不处理。
 
 - [ ] **Step 5: 格式与提交**
 
@@ -298,7 +298,7 @@ git commit -F - --only -- moodflow_input/crates/moodflow-config/src/schema.rs mo
 feat(config): 码表通配仅单字开关 wildcard_single_only
 
 方案级三态折叠，与 wildcard 主开关正交，出厂关（reverse-mode spec §2）。
-moodflow_setting_assets 跨仓守门待 moodflow-setting 同步后转绿。
+wind_setting_assets 跨仓守门待 moodflow-setting 同步后转绿。
 EOF
 git show --stat HEAD
 ```
@@ -517,12 +517,12 @@ hint = "通配与反查模式的结果只列单字，词组不出。不影响正
 - [ ] **Step 2: core 侧对账 + 重生成 + 全量**
 
 ```bash
-cd /home/dufeng/develop/moodflow/wt-rev/Moodflow/moodflow_input && env $T cargo test -p moodflow-rpc --test moodflow_setting_assets
+cd /home/dufeng/develop/moodflow/wt-rev/Moodflow/moodflow_input && env $T cargo test -p moodflow-rpc --test wind_setting_assets
 cd .. && ./scripts/dev.sh sg && ./scripts/dev.sh st 2>&1 | tail -15
 git -C ../moodflow-setting diff --stat
 ```
 
-Expected: `moodflow_setting_assets` 绿；`st` 全绿（含 `table_covers_every_title_char`）；diff 只含 manifest、`schema_codetable.rs`、
+Expected: `wind_setting_assets` 绿；`st` 全绿（含 `table_covers_every_title_char`）；diff 只含 manifest、`schema_codetable.rs`、
 snapshot（新增一条 `schema.codetable.wildcard_single_only`，带 `schemaOverride`）、mockdata（`"wildcard_single_only": false`）
 与可能的 `appVersion` 一行（后者不提交：`git -C ../moodflow-setting checkout -p -- src/mockdata/config.json` 只撤那一 hunk，
 或手工改回；**不许** `git stash`）。
@@ -857,7 +857,7 @@ git show --stat HEAD
   lookup_disabled_dicts = false
   ```
 
-- [ ] **Step 4: 跑**：`env $T cargo test -p moodflow-config --no-fail-fast` 全绿（`moodflow_setting_assets` 预期红，Task 13 前补齐）。
+- [ ] **Step 4: 跑**：`env $T cargo test -p moodflow-config --no-fail-fast` 全绿（`wind_setting_assets` 预期红，Task 13 前补齐）。
 
 - [ ] **Step 5: 格式与提交**（同 Task 1 的四个路径）
 

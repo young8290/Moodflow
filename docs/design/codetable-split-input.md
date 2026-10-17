@@ -412,7 +412,7 @@ split_alt_display = "back"      # 次选显示形态："back"（默认，只显�
 这三个键不进全局 `schema.codetable`、不进 `config_schema.rs` 的 `REGISTRY`、不进设置仓的
 `settings_manifest.toml` —— 与 `sentence_input` 一样。两条核实：
 
-- **契约对账绿**：`cargo test -p moodflow-rpc --test moodflow_setting_assets` 三条全过
+- **契约对账绿**：`cargo test -p moodflow-rpc --test wind_setting_assets` 三条全过
   （`every_core_key_is_either_in_the_manifest_or_exempt` 等）。没往 REGISTRY 加键，
   邻仓三份检入产物一行不用动。
 - **设置页保存不会冲掉它**：方案级码表配置对话框的写回是**逐键 patch**

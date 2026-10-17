@@ -1793,7 +1793,7 @@ wildcard_key = "z"
 Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-config --no-fail-fast`
 Expected: 全绿，含 `codetable_wildcard_folds_from_schema_and_validates_key`、`registry_covers_every_config_key`、`data_config_toml_covers_registry`、`data_config_toml_has_no_orphan_keys`、`data_config_toml_values_pass_validation`、`overridden_keys_covers_every_schema_override_entry`。
 
-Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-rpc --test moodflow_setting_assets`
+Run: `cd /home/dufeng/develop/moodflow/wt-wildcard/Moodflow/moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-rpc --test wind_setting_assets`
 Expected: **预期红**（`capabilities_snapshot_matches_core` / `mock_config_has_every_preset_key` / `every_core_key_is_either_in_the_manifest_or_exempt` 报缺 `schema.codetable.wildcard*`），由 Task 12 在 moodflow-setting 侧转绿。记下失败条目名，Task 12 结束时逐条确认转绿。
 
 - [ ] **Step 5: 提交**
@@ -1807,7 +1807,7 @@ feat(config): 码表通配输入两项配置（wildcard / wildcard_key）
 
 全局基线 + 方案 [engine.codetable] 三态折叠；键须为单个字母或 ASCII 符号，
 数字与空格不可用，非法告警并视为关闭。注册表、方案覆盖反查、预置文件同步。
-moodflow_setting_assets 跨仓守门待 moodflow-setting 同步后转绿。
+wind_setting_assets 跨仓守门待 moodflow-setting 同步后转绿。
 EOF
 git show --stat HEAD
 ```
@@ -2774,7 +2774,7 @@ git show --stat HEAD
 - Modify: `../moodflow-setting/src/assets/settings_manifest.toml`（`schema.codetable.z_key_action` 条目 ~167-180 之后）
 - Modify: `../moodflow-setting/src/dialogs/schema_codetable.rs`（`SPEC_BEHAVIOR_FIELDS` ~87-108）
 - Modify（生成）: `../moodflow-setting/src/assets/pinyin_initials.txt`、`../moodflow-setting/src/assets/capabilities.snapshot.json`、`../moodflow-setting/src/mockdata/config.json`
-- Test: 邻仓 `manifest_keys_match_spec_fields`、`search::pinyin::tests::table_covers_every_title_char`、`uncovered_capability_keys_match_allowlist`；core 侧 `cargo test -p moodflow-rpc --test moodflow_setting_assets`
+- Test: 邻仓 `manifest_keys_match_spec_fields`、`search::pinyin::tests::table_covers_every_title_char`、`uncovered_capability_keys_match_allowlist`；core 侧 `cargo test -p moodflow-rpc --test wind_setting_assets`
 
 **Interfaces:**
 - Consumes: Task 8 注册表键 `schema.codetable.wildcard` / `schema.codetable.wildcard_key`
@@ -2856,10 +2856,10 @@ for f in src/assets/capabilities.snapshot.json src/mockdata/config.json; do
 done
 git diff --stat
 cd ../Moodflow && ./scripts/dev.sh st
-cd moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-rpc --test moodflow_setting_assets
+cd moodflow_input && CARGO_TARGET_DIR=/home/dufeng/.cache/wi-tgt-wcard TMPDIR=/tmp/wct-wcard cargo test -p moodflow-rpc --test wind_setting_assets
 ```
 
-Expected: `git diff --stat` 只列 5 个文件（manifest、schema_codetable.rs、pinyin_initials.txt、snapshot、mockdata）；`st` 全绿；`moodflow_setting_assets` 三条（Task 8 记下的）转绿。
+Expected: `git diff --stat` 只列 5 个文件（manifest、schema_codetable.rs、pinyin_initials.txt、snapshot、mockdata）；`st` 全绿；`wind_setting_assets` 三条（Task 8 记下的）转绿。
 
 - [ ] **Step 5: 提交（moodflow-setting 仓）**
 
@@ -2997,4 +2997,4 @@ Expected: `clean`（`HEAD~12` 以实际提交数为准，范围只含本计划�
 - **spec 覆盖**：§3.1 匹配语义 → Task 1/2/3/4/5（一通配一码元、多通配、等长优先 + 补全、上限 100、参与 / 不参与层）+ Task 6/7（整句 / 逆切分 / 混输 / 英文混入不参与）+ Task 11（短语不参与）。§3.2 上屏行为 → Task 6（引擎不给意向）+ Task 11（复评 / 清空 / 顶字 / 短语自动上屏短路、注释全码）。§3.3 按键裁决 → Task 10（首位 / 非首位 / 顺序铁律 / 冲突告警 / 真实码元告警）+ Task 11（首位字面整轮字面）。§3.4 进缓冲闸门 → Task 10（`try_code_char_gate` 符号、字母臂 `can_enter_buffer` 前）。§4 配置 → Task 8（五处同步 + 非法视为关闭）+ Task 9（`build_engine` 注入、两折叠点同判据）+ Task 12（moodflow-setting 四处）。§5 实现 → Task 1-11。§6 分期 → P1-P4 分组与各组末提交信息。§7 测试 → moodflow-dict 对拍（Task 2/3/4/5）、引擎 §3.2 逐行（Task 6）、协调器 §7 六条（Task 10/11）。§8 明确不做 → Global Constraints 与 Task 1 用例「短于 pattern 不匹配」。
 - **签名一致性**：`search_pattern(pattern: &str, wildcard: char, limit: usize, with_prefix: bool)` 在 `DictLayer` / `CompositeDict` / `DictManager` 返回 `Vec<Candidate>`，`CachedDict` / `CodetableDict` 返回 `Vec<DictHit>`，`WdatReader` 返回 `Vec<DictEntry>`；`convert_wildcard(input: &str, pattern: &str, max_candidates: usize) -> Option<ConvertResult>` 在 trait / 码表 / 混输 / `EngineManager` 四处一致；`wildcard_key() -> Option<char>` / `active_wildcard_key() -> Option<char>` 一致；`wildcard_char(&self, schema_id: &str) -> Option<char>` 在 Task 8 定义、Task 9 消费；`wildcard_pattern(&self, buffer: &str) -> Option<String>` 在 Task 10 定义、Task 11 消费；`WildcardDecision::{Yield, Enter}` 仅 Task 10 内与两个接线点使用。
 - **占位扫描**：全文无 TBD / TODO / 「类似任务 N」。依赖无法完全确认的内部细节处均写明核对点：Task 2 Step 3（循环体机械搬运的两处替换）、Task 6 Step 3（`build_engine` 的 `CommitOptions` 字面量需临时补字段）、Task 7 Step 1（`FakePinyin` / `MixConfig` 字段）、Task 10 Step 3（`BoundAction::is_enabled`、`CodeCharSet` 方法）、Task 11 Step 3（遮蔽变量与 `comment.rs` 的注释门控）、Task 13 Step 3（`<Since>` 版本号）。
-- **已知取舍**：Task 9 的新增单测在实现前即通过（它锁 `resolve_codetable`，`build_engine` 真值由 Task 11 集成用例钉住），已在该步说明；Task 8 结束到 Task 12 结束之间 `moodflow_setting_assets` 预期红，已在两处注明。
+- **已知取舍**：Task 9 的新增单测在实现前即通过（它锁 `resolve_codetable`，`build_engine` 真值由 Task 11 集成用例钉住），已在该步说明；Task 8 结束到 Task 12 结束之间 `wind_setting_assets` 预期红，已在两处注明。
