@@ -1,0 +1,10 @@
+[package]
+name = "moodflow-buffer"
+version.workspace = true
+edition.workspace = true
+
+# 纯逻辑，零依赖：须过 cargo check-android，接入 moodflow-mobile 闭包时不带任何平台或 C 依赖。
+[dependencies]
+
+[lints]
+workspace = true

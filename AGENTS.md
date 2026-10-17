@@ -41,6 +41,7 @@
 | `moodflow-transfer` | 导入导出/备份还原底座：Bundle（manifest + zip）聚合打包与 Merge 合并策略（编解码在 moodflow-store）；方案包 `.wpkg` 与主题包 `.wtheme` 的格式定义都在这里 | — |
 | `moodflow-quick-input` | 快捷输入的内置候选来源（纯逻辑）：`quick_input.calc` 算式（含幂 `^`）/ `.date` 日期年月 / `.number` 数字金额；另定义 `.repeat`（重复上屏，由协调器实现）的成员 id。开关与优先级 = `mix_modes.members` 的有无与顺序 | — |
 | `moodflow-reverse` | 候选反查：五笔编码/拆字/拼音读音（悬停 tooltip） | — |
+| `moodflow-buffer` | Buffer 上屏前文本工作台（纯逻辑、零依赖）：块编辑、目标绑定与投递授权、两段式投递、容量上限；设计见 `docs/design/buffer.md` | — |
 | `moodflow-aux-code` | 辅助码过滤：拼音后追加字形辅助码，按字形裁减候选字词（**出厂关闭**，`schema.pinyin.aux_code.enabled`） | [AGENTS.md](moodflow_input/crates/moodflow-aux-code/AGENTS.md) |
 | `moodflow-punct` | 标点转换纯逻辑（中英标点/全半角/数字后智能） | — |
 | `moodflow-transform` | 文本变换：标点、全角、自动配对、简繁 | — |
