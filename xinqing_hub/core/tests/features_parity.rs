@@ -148,7 +148,11 @@ fn fixed_cases_match_reference() {
         assert!(check(&c.id, &c.events, &seq) > 0, "{} 没有产生窗口", c.id);
         n += 1;
     }
-    assert_eq!(n, 10, "FR-STA-02 验收要求 10 组固定事件序列");
+    // FR-STA-02 验收要求至少 10 组；第 11 组是 R1b（ADR 0041）
+    assert!(
+        n >= 10,
+        "FR-STA-02 验收要求至少 10 组固定事件序列，现在 {n} 组"
+    );
 }
 
 #[derive(Deserialize)]

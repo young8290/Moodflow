@@ -198,7 +198,7 @@ describe('首次引导', () => {
       await w.find('[data-service=llm] input[type=url]').setValue('ftp://x')
       await w.find('button.primary').trigger('click')
       await flushPromises()
-      expect(w.find('[role=alert]').text()).toContain('地址要以 http:// 或 https:// 开头')
+      expect(w.find('[role=alert]').text()).toContain('地址要以 https:// 开头')
       expect(w.find('[data-service=llm]').exists()).toBe(true)
     })
 

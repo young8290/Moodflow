@@ -171,8 +171,10 @@ pub fn compute(win: &WindowBuf, base: &Baseline, ctx: &SessionCtx) -> WindowFeat
     let mut delete_committed = 0u32;
     let mut next_comp = comps.iter().peekable();
     for k in &keys {
+        // 只送早于这次按键的组字更新：同一毫秒的更新是这次按键的结果（核心先发 key 再发 comp），
+        // 先送进去会让“退格后合法了”的更新抢先清掉 R1b 的标记
         while let Some(&&(ts, invalid)) = next_comp.peek() {
-            if ts > k.ts {
+            if ts >= k.ts {
                 break;
             }
             typo.on_comp(ts, invalid);
@@ -387,6 +389,26 @@ mad = 55.0
                     invalid: true,
                 },
                 key(400, KeyKind::Backspace, Some(8)),
+            ],
+        };
+        assert_eq!(compute(&win, &base(), &ctx()).typo_cnt, 1);
+    }
+
+    #[test]
+    fn comp_update_caused_by_the_backspace_does_not_hide_r1b() {
+        // 核心先发 key 再发 comp，同一毫秒：退格后变合法的更新不能抢先清掉标记
+        let comp = |ts, invalid| WinEvent::Comp {
+            ts,
+            op: CompOp::Update,
+            len: Some(2),
+            invalid,
+        };
+        let win = WindowBuf {
+            events: vec![
+                key(150, KeyKind::Letter, Some(b'I')),
+                comp(150, true),
+                key(400, KeyKind::Backspace, Some(8)),
+                comp(400, false),
             ],
         };
         assert_eq!(compute(&win, &base(), &ctx()).typo_cnt, 1);

@@ -3143,5 +3143,38 @@
     }
    }
   ]
+ },
+ "c11_typo_r1b": {
+  "start_min": 840,
+  "windows": [
+   {
+    "start_ts": 100,
+    "end_ts": 4500,
+    "features": {
+     "n_keys": 9,
+     "active_ms": 4400,
+     "kpm": 122.72727272727273,
+     "iki_med": 225.0,
+     "iki_iqr": 662.5,
+     "dwell_med": null,
+     "bs_rate": 0.3333333333333333,
+     "bs_burst_max": 1,
+     "typo_cnt": 1,
+     "pause_cnt": 0,
+     "abandon": 1,
+     "delete_committed": null,
+     "page_flips": 0,
+     "cand_pos_mean": null,
+     "session_min": 0.07333333333333333,
+     "hour": 14,
+     "minute_of_day": 840,
+     "kpm_z": -1.192901012628028,
+     "iki_med_z": 0.5246039240373518,
+     "iki_iqr_z": 5.0,
+     "bs_rate_z": 5.0,
+     "dwell_med_z": null
+    }
+   }
+  ]
  }
 }
