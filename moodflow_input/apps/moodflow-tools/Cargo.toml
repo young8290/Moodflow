@@ -30,9 +30,14 @@ path = "src/bin/gen_emoji_names.rs"
 name = "gen_aux_code"
 path = "src/bin/gen_aux_code.rs"
 
+[[bin]]
+name = "data_manifest"
+path = "src/bin/data_manifest.rs"
+
 [dependencies]
 # gen_block_charsets 直接读区块表生成 charsets/blocks.yaml——两份数据因此同源。
 moodflow-candidate = { path = "../../crates/moodflow-candidate" }
+moodflow-manifest = { path = "../../crates/moodflow-manifest" }
 anyhow = { workspace = true }
 serde = { workspace = true }
 toml = { workspace = true }

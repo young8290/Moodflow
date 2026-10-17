@@ -1346,6 +1346,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "moodflow-manifest"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "moodflow-mobile"
 version = "0.1.0"
 dependencies = [
@@ -1479,6 +1488,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "moodflow-candidate",
+ "moodflow-manifest",
  "serde",
  "toml 0.8.23",
 ]

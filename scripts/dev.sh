@@ -1247,6 +1247,10 @@ verify_dist_data() {
         return 1
     fi
     say "发布数据校验通过 ✓"
+    # 逐文件 SHA-256 清单（XSIME 吸收计划 §3.4）：安装/解包时据此复核。
+    # 用户库、build/、sync/、符号链接混进出厂数据会让这一步失败。
+    ( cd "$RUST_WORKSPACE" && cargo run -q -p moodflow-tools --bin data_manifest -- build "$data" ) \
+        || { err "生成数据清单失败（出厂数据被污染？见上方输出）"; return 1; }
 }
 
 # ---------- 全构建（1 / d1）----------

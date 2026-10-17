@@ -1,0 +1,14 @@
+[package]
+name = "moodflow-manifest"
+version.workspace = true
+edition.workspace = true
+
+# 安装数据的逐文件 SHA-256 清单：打包时生成，安装/解包时校验（XSIME 吸收计划 §3.4）。
+# 纯 Rust、只碰文件系统，须过 cargo check-android（Android 首次解包资产时也用它）。
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+
+[lints]
+workspace = true
