@@ -319,3 +319,36 @@ Buffer 是 AI/翻译二批的地基；并击风险最高（TSF keyup），放最
 3. 二批的翻译能力：XSIME 在 macOS 用 Apple 本机翻译，Windows 用私有 CPU 运行时加中英模型
    （约 182 MiB，按需下载、校验后离线），Android 随包带本地中英词典（§3.8）。Moodflow 选哪条
    （本机模型 vs. 走 Hub 的 AI 渠道），需要做安装包体积、隐私与可用性评估。
+
+## 9. 进度（2026-10-17）
+
+**已完成（纯逻辑与可在 Linux 上验证的部分）**
+
+| 项 | 落点 | 验证 |
+|---|---|---|
+| §2.1 Buffer | `crates/moodflow-buffer`，设计见 `docs/design/buffer.md` | 26 个单测；可编译到 aarch64-linux-android |
+| §2.2 候选矩阵 | `moodflow-candidate::matrix` | 11 个单测 |
+| §2.3 并击 | `crates/moodflow-chord`（键位 JSON、两级校验、结算器） | 14 个单测；Android 编译通过 |
+| §2.4 剪贴板历史 | `crates/moodflow-clipboard` | 10 个单测；Android 编译通过 |
+| §2.5 方案与词库导入 | `moodflow-transfer::rime_import`；`moodflow_input schema import-rime <zip> <目录>` | 10 个单测（含用现有 `.wpkg` 导入器安装）；端到端跑通 |
+| §2.6 九宫格拼音 | `moodflow-engine::pinyin::t9` | 9 个单测（`64426` → ni hao） |
+| §3.1 换主机须重填密钥 | Hub gateway + ADR 0055；产品书 V1.5.2 | gateway / Hub 111 个测试 |
+| §3.2 用户库打不开提示 | 协调器 `notify_store_unavailable` / `user_store_available`，Android 门面同名方法 | 2 个单测；协调器全量 2182 通过 |
+| §3.4 数据逐文件清单 | `crates/moodflow-manifest`，`data_manifest build/verify`，dev.sh / dev.ps1 接入 | 6 个单测；仓库 `data/` 实测 |
+| §3.5 五笔对照 | `moodflow-engine/tests/xsime_wubi_parity.rs` | 4 条，与 XSIME 行为一致 |
+| §3.8 联想历史上限 | `moodflow-store::assoc_history`（每上文 8 条、整表 4800 条） | 2 个新单测 |
+
+**核查结论**
+
+- §3.6 LPAC：`moodflow-bridge/src/security.rs` 的管道 SDDL 只放行 `WD`、`SY`、`BA`、`AC`，没有
+  `ALL RESTRICTED APPLICATION PACKAGES`（`S-1-15-2-2`），LPAC 宿主（如新版搜索框）预计连不上。
+  建议补 `(A;;GRGW;;;S-1-15-2-2)` 并保留对客户端 SID/会话/PID 的校验；涉及安全边界，**须在 Windows 真机上验证后再改**。
+  另：现有 `WD`/`AC` 为 `GA`（完全访问），XSIME 只给读 + 写数据、不给建实例与改 ACL，可一并收窄。
+- §3.6 无组字时的写编辑会话：`UpdateComposition` 对文本与光标未变的请求直接跳过，模式切换不经它，预计已满足；需真机抓日志确认。
+- §3.8 竖排溢出分列：候选窗按工作区钳制宽度与旋转态高度，未见「放不下时增加列」的逻辑，需真机看长竖排是否被截断。
+
+**尚未开始，需要本会话没有的条件**
+
+- P2 Windows 接入（协调器路由、`moodflow-ui` 的 Buffer 浮窗/矩阵/剪贴板条、TSF 投递与并击 keyup）：需要 Windows 桌面验证。
+- P3 Android（`moodflow_android/` 从零搭建）：需要 Android SDK 与真机。
+- §3.3 日常统计与打字测速、§3.6 Windows TSF 自动化测试：同上。
