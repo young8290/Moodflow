@@ -334,8 +334,17 @@ mod tests {
             assert_eq!(source, Source::Saved);
             assert_eq!(masked.llm.unwrap().key_tail.as_deref(), Some("••••5678"));
         }
-        // 再次保存时不填密钥：沿用已保存的那份
-        let mut again = llm("https://llm2.example/v1");
+        // 换了主机却不填密钥：拒绝保存，旧密钥不发给新地址（ADR 0055）
+        let mut other_host = llm("https://llm2.example/v1");
+        other_host.llm.as_mut().unwrap().api_key = None;
+        assert!(matches!(
+            ai.save(other_host),
+            Err(SecretsStoreError::Invalid(
+                moodflow_hub_gateway::SecretsError::KeyRequired(_)
+            ))
+        ));
+        // 同一主机只改路径、不填密钥：沿用已保存的那份
+        let mut again = llm("https://llm.example/v2");
         again.llm.as_mut().unwrap().api_key = None;
         ai.save(again).unwrap();
         let saved = SecretStore::new(&d).load().unwrap().unwrap();
