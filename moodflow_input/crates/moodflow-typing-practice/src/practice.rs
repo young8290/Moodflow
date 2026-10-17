@@ -21,7 +21,7 @@ pub struct Score {
     pub effective_cpm: f64,
 }
 
-/// 一次练习。调用方在练习期间暂停日常统计（[`crate::daily::Recorder::set_paused`]）。
+/// 一次练习。调用方在练习期间暂停日常统计（`moodflow_store::StatCollector::pause`）。
 #[derive(Debug, Clone)]
 pub struct Practice {
     target: Vec<char>,
