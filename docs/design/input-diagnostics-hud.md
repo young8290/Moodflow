@@ -1,5 +1,7 @@
 # 输入诊断 HUD + 密码框抑制 设计
 
+> **状态更新（2026-10-18 核对）**：Windows 已实现（`moodflow-ui/src/input_diag_hud.rs`、`moodflow-coordinator/src/input_diag.rs`、TSF `KEYBOARD_DISABLED`）；macOS、Linux 未做。下面的「待实现」是写文档时的状态。
+
 日期：2026-07-11
 状态：设计已定，待实现（本文档不含代码）
 

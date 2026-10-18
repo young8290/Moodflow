@@ -1,6 +1,6 @@
 # Moodflow
 
-> 懂你心情的 AI 输入陪伴。一个 Windows 中文输入法，加上一位陪伴角色“晴晴”。
+> 懂你心情的 AI 输入陪伴。一个 Windows 中文输入法，加上一位陪伴角色“晴晴”；另有 Android 输入法（预览，只有输入法与设置，不含陪伴，ADR 0056）。
 > 输入法部分由开源项目 [WindInput](https://github.com/huanfeng/WindInput)（MIT）分支而来，现已独立维护（ADR 0045）。
 
 本仓同时放着输入法（`moodflow_input/`、`moodflow_tsf/` 等）和陪伴部分（Hub、MFP 协议、开发工具、模板、评测）。
@@ -20,6 +20,12 @@
 | 试用者 | [19 用户手册](https://github.com/young8290/xinqing/blob/main/docs/product-book/19_用户手册.md)、[21 隐私说明与知情同意书](https://github.com/young8290/xinqing/blob/main/docs/product-book/21_隐私说明与知情同意书.md) |
 
 实现与产品书不一致的地方记在 [docs/adr/](../adr/)（0007 起），每份 ADR 的“影响”列出产品书要改的章节。
+
+## 现状与计划
+
+- 总体现状与全部未完成项：[docs/ROADMAP.md](../ROADMAP.md)。
+- 从 XSIME 吸收的输入功能与 Android 端：[xsime-feature-port-plan.md](../design/xsime-feature-port-plan.md)（§9 进度、§10 未完成项）。
+- 插件系统与插件市场：[plugin-system.md](../design/plugin-system.md)（§10 进度、§11 未完成项）。
 
 ## 本目录
 

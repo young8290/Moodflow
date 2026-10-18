@@ -1,5 +1,7 @@
 # 设置系统 · 跨会话协调看板（settings-status-board）
 
+> **状态更新（2026-10-18 核对）**：本看板自 2026-06-19 起未维护。W3–W7、W10 要的核心 RPC 都已存在（`temp.*`、`freq.*`、`shadow.*`、`stats.*`、`phrase.*`、`theme.preview/importFromText`、`dict.encode/genPinyin`、`schema.getConfig/saveConfig/resetConfig`、热重载 `config.reload`）；设置界面在外部仓 `moodflow-setting`，未在本仓核对。全仓现状见 [ROADMAP.md](../ROADMAP.md)。
+
 > 活文档 / 多会话共享看板。最后更新：2026-06-19（重建）。
 
 ## ⚠️ 事故记录（必读）

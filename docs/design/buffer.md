@@ -1,8 +1,8 @@
 # Buffer（上屏前的文本工作台）
 
-> 状态：P1 纯逻辑已实现（`moodflow_input/crates/moodflow-buffer`）；Android 门面（`moodflow-mobile::buffer`）与
-> 键盘内 Buffer 栏已搭好；Windows 已接入协调器（`handle_buffer`）与浮窗（`moodflow-ui::buffer_panel`）。
-> 两端都**未真机验证**。
+> 状态（2026-10-18）：P1 纯逻辑已实现（`moodflow_input/crates/moodflow-buffer`，26 个单测）；Windows 已接入协调器
+> （`handle_buffer`）与浮窗（`moodflow-ui::buffer_panel`），在 `main`；Android 门面（`moodflow-mobile::buffer`）在 `main`，
+> 键盘内 Buffer 栏换成移植自 XSIME 的 `BufferRail`（PR #100）。两端都**未真机验证**。
 > 来源：[XSIME 吸收计划](xsime-feature-port-plan.md) §2.1；行为契约取自 XSIME 在 macOS / Windows / Android 上验证过的规则。
 
 ## 1. 是什么
@@ -65,3 +65,12 @@
 1. TSF：焦点事件带文档身份；推送上屏加回执。
 2. Android：协调器接入后改走同一套截获（目前 Android 上 Buffer 直接截获宿主侧的上屏指令）。
 3. 长按发送逐块投递（默认约 1.2 秒，可配 500–3000 ms）、可选 1/2/3/5 秒节奏投递：在协调器里用 `begin_next` 循环实现，本 crate 不管计时。
+
+## 6. Android 接入现状（2026-10-18，PR #100）
+
+- 候选栏右侧的 Buffer 开关打开 `BufferRail`，绑定当前字段；确认的候选进 Buffer，宿主不收。
+- 换字段、隐藏键盘：丢弃（与 XSIME Android 一致）；同一字段重启输入：暂停，需重新绑定。
+- 投递两段式：先 `begin` 拿授权，`commitText` 的返回值映射为 Accepted / Rejected；被拒时保留文本可重试，连接已断开记为 Unknown，不重发。
+- 密码类与 `IME_FLAG_NO_PERSONALIZED_LEARNING` 字段禁用 Buffer。
+- 仍按宿主侧截获上屏指令接入，没有改走协调器的截获点（§5 第 2 条）。
+- **未真机验证**：换字段 / 隐藏键盘清空、密码框禁用、宿主拒收后重试。

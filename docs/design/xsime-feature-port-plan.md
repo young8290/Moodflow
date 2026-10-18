@@ -1,8 +1,12 @@
 # 从 XSIME 吸收基础功能：Windows + Android 双平台计划
 
-> 状态：**计划稿**（2026-10-17），尚未开工。参考对象为 [scholay/xsime](https://github.com/scholay/xsime)
-> `main`（Apache-2.0，macOS/iOS 为主线，另有 Windows/Android/Linux 端）。
-> 本文只回答「拿什么、放哪、按什么顺序做、怎么验收」；每个功能开工时另写各自的设计文档。
+> 状态：**实施中**（立项 2026-10-17，最近更新 2026-10-18）。决定记录见 [ADR 0056](../adr/0056-吸收XSIME基础功能与Android端.md)。
+> 参考对象为 [scholay/xsime](https://github.com/scholay/xsime) `main`（Apache-2.0，macOS/iOS 为主线，另有 Windows/Android/Linux 端）。
+> 本文回答「拿什么、放哪、按什么顺序做、怎么验收」，并在 §9 记录进度、§10 汇总全部未完成项；
+> 单项功能的细节另见各自的设计文档（如 [buffer.md](buffer.md)、[plugin-system.md](plugin-system.md)）。
+>
+> **一句话现状（2026-10-18）**：P0、P1 完成；P2 Windows 接入的代码已合入 `main`（PR #96、#97、#98），**未真机验证**；
+> P3 Android 的 XSIME 界面移植在 PR #100（CI 全绿，未合入，**未真机验证**）；P4 二批只做了打字测速。
 
 ## 0. 结论先行
 
@@ -273,8 +277,9 @@ XSIME 的 Android 端在主仓 `platforms/android/`，与其他平台共用 `mai
 - **版本与标签按平台独立**：产品版本仍以 `docs/VERSION` 为唯一真源；Android 另设
   `moodflow_android/VERSION`，主次版本号必须与产品版本一致，补丁号可独立递增且不低于产品版本的补丁号；
   标签用 `android-vX.Y.Z`，发布时不设为 latest。
-- **现状**（2026-10-17）：`moodflow_android/` 骨架已建（见 §9），CI 工作流 `android.yml`；
-  AGENTS.md 的仓库地图与构建命令已同步。
+- **现状**（2026-10-18）：`moodflow_android/` 已建并移植 XSIME 键盘与设置界面（见 §9），CI 工作流 `android.yml`
+  每次构建 debug APK（产物 `moodflow-android-debug-apk`）；`moodflow_android/VERSION` 与对齐检查已在 CI；
+  尚未打过 `android-v*` 标签，也没有正式签名。AGENTS.md 的仓库地图与构建命令已同步。
 
 ## 5. 阶段与验收
 
@@ -327,7 +332,17 @@ Buffer 是 AI/翻译二批的地基；并击风险最高（TSF keyup），放最
    （约 182 MiB，按需下载、校验后离线），Android 随包带本地中英词典（§3.8）。Moodflow 选哪条
    （本机模型 vs. 走 Hub 的 AI 渠道），需要做安装包体积、隐私与可用性评估。
 
-## 9. 进度（2026-10-17）
+## 9. 进度（2026-10-17 起，最近更新 2026-10-18）
+
+各阶段一览（「代码」= 合入或在 PR 中且 CI 通过；「真机」= 在真实设备 / 宿主上验收）：
+
+| 阶段 | 代码 | 真机 | 所在 |
+|---|---|---|---|
+| P0 准备 | ✅ 许可证核查、设计文档（buffer.md、plugin-system.md）、ADR 0054/0055/0056、五笔对照、§3.6–3.8 核查 | — | `main` |
+| P1 纯逻辑 | ✅ 全部（见下表） | 不适用 | `main`（PR #96） |
+| P2 Windows | ✅ 剪贴板历史、Buffer、并击、打字测速、候选矩阵、LPAC | ⬜ 一项都没验 | `main`（PR #97、#98） |
+| P3 Android | ✅ 骨架 + XSIME 界面移植 | ⬜ 一项都没验 | 骨架在 `main`；界面移植在 PR #100 |
+| P4 二批 | 🟡 打字测速已做；Buffer 上的 AI 生成 / 润色 / 翻译未做 | — | — |
 
 **已完成（纯逻辑与可在 Linux 上验证的部分）**
 
@@ -364,13 +379,14 @@ Buffer 是 AI/翻译二批的地基；并击风险最高（TSF keyup），放最
 - §3.6 无组字时的写编辑会话：`UpdateComposition` 对文本与光标未变的请求直接跳过，模式切换不经它，预计已满足；需真机抓日志确认。
 - §3.8 竖排溢出分列：候选窗按工作区钳制宽度与旋转态高度，未见「放不下时增加列」的逻辑，需真机看长竖排是否被截断。
 
-**尚未开始，需要本会话没有的条件**
+**需要真机或本会话没有的条件才能推进**（2026-10-18 更新：P2 的代码已经写完，剩下的是验收）
 
-- P2 Windows 接入（协调器路由、`moodflow-ui` 的 Buffer 浮窗/矩阵/剪贴板条、TSF 投递与并击 keyup）：需要 Windows 桌面验证。
-- P3 Android 的**真机验收**（§5 P3 一栏）：骨架已搭好（见下），设备行为一项都还没验。
-- §3.3 日常统计与打字测速、§3.6 Windows TSF 自动化测试：同上。
+- P2 Windows **真机验收**（§5 P2 一栏）：原生 MSVC 产物、记事本 / Word / 浏览器 / 企业微信连续输入、换框 / 失焦 / 密码框不串投、
+  并击不吞键、LPAC 宿主出字。需要 Windows 桌面。
+- P3 Android **真机验收**（§5 P3 一栏）：设备行为一项都还没验。需要至少两台不同分辨率的真机和一个物理键盘。
+- §3.6 Windows TSF 端到端自动测试（含 AppContainer / LPAC 令牌）：需要 Windows 环境搭测试夹具。
 
-## P3 Android 骨架（2026-10-17）
+## P3 Android 骨架（2026-10-17；部分缺口已在 2026-10-18 补上，见本节末尾的标注）
 
 **已搭好**（`moodflow_android/`，构建与约定见 AGENTS.md「Android」一节）
 
@@ -395,12 +411,16 @@ Buffer 是 AI/翻译二批的地基；并击风险最高（TSF keyup），放最
 - 核心没有「本字段不学习但允许中文」的开关，所以无痕字段（`NO_PERSONALIZED_LEARNING`）暂时只能直接上屏英文；
   要放开需先在协调器加按字段关学习的开关。
 - 九宫格只取第一种切分喂引擎（多切分按引擎候选质量排序未做）；部分上屏后剩余数字串与核心组字不同步。
-- 出厂数据只含仓库 `data/`：拼音 / 五笔词库由 gen-data 生成、不入库，APK 里目前没有，候选质量取决于后续的
-  词库打包方案（§3.4 的清单校验也尚未接到 Android 解包）。
-- 剪贴板历史先落 JSON 文件（`filesDir/rust/clipboard.json`），计划中的 redb 存储未接。
-- 触屏并击、候选矩阵、标点数据共用、热区几何（§3.7）均未做；设置页只有宿主开关，引擎配置页未做。
+- ~~出厂数据只含仓库 `data/`，APK 里没有拼音 / 五笔词库~~ **已补（2026-10-18，`main` 2840af6f）**：CI 先跑
+  `MOODFLOW_BUILD_LOCAL=1 ./scripts/dev.sh gd` 组装 `build_dev/data`（按周缓存），Gradle `copyMoodflowData` 优先用它
+  （也可 `-Pmoodflow.dataDir=` 指定），CI 检查 APK 里有 `rime_frost.dict.yaml` 与 `cn_dicts/base.dict.yaml`。
+  §3.4 的清单校验**仍未**接到 Android 解包。
+- ~~剪贴板历史先落 JSON 文件（`filesDir/rust/clipboard.json`）~~ **已改（PR #100）**：改走协调器，与 Windows 同一份
+  `clipboard_history.json`。旧 `clipboard.json` 里的条目**没有迁移**。
+- ~~触屏并击、候选矩阵、热区几何均未做；设置页只有宿主开关~~ **已做（PR #100，XSIME 界面移植）**，见下节。
+  标点数据两端共用（§3.7 第一条）仍未核查。
 
-## P3 Android：XSIME 界面移植（2026-10-18）
+## P3 Android：XSIME 界面移植（2026-10-18，PR #100，评审中、未合入）
 
 键盘与设置页的界面直接移植 XSIME Android（Apache-2.0，文件清单见 `NOTICE.md`），引擎换成 Moodflow 核心。
 
@@ -431,3 +451,61 @@ JNI 契约测试。AGP 构建与 APK 由 CI 验证；手势、连删、上滑、
 - 打字测速的输入经键盘照常计入日常统计：核心按「焦点在自家窗口」排除（`focus_in_own_app`），而移动端焦点上报
   不带包名。建议 `focus_gained_with` 增加宿主包名参数并把本应用包名列入 `BUILTIN_EXCLUDED`。
 - 插件安装：Android 没有插件市场入口，只能列出与启停已装插件。
+- 无痕字段（`IME_FLAG_NO_PERSONALIZED_LEARNING`）仍只能直接上屏英文：核心没有「本字段不学习但允许中文」的开关。
+- 触屏并击只支持一次手势结算，XSIME 的「两段手势组合成一个音节」未做；并击方案的导入与编辑界面未移植。
+- Rime 方案 ZIP 导入在 Android 上没有入口（Windows 只有命令行）。
+- APK 只有 CI 产出的 debug 包：没有正式签名、没有 `android-v*` 发布流程。
+
+## 10. 未完成项汇总（2026-10-18）
+
+按「先让已写的东西被验证，再补功能」排序。「条件」一列说明推进它需要什么。
+
+### 10.1 验收（最优先，代码已写完）
+
+| # | 项 | 条件 | 关联 |
+|---|---|---|---|
+| V1 | Windows 真机验收：原生 MSVC 产物；记事本、Word、浏览器、企业微信连续输入；Buffer 换框 / 失焦 / 密码框不串投；剪贴板历史不记密码管理器内容；候选矩阵展开 / 收起；并击不吞键；用户库损坏时有提示且原库未改动；换 AI 地址不带旧密钥；`dev.ps1 ci` | Windows 桌面 | §5 P2 |
+| V2 | LPAC 宿主（新版搜索框）里能出字；之后再把 `WD` / `AC` 的 `GA` 收窄为读写 | Windows 桌面 | §9 核查结论 |
+| V3 | 无组字时不请求写编辑会话：抓日志确认 | Windows 桌面 | §3.6 |
+| V4 | 竖排候选放不下时是否被截断；被截断则实现「增加列」 | Windows 桌面 | §3.8 |
+| V5 | Android 真机验收：键位与高度适配（横竖屏、不同分辨率）、长按连删、上滑数字、九宫格与全键盘切换、候选栏翻页与矩阵、Buffer 换字段 / 隐藏键盘清空、密码框禁用 Buffer 与剪贴板、剪贴板只在键盘可见时采集、触屏并击、物理键盘输入、旧组字不重放到新输入框、核心冷启动与词库解包耗时 | 至少两台真机 + 物理键盘 | §5 P3 |
+| V6 | PR #100 评审与合入 | 维护者 | — |
+
+### 10.2 Windows 功能缺口
+
+| # | 项 | 说明 |
+|---|---|---|
+| W1 | Buffer 按输入框区分目标 | TSF 在 `FocusGainedPayload` 里带文档 / 上下文身份；现在同进程换框识别不到，只能失焦即暂停（buffer.md §4） |
+| W2 | 推送上屏回执 | 菜单「全部发送」走推送通道，没有回执，「结果不明 → 暂停不重发」区分不了 |
+| W3 | 英文直输进 Buffer | 英文直输不经协调器出字，不会合进 Buffer |
+| W4 | 长按逐块投递、节奏投递 | 长按约 1.2 秒（可配 500–3000 ms）逐块投递按下时冻结的队列；可选 1/2/3/5 秒节奏；最后一块后可自动关闭 |
+| W5 | Windows TSF 端到端自动测试 | 隔离的 TSF + 服务 + 引擎，覆盖普通桌面、AppContainer、LPAC 令牌 |
+| W6 | 剪贴板历史全局可用 | 现在只在 Moodflow 是当前输入法时可用；全局快捷键需要 TSF 激活配置文件（§8 待定问题 2） |
+| W7 | Rime 导入的界面入口 | 现在只有命令行 `moodflow_input schema import-rime` |
+| W8 | 并击方案编辑界面 | 复制内置方案、新建、导入 / 导出 JSON；现在只能手放 `chord_keymap.json` |
+| W9 | 安装器写入前按清单校验 | 安装器源码不在本仓（`INSTALLER_DIR`），清单已能生成 |
+| W10 | 用户词库恢复文档与只读导出 | 参照 XSIME `docs/user-dictionary-recovery.md`；能只读打开时复用 `moodflow-transfer` 导出 |
+
+### 10.3 Android 功能缺口
+
+| # | 项 | 说明 |
+|---|---|---|
+| A1 | 九宫格按位置钉住音节 | 现在只能钉住开头的音节（`t9::pin_leading`）；多切分按候选质量排序未做 |
+| A2 | 练习不计入日常统计 | `focus_gained_with` 加宿主包名参数，本应用包名进 `BUILTIN_EXCLUDED` |
+| A3 | 无痕字段允许中文 | 协调器加「本字段不学习」开关 |
+| A4 | 插件安装 | 没有市场入口，只能列出与启停已装插件 |
+| A5 | 两段手势并击、并击方案导入与编辑 | XSIME 有，未移植 |
+| A6 | 旧 `clipboard.json` 迁移 | 骨架期存的条目未导入协调器历史 |
+| A7 | 解包时按清单校验数据 | §3.4 |
+| A8 | Rime 方案导入入口 | — |
+| A9 | 标点数据两端共用、中文 123 页全角标点保留半角小数点 | §3.7；数字页句读后回字母页已有（`KeyboardLayout.returnsToLetters`），输入框代际已有（`FieldTracker`） |
+| A10 | 正式签名与发版 | 签名密钥、`android-vX.Y.Z` 标签、发布说明；目前只有 debug APK |
+| A11 | Android 的 Hub / 陪伴 | 不在本期（ADR 0056 第 4 条），以后另行决定 |
+
+### 10.4 二批（P4）
+
+| # | 项 | 说明 |
+|---|---|---|
+| B1 | Buffer 上的 AI 生成 / 润色 | 复用 Hub 的 AI 配置；落为 `BufferAction` 插件（plugin-system.md） |
+| B2 | 实时翻译 | 先定路线：本机模型（XSIME Windows 约 182 MiB）还是走 Hub AI 渠道；评估包体积、隐私、可用性（§8 待定问题 3） |
+| B3 | 插件系统剩余部分 | 见 [plugin-system.md](plugin-system.md) §10「尚缺」 |

@@ -1,5 +1,7 @@
 # 会话态按键功能表（`keys.session_actions`）
 
+> **状态更新（2026-10-18 核对）**：已实现。分类器在 `moodflow-keys/src/keymap.rs`（从 `keys.session_actions` 编译），协调器按它分派；下文「设计」措辞保留作背景。
+
 > 目标：让「有输入会话时某个键干什么」成为一张可配置的表，与
 > [schema-key-actions.md](schema-key-actions.md) 的 `key_actions`（无会话态）构成完整的两层。
 >
