@@ -40,7 +40,7 @@
 |---|---|---|---|---|---|
 | 1 | 资料库：笔记 | Hub 窗口 + 输入时底栏插入 | 主应用管理 + 键盘面板插入 | P1 | Q1 |
 | 2 | 资料库：资源（图片 / 视频 / 文件路径） | 同上 | 同上（SAF 授权的文件） | P2 | Q1 |
-| 3 | 资料库：文献条目 + 单条格式化 | 同上 | 同上 | P1 | Q1 |
+| 3 | 资料库：文献条目 + 单条格式化 + DOI 查询 + BibTeX | 同上 | 同上 | P1 | Q1 |
 | 4 | 本机中英词典翻译（Buffer 插件） | Buffer 上的翻译动作 | 键盘快捷栏「翻译」 | P1 | Q1 |
 | 5 | 密码库 | Hub 窗口，Windows Hello 可选 | 主应用，生物识别可选 | P1 | Q2 |
 | 6 | Capsule 捕获：截图、滚动截图、取字（OCR）、二维码、贴图、标注 | 辅助进程 `moodflow-capture` | 对已有图片 OCR / 识码；截屏走 MediaProjection（后做） | P1 | Q3 |
@@ -50,7 +50,7 @@
 | 10 | 工作区：终端 | ConPTY | 不做 | P2 | Q4 |
 | 11 | 同步（用户自选文件夹 / WebDAV，默认端到端加密） | 文件夹 | SAF 目录或 WebDAV | P2 | Q5 |
 | 12 | LaTeX：文字 / 图片 → LaTeX（AI）、LaTeX → Unicode、本地预览 | Buffer 动作 + Hub 预览 | Buffer 快捷栏 | P2 | Q6 |
-| 13 | 文献引用：DOI 查询、AI 写带引文的句子 | Buffer 动作 | Buffer 快捷栏 | P2 | Q6 |
+| 13 | 文献引用：AI 写带引文的句子 | Buffer 动作 | Buffer 快捷栏 | P2 | Q6 |
 | 14 | Android AI 接入 + Buffer 快捷栏（快问 / 润色 / 作诗 / 画画 / AI 翻译） | Windows 已有 Hub AI（改写），快捷动作做成 `BufferAction` 插件 | 键盘候选栏空闲时的五个入口 | P1 | Q6 |
 | 15 | 插件商店页与社区页 | Hub | 设置应用 | P2 | Q7 |
 | 16 | 键盘宠物轮换 | 不适用（Windows 已有桌宠） | 键盘左上角，用晴晴等桌宠素材 | P2 | Q7 |
