@@ -17,7 +17,7 @@
    crate 里，必须过 `cargo check-android`；Windows（TSF + `moodflow-ui`）与 Android
    （`moodflow-mobile` → `moodflow_android/` 里的 JNI 绑定）只做薄薄的呈现与投递。这是本仓「平台分层策略」的
    直接应用（见 AGENTS.md 同名一节）。
-3. **首批只拿六项基础功能**（§2），其余 XSIME 能力（Mailbox 终端、截图录屏、音乐、摩斯、
+3. **首批只拿六项基础功能**（§2）。**2026-10-18 修订（ADR 0057）**：除摩斯电码与电音演奏外，原先排除的 XSIME 能力全部纳入二期计划（[xsime-extended-plan.md](xsime-extended-plan.md)）；下面这句是一期立项时的范围：其余 XSIME 能力（Mailbox 终端、截图录屏、音乐、摩斯、
    密码库、iCloud 等）明确不在范围内（§7）。
 4. **两边都有的功能，也吸收 XSIME 做得更好的地方**（§3）。已核实的差距直接列为行动项；
    没核实到的只列为对照核查项，不预设 Moodflow 落后。
@@ -39,9 +39,10 @@ XSIME 的结构：librime 引擎 + 三个「槽位」界面（Buffer / Capsule /
 | 日常统计 / 打字测速 | 周边 | 日常统计已有（`moodflow-store::stats`：字符分类、时段、码长、选重、活跃时长、速度模型 v2）；无打字测速 | 🔶 二批，补打字测速（§3.3） |
 | Buffer 插件：AI 生成 / 润色 / 实时翻译 | 依赖 Buffer | Hub 已有 AI 服务与温柔改写（ADR 0012/0028） | 🔶 二批，复用 Hub 的 AI 配置 |
 | XSIME 五笔（五笔码与拼音免切换） | 方案 | 已有混输、满码唯一上屏、临时拼音与编码提示 | 🔁 已覆盖，用 XSIME 用例做对照测试（§3.5） |
-| Mailbox（终端 / 对话 / 收件） | 桌面应用 | Hub 有对话 | ⛔ 不做 |
-| Capsule 截图、录屏、OCR、笔记、资源、密码、iCloud | 桌面应用 | — | ⛔ 不做 |
-| 电音演奏、摩斯电码、LaTeX、文献引用（Scholay） | 趣味/垂直插件 | — | ⛔ 不做 |
+| Mailbox（终端 / 对话 / 收件） | 桌面应用 | Hub 有对话 | 🔶 二期（ADR 0057），在 Moodflow 里叫「工作区」 |
+| Capsule 截图、录屏、OCR、笔记、资源、密码、iCloud | 桌面应用 | — | 🔶 二期（ADR 0057）；iCloud 改为同步到用户自选文件夹，默认端到端加密 |
+| LaTeX、文献引用（Scholay） | 垂直插件 | — | 🔶 二期（ADR 0057） |
+| 电音演奏、摩斯电码 | 趣味插件 | — | ⛔ 不做 |
 
 ## 2. 首批六项：要实现的契约
 
@@ -305,6 +306,7 @@ Buffer 是 AI/翻译二批的地基；并击风险最高（TSF keyup），放最
 - XSIME 的方案、词库、键位数据各有许可证（雾凇拼音等为 GPL-3.0，见其 `THIRD_PARTY_NOTICES.md`
   与 `rime-data/licenses/`）。**不直接收录其数据文件**；需要的数据回到原始上游按现有构建时下载
   机制处理（同 rime-frost 的做法）。
+- 二期新增的第三方数据与库（CC-CEDICT 等）见 [xsime-extended-plan.md](xsime-extended-plan.md) §6。
 - 「飞耀」并击键位在收录前单独确认来源与许可。**已确认（2026-10-18）**：XSIME 的出处说明记载为发布者
   提供、声明不属受版权保护的功能性映射，按 XSIME 仓库许可证分发；已转格式收为
   `moodflow-mobile/data/chord-builtin.json`，登记见 `NOTICE.md`。
@@ -313,9 +315,13 @@ Buffer 是 AI/翻译二批的地基；并击风险最高（TSF keyup），放最
 
 ## 7. 明确不做
 
+> 2026-10-18 修订（ADR 0057）：Mailbox、截图 / 录屏 / OCR、笔记 / 资源 / 密码库、iCloud 同步（改为自选文件夹同步）、LaTeX、文献引用，
+> 以及 Android 上的 AI、本机翻译词典、插件商店与社区页、宠物轮换，**移入二期计划** [xsime-extended-plan.md](xsime-extended-plan.md)。
+
 - 集成 librime 或执行 Rime Lua。
-- Mailbox、截图/录屏/OCR、笔记/资源/密码库、iCloud 同步。
-- 电音演奏、摩斯电码、LaTeX、文献引用等插件。
+- 收录 XSIME 的方案与词库数据（GPL-3.0）。
+- 插件注入原生界面（ADR 0054 第 7 条）。
+- 电音演奏、摩斯电码。
 - 对 macOS/Linux 宿主做任何改动（本计划只覆盖 Windows 与 Android；纯逻辑 crate 天然可被
   macOS 复用，但接入不在本期）。
 
@@ -508,4 +514,9 @@ JNI 契约测试。AGP 构建与 APK 由 CI 验证；手势、连删、上滑、
 |---|---|---|
 | B1 | Buffer 上的 AI 生成 / 润色 | 复用 Hub 的 AI 配置；落为 `BufferAction` 插件（plugin-system.md） |
 | B2 | 实时翻译 | 先定路线：本机模型（XSIME Windows 约 182 MiB）还是走 Hub AI 渠道；评估包体积、隐私、可用性（§8 待定问题 3） |
-| B3 | 插件系统剩余部分 | 见 [plugin-system.md](plugin-system.md) §10「尚缺」 |
+| B3 | 插件系统剩余部分 | 见 [plugin-system.md](plugin-system.md) §11 |
+
+### 10.5 二期（ADR 0057）
+
+工作区（Mailbox）、Capsule 捕获与资料库、密码库、同步、LaTeX、文献引用、Android AI 与翻译、插件商店页与社区页、键盘宠物：
+全部未开工，计划、契约与工作量（约 1,410 小时）见 [xsime-extended-plan.md](xsime-extended-plan.md)。

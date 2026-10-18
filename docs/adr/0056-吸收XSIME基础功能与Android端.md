@@ -34,7 +34,7 @@
    `clipboard_history.json`，受同一个 `clipboard.enabled` 开关与同一道隐私闸门约束。
 8. **出厂默认偏保守**：剪贴板历史、并击、候选矩阵出厂关；三个新快捷键放标量字段（`keys.clipboard_panel`、
    `keys.toggle_buffer`、`keys.buffer_send`），用户清空即禁用。
-9. **明确不做**：XSIME 的 Mailbox（终端 / 对话 / 收件）、截图录屏 OCR、笔记 / 资源 / 密码库、iCloud、电音演奏、
+9. **明确不做**（**已被 ADR 0057 修订**：除摩斯电码与电音演奏外，本条列的功能全部移入二期计划；librime、GPL 数据、插件原生界面、macOS / Linux 宿主四条规则不变）：XSIME 的 Mailbox（终端 / 对话 / 收件）、截图录屏 OCR、笔记 / 资源 / 密码库、iCloud、电音演奏、
    摩斯电码、LaTeX、文献引用；Android 上 XSIME 的 AI、本机翻译词典、官方插件商店与社区页、宠物轮换动画。
 10. **版本与标签**：产品版本以 `docs/VERSION` 为唯一真源；Android 另有 `moodflow_android/VERSION`，主次版本号必须与产品版本一致，
     补丁号可独立递增；标签 `android-vX.Y.Z`，发布时不设为 latest。

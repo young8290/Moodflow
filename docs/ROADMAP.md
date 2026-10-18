@@ -11,6 +11,8 @@
 - **Moodflow 陪伴（Hub）**：产品书 V1.0 的 P0 / P1 功能大多已实现，多项未经真机与真实 AI 接口验收（见各角色交接文档）。
 - **XSIME 吸收（ADR 0056）**：纯逻辑全部完成；Windows 接入的代码已合入；**一项都没在真机上验收**。
 - **Android（ADR 0056）**：骨架与词库打包在 `main`；键盘与设置换成 XSIME 界面在 PR #100（CI 全绿、未合入、**未真机验证**）。
+- **XSIME 吸收二期（ADR 0057，2026-10-18 立项）**：工作区（Mailbox）、Capsule 捕获与资料库、密码库、同步、LaTeX、文献引用、
+  Android AI 与翻译、插件商店页、键盘宠物——**全部未开工**，计划见 [xsime-extended-plan.md](design/xsime-extended-plan.md)。
 - **插件（ADR 0054）**：沙箱、注册表、市场客户端、协调器接入已完成；插件管理页、市场仓库、签名密钥未做。
 - **最大的风险**：本仓的开发会话没有 Windows 桌面和 Android 真机，大量功能只经过 Linux 测试与 CI 编译。**下一步的重心是真机验收**，不是继续加功能。
 
@@ -138,6 +140,23 @@
 | 1 | Buffer 上的 AI 生成 / 润色（复用 Hub AI 配置，做成 `BufferAction` 插件） | 计划 §10.4 B1 |
 | 2 | 实时翻译（先定本机模型还是 Hub AI 渠道） | B2 |
 
+### 6.5b XSIME 吸收二期（ADR 0057，全部未开工）
+
+详见 [xsime-extended-plan.md](design/xsime-extended-plan.md)，工作量粗估约 1,410 小时。
+
+| 阶段 | 内容 | 估算（h） |
+|---|---|---|
+| Q0 立约 | ADR 0057（已写）、产品书 V1.7（已写）、许可证清单、Android AI 网关路线、密码库与同步加密方案交 E 评审 | 30 |
+| Q1 资料库 | 笔记、资源、文献条目与单条格式化（GB/T 7714 等）、DOI / BibTeX、本机中英词典翻译（CC-CEDICT） | 220 |
+| Q2 密码库 | 真正静态加密（DPAPI / Windows Hello、Android Keystore / 生物识别、可选 Argon2id 主口令）、TOTP、15 / 60 秒遮蔽、60 秒清剪贴板 | 120 |
+| Q3 捕获 | Windows 辅助进程：截图、滚动截图、OCR、二维码、贴图、标注、录屏、GIF；Android 对图片 OCR / 识码 | 380 |
+| Q4 工作区 | 对话（共用 AI 网关与危机检测）、收件（本机回环 + MCP 只推不读、Android 分享）、终端（Windows ConPTY） | 220 |
+| Q5 同步 | 用户自选文件夹 / WebDAV，默认端到端加密，墓碑、冲突副本、离线媒体不当作删除 | 200 |
+| Q6 AI 动作 | Android AI 网关与快捷栏（翻译 / 快问 / 润色 / 作诗 / 画画）、LaTeX（AI + 离线 Unicode + 预览）、文献 Reference（防编造） | 180 |
+| Q7 商店与宠物 | 两端插件商店页与社区页（依赖插件 M3）、Android 键盘宠物（用晴晴等桌宠素材） | 60 |
+
+仍不做：摩斯电码、电音演奏；规则不变：不集成 librime、不收录 XSIME 的 GPL 数据、插件不带原生界面、macOS / Linux 宿主不在计划内。
+
 ### 6.6 配置与设置端遗留
 
 | # | 项 | 细节 |
@@ -176,6 +195,7 @@
 |---|---|
 | 协作约定、构建、测试 | [AGENTS.md](../AGENTS.md) |
 | XSIME 吸收与 Android 的计划、进度、未完成项 | [design/xsime-feature-port-plan.md](design/xsime-feature-port-plan.md) |
+| XSIME 吸收二期（工作区、Capsule、密码库、同步、LaTeX、文献） | [design/xsime-extended-plan.md](design/xsime-extended-plan.md)、[ADR 0057](adr/0057-扩大XSIME吸收范围.md) |
 | 插件系统 | [design/plugin-system.md](design/plugin-system.md)、[ADR 0054](adr/0054-插件信任模型与开放边界.md) |
 | 为什么这样决定 | [adr/](adr/)（0007 起；0056 为 XSIME 与 Android） |
 | 输入核心重设计 | [redesign/](redesign/) |
