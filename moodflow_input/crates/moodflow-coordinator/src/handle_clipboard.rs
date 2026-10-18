@@ -422,6 +422,8 @@ mod tests {
 
     #[test]
     fn mobile_panel_api_uses_the_shared_history() {
+        // 隐私状态是进程级的，并行用例可能刚报过密码框焦点：本线程固定为「允许」。
+        crate::moodflow::TEST_PRIVACY.with(|p| p.set(Some(Default::default())));
         let dir = tmp("mobile");
         let mut cfg = moodflow_config::Config::default();
         cfg.clipboard.enabled = true;
