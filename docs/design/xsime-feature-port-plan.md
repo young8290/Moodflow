@@ -75,7 +75,7 @@ XSIME Windows 端已打磨过的细节，一并作为 Windows 验收项（取自
 
 - 新 crate **`moodflow-buffer`**（纯逻辑）：块模型、编辑操作、目标修订号与投递授权、容量上限。
   不知道 TSF/Android 的存在；宿主以「目标 ID + 修订号」描述焦点。
-- 协调器：Buffer 开启时把上屏路由改到 buffer；新增 `UiCommand::UpdateBuffer`（在
+- 协调器：Buffer 开启时把上屏路由改到 buffer；新增 Buffer 的表现层命令（实际落地为 `UiCommand::ShowBuffer(BufferView)` / `HideBuffer`，在
   `moodflow-ui-types`，遵守其三条红线）。
 - 开关：出厂快捷键放**标量字段**（如 `keys.toggle_buffer`），不要放进 `keys.key_actions`
   ——否则用户删不掉（AGENTS.md「出厂预置的绑定/开关」一条）。
