@@ -19,6 +19,9 @@ export const HOTKEY_KEYS = [
   'keys.activate_ime',
   'keys.take_screenshot',
   'keys.softkeyboard',
+  'keys.clipboard_panel',
+  'keys.toggle_buffer',
+  'keys.buffer_send',
   'moodflow.pause_hotkey',
   'moodflow.rewrite_hotkey',
 ] as const
