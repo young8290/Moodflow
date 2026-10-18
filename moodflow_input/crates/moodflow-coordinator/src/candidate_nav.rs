@@ -57,6 +57,8 @@ impl Coordinator {
     ///
     /// 收进一处后，新增候选来源时能漏的只剩「忘了调用本函数」——比在三行里少写一行显眼得多。
     pub(crate) fn reset_candidate_view(&self, state: &mut State) {
+        // 候选变了：矩阵收起，旧投影与点击作废（handle_matrix）。
+        self.matrix_reset();
         state.current_page = 0;
         // 翻页史随候选一起作废：新装填的是另一批候选，上一批翻到过第几页与它无关。
         // 挂在这里而不是各装填点，理由同上面那三件——`current_page` 归零的地方就是它

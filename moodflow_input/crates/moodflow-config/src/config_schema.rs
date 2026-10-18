@@ -572,6 +572,7 @@ static REGISTRY: &[ConfigField] = &[
     f("keys.overflow.select_char_key", Enum(OVERFLOW_VALUES)),
     // -- ui（外观）--
     f("ui.candidate.per_page", Int),
+    f("ui.candidate.matrix", Bool),
     f("ui.candidate.per_page_extended", Int),
     f("ui.candidate.layout", Enum(&["horizontal", "vertical"])),
     f(

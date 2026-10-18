@@ -6088,6 +6088,11 @@ pub struct UiCandidateConfig {
     /// 候选每页显示数（默认 7，对齐 Go 版本）
     #[serde(default = "default_per_page")]
     pub per_page: usize,
+    /// 候选矩阵（XSIME 吸收计划 §2.2）：横排且多于一页时按 ↓ 展开，最多 3 行、每行一页；
+    /// ←→ 行内移动，↑↓ / 翻页键行间移动，首行 ↑ 或 Esc 收起并保留组字。出厂关：开了以后横排
+    /// 下 ↓ 不再是「高亮下一个」。
+    #[serde(default)]
+    pub matrix: bool,
     /// 扩展档每页候选数（临拼/快捷/短语等 overlay 模式用，0=与 per_page 相同）。
     #[serde(default)]
     pub per_page_extended: usize,
@@ -6410,6 +6415,7 @@ impl Default for UiCandidateConfig {
     fn default() -> Self {
         Self {
             per_page: default_per_page(),
+            matrix: false,
             first_show_settle_ratio: default_first_show_settle_ratio(),
             fast_typing_window_ms: default_fast_typing_window_ms(),
             fast_first_show_fallback_ms: default_fast_first_show_fallback_ms(),

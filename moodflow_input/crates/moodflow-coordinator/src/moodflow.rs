@@ -65,6 +65,14 @@ static FOCUS_APP: Mutex<String> = Mutex::new(String::new());
 pub(crate) fn focus_app() -> String {
     FOCUS_APP.lock().unwrap_or_else(|e| e.into_inner()).clone()
 }
+
+/// 焦点在 Moodflow 自己的窗口里（Hub：对话、日记、打字测速）。日常输入统计不记这些
+/// ——打字测速的输入不计入日常统计（XSIME 口径，计划 §3.3），在自家窗口里打的字也不该
+/// 算进「今天在别处打了多少字」。名单与 MFP 的内置排除同一份。
+pub(crate) fn focus_in_own_app() -> bool {
+    let app = focus_app();
+    !app.is_empty() && moodflow_tap::app_listed(moodflow_tap::BUILTIN_EXCLUDED, &app)
+}
 /// 下行回调要回到协调器（记住 Hub 发来的无痕状态）；弱引用，不延长协调器寿命。
 static COORD: OnceLock<Weak<Coordinator>> = OnceLock::new();
 static GUARD: OnceLock<Arc<HubGuard>> = OnceLock::new();

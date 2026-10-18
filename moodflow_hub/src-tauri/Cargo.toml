@@ -25,6 +25,8 @@ tauri-build = { version = "2", features = [] }
 moodflow-hub-core = { path = "../core", features = ["specta"] }
 moodflow-hub-gateway = { path = "../gateway" }
 mfp = { path = "../../crates/mfp", features = ["specta"] }
+# 打字测速计分：与输入法核心、Android 端同一份口径（纯逻辑，只依赖 serde）
+moodflow-typing-practice = { path = "../../moodflow_input/crates/moodflow-typing-practice" }
 tauri = { version = "2", features = ["specta"] }
 tauri-plugin-single-instance = "2"
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }

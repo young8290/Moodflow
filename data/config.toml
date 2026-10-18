@@ -1261,6 +1261,10 @@ fast_first_show_fallback_ms = 25
 # 旧版的 font_size_follow_theme 开关已并入本项，升级时自动迁移。
 font_size = 0
 per_page = 7
+# 候选矩阵：横排且多于一页时按 ↓ 展开，最多 3 行、每行一页；←→ 在行内移动，
+# ↑↓ / 翻页键在行间移动，首行按 ↑ 或按 Esc 收起（打的字还在）。空格上屏高亮项，
+# 数字键只选当前行。开了以后横排下 ↓ 不再是「高亮下一个」，所以出厂关。
+matrix = false
 per_page_extended = 0
 max_chars = 16
 # 候选窗的最小尺寸，单位 dp（逻辑像素，0=关闭，跟随内容）。横排/竖排各配一套：

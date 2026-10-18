@@ -2019,6 +2019,8 @@ pub struct Coordinator {
     pub(crate) buffer: crate::handle_buffer::BufferState,
     /// 并击（`handle_chord`）。
     pub(crate) chord: crate::handle_chord::ChordState,
+    /// 候选矩阵（`handle_matrix`）。
+    pub(crate) matrix: crate::handle_matrix::MatrixState,
 }
 
 /// 拆字资产当前生效状态：库的解析后绝对路径 + 已下发的字根字体（路径, DWrite 家族名）。
@@ -2805,6 +2807,7 @@ impl Coordinator {
             plugins: Default::default(),
             buffer: Default::default(),
             chord: Default::default(),
+            matrix: Default::default(),
         });
         // CapsLock 钩子的动作消费线程。钩子回调只做非阻塞投递（它超时会被系统静默移除且
         // 无从察觉），真正的动作在这里执行，可安全加锁。未装钩子时它一直阻塞在 channel 上。
@@ -5038,6 +5041,10 @@ impl Coordinator {
         //
         // 回卷语义无需另写：反转后视觉最下方是页内第 0 项，按 ↓ 越界 == `move_up` 的
         // 「页首回卷到上一页末项」，两者本就是同一件事。
+        // 候选矩阵（ui.candidate.matrix，横排）：导航先交给矩阵，不归它时走普通高亮/翻页。
+        if let Some(act) = self.matrix_nav(state, nav) {
+            return Some(act);
+        }
         let flipped = self
             .candidate_flipped
             .load(std::sync::atomic::Ordering::Relaxed);
@@ -6229,6 +6236,8 @@ impl Coordinator {
         // 必须在下方 UpdateCandidates **之前**——同 channel 按序处理，UI 先改方向再填候选。
         // 这是「强制竖排/横排」的唯一执行点，模式进入/退出各处都不再自己动布局（见 layout.rs）。
         self.sync_candidate_layout(state);
+        // 候选矩阵展开 / 收起：列数紧挨着 UpdateCandidates 下发，候选窗先改排版再填候选。
+        self.sync_candidate_grid(state);
         // 方案级候选字体：归属是**数据方案**，随临英/快符叠加逐次按键变化，故与布局同处重算。
         self.sync_candidate_font(state);
         // 延迟首次显示：新组合首帧若非经授权（reflow 后权威坐标 / 兜底 timer）则不立即显示，
@@ -6331,8 +6340,14 @@ impl Coordinator {
             );
         }
         let t_nu = std::time::Instant::now();
-        // 仅推送当前页候选（窗口按 1..N 编号，翻页后重新编号）
-        let (start, end) = self.page_range(state);
+        // 仅推送当前页候选（窗口按 1..N 编号，翻页后重新编号）。
+        // 候选矩阵展开时推视口里的几行（每行一页），序号每行从 1 重编（见 handle_matrix）。
+        let matrix_range = self.matrix_draw_range(state);
+        let (start, end) = match matrix_range {
+            Some((s, e, _)) => (s, e),
+            None => self.page_range(state),
+        };
+        let row_len = self.per_page(state.active).max(1);
         // 候选序号标签有**三种**归属，旧实现是个 bool 只装得下前两种：
         //  - 数字透镜：数字键正在录表达式 → 选词改用字母标签 a/b/c
         //  - 自由输入：字母与数字**都是**字面输入，没有任何键能按序号选 → 干脆不画序号
@@ -6535,9 +6550,9 @@ impl Coordinator {
                     },
                     code: c.code.clone(),
                     label: if alpha {
-                        ((b'a' + i as u8) as char).to_string()
+                        ((b'a' + (i % row_len) as u8) as char).to_string()
                     } else {
-                        self.resolve_index_label(cand_cfg, i)
+                        self.resolve_index_label(cand_cfg, i % row_len)
                     },
                     tooltip,
                     comment,
@@ -6549,7 +6564,9 @@ impl Coordinator {
         *self.tooltip_page.lock().unwrap_or_else(|e| e.into_inner()) = tip_page;
         // 翻页信息改为结构化字段传给候选窗（窗口内渲染独立的页码指示）
         let total_pages = self.total_pages(state);
-        let selected = state.selected_index.min(items.len().saturating_sub(1));
+        let selected = matrix_range
+            .map_or(state.selected_index, |(_, _, sel)| sel)
+            .min(items.len().saturating_sub(1));
         // 悬停目标独立于选中项：候选越界视为无悬停，翻页器 tag 原样透传
         let hover = match self.hover_target() {
             h if (0..moodflow_ui_types::HOVER_PAGE_PREV).contains(&h) => {
@@ -8679,7 +8696,7 @@ impl Coordinator {
             Some(c) => c,
             None => return,
         };
-        if !self.rt().config.stats.enabled {
+        if !self.rt().config.stats.enabled || crate::moodflow::focus_in_own_app() {
             return;
         }
         let (chinese, english, punct, other) = moodflow_store::stats::classify_chars_full(text);

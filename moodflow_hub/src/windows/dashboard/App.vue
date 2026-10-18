@@ -9,6 +9,7 @@ import { t, type CopyKey } from '@/i18n'
 import CalendarPage from './CalendarPage.vue'
 import ChatDiaryPage from './ChatDiaryPage.vue'
 import MailboxPage from './MailboxPage.vue'
+import PracticePage from './PracticePage.vue'
 import SchedulePage from './SchedulePage.vue'
 import TodayPage from './TodayPage.vue'
 import WeeklyPage from './WeeklyPage.vue'
@@ -22,6 +23,7 @@ const PAGES: { id: DashboardPage; title: CopyKey; component: Component }[] = [
   { id: 'schedule', title: 'dashboard.nav.schedule', component: SchedulePage },
   { id: 'mailbox', title: 'dashboard.nav.mailbox', component: MailboxPage },
   { id: 'chat_diary', title: 'dashboard.nav.chat_diary', component: ChatDiaryPage },
+  { id: 'practice', title: 'dashboard.nav.practice', component: PracticePage },
 ]
 
 const fromHash = PAGES.find((p) => `#${p.id}` === location.hash)?.id

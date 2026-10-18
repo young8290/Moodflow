@@ -105,6 +105,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::dashboard::day_stats,
             commands::dashboard::month_moods,
             commands::dashboard::week_stats,
+            commands::practice::practice_score,
             commands::letter::letters_list,
             commands::letter::letter_read,
             commands::letter::letter_delete,

@@ -8,6 +8,7 @@ pub mod dashboard;
 pub mod diary;
 pub mod ime;
 pub mod letter;
+pub mod practice;
 pub mod schedule;
 
 use std::sync::Arc;

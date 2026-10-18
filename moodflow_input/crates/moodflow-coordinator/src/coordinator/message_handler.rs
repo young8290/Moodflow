@@ -644,7 +644,7 @@ impl MessageHandler for Coordinator {
             None => return,
         };
         let cfg = &self.rt().config.stats;
-        if !cfg.enabled || !cfg.track_english {
+        if !cfg.enabled || !cfg.track_english || crate::moodflow::focus_in_own_app() {
             return;
         }
         if chars == 0 && digits == 0 && puncts == 0 && spaces == 0 {
@@ -1240,6 +1240,11 @@ impl MessageHandler for Coordinator {
         // **无条件**写入（含 false）：只在为真时置位会把上一次按键的来源留给这一次，
         // 表现为「先按一下小键盘、再按主键盘同一个键也出半角」。见 `State::numpad_origin`。
         state.numpad_origin = numpad_origin;
+
+        // 候选矩阵展开中：←→、空格、1–9、Esc 归矩阵（收起时这里什么都不做，见 handle_matrix）。
+        if let Some(act) = self.matrix_raw_key(&mut state, data) {
+            return act;
+        }
 
         // 快捷加词模式：消费全部按键（↑↓调词长/Enter确认/Esc退出），先于英文透传与单点分派。
         if state.add_word_active {

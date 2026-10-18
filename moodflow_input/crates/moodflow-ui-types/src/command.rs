@@ -319,6 +319,9 @@ pub enum UiCommand {
     SoftKeyboardKeyState { slot: String, down: bool },
     /// 软键盘：切层（按住 Shift 显示第二层，松开还原）。
     SoftKeyboardLayer { shift: bool },
+    /// 候选矩阵（XSIME 吸收计划 §2.2）：展开时每行几个候选（= 每页候选数），0 = 收起。
+    /// 紧挨着下一条 `UpdateCandidates` 发，候选窗按此把候选排成多行（每行一页）。
+    SetCandidateGrid { columns: usize },
     /// 显示或刷新 Buffer 浮窗（docs/design/buffer.md）。
     ShowBuffer(crate::BufferView),
     /// 隐藏 Buffer 浮窗。

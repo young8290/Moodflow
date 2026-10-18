@@ -468,6 +468,9 @@ pub struct CandidateWindow {
     min_window_height_vertical: u32,
     /// 竖排最小行数，不足补透明占位行（0=不补）。来自 ui.candidate.min_rows。
     min_rows: u32,
+    /// 候选矩阵展开时每行的候选数（= 每页候选数）；0 = 不展开，单行排列。
+    /// 只在横排生效：矩阵的行是引擎的页，竖排本来就是一列，没有「行」可言。
+    grid_columns: usize,
 }
 
 impl CandidateWindow {
@@ -556,6 +559,7 @@ impl CandidateWindow {
             min_window_height_horizontal: 0,
             min_window_height_vertical: 0,
             min_rows: 0,
+            grid_columns: 0,
         })
     }
 
@@ -631,6 +635,11 @@ impl CandidateWindow {
         self.min_window_height_horizontal = height_horizontal;
         self.min_window_height_vertical = height_vertical;
         self.min_rows = rows;
+    }
+
+    /// 候选矩阵：每行几个候选（0 = 收起）。见 `UiCommand::SetCandidateGrid`。
+    pub fn set_grid_columns(&mut self, columns: usize) {
+        self.grid_columns = columns;
     }
 
     /// 当前排版方向（`self.vertical`）下生效的窗口最小宽度（设备像素；0=不限）。
@@ -3724,6 +3733,10 @@ impl CandidateWindow {
             }
         }
 
+        // 候选矩阵展开（横排 + 列数 > 1 + 候选多于一行）：候选按行收进网格，循环后整体挂进 list。
+        let grid =
+            !list_vertical && self.grid_columns > 1 && self.candidates.len() > self.grid_columns;
+        let mut grid_items: Vec<View> = Vec::new();
         // `order` 与每候选的文字预算 `cand_text_budgets` 已在上方预扫阶段算好（k 与之同序）。
         for (k, (i, cand)) in order.into_iter().enumerate() {
             let is_sel = i == self.selected;
@@ -3996,7 +4009,25 @@ impl CandidateWindow {
             if let Some((bc, bw, _)) = eff_border(&v.item, is_sel, is_hover) {
                 item = item.border(bc, bw);
             }
-            list = list.child(item);
+            if grid {
+                grid_items.push(item);
+            } else {
+                list = list.child(item);
+            }
+        }
+        if grid {
+            let mut rows = View::container(Layout::Column).gap(row_gap_v);
+            let mut items = grid_items.into_iter().peekable();
+            while items.peek().is_some() {
+                let mut row = View::container(Layout::Row)
+                    .gap(box_gap)
+                    .cross(Align::Center);
+                for item in items.by_ref().take(self.grid_columns) {
+                    row = row.child(item);
+                }
+                rows = rows.child(row);
+            }
+            list = list.child(rows);
         }
         // 正常顺序：占位行补在候选之后（窗口下方留白，候选 1 恒在顶部）。
         if !reversed {
