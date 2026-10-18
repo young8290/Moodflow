@@ -41,6 +41,7 @@ pub mod handle_draft;
 pub mod handle_email;
 pub mod handle_key;
 pub mod handle_lifecycle;
+pub(crate) mod handle_matrix;
 pub mod handle_menu;
 pub mod handle_mode;
 pub(crate) mod handle_plugins;

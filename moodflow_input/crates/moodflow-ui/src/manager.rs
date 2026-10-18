@@ -1028,6 +1028,9 @@ impl UiManager {
                         // 字重」，本键非 0 时要压过它。
                         candidate_window.set_font_weight(weight);
                     }
+                    UiCommand::SetCandidateGrid { columns } => {
+                        candidate_window.set_grid_columns(columns);
+                    }
                     UiCommand::SetCandidateMinSize {
                         width_horizontal,
                         width_vertical,

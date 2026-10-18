@@ -4910,6 +4910,10 @@ impl Coordinator {
     /// 页内下标 → 绝对下标的换算在此，**页范围校验也在此**：桌面候选窗只画当前页，
     /// 点到页外即为坐标算错，必须拒绝。移动端不是这样（见 [`Self::select_candidate_at`]）。
     fn mouse_select_action(&self, page_local: usize) -> Option<KeyAction> {
+        // 候选矩阵展开时下标是视口内的连续下标（见 handle_matrix）。
+        if let Some(idx) = self.matrix_click(page_local) {
+            return self.select_candidate_at(idx);
+        }
         let (start, end) = {
             let state = self.state.lock().unwrap_or_else(|e| e.into_inner());
             self.page_range(&state)
