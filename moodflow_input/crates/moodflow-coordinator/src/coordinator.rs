@@ -8696,7 +8696,7 @@ impl Coordinator {
             Some(c) => c,
             None => return,
         };
-        if !self.rt().config.stats.enabled {
+        if !self.rt().config.stats.enabled || crate::moodflow::focus_in_own_app() {
             return;
         }
         let (chinese, english, punct, other) = moodflow_store::stats::classify_chars_full(text);

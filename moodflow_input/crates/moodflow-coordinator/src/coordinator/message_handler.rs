@@ -644,7 +644,7 @@ impl MessageHandler for Coordinator {
             None => return,
         };
         let cfg = &self.rt().config.stats;
-        if !cfg.enabled || !cfg.track_english {
+        if !cfg.enabled || !cfg.track_english || crate::moodflow::focus_in_own_app() {
             return;
         }
         if chars == 0 && digits == 0 && puncts == 0 && spaces == 0 {

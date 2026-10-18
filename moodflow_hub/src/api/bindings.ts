@@ -182,6 +182,8 @@ export const commands = {
 	 *  一句话总结来自本地模板 `weekly_line.toml`，不调用 AI；模板读不出来时用一句兜底。
 	 */
 	weekStats: (weekStart: string) => typedError<WeekReport, UiError>(__TAURI_INVOKE("week_stats", { weekStart })),
+	/**  按事件序列给一次练习计分。`finished_ms` 是点「结束」或打完的时刻（同样从练习开始算起）。 */
+	practiceScore: (target: string, events: PracticeEvent[], finishedMs: number) => __TAURI_INVOKE<PracticeScore>("practice_score", { target, events, finishedMs }),
 	/**  全部周信，新的在前（保留 1 年）。 */
 	lettersList: () => typedError<LetterItem[], UiError>(__TAURI_INVOKE("letters_list")),
 	/**  标记已读。这封已被删除或清理时什么也不做。 */
@@ -968,6 +970,26 @@ export type PetSheet = {
 	/**  内置宠物的身体蒙版与线条，两层叠起来就能按天气给身体上色；导入的宠物没有 */
 	body: string | null,
 	lines: string | null,
+};
+
+/**  练习过程中的一次输入框内容变化。`t_ms` 是从练习开始算起的毫秒数。 */
+export type PracticeEvent = {
+	t_ms: number,
+	text: string,
+};
+
+/**  一次练习的成绩（口径见 `moodflow-typing-practice`）。 */
+export type PracticeScore = {
+	elapsed_ms: number,
+	target_chars: number,
+	typed_chars: number,
+	distance: number,
+	/**  0..=1 */
+	final_accuracy: number,
+	/**  0..=1 */
+	process_accuracy: number,
+	/**  有效速度，字/分钟 */
+	effective_cpm: number,
 };
 
 /**  一次按键。 */

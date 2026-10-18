@@ -886,13 +886,14 @@ self_reports = "今天你说过的心情"
 self_reports_empty = "今天还没记过心情。在小组件上点“我现在…”就能记一下。"
 none = "—"                               # 没有数据（日历上打字太少的日子、没有主导天气）
 
-[dashboard.nav]              # 左侧导航六页（FR-DSH-01）
+[dashboard.nav]              # 左侧导航七页（FR-DSH-01；末页打字测速来自 XSIME 吸收计划 §3.3）
 today = "今日"
 calendar = "情绪日历"
 weekly = "周报"
 schedule = "日程与待办"
 mailbox = "信箱"
 chat_diary = "对话与日记"
+practice = "打字测速"
 
 [dashboard.today]            # 07 FR-DSH-02“今日”
 typing = "今日输入时长"
@@ -1039,6 +1040,18 @@ delete = "删除这封信"
 delete_confirm = "删掉就找不回来了，晴晴也不会重写这一封。确定删除吗？"
 confirm = "确定删除"
 cancel = "先不删"
+
+[dashboard.practice]         # 打字测速（XSIME 吸收计划 §3.3）：练习不计入日常统计
+intro = "照着上面的文字打一遍。从你打下第一个字开始计时，打完或点“结束”出成绩。这里打的字不计入日常统计，也不会保存。"
+start = "换一段"
+finish = "结束"
+again = "再来一次"
+placeholder = "在这里打字"
+elapsed = "用时 {secs} 秒"
+speed = "有效速度 {cpm} 字/分"
+process = "过程正确率 {pct}%"
+final = "最终字准 {pct}%"
+explain = "有效速度只算打对的字；过程正确率看每次新打的字是不是和原文同一位置一致，改错也算一次；最终字准按最后的文字和原文比。"
 
 [dashboard.chat_diary]       # 07 FR-DSH-05“对话与日记”（FR-CHT-08、FR-DIA-03）
 diary = "情绪日记"

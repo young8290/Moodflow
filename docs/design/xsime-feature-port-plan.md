@@ -348,6 +348,7 @@ Buffer 是 AI/翻译二批的地基；并击风险最高（TSF keyup），放最
 | 剪贴板历史 | `moodflow-ui::clipboard_monitor`、协调器 `handle_clipboard` | `[clipboard] enabled`（出厂关）；`keys.clipboard_panel` 打开菜单式面板；密码管理器排除标记、隐私环境不记 |
 | Buffer | `moodflow-ui::buffer_panel`、协调器 `handle_buffer` | `keys.toggle_buffer` 绑定 / `keys.buffer_send` 发送；已知差距见 `buffer.md` §4 |
 | 并击 | 协调器 `handle_chord`、TSF `_DispatchChordKeyUp` | `[chord] enabled` + 用户目录方案 JSON；并击键集合经 `CONFIG_KEY_CHORD_KEYS` 推给 TSF，集合非空时才转发字母键 keyup |
+| 打字测速 | `moodflow-typing-practice`；Hub 看板「打字测速」页（`practice_score` 命令） | 练习页在 Hub 里，焦点在 Moodflow 自己窗口时核心不记日常统计（`moodflow::focus_in_own_app`），练习不计入日常统计 |
 | 候选矩阵 | 协调器 `handle_matrix`、候选窗网格排版（`SetCandidateGrid`） | `ui.candidate.matrix`（出厂关）；横排多页时 ↓ 展开最多 3 行、每行一页；←→ 行内、↑↓/翻页行间，首行 ↑ 或 Esc 收起保留组字；导航仍经 `NavKeys` 归一 |
 
 **核查结论**

@@ -2563,6 +2563,7 @@ dependencies = [
  "mock-ai",
  "moodflow-hub-core",
  "moodflow-hub-gateway",
+ "moodflow-typing-practice",
  "os_info",
  "serde",
  "serde_json",
@@ -2626,6 +2627,13 @@ dependencies = [
  "tokio",
  "toml 0.8.23",
  "zeroize",
+]
+
+[[package]]
+name = "moodflow-typing-practice"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
