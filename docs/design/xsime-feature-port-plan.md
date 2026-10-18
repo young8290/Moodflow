@@ -300,7 +300,11 @@ Buffer 是 AI/翻译二批的地基；并击风险最高（TSF keyup），放最
 - XSIME 的方案、词库、键位数据各有许可证（雾凇拼音等为 GPL-3.0，见其 `THIRD_PARTY_NOTICES.md`
   与 `rime-data/licenses/`）。**不直接收录其数据文件**；需要的数据回到原始上游按现有构建时下载
   机制处理（同 rime-frost 的做法）。
-- 「飞耀」并击键位在收录前单独确认来源与许可。
+- 「飞耀」并击键位在收录前单独确认来源与许可。**已确认（2026-10-18）**：XSIME 的出处说明记载为发布者
+  提供、声明不属受版权保护的功能性映射，按 XSIME 仓库许可证分发；已转格式收为
+  `moodflow-mobile/data/chord-builtin.json`，登记见 `NOTICE.md`。
+- **2026-10-18 维护者决定**：Android 键盘界面允许直接移植 XSIME 代码（不只按契约重写），照上面第一条
+  保留 Apache-2.0 文件头并在 `NOTICE.md` 登记；引擎仍是 Moodflow 核心，不引入 librime。
 
 ## 7. 明确不做
 
@@ -395,3 +399,35 @@ Buffer 是 AI/翻译二批的地基；并击风险最高（TSF keyup），放最
   词库打包方案（§3.4 的清单校验也尚未接到 Android 解包）。
 - 剪贴板历史先落 JSON 文件（`filesDir/rust/clipboard.json`），计划中的 redb 存储未接。
 - 触屏并击、候选矩阵、标点数据共用、热区几何（§3.7）均未做；设置页只有宿主开关，引擎配置页未做。
+
+## P3 Android：XSIME 界面移植（2026-10-18）
+
+键盘与设置页的界面直接移植 XSIME Android（Apache-2.0，文件清单见 `NOTICE.md`），引擎换成 Moodflow 核心。
+
+| 项 | 落点 | 接到核心的方式 |
+|---|---|---|
+| 键区几何与绘制 | `imelogic/…/keyboard/KeyboardLayout` 等 + `app/…/ui/KeyboardSurface`、`KeyButton` | 26 键 / 九宫格 / 数字 / 符号 / 表情页，长按删除连删、上滑出数字；字符经核心 `char_strokes` 的按法送引擎 |
+| 候选行 | `MoodflowImeService` | 每页 9 个（宿主翻页，`candidates(offset, 9)` 拉取）、点选 `select_candidate`、左侧设置面板、右侧 Buffer 开关、展开成矩阵（`CandidateMatrixView`，按需续取） |
+| 配色 | `KeyboardTheme`（18 套）、`KeyboardAppearancePanel` | 宿主偏好；方案列表取核心已装方案 |
+| Buffer 轨 | `BufferRail` | `moodflow-mobile::buffer`（换字段丢弃、同字段重启暂停、两段式投递、被拒保留可重试、隐藏键盘清空） |
+| 剪贴板 | `TextClipboardPanel` | **改走协调器**：`UiEvent::ClipboardChanged` → `handle_clipboard`，与 Windows 同一份 `clipboard_history.json`、同一道 `clipboard.enabled` 与隐私闸门；门面新增列表 / 收藏 / 删除 / 清空。原 Android 专用的 `mobile::clipboard` JSON 存储删除 |
+| 触屏并击 | `ChordSurface` / `ChordGesture` / `ChordProfile` | 手势模型在宿主，整组键交 `MobileChord::settle_batch` 结算；内置方案 `MobileChord::builtin`（XSIME 427 条 + 展开 14 条），全拼经 `feed_text` 进拼音引擎，完整音节之间补隔音符 |
+| 九宫格 | 键位用 XSIME 的电话布局，「选拼音」行与分隔键 | `moodflow-mobile::t9`；退格按 XSIME 规则（删钉住音节的分隔符时还原成数字） |
+| 设置 App | `SettingsActivity`（XSIME `SetupActivity` 的分组导航） | 方案 = 核心 `SELECT_SCHEMA`（落 `schema.active`）；剪贴板 = `clipboard.enabled`；插件 = `plugins.enabled` / `plugins.safe_mode` + `MobileCore::plugins`（已装、启用、加载、自动停用）；打字测速 = `mobile::practice`（与 Hub 同一套计分） |
+| 核心共用 | `core/CoreHolder` | 键盘服务与设置页共用进程内唯一的核心（词库锁、环境变量挂载只能一份） |
+
+**移动端强制项**：`chord.enabled`（物理键盘并击）在移动端恒关——软键盘只送按下不送松开，开着会吞掉字母。
+
+**没有移植**：XSIME 的 AI（OpenAI 兼容服务、Mock）、本机翻译词典与 Buffer 插件快捷栏、官方插件商店与社区页、
+宠物轮换动画、Rime 方案 ZIP 导入、并击映射的导入与编辑、`ExplicitClipboardImport`（显式粘贴到 Buffer，改为面板点条目）。
+
+**本机验证过的**：`cargo test -p moodflow-mobile`、协调器剪贴板测试、门面 / 绑定层 clippy（含 aarch64-linux-android）、
+`:imelogic:test`（含移植的 XSIME 几何、九宫格、并击手势测试）、`app` 全部 Java/Kotlin 对 android-all API 34 编译通过、
+JNI 契约测试。AGP 构建与 APK 由 CI 验证；手势、连删、上滑、高度适配、剪贴板前台采集等一律需真机。
+
+**已知缺口（门面 / 核心）**
+
+- 九宫格「选拼音」只能钉住开头的音节（`t9::pin_leading`），后续音节的拼法选择要门面支持按位置钉住。
+- 打字测速的输入经键盘照常计入日常统计：核心按「焦点在自家窗口」排除（`focus_in_own_app`），而移动端焦点上报
+  不带包名。建议 `focus_gained_with` 增加宿主包名参数并把本应用包名列入 `BUILTIN_EXCLUDED`。
+- 插件安装：Android 没有插件市场入口，只能列出与启停已装插件。
