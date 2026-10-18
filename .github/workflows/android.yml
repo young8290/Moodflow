@@ -148,6 +148,21 @@ jobs:
           cargo clippy --all-targets --target aarch64-linux-android -- -D warnings
           cargo test
 
+      # 词库：与 Linux 构建同一步（dev.sh gd 下载 rime-frost 等并组装到 build_dev/data），
+      # Gradle 优先把它打进 APK。下载物按周缓存，上游更新最迟一周跟上。
+      - name: 计算词库缓存周
+        id: dictweek
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: .cache
+          key: dicts-${{ steps.dictweek.outputs.week }}
+          restore-keys: dicts-
+      - name: 下载并组装词库
+        env:
+          MOODFLOW_BUILD_LOCAL: "1"
+        run: ./scripts/dev.sh gd
+
       - uses: gradle/actions/setup-gradle@v4
 
       # assembleDebug 经 cargoBuild 任务用 cargo-ndk 编 arm64-v8a + x86_64 的 .so；
@@ -162,6 +177,10 @@ jobs:
           apk="$(ls app/build/outputs/apk/debug/*.apk | head -n1)"
           unzip -l "$apk" | grep -E "lib/(arm64-v8a|x86_64)/libmoodflow_android.so"
           unzip -l "$apk" | grep -q "assets/data/config.toml"
+          # 词库必须在：没有它 APK 装上也打不出中文候选（0.124 的 APK 就是这样）
+          unzip -l "$apk" | grep -q "assets/data/schemas/pinyin/rime_frost.dict.yaml"
+          unzip -l "$apk" | grep -q "assets/data/schemas/pinyin/cn_dicts/base.dict.yaml"
+          ls -lh "$apk"
 
       - uses: actions/upload-artifact@v4
         with:

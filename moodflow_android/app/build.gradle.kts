@@ -88,10 +88,25 @@ val cargoBuild = tasks.register<Exec>("cargoBuild") {
     outputs.upToDateWhen { false }
 }
 
-// ── 出厂数据：仓库根 data/ → APK assets/data（首次启动由 DataInstaller 解到 filesDir/data）──
+// ── 出厂数据 → APK assets/data（首次启动由 DataInstaller 解到 filesDir/data）──
+// 优先用完整运行时数据：`scripts/dev.sh gd` 组装的 build_dev/data（下载的拼音/英文词库、生成的
+// 五笔库、OpenCC 表、拼音反查表都在里面，与 Windows 安装包同一份）。可用 -Pmoodflow.dataDir=… 指定。
+// 都没有时退回仓库根 data/——那里只有配置与方案定义，**没有词库，打不出中文候选**，构建会给出警告。
+val moodflowDataDir: File = run {
+    val explicit = (project.findProperty("moodflow.dataDir") as String?)?.let { file(it) }
+    val assembled = rootProject.file("../build_dev/data")
+    when {
+        explicit != null -> explicit
+        assembled.resolve("schemas/pinyin/rime_frost.dict.yaml").exists() -> assembled
+        else -> {
+            logger.warn("moodflow: 没找到组装好的词库数据（先跑 scripts/dev.sh gd），APK 里将没有词库")
+            rootProject.file("../data")
+        }
+    }
+}
 val copyMoodflowData = tasks.register<Sync>("copyMoodflowData") {
-    description = "把仓库根 data/ 拷进 APK assets"
-    from(rootProject.file("../data"))
+    description = "把出厂数据（含词库）拷进 APK assets"
+    from(moodflowDataDir)
     into(File(generatedAssetsDir, "data"))
 }
 
