@@ -80,3 +80,84 @@ class WireTest {
         assertEquals(listOf("a", "", ""), Wire.fields("a", 3))
     }
 }
+
+class WireExtrasTest {
+    private val us = Wire.US.toString()
+
+    @Test
+    fun pluginsDecodeCapabilitiesAndNameLast() {
+        val p = Wire.plugins(arrayOf(listOf("emoji", "1.0", "1", "1", "0", "candidates\u001Eemo", "表情${us}含分隔").joinToString(us)))
+        assertEquals(1, p.size)
+        assertEquals("emoji", p[0].id)
+        assertTrue(p[0].enabled && p[0].loaded && !p[0].autoDisabled)
+        assertEquals(listOf("candidates", "emo"), p[0].capabilities)
+        assertEquals("表情${us}含分隔", p[0].name)
+    }
+
+    @Test
+    fun chordMappingsAndPracticeScore() {
+        val m = Wire.chordMappings(arrayOf(listOf("0", "q m period", "que").joinToString(us)))
+        assertEquals(listOf("q", "m", "period"), m[0].keys)
+        assertEquals("qm.", m[0].chars)
+        assertEquals("que", m[0].output)
+        val s = Wire.practiceScore(listOf("30000", "6", "6", "0", "1", "0.5", "12").joinToString(us))!!
+        assertEquals(30000L, s.elapsedMs)
+        assertEquals(12.0, s.effectiveCpm, 0.0)
+        assertEquals(0.5, s.processAccuracy, 0.0)
+        assertNull(Wire.practiceScore("x"))
+        assertNull(Wire.practiceScore(null))
+    }
+
+    @Test
+    fun keyboardChoiceRules() {
+        assertEquals("qwerty", KeyboardChoice.layout("bogus"))
+        assertEquals("nineKey", KeyboardChoice.layout("nineKey"))
+        assertEquals("nineKey", KeyboardChoice.visibleLetters("nineKey", "pinyin", true))
+        assertEquals("九宫格只配中文拼音", "qwerty", KeyboardChoice.visibleLetters("nineKey", "pinyin", false))
+        assertEquals("qwerty", KeyboardChoice.visibleLetters("nineKey", "wubi86", true))
+        assertEquals("英文态并击面板按单键打字", "orthogonal", KeyboardChoice.visibleLetters("orthogonal", "pinyin", false))
+        assertEquals("qwerty", KeyboardChoice.visibleLetters("splitOrthogonal", "wubi86", true))
+        assertTrue(KeyboardChoice.isChord("splitOrthogonal"))
+    }
+}
+
+class ConfigSnapshotTest {
+    @Test
+    fun readsScalarsAndListsUnderSections() {
+        val s = ConfigSnapshot(
+            """
+            [schema]
+            active = "pinyin"
+
+            [clipboard]
+            enabled = true
+            max_entries = 200
+
+            [plugins]
+            enabled = ["emoji", "calc"]
+            safe_mode = false
+
+            [ui.candidate]
+            preedit_display = "candidate_top"
+            matrix = false
+
+            [chord]
+            keymap = "a\"b"
+            enabled = [
+                "x",
+                "y",
+            ]
+            """.trimIndent(),
+        )
+        assertEquals(true, s.bool("clipboard.enabled"))
+        assertEquals(false, s.bool("plugins.safe_mode"))
+        assertEquals("pinyin", s.string("schema.active"))
+        assertEquals(listOf("emoji", "calc"), s.stringList("plugins.enabled"))
+        assertEquals("candidate_top", s.string("ui.candidate.preedit_display"))
+        assertEquals(false, s.bool("ui.candidate.matrix"))
+        assertEquals("a\"b", s.string("chord.keymap"))
+        assertEquals(listOf("x", "y"), s.stringList("chord.enabled"))
+        assertNull(s.bool("missing.key"))
+        assertNull(s.stringList("schema.active"))
+    }
+}

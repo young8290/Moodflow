@@ -741,7 +741,9 @@ dependencies = [
  "moodflow-assoc",
  "moodflow-aux-code",
  "moodflow-bridge",
+ "moodflow-buffer",
  "moodflow-candidate",
+ "moodflow-chord",
  "moodflow-clipboard",
  "moodflow-cmdbar",
  "moodflow-config",
@@ -858,6 +860,9 @@ dependencies = [
  "moodflow-host",
  "moodflow-ipc",
  "moodflow-keys",
+ "moodflow-market",
+ "moodflow-plugin-registry",
+ "moodflow-typing-practice",
  "moodflow-ui-types",
  "toml",
  "tracing",
@@ -987,6 +992,13 @@ version = "0.1.0"
 dependencies = [
  "moodflow-config",
  "tracing",
+]
+
+[[package]]
+name = "moodflow-typing-practice"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

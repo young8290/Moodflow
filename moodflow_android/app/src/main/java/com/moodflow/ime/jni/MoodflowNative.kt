@@ -89,17 +89,29 @@ object MoodflowNative {
     @JvmStatic external fun nativeBufferAuthorized(h: Long, id: Long, revision: Long): Boolean
     @JvmStatic external fun nativeBufferFinish(h: Long, result: Int): Boolean
 
-    // ── 剪贴板历史 ──
-    @JvmStatic external fun nativeClipOpen(path: String, nowSecs: Long): Long
-    @JvmStatic external fun nativeClipFree(h: Long)
-    @JvmStatic external fun nativeClipRecord(h: Long, text: String, sensitive: Boolean, nowSecs: Long): Int
-    @JvmStatic external fun nativeClipEntries(h: Long, query: String): Array<String>?
-    @JvmStatic external fun nativeClipSetPinned(h: Long, id: Long, pinned: Boolean): Boolean
-    @JvmStatic external fun nativeClipRemove(h: Long, id: Long): Boolean
-    @JvmStatic external fun nativeClipClearUnpinned(h: Long)
+    // ── 剪贴板历史（核心那份，与 Windows 同一存储）──
+    @JvmStatic external fun nativeClipboardChanged(handle: Long, text: String, sensitive: Boolean)
+    @JvmStatic external fun nativeClipboardEntries(handle: Long): Array<String>?
+    @JvmStatic external fun nativeClipboardSetPinned(handle: Long, id: Long, pinned: Boolean): Boolean
+    @JvmStatic external fun nativeClipboardRemove(handle: Long, id: Long): Boolean
+    @JvmStatic external fun nativeClipboardClearUnpinned(handle: Long)
+
+    // ── 插件 ──
+    @JvmStatic external fun nativePlugins(handle: Long): Array<String>?
+    @JvmStatic external fun nativePluginReenable(handle: Long, id: String): Boolean
+
+    // ── 打字测速 ──
+    @JvmStatic external fun nativePracticeNew(target: String): Long
+    @JvmStatic external fun nativePracticeFree(h: Long)
+    @JvmStatic external fun nativePracticeText(h: Long, tMs: Long, text: String)
+    @JvmStatic external fun nativePracticeFinish(h: Long, finishedMs: Long): String?
 
     // ── 并击 ──
     @JvmStatic external fun nativeChordNew(json: String): Long
+    @JvmStatic external fun nativeChordBuiltin(): Long
+    @JvmStatic external fun nativeChordMappings(h: Long): Array<String>?
+    @JvmStatic external fun nativeChordHands(h: Long): Array<String>?
+    @JvmStatic external fun nativeChordSettleBatch(h: Long, keys: String, nowMs: Long): String?
     @JvmStatic external fun nativeChordValidate(json: String): String?
     @JvmStatic external fun nativeChordFree(h: Long)
     @JvmStatic external fun nativeChordIsChordKey(h: Long, key: String): Boolean

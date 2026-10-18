@@ -22,6 +22,12 @@ moodflow-ui-types = { path = "../moodflow-ui-types" }
 moodflow-buffer = { path = "../moodflow-buffer" }
 moodflow-clipboard = { path = "../moodflow-clipboard" }
 moodflow-chord = { path = "../moodflow-chord" }
+# 打字测速计分（与 Hub 同一份口径，见 practice 模块）
+moodflow-typing-practice = { path = "../moodflow-typing-practice" }
+# 已安装插件清单（`installed`）；本就在协调器闭包里（插件注册表依赖它）
+moodflow-market = { path = "../moodflow-market" }
+# 插件加载状态的类型（`PluginStatus`），同上已在闭包里
+moodflow-plugin-registry = { path = "../moodflow-plugin-registry" }
 # 九宫格切分（`pinyin::t9`）；本就在 coordinator 闭包里，直连不增加依赖面
 moodflow-engine = { path = "../moodflow-engine" }
 tracing = { workspace = true }

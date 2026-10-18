@@ -49,9 +49,15 @@
 //! # XSIME 吸收的四块纯逻辑（计划 §4：门面只加与绑定框架无关的能力）
 //!
 //! - [`buffer`]：Buffer 工作台，替宿主保管投递凭据；
-//! - [`clipboard`]：剪贴板历史 + 落盘；
-//! - [`chord`]：物理键盘并击结算；
-//! - [`t9`]：九宫格切分，结果经 [`MobileCore::replace_composition`] 送进拼音引擎。
+//! - 剪贴板历史：**走协调器**（`UiEvent::ClipboardChanged` → `handle_clipboard`，落盘
+//!   `clipboard_history.json`），与 Windows 同一份存储、同一道 `clipboard.enabled` 与隐私闸门，
+//!   入口见 [`MobileCore::clipboard_changed`] 一组方法；
+//! - [`chord`]：并击结算（物理键盘逐键、触屏整组），含内置默认方案；
+//! - [`t9`]：九宫格切分，结果经 [`MobileCore::replace_composition`] 送进拼音引擎；
+//! - [`practice`]：打字测速计分（与 Hub 同一份 `moodflow-typing-practice` 口径）。
+//!
+//! 插件：核心构造时已按 `plugins.enabled` 加载（`handle_plugins`），候选自动并进候选列表；
+//! 设置页用 [`MobileCore::plugins`] 列出已安装插件与加载状态。
 
 use std::path::Path;
 use std::sync::Arc;
@@ -59,8 +65,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 pub mod buffer;
 pub mod chord;
-pub mod clipboard;
 pub mod config_api;
+pub mod practice;
 pub mod t9;
 
 use moodflow_bridge::handler::KeyAction as BridgeKeyAction;
@@ -191,6 +197,33 @@ pub enum MobileCommand {
     SetShuangpinLayout(String),
 }
 
+/// 剪贴板历史的一条（协调器那份历史的投影）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClipItem {
+    pub id: u64,
+    pub text: String,
+    pub pinned: bool,
+    /// 整条是一个链接
+    pub link: bool,
+}
+
+/// 一个已安装的插件（设置页列表）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginInfo {
+    pub id: String,
+    /// 已加载时取清单里的名称，否则为 id
+    pub name: String,
+    pub version: String,
+    /// 在 `plugins.enabled` 里
+    pub enabled: bool,
+    /// 当前已加载（启用且加载成功、非安全模式）
+    pub loaded: bool,
+    /// 连续失败被自动停用（可 [`MobileCore::plugin_reenable`]）
+    pub auto_disabled: bool,
+    /// 能力摘要：`candidates` / `transform` / 命令函数名
+    pub capabilities: Vec<String>,
+}
+
 /// 反向通道接收端（由 UiCommand 泵线程调用，**非宿主主线程**，实现方自行切回）。
 pub trait MobileEventSink: Send + Sync {
     /// 候选/编码区更新
@@ -212,6 +245,8 @@ pub struct MobileCore {
     /// （见 [`MobileCore::config_snapshot`]）——少了它只能读代码默认值，
     /// 设置页会把出厂 config.toml 里的取值显示成默认值。
     data_dir: std::path::PathBuf,
+    /// 用户数据根（协调器的用户目录；插件装在其下 `plugins/`）。
+    user_root: std::path::PathBuf,
 }
 
 impl MobileCore {
@@ -298,6 +333,7 @@ impl MobileCore {
             coord,
             warming,
             data_dir: data_dir.to_path_buf(),
+            user_root: user_root.to_path_buf(),
         })
     }
 
@@ -565,6 +601,66 @@ impl MobileCore {
         config_api::set(key, value)
     }
 
+    // ── 剪贴板历史（与 Windows 同一份，见模块文档）──────────────────
+
+    /// 宿主读到一次剪贴板变化（键盘可见期间）。`sensitive` = 平台标记敏感或当前字段私密。
+    /// 是否收录由核心决定：`clipboard.enabled`、隐私环境、敏感、空白、过长都会跳过。
+    pub fn clipboard_changed(&self, text: &str, sensitive: bool) {
+        self.coord.inject_ui_event(UiEvent::ClipboardChanged {
+            text: text.to_string(),
+            sensitive,
+        });
+    }
+
+    /// 全部条目：收藏的在前，各自新到旧。
+    pub fn clipboard_entries(&self) -> Vec<ClipItem> {
+        self.coord
+            .clipboard_entries()
+            .into_iter()
+            .map(|e| ClipItem {
+                id: e.id,
+                link: e.kind == moodflow_clipboard::EntryKind::Link,
+                pinned: e.pinned,
+                text: e.text,
+            })
+            .collect()
+    }
+
+    pub fn clipboard_set_pinned(&self, id: u64, pinned: bool) -> bool {
+        self.coord.clipboard_set_pinned(id, pinned)
+    }
+
+    pub fn clipboard_remove(&self, id: u64) -> bool {
+        self.coord.clipboard_remove(id)
+    }
+
+    pub fn clipboard_clear_unpinned(&self) {
+        self.coord.clipboard_clear_unpinned();
+    }
+
+    // ── 插件 ──────────────────────────────────────────────────
+
+    /// 已安装的插件（用户目录 `plugins/<id>/<版本>/`），附启用与加载状态。
+    ///
+    /// 启用 / 停用是改 `plugins.enabled`（[`Self::config_set`] + 重载）；安全模式是
+    /// `plugins.safe_mode`。这里只读。
+    pub fn plugins(&self) -> Vec<PluginInfo> {
+        // 启用列表读磁盘上的四层合并结果（设置页刚写入、尚未重载时也显示用户的选择）
+        let enabled = Config::load(Some(&self.data_dir))
+            .map(|c| c.plugins.enabled)
+            .unwrap_or_default();
+        plugin_infos(
+            moodflow_market::installed(&self.user_root.join("plugins")),
+            &enabled,
+            &self.coord.plugin_status(),
+        )
+    }
+
+    /// 重新启用一个被自动停用的插件。返回是否命中。
+    pub fn plugin_reenable(&self, id: &str) -> bool {
+        self.coord.plugin_reenable(id)
+    }
+
     /// 可选双拼布局。清单由核心扫描目录得出，**宿主不要硬编码**——
     /// 用户可以往 `schemas` 的 `shuangpin` 子目录里丢自己的布局文件，硬编码清单看不见它。
     pub fn shuangpin_layouts(&self) -> Vec<LayoutEntry> {
@@ -639,6 +735,39 @@ fn mount_dirs(data_dir: &Path, user_root: &Path) {
 
 /// TSF `IS_PASSWORD` 输入范围位（与 `moodflow_coordinator::input_diag` 同值）。
 const PASSWORD_SCOPE_MASK: u64 = 1 << 31;
+
+/// 已安装清单 × 启用列表 × 加载状态 → 设置页条目（纯函数，便于单测）。
+fn plugin_infos(
+    installed: Vec<(String, String)>,
+    enabled: &[String],
+    status: &[moodflow_plugin_registry::PluginStatus],
+) -> Vec<PluginInfo> {
+    installed
+        .into_iter()
+        .map(|(id, version)| {
+            let loaded = status.iter().find(|s| s.id == id);
+            let mut capabilities = Vec::new();
+            if let Some(s) = loaded {
+                if s.candidate_provider {
+                    capabilities.push("candidates".to_string());
+                }
+                if s.commit_transform {
+                    capabilities.push("transform".to_string());
+                }
+                capabilities.extend(s.cmdbar_functions.iter().cloned());
+            }
+            PluginInfo {
+                enabled: enabled.contains(&id),
+                name: loaded.map(|s| s.name.clone()).unwrap_or_else(|| id.clone()),
+                version: loaded.map(|s| s.version.clone()).unwrap_or(version),
+                loaded: loaded.is_some(),
+                auto_disabled: loaded.is_some_and(|s| s.disabled),
+                capabilities,
+                id,
+            }
+        })
+        .collect()
+}
 
 /// 把 `next` 接在 `acc` 后面：编辑指令按序拼接，标志位取或，时序提示取最后一个。
 fn merge_outcome(acc: &mut KeyOutcome, next: KeyOutcome) {
@@ -771,6 +900,34 @@ fn dispatch_key(coord: &Coordinator, vk: u32, modifiers: u32) -> BridgeKeyAction
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn plugin_infos_join_installed_enabled_and_loaded() {
+        let status = vec![moodflow_plugin_registry::PluginStatus {
+            id: "emoji".into(),
+            name: "表情".into(),
+            version: "1.2.0".into(),
+            disabled: true,
+            candidate_provider: true,
+            commit_transform: false,
+            cmdbar_functions: vec!["emo".into()],
+        }];
+        let infos = plugin_infos(
+            vec![
+                ("emoji".into(), "1.2.0".into()),
+                ("calc".into(), "0.1.0".into()),
+            ],
+            &["emoji".to_string()],
+            &status,
+        );
+        assert_eq!(infos.len(), 2);
+        assert!(infos[0].enabled && infos[0].loaded && infos[0].auto_disabled);
+        assert_eq!(infos[0].name, "表情");
+        assert_eq!(infos[0].capabilities, vec!["candidates", "emo"]);
+        assert!(!infos[1].enabled && !infos[1].loaded);
+        assert_eq!(infos[1].name, "calc", "未加载的用 id 当名字");
+        assert_eq!(infos[1].version, "0.1.0");
+    }
 
     #[test]
     fn merge_outcome_concatenates_ops_in_order() {

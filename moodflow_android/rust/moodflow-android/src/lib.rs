@@ -32,8 +32,8 @@ use jni::objects::{JClass, JObject, JString};
 use jni::sys::{JNI_FALSE, JNI_TRUE, jboolean, jint, jintArray, jlong, jobjectArray, jstring};
 use moodflow_mobile::buffer::{DEFAULT_CAPACITY_UTF16, MobileBuffer, WriteResult};
 use moodflow_mobile::chord::{ChordOutput, MobileChord};
-use moodflow_mobile::clipboard::{MobileClipboard, RecordResult};
 use moodflow_mobile::config_api::ConfigValue;
+use moodflow_mobile::practice::Practice;
 use moodflow_mobile::{MobileCommand, MobileCore};
 
 // 目标类型来自 moodflow-buffer，经门面透出的只有 Target 的构造方式：(id, revision)。
@@ -501,7 +501,7 @@ pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeConfigRegi
             .map(|c| {
                 c.config_registry()
                     .into_iter()
-                    .map(|f| wire::join(&[&f.key, &f.ty, &f.options.join("\u{1E}")]))
+                    .map(|f| wire::join(&[&f.key, &f.ty, &f.options.join(&wire::RS.to_string())]))
                     .collect()
             })
             .unwrap_or_default()
@@ -924,118 +924,194 @@ pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeBufferFini
     }))
 }
 
-// ── 剪贴板历史 ──────────────────────────────────────────────
+// ── 剪贴板历史（走核心，与 Windows 同一份存储）────────────────
 
+/// 宿主读到的一次剪贴板变化；是否收录由核心决定（开关、隐私、敏感、空白、过长）。
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeClipOpen(
+pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeClipboardChanged(
     mut env: JNIEnv,
     _class: JClass,
-    path: JString,
-    now_secs: jlong,
-) -> jlong {
-    let path = get_string(&mut env, &path);
-    guard(0, || {
-        into_handle(Mutex::new(MobileClipboard::open(
-            Path::new(&path),
-            now_secs.max(0) as u64,
-        )))
-    })
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeClipFree(
-    _env: JNIEnv,
-    _class: JClass,
-    h: jlong,
-) {
-    // SAFETY: Kotlin 侧 NativeClipboard.close() 只调一次。
-    guard((), || unsafe { free_handle::<Mutex<MobileClipboard>>(h) });
-}
-
-/// 返回 0 新条目 / 1 已有条目置顶 / 2 未收录（敏感、空白、过长）。
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeClipRecord(
-    mut env: JNIEnv,
-    _class: JClass,
-    h: jlong,
+    handle: jlong,
     text: JString,
     sensitive: jboolean,
-    now_secs: jlong,
-) -> jint {
+) {
     let text = get_string(&mut env, &text);
-    guard(2, || {
-        with_locked(h, 2, |c: &mut MobileClipboard| {
-            match c.record(&text, sensitive != JNI_FALSE, now_secs.max(0) as u64) {
-                RecordResult::New => 0,
-                RecordResult::Refreshed => 1,
-                RecordResult::Skipped => 2,
-            }
-        })
-    })
+    guard((), || {
+        if let Some(c) = session(handle) {
+            c.clipboard_changed(&text, sensitive != JNI_FALSE);
+        }
+    });
 }
 
-/// 每项 `id US 类型(t/l) US 收藏(1/0) US 正文`，新到旧。
+/// 每项 `id US 类型(t/l) US 收藏(1/0) US 正文`，收藏的在前、各自新到旧。
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeClipEntries(
+pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeClipboardEntries(
     mut env: JNIEnv,
     _class: JClass,
-    h: jlong,
-    query: JString,
+    handle: jlong,
 ) -> jobjectArray {
-    let query = get_string(&mut env, &query);
     let items = guard(Vec::new(), || {
-        with_locked(h, Vec::new(), |c: &mut MobileClipboard| {
-            c.entries(&query)
-                .into_iter()
-                .map(|e| {
-                    let kind = match e.kind {
-                        moodflow_mobile::clipboard::EntryKind::Link => "l",
-                        moodflow_mobile::clipboard::EntryKind::Text => "t",
-                    };
-                    wire::join(&[&e.id.to_string(), kind, wire::flag(e.pinned), &e.text])
-                })
-                .collect()
-        })
+        session(handle)
+            .map(|c| {
+                c.clipboard_entries()
+                    .into_iter()
+                    .map(|e| {
+                        let kind = if e.link { "l" } else { "t" };
+                        wire::join(&[&e.id.to_string(), kind, wire::flag(e.pinned), &e.text])
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
     });
     string_array(&mut env, &items)
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeClipSetPinned(
+pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeClipboardSetPinned(
     _env: JNIEnv,
     _class: JClass,
-    h: jlong,
+    handle: jlong,
     id: jlong,
     pinned: jboolean,
 ) -> jboolean {
     jbool(guard(false, || {
-        with_locked(h, false, |c: &mut MobileClipboard| {
-            c.set_pinned(id as u64, pinned != JNI_FALSE)
-        })
+        session(handle).is_some_and(|c| c.clipboard_set_pinned(id as u64, pinned != JNI_FALSE))
     }))
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeClipRemove(
+pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeClipboardRemove(
     _env: JNIEnv,
     _class: JClass,
-    h: jlong,
+    handle: jlong,
     id: jlong,
 ) -> jboolean {
     jbool(guard(false, || {
-        with_locked(h, false, |c: &mut MobileClipboard| c.remove(id as u64))
+        session(handle).is_some_and(|c| c.clipboard_remove(id as u64))
     }))
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeClipClearUnpinned(
+pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeClipboardClearUnpinned(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) {
+    guard((), || {
+        if let Some(c) = session(handle) {
+            c.clipboard_clear_unpinned();
+        }
+    });
+}
+
+// ── 插件 ────────────────────────────────────────────────────
+
+/// 每项 `id US 版本 US 已启用 US 已加载 US 自动停用 US 能力(RS 分隔) US 名称`。
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativePlugins(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) -> jobjectArray {
+    let items = guard(Vec::new(), || {
+        session(handle)
+            .map(|c| {
+                c.plugins()
+                    .into_iter()
+                    .map(|p| {
+                        let caps = p.capabilities.join(&wire::RS.to_string());
+                        wire::join(&[
+                            &p.id,
+                            &p.version,
+                            wire::flag(p.enabled),
+                            wire::flag(p.loaded),
+                            wire::flag(p.auto_disabled),
+                            &caps,
+                            &p.name,
+                        ])
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    });
+    string_array(&mut env, &items)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativePluginReenable(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    id: JString,
+) -> jboolean {
+    let id = get_string(&mut env, &id);
+    jbool(guard(false, || {
+        session(handle).is_some_and(|c| c.plugin_reenable(&id))
+    }))
+}
+
+// ── 打字测速 ────────────────────────────────────────────────
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativePracticeNew(
+    mut env: JNIEnv,
+    _class: JClass,
+    target: JString,
+) -> jlong {
+    let target = get_string(&mut env, &target);
+    guard(0, || into_handle(Mutex::new(Practice::new(&target, 0))))
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativePracticeFree(
     _env: JNIEnv,
     _class: JClass,
     h: jlong,
 ) {
+    // SAFETY: Kotlin 侧 NativePractice.close() 只调一次。
+    guard((), || unsafe { free_handle::<Mutex<Practice>>(h) });
+}
+
+/// 输入框内容变了。`t_ms` 从练习开始算起。
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativePracticeText(
+    mut env: JNIEnv,
+    _class: JClass,
+    h: jlong,
+    t_ms: jlong,
+    text: JString,
+) {
+    let text = get_string(&mut env, &text);
     guard((), || {
-        with_locked(h, (), |c: &mut MobileClipboard| c.clear_unpinned())
+        with_locked(h, (), |p: &mut Practice| {
+            p.on_text(t_ms.max(0) as u64, &text)
+        })
     });
+}
+
+/// 成绩 `用时ms US 范文字数 US 最终字数 US 编辑距离 US 最终字准 US 过程正确率 US 有效速度`。
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativePracticeFinish(
+    mut env: JNIEnv,
+    _class: JClass,
+    h: jlong,
+    finished_ms: jlong,
+) -> jstring {
+    let out = guard(None, || {
+        with_locked(h, None, |p: &mut Practice| {
+            let s = p.finish(finished_ms.max(0) as u64);
+            Some(wire::join(&[
+                &s.elapsed_ms.to_string(),
+                &s.target_chars.to_string(),
+                &s.typed_chars.to_string(),
+                &s.distance.to_string(),
+                &s.final_accuracy.to_string(),
+                &s.process_accuracy.to_string(),
+                &s.effective_cpm.to_string(),
+            ]))
+        })
+    });
+    opt_string(&mut env, out.as_deref())
 }
 
 // ── 并击 ────────────────────────────────────────────────────
@@ -1055,6 +1131,15 @@ pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeChordNew(
             0
         }
     })
+}
+
+/// 内置默认方案（XSIME 触屏并击的 427 条映射，见 `moodflow_mobile::chord`）。
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeChordBuiltin(
+    _env: JNIEnv,
+    _class: JClass,
+) -> jlong {
+    guard(0, || into_handle(Mutex::new(MobileChord::builtin())))
 }
 
 /// 应用级校验：`null` = 可以应用，否则为原因（不含方案内容）。
@@ -1160,6 +1245,59 @@ pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeChordReset
     h: jlong,
 ) {
     guard((), || with_locked(h, (), |c: &mut MobileChord| c.reset()));
+}
+
+/// 每项 `片段(1/0) US 键名(空格分隔，按方案键区顺序) US 输出`。
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeChordMappings(
+    mut env: JNIEnv,
+    _class: JClass,
+    h: jlong,
+) -> jobjectArray {
+    let items = guard(Vec::new(), || {
+        with_locked(h, Vec::new(), |c: &mut MobileChord| {
+            c.mappings()
+                .iter()
+                .map(|m| wire::join(&[wire::flag(m.fragment), &m.keys.join(" "), &m.output]))
+                .collect()
+        })
+    });
+    string_array(&mut env, &items)
+}
+
+/// `[左手键名(空格分隔), 右手键名(空格分隔)]`。
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeChordHands(
+    mut env: JNIEnv,
+    _class: JClass,
+    h: jlong,
+) -> jobjectArray {
+    let items = guard(Vec::new(), || {
+        with_locked(h, Vec::new(), |c: &mut MobileChord| {
+            vec![c.left_keys().join(" "), c.right_keys().join(" ")]
+        })
+    });
+    string_array(&mut env, &items)
+}
+
+/// 触屏手势：一组同时落下又全部抬起的键（空格分隔的键名）一次结算，编码同 [`chord_wire`]；
+/// 单个键返回 `null`（宿主按普通键处理）。
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeChordSettleBatch(
+    mut env: JNIEnv,
+    _class: JClass,
+    h: jlong,
+    keys: JString,
+    now_ms: jlong,
+) -> jstring {
+    let keys = get_string(&mut env, &keys);
+    let out = guard(None, || {
+        let keys: Vec<String> = keys.split_whitespace().map(str::to_owned).collect();
+        with_locked(h, None, |c: &mut MobileChord| {
+            chord_wire(c.settle_batch(&keys, now_ms.max(0) as u64))
+        })
+    });
+    opt_string(&mut env, out.as_deref())
 }
 
 #[cfg(test)]
