@@ -4,7 +4,7 @@
 > 输入法里的 Moodflow 入口（菜单、工具栏、气泡）、温柔改写的核心一侧、DLL 全量按键时序、安装包、上游同步；
 > 另是 MFP 协议（`protocol/mfp.schema.json`、`crates/mfp`）的契约负责人（13 第 3.1 节）。
 > 任务清单与估算见产品书 16 第 2.1 节。本文件随 A 的每个 PR 更新，任务中途换人时按产品书 13 第 3.1 节“交接”直接看这里。
-> 最后更新：2026-10-04（A-11：typer 打字脚本与核心耗时埋点）
+> 最后更新：2026-10-18（A-13～A-20：XSIME 吸收、插件、Android，ADR 0054 / 0056）
 
 ## 1. 任务状态
 
@@ -22,6 +22,14 @@
 | A-10 | 安装包、卸载 | **进行中** | 第一部分 [#24](https://github.com/young8290/xinqing-ime/pull/24)（已合并）：`config/app.toml`、`scripts/dev.ps1` 的 `Build-Hub`、`.github/workflows/moodflow-package.yml` | 见第 4 节 |
 | A-11 | typer 打字脚本、兼容矩阵测试支援 | **进行中** | `tools/typer`（[README](../../../tools/typer/README.md)）；核心耗时埋点 `moodflow-coordinator/src/moodflow/perf.rs` | `typer run` 与埋点都没在真机上跑过，TC-PERF-01、TC-STA-04 还没出数；兼容矩阵与 TC-RWR-09 要真机 |
 | A-12 | 每 2 周上游同步 | 未开始 | 基线 `moodflow/base` = `df6f966`，`upstream` 远端已设 | 步骤见 [identity.md](../identity.md)；2026-10-04 查过，上游 main 仍是 `df6f966`，没有要合的 |
+| A-13 | XSIME 吸收：纯逻辑（Buffer、候选矩阵、并击、剪贴板历史、Rime 导入、九宫格、数据清单、用户库异常提示、五笔对照、联想历史上限） | 完成 | [#96](https://github.com/young8290/xinqing-ime/pull/96)；计划 [xsime-feature-port-plan.md](../../design/xsime-feature-port-plan.md) §9 | — |
+| A-14 | XSIME 吸收：Windows 接入（剪贴板历史、Buffer、并击、候选矩阵、LPAC 放行） | 代码完成 | [#97](https://github.com/young8290/xinqing-ime/pull/97)、[#98](https://github.com/young8290/xinqing-ime/pull/98) | **一项都没真机验收**；缺口见计划 §10.1、§10.2 |
+| A-15 | 打字测速（`moodflow-typing-practice`，Hub 看板页） | 代码完成 | #97、#98 | Hub 页要在真机上看；Android 上练习仍计入日常统计（计划 §10.3 A2） |
+| A-16 | 插件 M1～M3 核心（api / host / market / registry，协调器接入） | 核心完成 | #96、#97；设计 [plugin-system.md](../../design/plugin-system.md) §10–§11 | 插件管理页、市场仓库、签名密钥、内容包安装等，见设计 §11 |
+| A-17 | Android 骨架（`moodflow_android/`、`moodflow-mobile` 门面、JNI、CI） | 完成 | #97 | — |
+| A-18 | Android 打包完整词库 | 完成 | `main` 2840af6f | APK 解包时按清单校验未接 |
+| A-19 | Android 键盘与设置换成 XSIME 界面（引擎仍是 Moodflow 核心） | **评审中** | [#100](https://github.com/young8290/xinqing-ime/pull/100)（CI 全绿，未合入） | 真机验收（计划 §10.1 V5）；缺口见计划 §10.3 |
+| A-20 | Windows TSF 端到端自动测试（含 AppContainer / LPAC） | 未开始 | — | 需要 Windows 环境（计划 §10.2 W5） |
 
 ## 2. 代码地图（A 负责的部分）
 
@@ -114,6 +122,8 @@ Hub 一侧（提示词、保真校验、隐私占位符、每日上限、`rewrit
 
 ## 8. 下一步（按优先级）
 
+0. （2026-10-18 起最优先）XSIME 吸收与 Android 的验收：评审合入 PR #100；Windows 真机验收 A-14（计划 §10.1 V1–V4）；
+   Android 真机验收 A-19（计划 §10.1 V5）。之后按计划 §10.2 / §10.3 补功能缺口；
 1. A-10 剩余：在真机上试装一次 Actions 产出的安装包，重点看 Win10 无 WebView2 时的代装、完成页、协议全文、开始菜单快捷方式；
 2. A-08 收尾：首次使用说明的归属定下来后实现；与 C 联调真实的 `rewrite_result`；
 3. 真机验证清单（需要有 Windows 的组员）：并装、命名管道、改写替换（含 emoji 和扩展区汉字）、锁屏与 UAC、工具栏；
@@ -130,3 +140,4 @@ Hub 一侧（提示词、保真校验、隐私占位符、每日上限、`rewrit
 | 2026-10-04 | A-11：核心耗时埋点（dev 构建，每 2,000 键记一行汇总） |
 | 2026-10-05 | A-10 第二部分：安装器改用 fork，补 WebView2、通知标识、完成页与许可全文、卸载清 Hub 自启项 |
 | 2026-10-05 | 出厂默认方案改为全拼（五笔与五笔拼音混输保留在切换列表里） |
+| 2026-10-18 | 新增 A-13～A-20：XSIME 吸收（纯逻辑、Windows 接入）、打字测速、插件核心、Android 骨架与 XSIME 界面移植（ADR 0054、0056） |

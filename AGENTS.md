@@ -11,7 +11,7 @@
 | `moodflow_input/` | Rust 核心服务（cargo workspace：19 个 crate + `apps/service`） | 本文档 + crate 级 AGENTS.md |
 | `moodflow_tsf/` | C++17 TSF DLL：Windows 输入法接口层，经 Named Pipe 与 Rust 服务通信 | [AGENTS.md](moodflow_tsf/AGENTS.md) |
 | `moodflow_macos/` | macOS IMKit `.app`（与 `moodflow_tsf/` 对位，开发中） | [AGENTS.md](moodflow_macos/AGENTS.md) |
-| `moodflow_android/` | Android 输入法应用（与 `moodflow_tsf/` 对位，骨架期）：Kotlin `InputMethodService` + Rust JNI 绑定（`rust/`，独立 cargo workspace，只依赖 `moodflow-mobile`）；CI `android.yml` | 本文档「Android（`moodflow_android/`）」一节 |
+| `moodflow_android/` | Android 输入法应用（与 `moodflow_tsf/` 对位；键盘与设置界面移植自 XSIME，见 ADR 0056）：Kotlin `InputMethodService` + Rust JNI 绑定（`rust/`，独立 cargo workspace，只依赖 `moodflow-mobile`）；CI `android.yml` | 本文档「Android（`moodflow_android/`）」一节 |
 | `../moodflow-setting` | 设置 UI（**独立仓库**，经 JSON-RPC 与核心通信）；改设置界面去那边 | — |
 | `../moodflow-portable` | 绿色版启动器（独立仓库，不存在时构建脚本自动跳过） | — |
 
@@ -19,7 +19,7 @@
 
 ## Crate 索引
 
-> workspace 共 20 个 crate（均在 `moodflow_input/crates/`）。复杂 crate 已配 crate 级 `AGENTS.md`，改动前先读对应文档；新增/重构 crate 时参照同结构补文档。
+> workspace 共 37 个 crate（均在 `moodflow_input/crates/`，2026-10-18 核对）。复杂 crate 已配 crate 级 `AGENTS.md`，改动前先读对应文档；新增/重构 crate 时参照同结构补文档。
 
 | Crate | 职责 | crate 文档 |
 |---|---|---|
@@ -43,6 +43,11 @@
 | `moodflow-transfer` | 导入导出/备份还原底座：Bundle（manifest + zip）聚合打包与 Merge 合并策略（编解码在 moodflow-store）；方案包 `.wpkg` 与主题包 `.wtheme` 的格式定义都在这里 | — |
 | `moodflow-quick-input` | 快捷输入的内置候选来源（纯逻辑）：`quick_input.calc` 算式（含幂 `^`）/ `.date` 日期年月 / `.number` 数字金额；另定义 `.repeat`（重复上屏，由协调器实现）的成员 id。开关与优先级 = `mix_modes.members` 的有无与顺序 | — |
 | `moodflow-reverse` | 候选反查：五笔编码/拆字/拼音读音（悬停 tooltip） | — |
+| `moodflow-assoc` | 联想候选的生成与合并（纯逻辑）：与 phrase / punct / quick-input 同构的「输入 → 候选」单元，词典与用户数据以 trait 注入 | — |
+| `moodflow-softkeyboard` | 软键盘映射表：常驻符号面板开启后接管主键区，按当前面映射转换上屏 | — |
+| `moodflow-host` | 核心 ↔ 宿主的接缝（纯数据 + trait）：给薄宿主（Android 等）补上厚宿主（TSF / IMKit）替协调器做的过滤、组合区、就绪状态 | — |
+| `moodflow-webdata` | Web 设置数据 RPC：schema / dict / temp / freq / shadow / stats / theme / phrase / quick / commonChars / backup 等命名空间，经 `moodflow-rpc` 的 `data_rpc` 转发，方法名与设置端 `contract.ts` 一一对应 | — |
+| `moodflow-utils` | 全仓共用的无业务语义基础工具（文本文件读取规整等），零外部依赖 | — |
 | `moodflow-buffer` | Buffer 上屏前文本工作台（纯逻辑、零依赖）：块编辑、目标绑定与投递授权、两段式投递、容量上限；设计见 `docs/design/buffer.md` | — |
 | `moodflow-chord` | 并击输入（纯逻辑）：键位方案 JSON 格式与校验（草稿/应用两级）、同批与先左后右的结算、组合 → 拼音片段 | — |
 | `moodflow-clipboard` | 剪贴板历史（纯逻辑）：文本/链接条目、去重置顶、收藏、按保留期与条数清理、搜索、JSON 快照；采集由平台事件注入，正文不进日志 | — |

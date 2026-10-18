@@ -1,5 +1,7 @@
 # 应用独立配置增强：按应用方案 / 密码框强制英文 / 状态气泡定位
 
+> **状态更新（2026-10-18 核对）**：核心已实现（`app_compat.rs`、`coordinator/app_schema.rs`、`compat.*` RPC，测试 `app_schema_per_app.rs`、`app_schema_remember_persist.rs`）。已知遗留：`set_shuangpin_layout` 会从旧配置重置当前方案；设置端兼容页见 `compat-settings-ui.md`。
+
 > 状态：设计已定（2026-09-28），实施中。分支 `feat/per-app-overrides`。
 > 来源：看板 C0-7 / C3-3（GH#80）、A2-37 ②（t197）、C2-33（GH#148）。
 

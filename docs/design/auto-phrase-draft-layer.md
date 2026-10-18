@@ -1,5 +1,7 @@
 # 自动造词模型重做：滑窗草稿层
 
+> **状态更新（2026-10-18 核对）**：已实施（`moodflow-store/src/draft_words.rs`、`moodflow-coordinator/src/handle_draft.rs`、草稿窗）。下面的「未实施」是写文档时的状态；未真机验证。
+
 **状态**：设计稿，**未实施**。对应看板 C2-22 / C1-2 的 S5。
 **前置阅读**：`codetable-auto-phrase.md`（现状模型与它的 flush 闸门）、`cross-engine-auto-phrase.md`（S3）。
 
