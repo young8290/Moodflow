@@ -1,6 +1,6 @@
 //! §3.2 文本处理函数（对照 Go funcs/text.go）。全部 `pure=true` 且 `deterministic=true`。
 //!
-//! `t2s/s2t/pinyin` 当前为占位（原样返回），待接 OpenCC / 拼音转换表（与 Go 同为 stub）。
+//! `t2s/s2t` 和 `pinyin` 通过宿主复用已加载的转换数据。
 
 use super::func_specs;
 use super::util::{parse_arg_int, resolve_1based, rune_len};
@@ -20,9 +20,9 @@ pub fn specs() -> Vec<FuncSpec> {
         "split"  : Text (3, 3) det => fn_split,   "按 sep 拆分, 取第 n 段 (1 起, 支持负数)", "split(last(), \",\", 1)";
         "concat" : Text (0, -1) det => fn_concat, "字符串拼接", "concat(last(), \" \", clip())";
         "reverse": Text (1, 1) det => fn_reverse, "反转字符串 (按 rune)", "reverse(\"abc\")";
-        "t2s"    : Text (1, 1) det => fn_passthrough, "(stub) 繁→简; 暂占位原样返回", "t2s(last())";
-        "s2t"    : Text (1, 1) det => fn_passthrough, "(stub) 简→繁; 暂占位原样返回", "s2t(last())";
-        "pinyin" : Text (1, 1) det => fn_passthrough, "(stub) 汉字转拼音; 暂占位原样返回", "pinyin(last())";
+        "t2s"    : Text (1, 1) det => fn_t2s, "繁体转简体 (复用输入法 OpenCC 词典)", "t2s(last())";
+        "s2t"    : Text (1, 1) det => fn_s2t, "简体转繁体 (复用输入法 OpenCC 词典)", "s2t(last())";
+        "pinyin" : Text (1, 1) det => fn_pinyin, "汉字转拼音 (逐字取首选读音)", "pinyin(last())";
         "url"    : Text (1, 1) det => fn_url,      "URL 编码 (component)", "url(last())";
         "html"   : Text (1, 1) det => fn_html,     "HTML 实体编码", "html(last())";
         "json"   : Text (1, 1) det => fn_json,     "JSON 字符串字面量化 (含外层引号)", "json(last())";
@@ -99,8 +99,34 @@ fn fn_reverse(_: &dyn EvalContext, args: &[String]) -> Result<String> {
     Ok(args[0].chars().rev().collect())
 }
 
-fn fn_passthrough(_: &dyn EvalContext, args: &[String]) -> Result<String> {
-    Ok(args[0].clone())
+fn fn_t2s(ctx: &dyn EvalContext, args: &[String]) -> Result<String> {
+    let service = ctx
+        .services()
+        .and_then(|services| services.text_transform.as_ref())
+        .ok_or_else(|| CmdbarError::service("t2s"))?;
+    service
+        .traditional_to_simplified(&args[0])
+        .map_err(|error| CmdbarError::runtime("t2s", error.to_string()))
+}
+
+fn fn_s2t(ctx: &dyn EvalContext, args: &[String]) -> Result<String> {
+    let service = ctx
+        .services()
+        .and_then(|services| services.text_transform.as_ref())
+        .ok_or_else(|| CmdbarError::service("s2t"))?;
+    service
+        .simplified_to_traditional(&args[0])
+        .map_err(|error| CmdbarError::runtime("s2t", error.to_string()))
+}
+
+fn fn_pinyin(ctx: &dyn EvalContext, args: &[String]) -> Result<String> {
+    let service = ctx
+        .services()
+        .and_then(|services| services.pinyin.as_ref())
+        .ok_or_else(|| CmdbarError::service("pinyin"))?;
+    service
+        .to_pinyin(&args[0])
+        .map_err(|error| CmdbarError::runtime("pinyin", error.to_string()))
 }
 
 fn fn_url(_: &dyn EvalContext, args: &[String]) -> Result<String> {
@@ -232,5 +258,103 @@ mod tests {
         assert_eq!(call(fn_html, &["<a>&'\""]), "&lt;a&gt;&amp;&#39;&#34;");
         assert_eq!(call(fn_json, &["a\"b"]), "\"a\\\"b\"");
         assert_eq!(call(fn_base64, &["hi"]), "aGk=");
+    }
+
+    struct TestTextTransform;
+
+    impl crate::services::TextTransformService for TestTextTransform {
+        fn traditional_to_simplified(&self, text: &str) -> anyhow::Result<String> {
+            Ok(text.replace('體', "体").replace('國', "国"))
+        }
+
+        fn simplified_to_traditional(&self, text: &str) -> anyhow::Result<String> {
+            Ok(text.replace('体', "體").replace('国', "國"))
+        }
+    }
+
+    #[test]
+    fn simplified_traditional_functions_use_host_transformer() {
+        let mut services = crate::services::Services::new();
+        services.text_transform = Some(std::sync::Arc::new(TestTextTransform));
+        let ctx = MemoryContext::new().with_services(services);
+
+        assert_eq!(fn_t2s(&ctx, &["繁體中國".into()]).unwrap(), "繁体中国");
+        assert_eq!(fn_s2t(&ctx, &["简体中国".into()]).unwrap(), "简體中國");
+        assert_eq!(fn_s2t(&ctx, &[String::new()]).unwrap(), "");
+    }
+
+    #[test]
+    fn simplified_traditional_functions_report_missing_host_service() {
+        let ctx = MemoryContext::new();
+        assert!(matches!(
+            fn_t2s(&ctx, &["繁體".into()]),
+            Err(CmdbarError::ServiceUnavailable { ref func }) if func == "t2s"
+        ));
+        assert!(matches!(
+            fn_s2t(&ctx, &["简体".into()]),
+            Err(CmdbarError::ServiceUnavailable { ref func }) if func == "s2t"
+        ));
+    }
+
+    struct TestPinyin;
+
+    impl crate::services::PinyinService for TestPinyin {
+        fn to_pinyin(&self, text: &str) -> anyhow::Result<String> {
+            Ok(match text {
+                "重要" => "zhong yao".into(),
+                "你好" => "ni hao".into(),
+                _ => String::new(),
+            })
+        }
+    }
+
+    #[test]
+    fn pinyin_uses_host_reading_table() {
+        let mut services = crate::services::Services::new();
+        services.pinyin = Some(std::sync::Arc::new(TestPinyin));
+        let ctx = MemoryContext::new().with_services(services);
+
+        assert_eq!(fn_pinyin(&ctx, &["重要".into()]).unwrap(), "zhong yao");
+        assert_eq!(fn_pinyin(&ctx, &[String::new()]).unwrap(), "");
+    }
+
+    #[test]
+    fn pinyin_reports_missing_host_service() {
+        let ctx = MemoryContext::new();
+        assert!(matches!(
+            fn_pinyin(&ctx, &["你好".into()]),
+            Err(CmdbarError::ServiceUnavailable { ref func }) if func == "pinyin"
+        ));
+    }
+
+    #[test]
+    fn simplified_traditional_functions_work_through_phrase_registry() {
+        let mut services = crate::services::Services::new();
+        services.text_transform = Some(std::sync::Arc::new(TestTextTransform));
+        let ctx = MemoryContext::new().with_services(services);
+        let registry = crate::registry::Registry::with_builtins();
+
+        let simplified = crate::evaluate_phrase(r#"{t2s("繁體中國")}"#, &ctx, &registry).unwrap();
+        assert!(
+            matches!(simplified, crate::PhraseEval::Single { ref display, .. } if display == "繁体中国")
+        );
+
+        let traditional = crate::evaluate_phrase(r#"{s2t("简体中国")}"#, &ctx, &registry).unwrap();
+        assert!(
+            matches!(traditional, crate::PhraseEval::Single { ref display, .. } if display == "简體中國")
+        );
+    }
+
+    #[test]
+    fn pinyin_works_through_phrase_registry() {
+        let mut services = crate::services::Services::new();
+        services.pinyin = Some(std::sync::Arc::new(TestPinyin));
+        let ctx = MemoryContext::new().with_services(services);
+        let registry = crate::registry::Registry::with_builtins();
+
+        let result = crate::evaluate_phrase(r#"{pinyin("重要")}"#, &ctx, &registry).unwrap();
+        assert!(
+            matches!(result, crate::PhraseEval::Single { ref display, .. } if display == "zhong yao")
+        );
     }
 }
