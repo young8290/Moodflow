@@ -13,7 +13,7 @@
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #F4F7FB;
-  font-family: 'Nunito', 'WenQuanYi Zen Hei', 'Noto Color Emoji', sans-serif; color: var(--ink); }
+  font-family: 'Nunito', 'Noto Sans CJK SC', 'WenQuanYi Zen Hei', 'Noto Color Emoji', sans-serif; color: var(--ink); }
 #stage { position: absolute; inset: 0; overflow: hidden; }
 .scene { position: absolute; inset: 0; }
 .abs { position: absolute; }
@@ -89,6 +89,39 @@ html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; backgro
 .phone .scr { position: absolute; inset: 14px; border-radius: 44px; overflow: hidden; background: #f3f5f8; }
 .kb { position: absolute; left: 0; right: 0; bottom: 0; }
 .kb .ck { position: absolute; display: flex; align-items: center; justify-content: center; border-radius: 9px; font-size: 22px; }
+
+/* 情绪部分：产品界面（暖色卡片） */
+.mfw { position: absolute; width: 420px; height: 210px; background: #fffdf8; border: 1px solid #efe6d8; border-radius: 22px; box-shadow: 0 18px 50px rgba(60,40,10,.16); z-index: 20; overflow: hidden; }
+.mfw .wt { position: absolute; left: 140px; top: 20px; font-size: 20px; color: #6b665e; display: flex; align-items: center; gap: 8px; }
+.mfw .dot { width: 12px; height: 12px; border-radius: 50%; }
+.mfw .wm { position: absolute; left: 140px; right: 20px; top: 54px; font-size: 24px; font-weight: 800; line-height: 1.45; color: #2b2a28; }
+.mfw .wf { position: absolute; left: 20px; right: 20px; bottom: 14px; border-top: 2px dashed #eee5d6; padding-top: 9px; display: flex; justify-content: space-between; font-size: 18px; color: #6b665e; }
+.aitag { display: inline-block; font-size: 16px; font-weight: 500; color: #8a7a55; background: #f4eee0; border: 1px solid #e9dfc8; border-radius: 999px; padding: 0 10px; margin-left: 6px; vertical-align: 3px; }
+.mc { position: absolute; background: #fffdf8; border: 1px solid #efe6d8; border-radius: 20px; box-shadow: 0 18px 50px rgba(60,40,10,.12); }
+.ob { display: inline-block; background: #f29e38; color: #fff; font-weight: 800; border-radius: 12px; padding: 8px 20px; font-size: 21px; transition: none; }
+.gb { display: inline-block; background: #fff; border: 1.5px solid #e4dccd; color: #3b3a37; border-radius: 12px; padding: 7px 18px; font-size: 21px; }
+.lb { display: inline-block; color: #8b857b; padding: 8px 10px; font-size: 21px; }
+.pressed { transform: scale(.93); filter: brightness(.9); }
+.dw { position: absolute; background: #f7f8fa; border: 1px solid #e3e8ef; border-radius: 16px; box-shadow: 0 24px 60px rgba(29,53,87,.16); overflow: hidden; }
+.dw .dbar { height: 56px; background: #fffdf8; border-bottom: 1px solid #ece6db; display: flex; align-items: center; gap: 10px; padding: 0 22px; font-size: 21px; }
+.dw .dbar span { color: #8b857b; font-size: 19px; }
+.dw .dbar i { margin-left: auto; font-style: normal; color: #8b857b; }
+.dw .dbody { position: relative; height: calc(100% - 56px); }
+.msgs { position: absolute; left: 0; right: 0; top: 0; bottom: 190px; padding: 24px 28px; display: flex; flex-direction: column; gap: 18px; justify-content: flex-end; overflow: hidden; }
+.mrow { display: flex; gap: 14px; align-items: flex-start; }
+.mrow.me { justify-content: flex-end; }
+.mrow .av { width: 52px; height: 52px; border-radius: 10px; color: #fff; font-size: 24px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex: none; }
+.mrow .nm { font-size: 17px; color: #8b857b; margin-bottom: 4px; }
+.mrow .bub { background: #fff; border-radius: 12px; padding: 12px 18px; font-size: 24px; max-width: 640px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+.mrow .bub.me { background: #d9ebff; }
+.cinput { position: absolute; left: 0; right: 0; bottom: 0; height: 190px; background: #fff; border-top: 1px solid #e8edf3; padding: 14px 24px; }
+.cinput .icons { font-size: 22px; letter-spacing: 8px; }
+.cin { position: relative; margin-top: 14px; font-size: 26px; color: #1f2733; white-space: nowrap; }
+.cin u { text-decoration: underline dotted #4F9DE8; color: #4F9DE8; }
+.tg { display: inline-block; width: 64px; height: 36px; border-radius: 18px; background: #d9d3c8; position: relative; }
+.tg::after { content: ""; position: absolute; left: 4px; top: 4px; width: 28px; height: 28px; border-radius: 50%; background: #fff; }
+.tg.on { background: #f29e38; }
+.tg.on::after { left: 32px; }
 </style>
 </head>
 <body>
@@ -1007,12 +1040,453 @@ scene({ id: 'outro', dur: 8, chapter: '', badge: '', caption: ['', ''], build: (
     const pet = $(r, 'pet'); pet.style.left = '1500px'; pet.style.top = '760px'; pet.style.opacity = E(t, 2.0, 2.6); petAt(pet, 'wave', t);
   } });
 
+// ═════════ 情绪部分（按第一版的思路：一张连续的桌面，右下角晴晴卡片实时跟着变） ═════════
+const WXS = { sunny: ['晴', '状态挺好'], cloudy: ['多云', '看起来有点犹豫'], rain: ['小雨', '可能有点低落'], storm: ['雷阵雨', '好像有点急'], night: ['夜', '可能有点累了'], rest: ['休息中', '不看你打字啦'] };
+const thumb = (wx, s = 0.35, pose = 'idle', frame = 0, extra = '') => {
+  const row = ROWS[pose][0];
+  return `<div style="display:inline-block;flex:none;width:${192 * s}px;height:${208 * s}px;background:url(assets/pet-${wx}.png) ${-frame * 192 * s}px ${-row * 208 * s}px / ${1536 * s}px ${1872 * s}px no-repeat;${extra}"></div>`;
+};
+const widgetHTML = (x = 1440, y = 704) => `<div class="mfw" data-k="w" style="left:${x}px;top:${y}px">
+  ${petHTML('wpet', 0.62, 'left:2px;top:6px;transform-origin:0 0')}
+  <div class="wt"><span class="dot" data-k="wdot"></span><span data-k="wst"></span></div>
+  <div class="wm" data-k="wmsg"></div>
+  <div class="wf"><span data-k="wl">⌨ 今日 1 小时 42 分</span><span data-k="wr"></span></div></div>`;
+function widgetSet(r, t, o) {
+  const wx = o.wx || 'sunny', col = wx === 'rest' ? '#cfc8bc' : W[wx];
+  $(r, 'wdot').style.background = col;
+  $(r, 'wst').textContent = o.st || (WXS[wx][0] + ' · ' + WXS[wx][1]);
+  $(r, 'wmsg').innerHTML = (o.msg || '') + (o.ai ? '<span class="aitag">AI 生成</span>' : '');
+  $(r, 'wr').textContent = o.right || '';
+  if (o.left) $(r, 'wl').textContent = o.left;
+  petAt($(r, 'wpet'), o.pose || (wx === 'rest' ? 'sleep' : 'idle'), t, wx === 'rest' ? W.sunny : W[wx]);
+  const k = o.changed !== undefined ? P(t, o.changed, o.changed + 0.5) : 1;
+  $(r, 'w').style.transform = `scale(${k < 1 ? 1 + Math.sin(k * Math.PI) * 0.05 : 1})`;
+}
+// 输入法打字：[拼音, 汉字, 候选] / ['', 标点] / ['<', 删几个字] / ['~', 停几秒]
+function imeRun(segs, t, a, cps = 11, quiet = false) {
+  let time = a, text = '';
+  const S_ = (at, key) => { if (!quiet) sfx('key', CUR_START + at, key); };
+  const chars = s => [...s];
+  for (const [k, v, alts] of segs) {
+    if (k === '~') { if (t < time + v) return { text, pre: '', cands: null }; time += v; continue; }
+    if (k === '<') {
+      const d = v / 7;
+      if (t < time + d) { const n = Math.floor((t - time) * 7); for (let i = 0; i <= n; i++) S_(time + i / 7); return { text: chars(text).slice(0, chars(text).length - n).join(''), pre: '', cands: null }; }
+      for (let i = 0; i < v; i++) S_(time + i / 7);
+      text = chars(text).slice(0, -v).join(''); time += d; continue;
+    }
+    if (k === '') { if (t < time) return { text, pre: '', cands: null }; S_(time); text += v; time += 0.14; continue; }
+    const d = k.length / cps;
+    if (t < time) return { text, pre: '', cands: null };
+    if (t < time + d + 0.2) {
+      const n = Math.min(k.length, Math.floor((t - time) * cps) + 1);
+      for (let i = 0; i < n; i++) S_(time + i / cps);
+      const cs = alts || (chars(v).length > 1 ? [v, chars(v).slice(0, 1).join(''), chars(v).slice(0, 2).join('') + '…'] : [v, '只', '之']);
+      return { text, pre: k.slice(0, n), cands: n >= Math.min(k.length, 3) ? cs : null };
+    }
+    for (let i = 0; i < k.length; i++) S_(time + i / cps);
+    S_(time + d + 0.2, 'commit' + time.toFixed(2));
+    text += v; time += d + 0.24;
+  }
+  return { text, pre: '', cands: null, done: true, end: time };
+}
+const imeEnd = (segs, a, cps) => imeRun(segs, 1e9, a, cps, true).end;
+// 窗口
+const dwin = (k, title, sub, x, y, w, h, body, extra = '') => `<div class="dw" data-k="${k}" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px;${extra}">
+  <div class="dbar"><b>${title}</b><span>${sub}</span><i>—　▢　✕</i></div><div class="dbody">${body}</div></div>`;
+const chatBody = () => `<div class="msgs" data-k="msgs"></div>
+  <div class="cinput"><div class="icons">😊 📁 ✂</div><div class="cin" data-k="cin"><span data-k="itx"></span><u data-k="ipre"></u><span class="caret"></span></div></div>
+  <div data-k="candw" style="position:absolute"></div>`;
+const AV = { 陈: '#7fa7c9', 李: '#a99bd8', 王: '#8fcbb8', 林: '#e8875b', 我: '#f29e38' };
+function renderChat(r, list) {
+  $(r, 'msgs').innerHTML = list.map(m => m.me
+    ? `<div class="mrow me"><div class="bub me">${m.text}</div><div class="av" style="background:${AV['我']}">我</div></div>`
+    : `<div class="mrow"><div class="av" style="background:${AV[m.who[0]]}">${m.who[0]}</div><div><div class="nm">${m.who}</div><div class="bub">${m.text}</div></div></div>`).join('');
+}
+function setInput(r, st) {
+  $(r, 'itx').textContent = st.text; $(r, 'ipre').textContent = st.pre;
+  const cw = $(r, 'candw');
+  if (st.cands) {
+    cw.innerHTML = cand(st.cands, 0, st.pre);
+    const pr = cw.parentElement.getBoundingClientRect(), ir = $(r, 'itx').getBoundingClientRect();
+    cw.style.left = (ir.right - pr.left - 10) + 'px'; cw.style.top = (ir.top - pr.top - cw.firstChild.offsetHeight - 10) + 'px';
+  } else cw.innerHTML = '';
+}
+const cursorHTML = (k = 'mouse') => `<svg data-k="${k}" class="abs" width="34" height="40" viewBox="0 0 34 40" style="z-index:45;filter:drop-shadow(0 2px 3px rgba(0,0,0,.3))"><path d="M3 2 L3 32 L11 24 L17 37 L22 35 L16 22 L28 22 Z" fill="#fff" stroke="#1f2733" stroke-width="2.4" stroke-linejoin="round"/></svg>`;
+const moveMouse = (r, pts, t) => { // pts: [[时间, x, y], ...]
+  let x = pts[0][1], y = pts[0][2];
+  for (let i = 1; i < pts.length; i++) { const k = eio(P(t, pts[i - 1][0], pts[i][0])); if (t >= pts[i - 1][0]) { x = lerp(pts[i - 1][1], pts[i][1], k); y = lerp(pts[i - 1][2], pts[i][2], k); } }
+  const m = $(r, 'mouse'); m.style.left = x + 'px'; m.style.top = y + 'px';
+};
+const press = (el, t, at) => { el.classList.toggle('pressed', t >= at && t < at + 0.25); if (t >= at) sfx('pop', CUR_START + at, 'pr' + at); };
+const deskBg = (night = false) => `<div class="desk" style="${night ? 'background:radial-gradient(1200px 700px at 25% 20%,#3a4a68,transparent),linear-gradient(135deg,#27324a,#1d2436)' : ''}"></div>`;
+
+// ── 1 痛点
+scene({ id: 'pain', dur: 9.5, chapter: '', badge: '', caption: ['', ''], build: () => `
+  <div class="abs" style="inset:0;background:radial-gradient(900px 600px at 50% 45%,#fffdf6,#f6efe2)"></div>
+  <div class="abs" style="left:0;right:0;top:300px;display:flex;flex-direction:column;align-items:center;gap:30px">
+    ${[['rain', '情绪起伏的时候，没人察觉'], ['cloudy', '群里约好的事，转头就忘'], ['storm', '话说得太冲，发出去就后悔']].map(([w, s], i) =>
+    `<div data-k="p${i}" style="display:flex;align-items:center;gap:22px;font-size:46px;font-weight:800;color:#3b3a37;width:760px">${thumb(w, 0.42)}${s}</div>`).join('')}
+    <div data-k="ans" style="margin-top:34px;font-size:50px;font-weight:900;color:#1D3557">Moodflow：<span style="color:#e08a1e">你正常打字就好，其余的交给它</span></div>
+  </div>`,
+  draw: (r, t) => { [0, 1, 2].forEach(i => pop($(r, 'p' + i), t, 0.4 + i * 1.5)); pop($(r, 'ans'), t, 5.2, 0.6); } });
+
+// ── 2 日程待办
+const SCH1 = [['haode', '好的'], ['', '，'], ['zhouwu', '周五'], ['xiawu', '下午'], ['sandian', '三点'], ['zai', '在'], ['shiyanlou', '实验楼'], ['kai', '开'], ['zuhui', '组会']];
+const SCH2 = [['wolaiba', '我来吧'], ['', '，'], ['jide', '记得'], ['qu', '去'], ['dayin', '打印'], ['pingshenbiao', '评审表']];
+scene({ id: 'sched', dur: 17, chapter: '晴晴 · 日程与待办', capLeft: true, caption: ['聊天里约好的事，它帮你记下', '只有带时间词的那一句才发给 AI 确认；日期由代码校验，时间冲突当场提醒'], build: () => `
+  ${deskBg()}
+  ${dwin('cw', '课程项目群（5）', '· 某聊天软件（示意）', 110, 200, 1000, 820, chatBody())}
+  <div class="mc" data-k="bub1" style="left:150px;top:860px;padding:10px 18px;font-size:22px;z-index:30">📅 识别到日程</div>
+  <div class="mc" data-k="c1" style="left:1180px;top:200px;width:660px;padding:24px 28px">
+    <div style="display:flex;align-items:center;gap:10px;font-size:30px;font-weight:900">📅 组会<span class="aitag" style="margin-left:auto">AI 识别</span></div>
+    <div style="font-size:23px;color:#4a4740;margin-top:8px">🕒 10月9日 周五 15:00　　📍 实验楼</div>
+    <div style="font-size:21px;color:#a5650a;background:#fdf1dc;border-radius:10px;padding:8px 14px;margin-top:12px">⚠ 与「班会」时间重叠（15:00–16:00）</div>
+    <div data-k="c1b" style="margin-top:16px;display:flex;gap:12px;align-items:center"><span class="ob" data-k="c1ok">添加</span><span class="gb">修改</span><span class="lb">忽略</span></div>
+    <div data-k="c1d" style="margin-top:16px;font-size:23px;font-weight:800;color:#237a4b">✓ 已加入日程，14:50 提醒你</div>
+  </div>
+  <div class="mc" data-k="c2" style="left:1180px;top:470px;width:660px;padding:24px 28px">
+    <div style="display:flex;align-items:center;gap:10px;font-size:30px;font-weight:900">✅ 待办：打印评审表<span class="aitag" style="margin-left:auto">AI 识别</span></div>
+    <div style="font-size:21px;color:#6b665e;margin-top:8px">未设截止日期 · 可在“修改”中补充</div>
+    <div data-k="c2b" style="margin-top:16px;display:flex;gap:12px;align-items:center"><span class="ob" data-k="c2ok">加入待办</span><span class="gb">修改</span><span class="lb">忽略</span></div>
+    <div data-k="c2d" style="margin-top:16px;font-size:23px;font-weight:800;color:#237a4b">✓ 已加入待办</div>
+  </div>
+  ${widgetHTML()}`,
+  draw: (r, t) => {
+    const e1 = imeEnd(SCH1, 0.8, 12), s1 = e1 + 0.3;
+    const a2 = s1 + 4.2, e2 = imeEnd(SCH2, a2, 12), s2 = e2 + 0.3;
+    const msgs = [{ who: '陈同学', text: '下周要交需求文档了，组会定在什么时候？' }, { who: '李同学', text: '周五下午我都有空' }];
+    if (t >= s1) msgs.push({ me: 1, text: '好的，周五下午三点在实验楼开组会' });
+    if (t >= s1 + 3.0) msgs.push({ who: '王同学', text: '收到👌 评审表谁去打印？' });
+    if (t >= s2) msgs.push({ me: 1, text: '我来吧，记得去打印评审表' });
+    renderChat(r, msgs);
+    if (t >= s1 + 3.0) sfx('pop', CUR_START + s1 + 3.0, 'm3');
+    setInput(r, t < s1 ? imeRun(SCH1, t, 0.8, 12) : t < a2 ? { text: '', pre: '' } : t < s2 ? imeRun(SCH2, t, a2, 12) : { text: '', pre: '' });
+    const b = $(r, 'bub1'); pop(b, t, s1 + 0.3); if (t > s1 + 1.9) b.style.opacity = 1 - P(t, s1 + 1.9, s1 + 2.3);
+    pop($(r, 'c1'), t, s1 + 0.9); press($(r, 'c1ok'), t, s1 + 2.6);
+    $(r, 'c1b').style.display = t < s1 + 2.9 ? 'flex' : 'none'; $(r, 'c1d').style.display = t < s1 + 2.9 ? 'none' : 'block';
+    pop($(r, 'c2'), t, s2 + 0.5); press($(r, 'c2ok'), t, s2 + 2.0);
+    $(r, 'c2b').style.display = t < s2 + 2.3 ? 'flex' : 'none'; $(r, 'c2d').style.display = t < s2 + 2.3 ? 'none' : 'block';
+    widgetSet(r, t, { wx: 'sunny', msg: '今天也辛苦啦，慢慢来就好。', right: t >= s1 + 2.9 ? '📅 15:00 组会' : '', changed: s1 + 2.9 });
+  } });
+
+// ── 3 打字心电图：晴 → 多云
+const RH = [['qishi', '其实'], ['zhejianshi', '这件事'], ['~', 1.4], ['<', 3], ['~', 1.1], ['wo', '我'], ['ye', '也'], ['~', 1.6], ['buzhidao', '不知道'], ['~', 0.9], ['gai', '该'], ['zenme', '怎么'], ['shuo', '说']];
+scene({ id: 'rhythm', dur: 18, chapter: '晴晴 · 心情天气', capLeft: true, caption: ['只看打字节奏，不看你打了什么', '停顿、删改、速度和你自己的平时比，判断“可能”是什么天气；每一次都说清理由'], build: () => `
+  ${deskBg()}
+  ${dwin('cw', '林林', '· 某聊天软件（示意）', 110, 200, 860, 820, chatBody())}
+  <div class="mc" style="left:1010px;top:200px;width:830px;height:460px;padding:22px 26px">
+    <div style="display:flex;align-items:baseline;gap:12px"><b style="font-size:26px">打字心电图</b><span style="font-size:19px;color:#8b857b">最近 15 秒 · 按键间隔（毫秒）· 只记时间，不记内容</span></div>
+    <svg data-k="ecg" width="778" height="230" style="margin-top:10px"></svg>
+    <div data-k="feat" style="display:grid;grid-template-columns:1fr 1fr;gap:10px 26px;margin-top:8px"></div>
+  </div>
+  <div class="mc" data-k="ex" style="left:1440px;top:430px;width:400px;padding:20px 22px;z-index:31">
+    <div style="font-size:24px;font-weight:900">看起来有点犹豫（可能性 80%）</div>
+    <div style="height:10px;border-radius:5px;background:#eee8dc;margin:12px 0"><div style="width:80%;height:100%;border-radius:5px;background:#a99bd8"></div></div>
+    <div style="font-size:20px;line-height:1.7;color:#4a4740">· 句子中间停顿了 3 次<br>· 有一段话打了又删<br>· 打字速度比平时慢 35%</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-top:12px;font-size:18px;color:#8b857b">根据打字节奏判断<span class="gb" data-k="ok" style="margin-left:auto;font-size:19px;padding:4px 14px">准</span><span class="gb" style="font-size:19px;padding:4px 14px">不准</span></div>
+    <div data-k="thx" style="margin-top:10px;font-size:20px;font-weight:800;color:#237a4b">谢谢，晴晴记住了</div>
+  </div>
+  ${widgetHTML(1440, 704)}${cursorHTML()}`,
+  draw: (r, t) => {
+    renderChat(r, [{ who: '林林', text: '今天组会怎么样？还顺利吗' }]);
+    const st = imeRun(RH, t, 0.6, 7); setInput(r, st);
+    // 心电图：用同一套打字时间表重新算出按键间隔
+    const ev = []; { let time = 0.6; for (const [k, v] of RH) {
+      if (k === '~') { time += v; continue; } if (k === '<') { for (let i = 0; i < v; i++) ev.push([time + i / 7, 1]); time += v / 7; continue; }
+      if (k === '') { ev.push([time, 0]); time += 0.14; continue; } for (let i = 0; i < k.length; i++) ev.push([time + i / 7, 0]); ev.push([time + k.length / 7 + 0.2, 0]); time += k.length / 7 + 0.24; } }
+    const seen = ev.filter(e => e[0] <= t); const W0 = 15, x = tt => 40 + (tt - (t - W0)) / W0 * 730, y = ms => 200 - Math.min(ms, 3000) / 3000 * 180;
+    let pts = '', dots = '';
+    const base = []; for (let tt = Math.max(0, t - W0); tt < 0.6 && tt < t; tt += 0.15) base.push([tt, 160 + 40 * Math.sin(tt * 9)]);
+    for (const [tt, ms] of base) pts += `${x(tt)},${y(ms)} `;
+    for (let i = 0; i < seen.length; i++) { const gap = i ? (seen[i][0] - seen[i - 1][0]) * 1000 : 160; if (seen[i][0] > t - W0) pts += `${x(seen[i][0])},${y(gap)} `; if (seen[i][1] && seen[i][0] > t - W0) dots += `<circle cx="${x(seen[i][0])}" cy="214" r="5" fill="#d64545"/>`; }
+    if (seen.length && t - seen[seen.length - 1][0] > 0.3) pts += `${x(t)},${y((t - seen[seen.length - 1][0]) * 1000)} `;
+    const sw = 9.2, mark = sw > t - W0 && t >= sw ? `<line x1="${x(sw)}" x2="${x(sw)}" y1="10" y2="205" stroke="#a99bd8" stroke-width="2" stroke-dasharray="5 5"/><text x="${x(sw) + 8}" y="26" font-size="17" fill="#6b5fb0">晴 → 多云 · 犹豫 80%</text>` : '';
+    $(r, 'ecg').innerHTML = `${[0, 1000, 2000, 3000].map(v => `<line x1="40" x2="770" y1="${y(v)}" y2="${y(v)}" stroke="#eee8dc"/><text x="0" y="${y(v) + 6}" font-size="15" fill="#9a9389">${v}</text>`).join('')}
+      <polyline points="${pts}" fill="none" stroke="#f0a03a" stroke-width="3" stroke-linejoin="round"/>${dots}${mark}`;
+    const k = P(t, 3, 9.2);
+    const feat = [['速度（和你平时比）', lerp(0.62, 0.28, k), '#f6c344'], ['删改', lerp(0.08, 0.55, k), '#d64545'], ['句中停顿', lerp(0.12, 0.7, k), '#a99bd8'], ['写了又放弃', lerp(0.02, 0.35, k), '#7fa7c9']];
+    $(r, 'feat').innerHTML = feat.map(([n, v, c]) => `<div style="font-size:18px;color:#6b665e">${n}<div style="height:10px;border-radius:5px;background:#f1ece2;margin-top:5px"><div style="height:100%;width:${v * 100}%;border-radius:5px;background:${c}"></div></div></div>`).join('');
+    const cl = t >= 9.2;
+    widgetSet(r, t, cl ? { wx: 'cloudy', msg: '想说的话不急着说完，慢慢来。', ai: true, right: '📅 15:00 组会', changed: 9.2, pose: 'review' } : { wx: 'sunny', msg: '今天也辛苦啦，慢慢来就好。', right: '📅 15:00 组会' });
+    if (t >= 9.2) sfx('pop', CUR_START + 9.2, 'wx');
+    moveMouse(r, [[0, 1700, 1000], [11.6, 1700, 1000], [12.4, 1520, 760], [14.6, 1520, 760], [15.2, 1606, 590]], t);
+    const ex = $(r, 'ex'); pop(ex, t, 12.6); if (t < 12.6) ex.style.opacity = 0;
+    press($(r, 'ok'), t, 15.4); $(r, 'thx').style.display = t >= 15.6 ? 'block' : 'none';
+  } });
+
+// ── 4 主动报告心情
+scene({ id: 'self', dur: 10, chapter: '晴晴 · 自评', capLeft: true, caption: ['不想等它猜？直接告诉晴晴', '只需点一下，不用解释；你说的永远比判断优先'], build: () => `
+  ${deskBg()}
+  <div class="mc" style="left:640px;top:220px;width:700px;padding:26px 30px">
+    <div style="display:flex;align-items:baseline"><b style="font-size:32px">我现在…</b><span style="margin-left:auto;font-size:20px;color:#8b857b">只需点一下，不用解释</span></div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:20px">
+      ${[['sunny', '挺好'], ['cloudy', '有点犹豫'], ['rain', '有点低落'], ['storm', '有点烦'], ['night', '有点累'], ['', '说不上来']].map(([w, s], i) =>
+      `<div data-k="o${i}" style="border:2px solid #ece4d6;border-radius:16px;background:#fff;text-align:center;padding:10px 0 12px;font-size:24px">${w ? thumb(w, 0.42) : '<div style="height:87px;font-size:60px;line-height:87px">🤷</div>'}<div>${s}</div></div>`).join('')}
+    </div>
+    <div style="margin-top:16px;background:#f6f1e8;border-radius:12px;padding:12px 16px;font-size:20px;color:#9a9389">想写一句也可以（选填，只存本地）</div>
+  </div>
+  <div class="mc" data-k="rep" style="left:640px;top:770px;width:700px;padding:22px 26px;display:flex;gap:16px;align-items:flex-start">
+    ${thumb('rain', 0.36)}
+    <div><div style="font-size:25px;line-height:1.6;color:#2b2a28">谢谢你告诉我。低落的时候不用硬撑，先歇一会儿也没关系。<span class="aitag">AI 生成</span></div>
+    <div style="margin-top:12px;display:flex;gap:12px"><span class="ob" data-k="talk">和晴晴聊聊</span><span class="gb">先不用</span></div></div>
+  </div>
+  ${widgetHTML(1440, 704)}${cursorHTML()}`,
+  draw: (r, t) => {
+    const sel = t >= 3.4; const o = $(r, 'o2'); o.style.borderColor = sel ? '#7fa7c9' : '#ece4d6'; o.style.background = sel ? '#eef5fb' : '#fff';
+    press(o, t, 3.4);
+    widgetSet(r, t, sel ? { wx: 'rain', msg: '谢谢你告诉我。先歇一会儿也没关系。', ai: true, right: '📅 15:00 组会', changed: 3.5, pose: 'sad' } : { wx: 'cloudy', msg: '想说的话不急着说完，慢慢来。', ai: true, right: '📅 15:00 组会' });
+    const rep = $(r, 'rep'); pop(rep, t, 4.4); if (t < 4.4) rep.style.opacity = 0;
+    press($(r, 'talk'), t, 8.2);
+    moveMouse(r, [[0, 1300, 980], [2.6, 1238, 560], [7.2, 1238, 560], [8.0, 960, 905]], t);
+  } });
+
+// ── 5 和晴晴聊聊 + 危机安全
+const CHAT = [
+  [0.4, 'me', '今天组会被老师说报告写得太乱了，有点难受'],
+  [3.6, 'ai', '被当面指出问题，心里不好受很正常。是哪一部分让你最在意呢？'],
+  [5.2, 'me', '熬了好几个晚上，感觉还是不行'],
+  [8.2, 'ai', '熬了好几个晚上，说明你真的很用心。要不要一起把老师的意见拆成几条，先挑最容易改的那一条？'],
+];
+scene({ id: 'talk', dur: 16, chapter: '晴晴 · 对话', capLeft: true, caption: ['想说话的时候，晴晴在', '吐槽、理一理、写成日记都行；发现危险信号时，求助方式第一时间出现，离线也可用'], build: () => `
+  ${deskBg()}
+  <div class="mc" style="left:200px;top:200px;width:820px;height:840px;overflow:hidden;padding:0">
+    <div style="display:flex;align-items:center;gap:14px;padding:16px 24px;border-bottom:1px solid #efe6d8">${thumb('cloudy', 0.3)}<div><b style="font-size:26px">晴晴</b><div style="font-size:19px;color:#8b857b">今天：上午平稳，傍晚有点犹豫</div></div><span style="margin-left:auto;color:#9a9389;font-size:22px;letter-spacing:10px">📌＋☰</span></div>
+    <div style="background:#f6f1e8;padding:8px 24px;font-size:18px;color:#8b857b">ⓘ 晴晴是 AI，回复内容由 AI 生成</div>
+    <div data-k="cmsgs" style="padding:18px 24px;display:flex;flex-direction:column;gap:14px;height:520px;overflow:hidden;justify-content:flex-end"></div>
+    <div style="position:absolute;left:0;right:0;bottom:0;padding:14px 22px 20px;border-top:1px solid #efe6d8;background:#fffdf8">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:19px">${['📝 写成情绪日记', '🌬 陪我呼吸 1 分钟', '💬 我只是想吐槽'].map(s => `<span class="gb" style="font-size:19px;padding:5px 12px">${s}</span>`).join('')}<span class="gb" data-k="chip" style="font-size:19px;padding:5px 12px">🧭 帮我理一理</span></div>
+      <div style="display:flex;gap:12px;margin-top:12px"><div data-k="cinp" style="flex:1;background:#f6f1e8;border-radius:12px;padding:12px 16px;font-size:21px;color:#2b2a28;min-height:50px"></div><span class="ob" style="padding:12px 18px">➤</span></div>
+    </div>
+  </div>
+  <div class="mc" data-k="crisis" style="left:1080px;top:290px;width:760px;padding:0;overflow:hidden">
+    <div style="display:flex;align-items:center;gap:14px;padding:14px 22px;border-bottom:1px solid #efe6d8">${thumb('rain', 0.26)}<div><b style="font-size:23px">晴晴</b><div style="font-size:17px;color:#8b857b">安全模式</div></div></div>
+    <div style="margin:16px 20px;border:2px solid #f0c4c0;background:#fdf3f2;border-radius:16px;padding:16px 20px">
+      <div style="color:#c0392b;font-weight:900;font-size:25px">你现在的感受很重要，你不需要一个人扛着。</div>
+      <div style="font-size:21px;line-height:1.85;margin-top:8px;color:#2b2a28">📞 全国心理援助热线：<b>12356</b><br>🚨 如果你正处在危险中，请立即拨打 <b>110</b> 或 <b>120</b><br>👥 联系一个你信任的人：家人、朋友、辅导员或老师</div>
+      <div style="margin-top:12px;display:flex;gap:12px"><span class="gb">我现在是安全的</span><span class="lb">我说的不是这个意思</span></div>
+    </div>
+    <div style="padding:0 20px 20px;font-size:19px;color:#8b857b">发现危险信号时，求助卡片固定在对话顶部；不依赖网络</div>
+  </div>`,
+  draw: (r, t) => {
+    const out = [];
+    for (let i = 0; i < CHAT.length; i++) {
+      const [at, who, txt] = CHAT[i];
+      if (who === 'me') { const send = at + [...txt].length / 14 + 0.3; if (t >= send) { out.push(`<div style="align-self:flex-end;max-width:76%;background:#f5e7c8;border-radius:16px 16px 4px 16px;padding:12px 18px;font-size:23px;line-height:1.55">${txt}</div>`); sfx('pop', CUR_START + send, 'cm' + i); } }
+      else if (t >= at - 1.0) out.push(t < at ? `<div style="display:flex;gap:10px">${thumb('cloudy', 0.2)}<div style="background:#fff;border:1px solid #ece4d6;border-radius:16px;padding:12px 18px;font-size:23px;color:#9a9389">●●●</div></div>`
+        : `<div style="display:flex;gap:10px;align-items:flex-start">${thumb('cloudy', 0.2)}<div style="max-width:78%"><div style="background:#fff;border:1px solid #ece4d6;border-radius:16px 16px 16px 4px;padding:12px 18px;font-size:23px;line-height:1.55">${[...txt].slice(0, Math.floor((t - at) * 22)).join('')}</div><span class="aitag" style="margin:6px 0 0">AI 生成</span></div></div>`);
+    }
+    $(r, 'cmsgs').innerHTML = out.join('');
+    let inp = ''; for (const [at, who, txt] of CHAT) if (who === 'me') { const send = at + [...txt].length / 14 + 0.3; if (t >= at && t < send) inp = typed(txt, t, at, 14); }
+    $(r, 'cinp').textContent = inp;
+    press($(r, 'chip'), t, 11.2);
+    const c = $(r, 'crisis'); pop(c, t, 12.0); if (t < 12) c.style.opacity = 0;
+  } });
+
+// ── 6 温柔改写
+const RW = [['nimen', '你们'], ['daodi', '到底'], ['youmeiyou', '有没有'], ['ren', '人'], ['kan', '看'], ['qunxiaoxi', '群消息'], ['', '？'], ['shuole', '说了'], ['babaibian', '八百遍'], ['le', '了'], ['zhouwu', '周五'], ['jiao', '交'], ['', '！']];
+scene({ id: 'rewrite', dur: 15, chapter: '晴晴 · 温柔改写', capLeft: true, caption: ['情绪上头时，一键把话说得更温和', 'Ctrl+Alt+R 在输入法候选框里直接选改写结果；数字、日期等关键信息保真校验'], build: () => `
+  ${deskBg()}
+  ${dwin('cw', '课程项目群（5）', '· 某聊天软件（示意）', 110, 200, 1100, 820, chatBody())}
+  <div class="mc" data-k="rwc" style="left:150px;top:470px;width:960px;padding:0;overflow:hidden;z-index:32">
+    <div style="display:flex;align-items:center;padding:14px 22px;background:#fbf3e3;border-bottom:1px solid #efe1c6"><b style="color:#b8740e;font-size:23px">✦ AI 改写 · 更温和</b><span style="margin-left:auto;font-size:19px;color:#8b857b">Tab 换风格　Esc 取消</span></div>
+    <div style="padding:10px 22px;font-size:19px;color:#8b857b">原文：你们到底有没有人看群消息？说了八百遍了周…</div>
+    ${['提醒一下大家记得看群消息哦，作业周五交～', '可能有同学没注意到群消息，再说一次：周五交，辛苦啦。', '再跟大家确认一下：周五截止提交，有问题随时在群里说。'].map((s, i) =>
+    `<div data-k="r${i}" style="display:flex;gap:18px;padding:12px 22px;font-size:24px;${i === 0 ? 'background:#f7e6c4' : ''}"><b style="color:#b8740e">${i + 1}</b>${s}</div>`).join('')}
+    <div style="padding:10px 22px;font-size:18px;color:#9a9389;border-top:1px solid #efe6d8">按 1–3 / 空格 替换原文 · Ctrl+数字 只复制 · “周五”等关键信息已保真校验</div>
+  </div>
+  <div class="keys" data-k="keys" style="left:1300px;top:280px"><span class="key" data-k="k1">Ctrl</span>+<span class="key" data-k="k2">Alt</span>+<span class="key" data-k="k3">R</span></div>
+  ${widgetHTML(1440, 704)}`,
+  draw: (r, t) => {
+    const e = imeEnd(RW, 0.6, 15);
+    const msgs = [{ who: '李同学', text: '需求文档是周五交吗？我刚看到' }, { who: '王同学', text: '啊？什么时候说的' }];
+    const rep = 8.6, sent = 9.8;
+    if (t >= sent) msgs.push({ me: 1, text: '提醒一下大家记得看群消息哦，作业周五交～' });
+    renderChat(r, msgs); if (t >= sent) sfx('pop', CUR_START + sent, 'sent');
+    setInput(r, t < e ? imeRun(RW, t, 0.6, 15) : t < rep ? { text: '你们到底有没有人看群消息？说了八百遍了周五交！', pre: '' } : t < sent ? { text: '提醒一下大家记得看群消息哦，作业周五交～', pre: '' } : { text: '', pre: '' });
+    const on = (k, a) => $(r, k).classList.toggle('on', t >= a && t < 6.9);
+    on('k1', 5.9); on('k2', 6.1); on('k3', 6.3); $(r, 'keys').style.opacity = t >= 5.6 && t < 7.4 ? 1 : 0;
+    const c = $(r, 'rwc'); pop(c, t, 6.6); if (t < 6.6 || t >= rep) c.style.opacity = 0;
+    if (t >= 8.2 && t < rep) $(r, 'r0').style.filter = 'brightness(.93)';
+    const storm = t >= 4.2 && t < 10.6;
+    widgetSet(r, t, storm ? { wx: 'storm', msg: '先停十秒，深呼吸一下？', ai: true, right: '📅 15:00 组会', changed: 4.2, pose: 'jump' }
+      : t >= 10.6 ? { wx: 'sunny', msg: '这样说，大家更容易听进去。', right: '📅 15:00 组会', changed: 10.6, pose: 'wave' } : { wx: 'sunny', msg: '今天也辛苦啦，慢慢来就好。', right: '📅 15:00 组会' });
+    if (t >= 4.2) sfx('pop', CUR_START + 4.2, 'storm');
+  } });
+
+// ── 7 休息与喝水
+const DOC = '4.4 功能需求\nMoodflow 的功能需求按 21 个模块组织，共约 140 条。\nFR-SCH-01：本地初筛。按句切分，命中日期、截止、在“时间 + 事件动词”才进入下一步；\n排除过去时和未确认的问句；每日上限 50 句。\nFR-SCH-02：二次确认。只发送命中的那一句，阈值 0.80，未达阈值不提示。\nFR-RST-02：护眼提醒。连续使用 20 分钟后，在下一次停顿时提醒。';
+scene({ id: 'rest', dur: 13, chapter: '晴晴 · 休息与专注', capLeft: true, caption: ['按真实输入时长，提醒你歇一歇', '只在你停下、空闲时出现，绝不打断正在输入的句子；喝水、活动、深夜提醒都可以单独开关'], build: () => `
+  ${deskBg()}
+  ${dwin('dw', '软件需求规格说明书.docx', '· 文档编辑器（示意）', 110, 200, 1180, 820, `<div style="background:#fff;margin:24px auto 0;width:900px;height:700px;padding:44px 56px;box-shadow:0 2px 10px rgba(0,0,0,.06);font-size:23px;line-height:1.8;color:#2b2a28;white-space:pre-wrap" data-k="doc"></div>`)}
+  <div class="mc" data-k="tm" style="left:1440px;top:200px;width:400px;padding:16px 22px"><div style="font-size:19px;color:#8b857b">连续打字 · 停下 2 分钟以上会重新计时</div><div data-k="tmv" style="font-size:52px;font-weight:900;font-variant-numeric:tabular-nums"></div></div>
+  <div class="mc" data-k="eb" style="padding:10px 16px;font-size:22px;z-index:30">👀 看看远处休息 20 秒</div>
+  <div class="mc" data-k="eye" style="left:1360px;top:360px;width:480px;padding:20px 22px;display:flex;gap:18px">
+    <svg width="86" height="86" viewBox="0 0 86 86"><circle cx="43" cy="43" r="36" fill="none" stroke="#efe9de" stroke-width="9"/><circle data-k="ring" cx="43" cy="43" r="36" fill="none" stroke="#8fcbb8" stroke-width="9" stroke-linecap="round" transform="rotate(-90 43 43)" stroke-dasharray="226"/><text data-k="rn" x="43" y="52" text-anchor="middle" font-size="26" font-weight="800" fill="#2b2a28"></text></svg>
+    <div><b style="font-size:26px">👀 护眼时间</b><div style="font-size:20px;color:#4a4740;margin-top:6px;line-height:1.6">已经连续打字 20 分钟啦。看看 6 米外的地方，休息 20 秒吧。</div>
+    <div style="margin-top:12px;display:flex;gap:10px"><span class="ob" data-k="done">已完成</span><span class="gb">5 分钟后</span></div></div>
+  </div>
+  <div class="mc" data-k="water" style="left:1360px;top:360px;width:480px;padding:20px 22px">
+    <b style="font-size:26px">💧 喝口水吧</b><div style="font-size:20px;color:#4a4740;margin-top:6px">距离上次喝水提醒，已经打字 60 分钟了。</div>
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center"><span class="ob" data-k="drink">喝了</span><span class="gb">5 分钟后</span><span class="lb">今天不再提醒</span></div>
+    <div style="font-size:18px;color:#8b857b;margin-top:10px">今日已喝水 2 次 · 点“喝了”可获得 1 点晴天值</div>
+  </div>
+  <div data-k="plus" class="abs" style="left:1500px;top:330px;font-size:30px;font-weight:900;color:#e08a1e">+1 晴天值 ☀</div>
+  ${widgetHTML(1440, 704)}`,
+  draw: (r, t) => {
+    const n = Math.floor(clamp(t - 0.3, 0, 3.0) * 30 + clamp(t - 9.5, 0, 3) * 20);
+    const txt = [...DOC].slice(0, 70 + n).join(''); $(r, 'doc').innerHTML = txt.replace(/\n/g, '<br>') + '<span class="caret"></span>';
+    for (let i = 0; i < n; i += 3) sfx('key', CUR_START + 0.3 + i / 30);
+    const secs = Math.min(20 * 60, 19 * 60 + 45 + Math.floor(t * 5)); $(r, 'tmv').textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+    $(r, 'tmv').style.color = secs >= 1200 ? '#e08a1e' : '#2b2a28';
+    const eb = $(r, 'eb'); eb.style.left = '800px'; eb.style.top = '770px'; pop(eb, t, 3.4); if (t > 5.4) eb.style.opacity = 1 - P(t, 5.4, 5.8); if (t < 3.4) eb.style.opacity = 0;
+    const eye = $(r, 'eye'); pop(eye, t, 3.8); if (t < 3.8) eye.style.opacity = 0; if (t > 7.6) eye.style.opacity = 1 - P(t, 7.6, 8.0);
+    const left = clamp(20 - (t - 3.8) * 2.2, 0, 20); $(r, 'rn').textContent = Math.ceil(left); $(r, 'ring').style.strokeDashoffset = 226 * (1 - left / 20);
+    press($(r, 'done'), t, 7.2);
+    const w = $(r, 'water'); pop(w, t, 8.3); if (t < 8.3) w.style.opacity = 0; if (t > 11.6) w.style.opacity = 1 - P(t, 11.6, 12.0);
+    press($(r, 'drink'), t, 10.8);
+    const pl = $(r, 'plus'); pl.style.opacity = t >= 11 ? 1 - P(t, 12, 12.8) : 0; pl.style.transform = `translateY(${-P(t, 11, 12.8) * 50}px)`;
+    widgetSet(r, t, t >= 3.8 && t < 8 ? { wx: 'sunny', msg: '看看 6 米外的地方，休息 20 秒吧。', right: '📅 15:00 组会', changed: 3.8 } : { wx: 'sunny', msg: '今天也辛苦啦，慢慢来就好。', right: '📅 15:00 组会', left: '⌨ 今日 3 小时 05 分' });
+  } });
+
+// ── 8 隐私：密码框闭眼 + 设置里看得见
+scene({ id: 'priv', dur: 15, chapter: '隐私', capLeft: true, caption: ['密码框里，晴晴会闭上眼', '原文不落盘、不出本机；每一次发出去的请求只显示字段名，同意随时撤回'], build: () => `
+  ${deskBg()}
+  ${dwin('lw', '示例网站 · 登录', '· 浏览器（示意）', 110, 200, 860, 620, `<div style="width:460px;margin:70px auto 0;background:#fff;border-radius:16px;box-shadow:0 6px 24px rgba(0,0,0,.08);padding:30px 34px">
+    <b style="font-size:30px">登录</b><div style="font-size:18px;color:#8b857b;margin-top:14px">账号</div><div style="border:1.5px solid #dde3ea;border-radius:10px;padding:10px 14px;font-size:21px">xiaolin_2024</div>
+    <div style="font-size:18px;color:#8b857b;margin-top:12px">密码</div><div style="border:2px solid #4F9DE8;border-radius:10px;padding:10px 14px;font-size:21px;letter-spacing:4px" data-k="pw"></div>
+    <div style="margin-top:18px;background:#2f6fe4;color:#fff;text-align:center;border-radius:10px;padding:10px;font-size:21px">登录</div></div>`)}
+  <div class="mc" data-k="mon" style="left:1010px;top:200px;width:830px;padding:20px 24px">
+    <div style="display:flex;align-items:baseline;gap:12px"><b style="font-size:24px">管道监听</b><span style="font-size:18px;color:#8b857b">演示专用 · 核心服务 → Hub</span></div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px">${[['key（按键事件）', 'c0', '0'], ['commit（上屏）', 'c1', '0'], ['focus（scope=password）', 'c2', '1']].map(([n, k, v]) => `<div style="background:#f6f1e8;border-radius:12px;padding:10px 14px"><div style="font-size:16px;color:#8b857b">${n}</div><div data-k="${k}" style="font-size:34px;font-weight:900">${v}</div></div>`).join('')}</div>
+    <div data-k="chk" style="margin-top:14px;font-size:21px;line-height:2"></div>
+  </div>
+  <div data-k="set" class="abs" style="left:110px;top:200px;width:1300px;height:830px">${dwin('sw', 'Moodflow · 设置', '', 0, 0, 1300, 830, `<div style="display:flex;height:770px">
+    <div style="width:250px;background:#f8f3ea;padding:20px 14px;font-size:22px;color:#4a4740;line-height:2.4">⌨ 输入法<br>⚙ 常规<br>👁 感知<br>♡ 关怀<br>🔔 提醒<br>📅 日程与待办<br>✦ 温柔改写<br>🌐 AI 服务<br><span style="display:block;background:#fff;border-radius:12px;padding:0 12px;font-weight:900;color:#2b2a28">🛡 隐私与关于</span></div>
+    <div style="flex:1;padding:24px 30px">
+      <b style="font-size:32px">隐私与关于</b>
+      <div class="mc" style="position:relative;margin-top:16px;padding:18px 22px"><b style="font-size:22px">我的同意</b><span style="font-size:18px;color:#8b857b;margin-left:10px">关掉即撤回，立即生效</span>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 40px;margin-top:12px;font-size:20px">${[['① 感知打字节奏（本机）', 1], ['② 数值特征发给 AI 服务', 1], ['③ 日程与待办识别', 1], ['④ 状态统计发给大模型', 1], ['⑤ 增强模式（发送上屏文字）', 0], ['⑥ 温柔改写', 1]].map(([s, on]) => `<div style="display:flex;align-items:center">${s}<span class="tg ${on ? 'on' : ''}" style="margin-left:auto"></span></div>`).join('')}</div></div>
+      <div class="mc" style="position:relative;margin-top:14px;padding:18px 22px"><b style="font-size:22px">最近发出去的请求</b><span style="font-size:18px;color:#8b857b;margin-left:10px">只显示字段名，不显示内容</span>
+        <div style="font-size:19px;margin-top:10px;line-height:2.1">${[['23:41:05', '状态判断', 'kpm_z iki_med_z bs_rate pause_cnt abandon hour'], ['23:40:12', '暖心话（大模型）', 'state duration_min local_time'], ['23:12:47', '日程确认', 'sentence（1 句，已脱敏）']].map(([a, b, c], i) => `<div data-k="rq${i}" style="display:flex;gap:18px;border-bottom:1px dashed #ece4d6"><span style="width:100px">${a}</span><span style="width:190px">${b}</span><span style="flex:1">${c.split(' ').map(x => `<code style="background:#f3eee5;border-radius:6px;padding:1px 7px;margin-right:6px;font-size:17px">${x}</code>`).join('')}</span><span style="color:#237a4b">成功</span></div>`).join('')}</div></div>
+      <div style="margin-top:14px;display:flex;gap:12px;font-size:20px;align-items:center"><span class="gb">⬇ 导出全部数据</span><span class="gb">⬆ 导入与恢复</span><span class="gb" style="color:#c0392b;border-color:#f0c4c0">🗑 删除全部数据</span><span style="margin-left:auto;color:#8b857b;font-size:18px">数据只保存在这台电脑上</span></div>
+    </div></div>`)}</div>
+  ${widgetHTML(1440, 704)}`,
+  draw: (r, t) => {
+    const n = clamp(Math.floor((t - 0.8) * 4), 0, 9); $(r, 'pw').innerHTML = '•'.repeat(n) + '<span class="caret"></span>';
+    for (let i = 0; i < n; i++) sfx('key', CUR_START + 0.8 + i / 4);
+    const items = ['只看打字节奏，不看你打了什么', '原文不落盘：数据库里没有任何原文', '密码框、银行和支付类应用自动跳过', 'Ctrl+Alt+P 一键无痕，随时暂停感知', '6 项同意默认不勾选，可逐项撤回、一键删除'];
+    $(r, 'chk').innerHTML = items.map((s, i) => `<div style="opacity:${E(t, 2.2 + i * 0.7, 2.6 + i * 0.7)}"><span style="color:#237a4b">✔</span> ${s}</div>`).join('');
+    const setv = $(r, 'set'); const k = E(t, 7.4, 8.2); setv.style.opacity = k; setv.style.transform = `translateY(${(1 - k) * 40}px)`;
+    if (t >= 7.4) sfx('whoosh', CUR_START + 7.4, 'set');
+    $(r, 'mon').style.opacity = 1 - k; $(r, 'lw').style.opacity = 1 - k;
+    $(r, 'rq0').style.background = t >= 9.5 && t < 12 ? '#fdf3dc' : 'transparent';
+    widgetSet(r, t, t >= 0.6 && t < 7.4 ? { wx: 'rest', msg: '密码框里，Moodflow 不采集任何按键。', right: '📅 15:00 组会', changed: 0.6 } : { wx: 'sunny', msg: '今天也辛苦啦，慢慢来就好。', right: '📅 15:00 组会' });
+  } });
+
+// ── 9 晚间小结与周信
+scene({ id: 'evening', dur: 12, chapter: '晴晴 · 回顾', capLeft: true, capDark: true, caption: ['每天一句小结，每周一封信', '小结只用统计数据、本地生成；周信写给这一周的你'], build: () => `
+  ${deskBg(true)}
+  <div class="mc" data-k="sum" style="left:110px;top:220px;width:700px;padding:26px 30px">
+    <b style="font-size:32px">🌙 今天的小结</b>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px">${[['打字', '4 时 12 分'], ['喝水', '3 次'], ['休息', '5 / 7'], ['完成日程', '2 个'], ['完成待办', '3 个']].map(([a, b]) => `<div style="background:#f6f1e8;border-radius:14px;padding:12px 16px"><div style="font-size:19px;color:#8b857b">${a}</div><div style="font-size:30px;font-weight:900">${b}</div></div>`).join('')}</div>
+    <div style="margin-top:18px;height:22px;border-radius:11px;overflow:hidden;display:flex;background:#eee8dc" data-k="band"></div>
+    <div style="display:flex;justify-content:space-between;font-size:18px;color:#8b857b;margin-top:6px"><span>08:00</span><span>今天的天气色带</span><span>22:30</span></div>
+    <div style="font-size:25px;margin-top:14px">今天辛苦了，晚上好好休息。</div>
+    <div style="margin-top:14px;display:flex;gap:12px;align-items:center"><span class="ob">看看今天的看板</span><span class="lb">今天不用了</span></div>
+  </div>
+  <div class="mc" data-k="mail" style="left:850px;top:220px;width:560px;padding:24px 28px;display:flex;gap:22px;align-items:center">
+    <div style="font-size:84px">✉️</div><div><b style="font-size:30px">晴晴给你写了一封信</b><div style="font-size:21px;color:#4a4740;margin-top:6px">这一周的情绪天气、作息和小成就，都在信里。</div>
+    <div style="margin-top:12px;display:flex;gap:12px"><span class="ob" data-k="open">打开信箱</span><span class="lb">稍后再看</span></div></div>
+  </div>
+  <div class="mc" data-k="letter" style="left:850px;top:480px;width:560px;padding:28px 34px;background:#fffaf0;border-color:#efe1c6">
+    <div style="font-size:20px;color:#b8740e;font-weight:800">晴晴的周信 · 9月21日 – 9月27日</div>
+    <div data-k="ltx" style="font-size:24px;line-height:1.85;margin-top:10px;color:#4a3f2a;min-height:230px"></div>
+  </div>
+  ${widgetHTML(1440, 704)}`,
+  draw: (r, t) => {
+    pop($(r, 'sum'), t, 0.4);
+    const segs = [['sunny', 3], ['cloudy', 0.8], ['sunny', 2.5], ['rain', 1], ['sunny', 1.4], ['night', 0.8]]; const tot = segs.reduce((a, b) => a + b[1], 0);
+    const kk = E(t, 0.9, 3.0); let acc = 0;
+    $(r, 'band').innerHTML = segs.map(([w, f]) => { const a0 = acc / tot; acc += f; const vis = clamp((kk - a0) / (f / tot)); return `<div style="width:${f / tot * 100 * vis}%;background:${W[w]}"></div>`; }).join('');
+    const m = $(r, 'mail'); pop(m, t, 4.6); if (t < 4.6) m.style.opacity = 0;
+    press($(r, 'open'), t, 6.2);
+    const l = $(r, 'letter'); pop(l, t, 6.6); if (t < 6.6) l.style.opacity = 0;
+    const L = '这一周有四天是晴天。周四下午下了一场小雨，后来你和我聊了聊，很快又放晴了。周三你熬到了凌晨一点，这个周末记得早点睡。下周也要按时吃饭哦。\n—— 晴晴';
+    $(r, 'ltx').innerHTML = [...L].slice(0, Math.floor(clamp(t - 7.0, 0, 9) * 16)).join('').replace('\n', '<br>');
+    widgetSet(r, t, { wx: 'night', msg: '不早了，剩下的明天再说也来得及。', right: '⏰ 明天 9:00 例会', left: '⌨ 今日 4 小时 12 分', pose: 'sleep' });
+  } });
+
+// ── 10 情绪看板
+scene({ id: 'board', dur: 16, chapter: '晴晴 · 情绪看板', capLeft: true, caption: ['看见自己的情绪天气', '今日心电图与时间线、情绪日历、周报和作息洞察；每一段都能点开看原因'], build: () => `
+  ${deskBg()}
+  ${dwin('bw', 'Moodflow · 情绪看板', '', 110, 190, 1700, 850, `<div style="display:flex;height:794px">
+    <div style="width:270px;background:#f8f3ea;padding:22px 16px;font-size:23px;color:#4a4740;line-height:1">${['☀ 今日', '▦ 情绪日历', '📊 周报', '☑ 日程与待办', '✉ 信箱', '📖 对话与日记'].map((s, i) => `<div data-k="nav${i}" style="padding:16px 14px;border-radius:12px;margin-bottom:6px">${s}</div>`).join('')}</div>
+    <div style="flex:1;position:relative">
+      <div data-k="pg0" class="abs" style="inset:0;padding:24px 30px">
+        <b style="font-size:34px">今天 · 10月3日 周六</b>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:16px">${[['⌨', 't0', '今日输入时长'], ['', 't1', '主导天气（占 62%）'], ['♡', 't2', '暖心话'], ['👁', 't3', '休息完成率 5/7']].map(([ic, k, s], i) => `<div class="mc" style="position:relative;padding:14px 18px;display:flex;gap:14px;align-items:center">${i === 1 ? thumb('sunny', 0.3) : `<span style="font-size:40px">${ic}</span>`}<div><div data-k="${k}" style="font-size:34px;font-weight:900"></div><div style="font-size:18px;color:#8b857b">${s}</div></div></div>`).join('')}</div>
+        <div class="mc" style="position:relative;margin-top:16px;padding:16px 20px"><b style="font-size:22px">打字心电图</b><span style="font-size:17px;color:#8b857b;margin-left:10px">最近 60 秒 · 按键间隔（毫秒）</span><svg data-k="becg" width="1300" height="190"></svg></div>
+        <div class="mc" style="position:relative;margin-top:14px;padding:16px 20px"><b style="font-size:22px">状态时间线</b><div data-k="tl" style="margin-top:12px;height:30px;border-radius:15px;overflow:hidden;display:flex;background:#eee8dc"></div>
+          <div style="display:flex;justify-content:space-between;font-size:16px;color:#8b857b;margin-top:6px">${['00:00', '03:00', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00', '24:00'].map(s => `<span>${s}</span>`).join('')}</div></div>
+        <div class="mc" style="position:relative;margin-top:14px;padding:14px 20px;font-size:20px"><b>今日一句</b>　16:12　想说的话不急着说完，慢慢来。<span class="aitag">AI 生成</span><span style="float:right">👍 有用</span></div>
+      </div>
+      <div data-k="pg1" class="abs" style="inset:0;padding:24px 30px;display:flex;gap:24px">
+        <div><b style="font-size:34px">2026 年 9 月</b>
+          <div style="display:grid;grid-template-columns:repeat(7,118px);gap:10px;margin-top:16px">${['一', '二', '三', '四', '五', '六', '日'].map(s => `<div style="text-align:center;font-size:20px;color:#8b857b">${s}</div>`).join('')}
+          <div></div>${Array.from({ length: 30 }, (_, i) => { const d = i + 1, w = { 3: 'cloudy', 7: 'rain', 9: 'night', 14: 'cloudy', 16: 'night', 18: 'storm', 22: 'night', 25: 'cloudy', 29: 'rain' }[d] || ([5, 12, 20].includes(d) ? '' : 'sunny');
+            return `<div data-k="d${d}" style="height:104px;border:2px solid ${d === 24 ? '#f0a03a' : '#ece4d6'};background:${d === 24 ? '#fff6e6' : '#fff'};border-radius:14px;position:relative"><span style="position:absolute;left:10px;top:4px;font-size:18px">${d}</span><div style="position:absolute;left:30px;top:24px">${w ? thumb(w, 0.33) : '<div style="color:#bbb;font-size:30px;margin:14px 0 0 6px">—</div>'}</div></div>`; }).join('')}</div></div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:16px">
+          <div class="mc" style="position:relative;padding:18px 22px"><b style="font-size:24px">9月24日 周四</b><div style="margin-top:12px;height:18px;border-radius:9px;overflow:hidden;display:flex">${[['sunny', 3], ['cloudy', 0.6], ['sunny', 2], ['rain', 1], ['sunny', 1.6], ['night', 1.4]].map(([w, f]) => `<div style="flex:${f};background:${W[w]}"></div>`).join('')}</div>
+            <div style="font-size:20px;line-height:1.9;margin-top:10px">主导天气：晴（46%）<br>暖心话：2 次（👍 1）<br>休息提醒：完成 4 / 6<br>停止打字：01:20</div></div>
+          <div class="mc" style="position:relative;padding:18px 22px"><b style="font-size:24px">📓 当天的日记</b><span class="aitag">AI 辅助生成</span><div style="font-size:20px;line-height:1.8;margin-top:10px;color:#4a4740">今天组会被老师指出报告结构有点乱，当时挺难受。晚上和晴晴一起把意见拆成三条，先改了第一条，心里轻松了一点。明天想早点睡。</div></div>
+        </div>
+      </div>
+      <div data-k="pg2" class="abs" style="inset:0;padding:24px 30px">
+        <b style="font-size:34px">周报 · 9月21日 – 9月27日</b>
+        <div style="margin-top:14px;background:#fdf3dc;border:1px solid #f3dfb2;border-radius:14px;padding:12px 18px;font-size:22px">☀ 这周晚上 11 点后更容易累，早点休息吧。<span style="font-size:17px;color:#8b857b">（本地模板生成）</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1.25fr;gap:16px;margin-top:14px">
+          <div class="mc" style="position:relative;padding:16px 20px;display:flex;gap:24px;align-items:center"><svg data-k="donut" width="220" height="220" viewBox="0 0 220 220"></svg><div style="font-size:21px;line-height:2">${[['晴', 58, 'sunny'], ['多云', 14, 'cloudy'], ['夜', 14, 'night'], ['小雨', 9, 'rain'], ['雷阵雨', 5, 'storm']].map(([a, b, c]) => `<div><span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:${W[c]};margin-right:10px"></span>${a} ${b}%</div>`).join('')}</div></div>
+          <div class="mc" style="position:relative;padding:16px 20px"><b style="font-size:21px">“小雨 / 夜”出现的时段</b><div data-k="heat" style="display:grid;grid-template-columns:repeat(24,1fr);gap:3px;margin-top:12px"></div></div>
+          <div class="mc" style="position:relative;padding:16px 20px"><b style="font-size:21px">每日输入时长（小时）</b><div data-k="bars" style="display:flex;align-items:flex-end;gap:22px;height:170px;margin-top:10px;padding:0 10px"></div></div>
+          <div class="mc" style="position:relative;padding:16px 20px"><b style="font-size:21px">作息洞察 · 停止打字时间</b><svg data-k="line" width="680" height="170"></svg><div style="font-size:16px;color:#8b857b">平均 23:56 · 熬夜（00:00 后）3 天 · 只统计这台电脑上的打字时间</div></div>
+        </div>
+      </div>
+    </div></div>`)}
+  ${cursorHTML()}`,
+  draw: (r, t) => {
+    const pg = t < 5.6 ? 0 : t < 10.8 ? 1 : 2;
+    [0, 1, 2].forEach(i => { const el = $(r, 'pg' + i); el.style.opacity = i === pg ? E(t, [0, 5.6, 10.8][i], [0, 5.6, 10.8][i] + 0.4) : 0; });
+    [0, 1, 2].forEach(i => { const n = $(r, 'nav' + i); n.style.background = i === pg ? '#fff' : 'transparent'; n.style.fontWeight = i === pg ? 900 : 400; });
+    if (t >= 5.6) sfx('pop', CUR_START + 5.6, 'pg1'); if (t >= 10.8) sfx('pop', CUR_START + 10.8, 'pg2');
+    moveMouse(r, [[0, 900, 900], [4.6, 900, 900], [5.4, 300, 345], [9.8, 300, 345], [10.6, 300, 404]], t);
+    const k = E(t, 0.3, 2.0);
+    $(r, 't0').textContent = `${Math.floor(3 * k)}:${String(Math.floor(20 * k)).padStart(2, '0')}`; $(r, 't1').textContent = '晴'; $(r, 't2').textContent = `${Math.round(2 * k)} 次`; $(r, 't3').textContent = `${Math.round(71 * k)}%`;
+    let pts = ''; const nPts = Math.floor(180 * E(t, 0.3, 3.2));
+    for (let i = 0; i < nPts; i++) { const sp = [40, 88, 128, 160].some(c => Math.abs(i - c) < 2) ? 140 : 8 + 8 * Math.abs(Math.sin(i * 1.7)); pts += `${10 + i * 7.1},${170 - sp} `; }
+    $(r, 'becg').innerHTML = `<polyline points="${pts}" fill="none" stroke="#f0a03a" stroke-width="3"/>` + (nPts > 128 ? `<line x1="${10 + 125 * 7.1}" x2="${10 + 125 * 7.1}" y1="10" y2="175" stroke="#a99bd8" stroke-dasharray="5 5" stroke-width="2"/><text x="${10 + 128 * 7.1}" y="26" font-size="17" fill="#6b5fb0">晴 → 多云 · 犹豫 80%</text>` : '');
+    const tl = [['', 8.5], ['sunny', 2], ['cloudy', 0.6], ['sunny', 2.2], ['', 0.4], ['sunny', 1.2], ['cloudy', 0.8], ['storm', 0.2], ['sunny', 1.4], ['', 1], ['sunny', 1.8], ['rain', 0.6], ['night', 0.6], ['', 2.7]];
+    const kt = E(t, 0.6, 3.6); let acc = 0; const tot = 24;
+    $(r, 'tl').innerHTML = tl.map(([w, f]) => { const a0 = acc / tot; acc += f; const vis = clamp((kt - a0) / (f / tot)); return `<div style="width:${f / tot * 100 * vis}%;background:${w ? W[w] : 'transparent'}"></div>`; }).join('');
+    // 周报
+    const kd = E(t, 11.1, 12.6); const parts = [[58, 'sunny'], [14, 'cloudy'], [14, 'night'], [9, 'rain'], [5, 'storm']]; let a = -90, d = '';
+    for (const [p, c] of parts) { const sweep = p / 100 * 360 * kd, a2 = a + sweep, R = 90, rr = 56, rad = x => x * Math.PI / 180;
+      if (sweep > 0.1) { const lg = sweep > 180 ? 1 : 0, p1 = [110 + R * Math.cos(rad(a)), 110 + R * Math.sin(rad(a))], p2 = [110 + R * Math.cos(rad(a2)), 110 + R * Math.sin(rad(a2))], p3 = [110 + rr * Math.cos(rad(a2)), 110 + rr * Math.sin(rad(a2))], p4 = [110 + rr * Math.cos(rad(a)), 110 + rr * Math.sin(rad(a))];
+        d += `<path d="M${p1} A${R} ${R} 0 ${lg} 1 ${p2} L${p3} A${rr} ${rr} 0 ${lg} 0 ${p4} Z" fill="${W[c]}"/>`; } a = a2; }
+    $(r, 'donut').innerHTML = d + `<text x="110" y="104" text-anchor="middle" font-size="18" fill="#8b857b">有效</text><text x="110" y="134" text-anchor="middle" font-size="28" font-weight="800">6 天</text>`;
+    $(r, 'heat').innerHTML = Array.from({ length: 7 * 24 }, (_, i) => { const h = i % 24, v = (h <= 1 || h >= 22 ? 0.6 : h >= 15 && h <= 17 ? 0.35 : 0.03) * (0.6 + 0.4 * Math.abs(Math.sin(i * 2.3))); return `<div style="height:22px;border-radius:3px;background:rgba(80,120,170,${0.08 + v * E(t, 11.3, 12.8)})"></div>`; }).join('');
+    const hv = [3.2, 4.6, 2.8, 5.1, 3.9, 1.2, 2.4]; const kb = E(t, 11.4, 12.9);
+    $(r, 'bars').innerHTML = hv.map((v, i) => `<div style="flex:1;text-align:center"><div style="font-size:16px">${v}</div><div style="height:${v / 6 * 130 * kb}px;background:#f0a03a;border-radius:6px 6px 0 0"></div><div style="font-size:16px;color:#8b857b">${'一二三四五六日'[i]}</div></div>`).join('');
+    const ly = [23.1, 24.4, 23.9, 25.2, 23.4, 24.0, 22.8]; const kl = E(t, 11.6, 13.2), np = Math.max(1, Math.round(7 * kl));
+    $(r, 'line').innerHTML = `<line x1="20" x2="660" y1="${150 - (24 - 21) * 30}" y2="${150 - (24 - 21) * 30}" stroke="#e8875b" stroke-dasharray="6 5"/>` +
+      `<polyline points="${ly.slice(0, np).map((v, i) => `${40 + i * 100},${150 - (v - 21) * 30}`).join(' ')}" fill="none" stroke="#7fa7c9" stroke-width="3"/>` + ly.slice(0, np).map((v, i) => `<circle cx="${40 + i * 100}" cy="${150 - (v - 21) * 30}" r="6" fill="${v > 24 ? '#e8875b' : '#7fa7c9'}"/>`).join('');
+  } });
+
 // ───────── 场景顺序：情绪功能放最前 ─────────
 {
   const by = new Map(S.map(s => [s.id || s.caption[0], s]));
-  const ORDER = ['intro', '一个输入法，加一位懂你的伙伴',
-    'weather', '只看节奏，不看内容', 'explain', '晴晴就在桌面上陪着你', 'comfort', '想说就说，晴晴在听', 'diary',
-    '话到嘴边，换个说法', '提醒你歇一歇，也陪你专心', '每天一句小结，每周一封信', '情绪看板：看见自己的情绪', '你的字，只属于你',
+  const ORDER = ['intro', 'pain', '晴晴就在桌面上陪着你',
+    'sched', 'rhythm', 'self', 'talk', 'rewrite', 'rest', 'priv', 'evening', 'board',
     '打字顺手，是一切的前提', '候选多？按 ↓ 展开成矩阵', 'Buffer：先写好，再发出去', '剪贴板历史：刚才复制的，都还在', '并击：几个键同时按，出一个音节',
     '截图、取字，一气呵成', '资料库：随手记，随手用', '密码库：真正加密，用完即清', '发出去之前，再想一想', 'more',
     'Android 版（预览）', 'outro'];
@@ -1048,10 +1522,15 @@ window.renderAt = (T) => {
   if (s.id === 'intro' && t >= 1.6) sfx('chime', 1.6, 'logo');
   if (s.id === 'outro' && t >= 0.2) sfx('chime', s.start + 0.2, 'end');
   const cap = document.getElementById('caption'); const ck = E(t, 0.3, 0.8);
-  cap.style.bottom = (s.capTop || s.capSide) ? 'auto' : '46px'; cap.style.top = s.capTop ? '96px' : s.capSide ? '170px' : 'auto';
-  cap.style.left = s.capSide ? '1260px' : '50%'; cap.style.textAlign = s.capSide ? 'left' : 'center'; cap.style.maxWidth = s.capSide ? '600px' : '1560px';
+  const cl = !!s.capLeft;
+  cap.style.bottom = (s.capTop || s.capSide || cl) ? 'auto' : '46px'; cap.style.top = s.capTop ? '96px' : s.capSide ? '170px' : cl ? '78px' : 'auto';
+  cap.style.left = s.capSide ? '1260px' : cl ? '110px' : '50%'; cap.style.textAlign = (s.capSide || cl) ? 'left' : 'center'; cap.style.maxWidth = s.capSide ? '600px' : '1700px';
   cap.style.width = s.capSide ? '600px' : 'max-content';
-  cap.style.opacity = ck; cap.style.transform = `translateX(${s.capSide ? 0 : -50}%) translateY(${(1 - ck) * 16}px)`;
+  cap.style.background = cl ? 'none' : ''; cap.style.boxShadow = cl ? 'none' : ''; cap.style.padding = cl ? '0' : '';
+  cap.querySelector('.t').style.fontSize = cl ? '44px' : ''; cap.querySelector('.s').style.fontSize = cl ? '23px' : '';
+  cap.querySelector('.t').style.color = s.capDark ? '#fff' : ''; cap.querySelector('.s').style.color = s.capDark ? '#c5d3e6' : '';
+  document.getElementById('chapter').style.color = s.capDark ? '#fff' : '';
+  cap.style.opacity = ck; cap.style.transform = `translateX(${(s.capSide || cl) ? 0 : -50}%) translateY(${(1 - ck) * 16}px)`;
   const fin = 1 - P(t, 0, 0.35), fout = P(t, s.dur - 0.35, s.dur);
   document.getElementById('fade').style.opacity = i === 0 ? fout : Math.max(fin, i === S.length - 1 ? 0 : fout);
   document.getElementById('progress').style.width = (T / TOTAL * 100) + '%';
