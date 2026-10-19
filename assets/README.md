@@ -7,7 +7,7 @@
 | --------------- | --------------------------------------------- | ----------------------- |
 | `logo.png`      | 安装/卸载向导界面顶部显示的 logo（72×72 圆角）| 144×144，满幅圆角       |
 | `installer.ico` | `*-Setup.exe` / `uninstall.exe` 的 PE 图标    | 10 层，16→256           |
-| `brand/`        | logo 源稿：横版 / 图标 SVG（含深色版）、`icon-1024.png` | 所有图标从这里生成 |
+| `brand/`        | 品牌原图 `logo-original.png`（原样保存）及从中裁出的 `logo-horizontal.png`、`mark.png`；`icon-1024.png` 是白色圆角底 + 原图标志 | 所有图标从这里生成 |
 
 上面两个文件、`moodflow_tsf\res\moodflow_input.ico` 和 Hub 的 `src-tauri\icons\*` 都由
 `python3 scripts/moodflow/gen_icons.py` 从 `brand/icon-1024.png` 生成，不要手改。

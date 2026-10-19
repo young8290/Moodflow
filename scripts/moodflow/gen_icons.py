@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """从品牌母版生成 Moodflow 的全部图标（logo 源文件见 assets/brand/，说明见 assets/README.md）。
 
-输入：assets/brand/icon-1024.png（应用图标母版，1024×1024，白色圆角底 + 深蓝/天蓝浪花 M + 太阳）
+输入：assets/brand/icon-1024.png（应用图标母版，1024×1024，白色圆角底 + 品牌原图 logo-original.png 里的标志）
 输出：
   moodflow_tsf/res/moodflow_input.ico        TSF DLL 与核心 exe 的图标，10 层 16→256
   assets/installer.ico                       安装程序图标，同上

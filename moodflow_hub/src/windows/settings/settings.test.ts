@@ -151,7 +151,7 @@ describe('设置中心', () => {
     )
     expect(text).toContain('本产品不提供任何医疗诊断或治疗。')
     expect(w.find('.version').text()).toBe('版本 0.1.0')
-    expect(w.find('[role=img]').attributes('aria-label')).toBe('Moodflow')
+    expect(w.find('img.logo').attributes('alt')).toBe('Moodflow')
   })
 
   it('开源许可列表：Moodflow MIT 全文与第三方资源声明都随包带着', async () => {

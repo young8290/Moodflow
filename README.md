@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/brand/logo-horizontal.svg" alt="Moodflow" width="320">
+  <img src="assets/brand/logo-horizontal.png" alt="Moodflow" width="360">
 </p>
 
 <h1 align="center">Moodflow</h1>
