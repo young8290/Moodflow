@@ -4,4 +4,38 @@
     <string name="ime_name">Moodflow</string>
     <string name="settings_title">Moodflow 设置</string>
     <string name="subtype_zh">中文（拼音）</string>
+
+    <!-- 键盘（文案参照 XSIME Android 的 values-zh/strings.xml） -->
+    <string name="privacy">普通输入留在本机。密码框和私密输入框不经引擎、不学习、不启用 Buffer、不记录剪贴板。关闭键盘或切换输入框时清除 Buffer 草稿。</string>
+    <string name="buffer_on">Buffer 开</string>
+    <string name="buffer_off">Buffer 关</string>
+    <string name="buffer_empty">先编写，再插入</string>
+    <string name="buffer_unbound">请先绑定当前输入框</string>
+    <string name="buffer_limit">Buffer 已满，请先插入或清空。</string>
+    <string name="insert_next">插入</string>
+    <string name="insert_all">全部插入</string>
+    <string name="clear">清空</string>
+    <string name="delivery_pending">上次插入结果不明，确认后再继续</string>
+    <string name="delivery_rejected">输入框没有接收，内容已保留，可再点插入重试</string>
+    <string name="clipboard_history">剪贴板</string>
+    <string name="clipboard_collect">收录当前文字</string>
+    <string name="clipboard_enable">开启剪贴板历史</string>
+    <string name="clipboard_clear">清空历史</string>
+    <string name="clipboard_close">关闭</string>
+    <string name="clipboard_insert">插入</string>
+    <string name="clipboard_pin">收藏</string>
+    <string name="clipboard_unpin">取消收藏</string>
+    <string name="clipboard_delete">删除剪贴板条目</string>
+    <string name="clipboard_empty">剪贴板里没有可收录的文字。</string>
+    <string name="clipboard_history_off">剪贴板历史未开启。开启后只在键盘显示时记录，密码框和私密输入框不记录。</string>
+    <string name="clipboard_history_empty">还没有记录。键盘显示时复制的文字会出现在这里。</string>
+    <string name="clipboard_history_hint">点条目插入（Buffer 开着时加入 Buffer）；★ 收藏的不会被清空。</string>
+    <string name="backspace">删除</string>
+    <string name="space">空格</string>
+    <string name="enter">回车</string>
+    <string name="switch_keyboard">切换键盘</string>
+    <string name="private_field">私密输入框：不经引擎、不学习、不记录剪贴板</string>
+    <string name="engine_loading">中文准备中，按键先直接上屏</string>
+    <string name="engine_failed">输入引擎不可用，按键直接上屏</string>
+    <string name="store_unavailable">⚠ 用户词库不可写：学到的词不会保存</string>
 </resources>

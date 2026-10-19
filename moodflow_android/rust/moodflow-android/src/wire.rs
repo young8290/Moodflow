@@ -28,6 +28,9 @@ use moodflow_mobile::{EditOp, KeyOutcome};
 /// 字段分隔符。
 pub const US: char = '\u{1F}';
 
+/// 一个字段内的列表分隔符（U+001E，记录分隔符），用于非正文的短列表。
+pub const RS: char = '\u{1E}';
+
 /// 按键结果 → 字符串数组。
 pub fn outcome(o: &KeyOutcome) -> Vec<String> {
     let mut flags = String::new();

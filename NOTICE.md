@@ -135,6 +135,48 @@ gitignore），用于生成词库数据文件，其各自适用原项目的许�
   用于 unigram 语言模型的词频权重
 - **来源**: 腾讯 AI Lab 中文词向量数据集
 
+## 移植的代码与资源
+
+### XSIME Android 键盘界面
+
+- **来源**: XSIME（https://github.com/scholay/xsime，`platforms/android`，2026-10 主线），
+  Copyright 2026 scholay，**Apache-2.0**；其 NOTICE 原文随 APK 分发（`assets/licenses/XSIME-NOTICE.txt`），
+  许可证全文见 `assets/licenses/XSIME-Apache-2.0.txt`
+- **许可证**: 下列文件仍按 Apache-2.0 分发（本仓其余部分为 MIT），每个文件头部标注
+  「Portions copyright XSIME authors … Apache-2.0. Modified for Moodflow.」
+- **已修改**: 全部文件都改过——包名改为 `com.moodflow.ime.*`；librime 调用全部换成 Moodflow 核心
+  （`moodflow-mobile` 门面）；配色计算移出 Android 依赖；剪贴板、方案列表、并击映射改接核心数据
+- **文件**:
+  - `moodflow_android/imelogic/src/main/java/com/moodflow/ime/keyboard/`：`KeyboardLayout`、`KeyboardGeometry`、
+    `PunctuationLayout`、`OrdinaryKeyAlternates`、`NineKeyPinyin`（只留数字与退格规则）、`ChordLayout`、
+    `ChordGesture`、`ChordProfile`（改为由核心方案构造）、`KeyboardTheme`（18 套配色）
+  - `moodflow_android/imelogic/src/test/java/com/moodflow/ime/keyboard/`：`KeyboardLayoutTest`、
+    `KeyboardGeometryTest`、`ChordGestureTest`（由 XSIME `ChordInputTest` 改写）
+  - `moodflow_android/app/src/main/java/com/moodflow/ime/ui/`：`KeyButton`、`KeyboardSurface`、`KeyboardRoot`、
+    `DeleteRepeatTouch`、`UpwardNumberTouch`、`KeyboardIcon`、`BufferRail`、`KeyboardAppearancePanel`、
+    `TextClipboardPanel`、`CandidateMatrixView`、`ChordSurface`、`ChordPreview`、`SettingsKeyboardPreview`、
+    `KeyboardSettings`
+  - `moodflow_android/app/src/main/java/com/moodflow/ime/SettingsActivity.java`（由 XSIME `SetupActivity` 改写）
+  - `moodflow_android/app/src/main/java/com/moodflow/ime/MoodflowImeService.kt` 的界面组装与按键分派
+    参照 XSIME `RimesInputMethodService` 用 Kotlin 重写
+- **未收录**: XSIME 的词库与方案数据（雾凇拼音等为 GPL-3.0）、librime、AI / 翻译 / 插件商店相关代码
+
+### XSIME 默认并击映射
+
+- **文件**: `moodflow_input/crates/moodflow-mobile/data/chord-builtin.json`
+- **来源**: XSIME `platforms/android/resources/chord-profile.json`（427 条，SHA-256
+  `6cc5de9522068a57fdaecf2aa1c2272d46136ff82337ab1ad488957c72b90f0f`）。XSIME 的出处说明
+  （`chord-provenance.md`、iOS `RESOURCE_CLEARANCE.md`）记载：映射来自其发布者提供的 `Isaac2025.json`
+  （飞耀映射表），发布者声明这些功能性键位映射不属受版权保护的内容并同意分发；XSIME 按其仓库许可证分发
+- **已修改**: 转成 `moodflow-chord` 键位方案格式（逗号 / 句号写作 `comma` / `period`）；XSIME 结算时
+  「左手片段 + 右手片段 = 合法音节」的规则与单指滑动路线展开为 14 条显式映射，共 441 条
+
+### Lucide 图标
+
+- **文件**: `moodflow_android/app/src/main/res/drawable/kb_icon_*.xml`（26 个）
+- **来源**: Lucide（https://lucide.dev），经 XSIME 转成 Android 矢量图
+- **许可证**: ISC，全文随 APK 分发（`assets/licenses/Lucide-LICENSE.txt`）
+
 ## 技术参考
 
 以下项目/文档作为实现参考，本项目未复制其代码：

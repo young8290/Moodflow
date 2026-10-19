@@ -99,8 +99,9 @@ const CONFIG_LOAD_SITES: &[(&str, usize, &str)] = &[
     ),
     (
         "crates/moodflow-mobile/src/lib.rs",
-        1,
-        "只读：移动端启动加载，内存消费",
+        2,
+        "只读：移动端启动加载，内存消费；`plugins()` 只取 `plugins.enabled` 给设置页显示，\
+         启停写回走逐键 `config_set`，不拿这份结果当种子",
     ),
     (
         "crates/moodflow-rpc/src/dispatch.rs",

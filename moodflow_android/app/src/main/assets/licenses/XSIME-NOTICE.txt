@@ -1,0 +1,18 @@
+RIMES
+Copyright 2026 scholay
+
+Core maintainer / 核心维护者: 学术海
+Maintainer homepage: https://pm.scholay.com
+Project source: https://github.com/scholay/rimes
+
+RIMES provides Chinese text input using the Rime Input Method Engine (librime).
+Rime / librime: https://github.com/rime/librime
+Copyright (c) 2014, RIME Developers
+The librime BSD-3-Clause license is reproduced in
+LICENSES/librime-BSD-3-Clause.txt.
+
+RIMES is maintained separately from the upstream Rime project. Attribution
+does not imply upstream endorsement of RIMES or a downstream modified version.
+
+Historical MIT notices and separately licensed components retain their own
+terms. See LICENSING.md, LICENSES/MIT-legacy.txt and THIRD_PARTY_NOTICES.md.

@@ -6,7 +6,8 @@ package com.moodflow.ime.logic
  * 串由数字 `2`–`9`、用户在「选拼音」行钉住的字母、显式分隔符 `'` 组成，如 `ni'426`。
  * 切分与钉住的规则在 Rust（`moodflow_mobile::t9`）；这里只管串怎么增删，保证形状合法：
  * - 不以 `'` 开头，不出现连续 `'`；
- * - 退格删掉末尾一个字符，若随之露出末尾的 `'`，一并删掉（分隔符不单独占一次退格）。
+ * - 退格按 XSIME 的规则（`NineKeyPinyin.backspace`）：删掉末尾一个字符；删的是钉住音节后的分隔符时，
+ *   那个音节还原成数字（`ni'` → `64`），用户可以改选别的拼法。
  */
 class T9Input {
     var text: String = ""
@@ -30,9 +31,12 @@ class T9Input {
 
     fun backspace(): Boolean {
         if (text.isEmpty()) return false
-        text = text.dropLast(1).trimEnd('\'')
+        text = com.moodflow.ime.keyboard.NineKeyPinyin.backspace(text)
         return true
     }
+
+    /** 交给切分的串：末尾的分隔符只是「本音节已结束」，不参与切分。 */
+    val query: String get() = text.trimEnd('\'')
 
     /** 采用 Rust 侧钉住音节后的新串（`nativeT9Pin` 的返回值）。 */
     fun replaceWith(pinned: String) {

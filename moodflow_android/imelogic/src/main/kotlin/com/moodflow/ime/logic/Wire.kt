@@ -96,6 +96,43 @@ object Wire {
         else -> null
     }
 
+    /** `id US 版本 US 已启用 US 已加载 US 自动停用 US 能力(RS 分隔) US 名称`。 */
+    fun plugins(arr: Array<String>?): List<PluginInfo> =
+        arr.orEmpty().map {
+            val f = fields(it, 7)
+            PluginInfo(
+                id = f[0],
+                version = f[1],
+                enabled = f[2] == "1",
+                loaded = f[3] == "1",
+                autoDisabled = f[4] == "1",
+                capabilities = if (f[5].isEmpty()) emptyList() else f[5].split(RS),
+                name = f[6],
+            )
+        }
+
+    /** `片段 US 键名(空格分隔) US 输出`。 */
+    fun chordMappings(arr: Array<String>?): List<ChordMapping> =
+        arr.orEmpty().map {
+            val (fragment, keys, output) = fields(it, 3)
+            ChordMapping(keys.split(' ').filter(String::isNotEmpty), output, fragment == "1")
+        }
+
+    /** 打字测速成绩；格式不对返回 null。 */
+    fun practiceScore(s: String?): PracticeScore? {
+        if (s.isNullOrEmpty()) return null
+        val f = fields(s, 7)
+        return PracticeScore(
+            elapsedMs = f[0].toLongOrNull() ?: return null,
+            targetChars = f[1].toIntOrNull() ?: return null,
+            typedChars = f[2].toIntOrNull() ?: return null,
+            distance = f[3].toIntOrNull() ?: return null,
+            finalAccuracy = f[4].toDoubleOrNull() ?: return null,
+            processAccuracy = f[5].toDoubleOrNull() ?: return null,
+            effectiveCpm = f[6].toDoubleOrNull() ?: return null,
+        )
+    }
+
     /** 字符串列表配置值的编码（与 Rust 侧 `parse_config_value` 的类型 4 对应）。 */
     fun joinList(values: List<String>): String = values.joinToString(US.toString())
 }
@@ -143,6 +180,51 @@ data class SchemaEntry(val id: String, val name: String, val iconLabel: String, 
 data class NamedEntry(val id: String, val name: String, val active: Boolean)
 
 data class ClipEntry(val id: Long, val isLink: Boolean, val pinned: Boolean, val text: String)
+
+data class PluginInfo(
+    val id: String,
+    val version: String,
+    val enabled: Boolean,
+    val loaded: Boolean,
+    val autoDisabled: Boolean,
+    val capabilities: List<String>,
+    val name: String,
+)
+
+/** 并击映射；[keys] 是核心键名（`a`…`z`、`comma`、`period`）。 */
+data class ChordMapping(val keys: List<String>, val output: String, val fragment: Boolean) {
+    /** 触屏手势用的键面字符串（`comma` → `,`、`period` → `.`）。 */
+    val chars: String get() = keys.joinToString("") { ChordKeys.char(it) }
+}
+
+/** 并击键名 ↔ 键面字符。 */
+object ChordKeys {
+    fun char(name: String): String = when (name) {
+        "comma" -> ","
+        "period" -> "."
+        else -> name
+    }
+
+    fun name(ch: Char): String = when (ch) {
+        ',' -> "comma"
+        '.' -> "period"
+        else -> ch.toString()
+    }
+}
+
+/** 打字测速成绩（口径见 `moodflow-typing-practice`）。 */
+data class PracticeScore(
+    val elapsedMs: Long,
+    val targetChars: Int,
+    val typedChars: Int,
+    val distance: Int,
+    /** 0..1 */
+    val finalAccuracy: Double,
+    /** 0..1 */
+    val processAccuracy: Double,
+    /** 有效速度，字/分 */
+    val effectiveCpm: Double,
+)
 
 data class ConfigField(val key: String, val type: String, val options: List<String>)
 

@@ -412,6 +412,12 @@ cargo test -p moodflow-rpc --test wind_setting_assets
   编辑指令派发），单测在任何有 JDK 的机器上都能跑。
 - `app`：`InputMethodService`、键盘视图、设置页、JNI 包装；构建时经 cargo-ndk 编 `.so`，并把仓库根
   `data/` 拷进 assets（首次启动解到 `filesDir/data`）。
+- **键盘界面移植自 XSIME（Apache-2.0）**：`app/…/ui/*.java`、`SettingsActivity.java`、`imelogic/…/keyboard/*.java`
+  文件头保留出处，清单在 `NOTICE.md`；改这些文件照常改，不要删文件头。纯逻辑（键位几何、配色、并击手势）放
+  `imelogic` 的 `keyboard` 包并配 JVM 单测，`app` 里只放视图。
+- 键盘服务与设置页**共用一个核心**（`core/CoreHolder`）：不要在别处 `MoodflowCore.create`，第二个实例拿不到词库锁。
+- 剪贴板历史走核心（`MobileCore::clipboard_*`，与 Windows 同一份文件）；物理键盘并击 `chord.enabled` 在移动端
+  被门面强制关闭，触屏并击是键盘布局（宿主偏好 `layout`），方案为 `MobileChord::builtin`。
 
 ```bash
 cd moodflow_android/rust

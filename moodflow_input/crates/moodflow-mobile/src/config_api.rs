@@ -133,6 +133,11 @@ pub fn apply_mobile_overrides(cfg: &mut Config) {
     // 宿主组合区、协调器**不下发 preedit** 给候选窗。移动端没有桌面那种浮在光标旁的
     // 候选窗，编码要显示在键盘上方的编码栏里，就必须让协调器把 preedit 发出来。
     cfg.ui.candidate.preedit_display = "candidate_top".to_string();
+    // `[chord]` 是**物理键盘**并击（协调器在按下时截走字母、等 TSF 转发松开再结算）。移动端
+    // 软键盘只送按下、不送松开，开着它每个字母键都会被截走、永远等不到结算——软键盘直接打不出字。
+    // Android 的触屏并击是键盘布局（宿主侧手势 + `chord::MobileChord`），与这个开关无关；
+    // 同步过来的桌面配置里即便开着，移动端也必须关掉。
+    cfg.chord.enabled = false;
 }
 
 /// **出厂默认**配置的全量快照（TOML 文本）。
@@ -195,4 +200,18 @@ pub fn set(key: &str, value: ConfigValue) -> Result<(), String> {
     }
     let path: Vec<&str> = key.split('.').collect();
     Config::set_user_value(&path, value.into_toml()).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mobile_overrides_turn_off_physical_chord() {
+        let mut cfg = Config::default();
+        cfg.chord.enabled = true;
+        apply_mobile_overrides(&mut cfg);
+        assert!(!cfg.chord.enabled, "软键盘不送松开，物理并击在移动端必须关");
+        assert_eq!(cfg.ui.candidate.preedit_display, "candidate_top");
+    }
 }

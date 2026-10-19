@@ -63,11 +63,14 @@ class T9InputTest {
     }
 
     @Test
-    fun backspaceSwallowsExposedSeparator() {
+    fun backspaceUnpinsTheLastSyllable() {
         val t = T9Input()
         t.replaceWith("ni'4")
         t.backspace()
-        assertEquals("ni", t.text)
+        assertEquals("ni'", t.text)
+        assertEquals("ni", t.query)
+        t.backspace()
+        assertEquals("删掉钉住音节的分隔符，音节还原成数字", "64", t.text)
         t.backspace()
         t.backspace()
         assertTrue(t.isEmpty)

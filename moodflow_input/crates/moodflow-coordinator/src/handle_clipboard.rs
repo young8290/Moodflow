@@ -272,6 +272,59 @@ impl Coordinator {
             .send(UiCommand::ShowCandidateMenu { items, anchor });
     }
 
+    // ── 移动端面板（Android 键盘内自绘列表）────────────────────────
+    //
+    // 桌面面板走弹出菜单 + 菜单序号；移动端宿主自己画列表、按条目 id 操作，存储仍是同一份
+    // `clipboard_history.json`，两端行为一致（收录闸门、保留期、条数上限、收藏）。
+
+    /// 全部条目：收藏的在前，各自按最近使用排序。
+    pub fn clipboard_entries(&self) -> Vec<moodflow_clipboard::Entry> {
+        let h = self
+            .clipboard
+            .history
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        h.entries()
+            .iter()
+            .filter(|e| e.pinned)
+            .chain(h.entries().iter().filter(|e| !e.pinned))
+            .cloned()
+            .collect()
+    }
+
+    /// 收藏 / 取消收藏。返回是否命中。
+    pub fn clipboard_set_pinned(&self, id: u64, pinned: bool) -> bool {
+        let mut h = self
+            .clipboard
+            .history
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let hit = h.set_pinned(id, pinned);
+        if hit {
+            self.clipboard.save(&h);
+        }
+        hit
+    }
+
+    /// 删除一条。返回是否命中。
+    pub fn clipboard_remove(&self, id: u64) -> bool {
+        let mut h = self
+            .clipboard
+            .history
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let hit = h.remove(id);
+        if hit {
+            self.clipboard.save(&h);
+        }
+        hit
+    }
+
+    /// 清空未收藏的条目。
+    pub fn clipboard_clear_unpinned(&self) {
+        self.clipboard.clear_unpinned();
+    }
+
     /// 剪贴板面板里的菜单命令。
     pub(crate) fn run_clipboard_menu_cmd(&self, cmd: MenuCmd) {
         match cmd {
@@ -365,6 +418,42 @@ mod tests {
             Some("乙")
         );
         assert_eq!(s.id_at(9), None);
+    }
+
+    #[test]
+    fn mobile_panel_api_uses_the_shared_history() {
+        // 隐私状态是进程级的，并行用例可能刚报过密码框焦点：本线程固定为「允许」。
+        crate::moodflow::TEST_PRIVACY.with(|p| p.set(Some(Default::default())));
+        let dir = tmp("mobile");
+        let mut cfg = moodflow_config::Config::default();
+        cfg.clipboard.enabled = true;
+        let (c, _rx) = Coordinator::new_headless_with_ui_at(cfg, None, Some(&dir));
+        c.inject_ui_event(moodflow_ui_types::UiEvent::ClipboardChanged {
+            text: "甲".into(),
+            sensitive: false,
+        });
+        c.inject_ui_event(moodflow_ui_types::UiEvent::ClipboardChanged {
+            text: "密".into(),
+            sensitive: true,
+        });
+        c.inject_ui_event(moodflow_ui_types::UiEvent::ClipboardChanged {
+            text: "乙".into(),
+            sensitive: false,
+        });
+        let texts = |c: &Coordinator| -> Vec<String> {
+            c.clipboard_entries().into_iter().map(|e| e.text).collect()
+        };
+        assert_eq!(texts(&c), vec!["乙".to_string(), "甲".to_string()]);
+        let old = c.clipboard_entries()[1].id;
+        assert!(c.clipboard_set_pinned(old, true));
+        assert_eq!(texts(&c), vec!["甲".to_string(), "乙".to_string()]);
+        c.clipboard_clear_unpinned();
+        assert_eq!(texts(&c), vec!["甲".to_string()]);
+        assert!(c.clipboard_remove(old));
+        assert!(!c.clipboard_remove(old));
+        assert!(c.clipboard_entries().is_empty());
+        assert!(dir.join(FILE_NAME).exists(), "与桌面同一份落盘文件");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
