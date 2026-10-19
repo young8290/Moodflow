@@ -1121,6 +1121,29 @@ const moveMouse = (r, pts, t) => { // pts: [[时间, x, y], ...]
 const press = (el, t, at) => { el.classList.toggle('pressed', t >= at && t < at + 0.25); if (t >= at) sfx('pop', CUR_START + at, 'pr' + at); };
 const deskBg = (night = false) => `<div class="desk" style="${night ? 'background:radial-gradient(1200px 700px at 25% 20%,#3a4a68,transparent),linear-gradient(135deg,#27324a,#1d2436)' : ''}"></div>`;
 
+
+// 鼠标：路径点是 [到达时间, 目标]，目标写元素的 data-k（按它当前的实际位置瞄准中心）或 [x, y]
+function aimMouse(r, path, t) {
+  const at = tg => { if (Array.isArray(tg)) return tg; const el = $(r, tg); if (!el) return [960, 900]; const b = el.getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; };
+  let p = at(path[0][1]);
+  for (let i = 1; i < path.length; i++) if (t >= path[i - 1][0]) { const a = at(path[i - 1][1]), b = at(path[i][1]), k = eio(P(t, path[i - 1][0], path[i][0])); p = [lerp(a[0], b[0], k), lerp(a[1], b[1], k)]; }
+  const m = $(r, 'mouse'); m.style.left = (p[0] - 3) + 'px'; m.style.top = (p[1] - 2) + 'px';
+}
+// 天气图标（和产品界面里的一致：太阳、云、雨、雷、月亮，各带表情）
+function wIcon(w, size = 64) {
+  const face = { sunny: '<circle cx="42" cy="48" r="3.6" fill="#2b2a28"/><circle cx="58" cy="48" r="3.6" fill="#2b2a28"/><path d="M41 57 Q50 65 59 57" fill="none" stroke="#2b2a28" stroke-width="3.2" stroke-linecap="round"/><circle cx="36" cy="56" r="4" fill="#f4a261" opacity=".55"/><circle cx="64" cy="56" r="4" fill="#f4a261" opacity=".55"/>' };
+  const rays = Array.from({ length: 8 }, (_, i) => { const a = i * Math.PI / 4, c = Math.cos(a), s_ = Math.sin(a); return `<line x1="${50 + c * 30}" y1="${50 + s_ * 30}" x2="${50 + c * 40}" y2="${50 + s_ * 40}" stroke="#eaa62a" stroke-width="5.5" stroke-linecap="round"/>`; }).join('');
+  const cloud = (col, y = 0) => `<path d="M24 ${70 + y} Q14 ${70 + y} 14 ${60 + y} Q14 ${48 + y} 28 ${48 + y} Q30 ${32 + y} 48 ${32 + y} Q64 ${32 + y} 68 ${46 + y} Q86 ${46 + y} 86 ${60 + y} Q86 ${70 + y} 76 ${70 + y} Z" fill="${col}"/>`;
+  const d = {
+    sunny: `${rays}<circle cx="50" cy="50" r="26" fill="#f6c344"/>${face.sunny}`,
+    cloudy: `<circle cx="66" cy="36" r="15" fill="#f6c344"/><line x1="66" y1="12" x2="66" y2="16" stroke="#eaa62a" stroke-width="4" stroke-linecap="round"/><line x1="86" y1="36" x2="90" y2="36" stroke="#eaa62a" stroke-width="4" stroke-linecap="round"/><line x1="80" y1="22" x2="83" y2="19" stroke="#eaa62a" stroke-width="4" stroke-linecap="round"/>${cloud('#a99bd8', 4)}<circle cx="42" cy="58" r="3.2" fill="#2b2a28"/><circle cx="56" cy="58" r="3.2" fill="#2b2a28"/><line x1="44" y1="66" x2="54" y2="66" stroke="#2b2a28" stroke-width="3" stroke-linecap="round"/><circle cx="12" cy="40" r="2.6" fill="#a99bd8"/><circle cx="18" cy="34" r="3.4" fill="#a99bd8"/>`,
+    rain: `${cloud('#7fa7c9', -6)}<path d="M38 50 Q42 46 46 50 M54 50 Q58 46 62 50" fill="none" stroke="#2b2a28" stroke-width="3" stroke-linecap="round"/><path d="M45 58 Q50 54 55 58" fill="none" stroke="#2b2a28" stroke-width="3" stroke-linecap="round"/>${[[32, 76], [50, 82], [68, 76]].map(([x, y]) => `<path d="M${x} ${y} q-3 6 0 8 q3 -2 0 -8z" fill="#7fa7c9"/>`).join('')}`,
+    storm: `${cloud('#e8875b', -8)}<path d="M36 40 L45 44 M64 40 L55 44" stroke="#2b2a28" stroke-width="3.2" stroke-linecap="round"/><circle cx="43" cy="49" r="3.4" fill="#2b2a28"/><circle cx="57" cy="49" r="3.4" fill="#2b2a28"/><path d="M42 57 q4 -4 8 0 q4 4 8 0" fill="none" stroke="#2b2a28" stroke-width="3" stroke-linecap="round"/><path d="M52 64 L42 80 L50 80 L44 94 L60 74 L52 74 L58 64 Z" fill="#f6c344" stroke="#eaa62a" stroke-width="1.5" stroke-linejoin="round"/>`,
+    night: `<circle cx="48" cy="54" r="27" fill="#9aa3b2"/><circle cx="38" cy="42" r="5" fill="#8a93a3"/><circle cx="62" cy="64" r="4" fill="#8a93a3"/><path d="M36 54 Q41 58 46 54 M52 54 Q57 58 62 54" fill="none" stroke="#2b2a28" stroke-width="3" stroke-linecap="round"/><ellipse cx="49" cy="65" rx="3.2" ry="4" fill="#2b2a28"/><path d="M14 30 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3z" fill="#f6c344"/><text x="72" y="26" font-size="16" font-weight="800" fill="#6b7383" font-family="Nunito">z</text><text x="82" y="16" font-size="12" font-weight="800" fill="#6b7383" font-family="Nunito">z</text>`,
+  }[w];
+  return `<svg width="${size}" height="${size}" viewBox="0 0 100 100" style="display:inline-block;flex:none">${d}</svg>`;
+}
+
 // ── 1 痛点
 scene({ id: 'pain', dur: 9.5, chapter: '', badge: '', caption: ['', ''], build: () => `
   <div class="abs" style="inset:0;background:radial-gradient(900px 600px at 50% 45%,#fffdf6,#f6efe2)"></div>
@@ -1134,7 +1157,7 @@ scene({ id: 'pain', dur: 9.5, chapter: '', badge: '', caption: ['', ''], build: 
 // ── 2 日程待办
 const SCH1 = [['haode', '好的'], ['', '，'], ['zhouwu', '周五'], ['xiawu', '下午'], ['sandian', '三点'], ['zai', '在'], ['shiyanlou', '实验楼'], ['kai', '开'], ['zuhui', '组会']];
 const SCH2 = [['wolaiba', '我来吧'], ['', '，'], ['jide', '记得'], ['qu', '去'], ['dayin', '打印'], ['pingshenbiao', '评审表']];
-scene({ id: 'sched', dur: 17, chapter: '晴晴 · 日程与待办', capLeft: true, caption: ['聊天里约好的事，它帮你记下', '只有带时间词的那一句才发给 AI 确认；日期由代码校验，时间冲突当场提醒'], build: () => `
+scene({ id: 'sched', dur: 19, chapter: '晴晴 · 日程与待办', capLeft: true, caption: ['聊天里约好的事，它帮你记下', '只有带时间词的那一句才发给 AI 确认；日期由代码校验，时间冲突当场提醒'], build: () => `
   ${deskBg()}
   ${dwin('cw', '课程项目群（5）', '· 某聊天软件（示意）', 110, 200, 1000, 820, chatBody())}
   <div class="mc" data-k="bub1" style="left:150px;top:860px;padding:10px 18px;font-size:22px;z-index:30">📅 识别到日程</div>
@@ -1151,10 +1174,10 @@ scene({ id: 'sched', dur: 17, chapter: '晴晴 · 日程与待办', capLeft: tru
     <div data-k="c2b" style="margin-top:16px;display:flex;gap:12px;align-items:center"><span class="ob" data-k="c2ok">加入待办</span><span class="gb">修改</span><span class="lb">忽略</span></div>
     <div data-k="c2d" style="margin-top:16px;font-size:23px;font-weight:800;color:#237a4b">✓ 已加入待办</div>
   </div>
-  ${widgetHTML()}`,
+  ${widgetHTML()}${cursorHTML()}`,
   draw: (r, t) => {
     const e1 = imeEnd(SCH1, 0.8, 12), s1 = e1 + 0.3;
-    const a2 = s1 + 4.2, e2 = imeEnd(SCH2, a2, 12), s2 = e2 + 0.3;
+    const a2 = s1 + 3.6, e2 = imeEnd(SCH2, a2, 12), s2 = e2 + 0.3;
     const msgs = [{ who: '陈同学', text: '下周要交需求文档了，组会定在什么时候？' }, { who: '李同学', text: '周五下午我都有空' }];
     if (t >= s1) msgs.push({ me: 1, text: '好的，周五下午三点在实验楼开组会' });
     if (t >= s1 + 3.0) msgs.push({ who: '王同学', text: '收到👌 评审表谁去打印？' });
@@ -1166,6 +1189,7 @@ scene({ id: 'sched', dur: 17, chapter: '晴晴 · 日程与待办', capLeft: tru
     pop($(r, 'c1'), t, s1 + 0.9); press($(r, 'c1ok'), t, s1 + 2.6);
     $(r, 'c1b').style.display = t < s1 + 2.9 ? 'flex' : 'none'; $(r, 'c1d').style.display = t < s1 + 2.9 ? 'none' : 'block';
     pop($(r, 'c2'), t, s2 + 0.5); press($(r, 'c2ok'), t, s2 + 2.0);
+    aimMouse(r, [[0, [1700, 1010]], [s1 + 1.6, [1700, 1010]], [s1 + 2.5, 'c1ok'], [s2 + 1.0, 'c1ok'], [s2 + 1.9, 'c2ok']], t);
     $(r, 'c2b').style.display = t < s2 + 2.3 ? 'flex' : 'none'; $(r, 'c2d').style.display = t < s2 + 2.3 ? 'none' : 'block';
     widgetSet(r, t, { wx: 'sunny', msg: '今天也辛苦啦，慢慢来就好。', right: t >= s1 + 2.9 ? '📅 15:00 组会' : '', changed: s1 + 2.9 });
   } });
@@ -1210,7 +1234,7 @@ scene({ id: 'rhythm', dur: 18, chapter: '晴晴 · 心情天气', capLeft: true,
     const cl = t >= 9.2;
     widgetSet(r, t, cl ? { wx: 'cloudy', msg: '想说的话不急着说完，慢慢来。', ai: true, right: '📅 15:00 组会', changed: 9.2, pose: 'review' } : { wx: 'sunny', msg: '今天也辛苦啦，慢慢来就好。', right: '📅 15:00 组会' });
     if (t >= 9.2) sfx('pop', CUR_START + 9.2, 'wx');
-    moveMouse(r, [[0, 1700, 1000], [11.6, 1700, 1000], [12.4, 1520, 760], [14.6, 1520, 760], [15.2, 1606, 590]], t);
+    aimMouse(r, [[0, [1720, 1010]], [11.6, [1720, 1010]], [12.4, 'w'], [14.5, 'w'], [15.2, 'ok']], t);
     const ex = $(r, 'ex'); pop(ex, t, 12.6); if (t < 12.6) ex.style.opacity = 0;
     press($(r, 'ok'), t, 15.4); $(r, 'thx').style.display = t >= 15.6 ? 'block' : 'none';
   } });
@@ -1238,7 +1262,7 @@ scene({ id: 'self', dur: 10, chapter: '晴晴 · 自评', capLeft: true, caption
     widgetSet(r, t, sel ? { wx: 'rain', msg: '谢谢你告诉我。先歇一会儿也没关系。', ai: true, right: '📅 15:00 组会', changed: 3.5, pose: 'sad' } : { wx: 'cloudy', msg: '想说的话不急着说完，慢慢来。', ai: true, right: '📅 15:00 组会' });
     const rep = $(r, 'rep'); pop(rep, t, 4.4); if (t < 4.4) rep.style.opacity = 0;
     press($(r, 'talk'), t, 8.2);
-    moveMouse(r, [[0, 1300, 980], [2.6, 1238, 560], [7.2, 1238, 560], [8.0, 960, 905]], t);
+    aimMouse(r, [[0, [1300, 1000]], [3.1, 'o2'], [7.4, 'o2'], [8.1, 'talk']], t);
   } });
 
 // ── 5 和晴晴聊聊 + 危机安全
@@ -1267,7 +1291,7 @@ scene({ id: 'talk', dur: 16, chapter: '晴晴 · 对话', capLeft: true, caption
       <div style="margin-top:12px;display:flex;gap:12px"><span class="gb">我现在是安全的</span><span class="lb">我说的不是这个意思</span></div>
     </div>
     <div style="padding:0 20px 20px;font-size:19px;color:#8b857b">发现危险信号时，求助卡片固定在对话顶部；不依赖网络</div>
-  </div>`,
+  </div>${cursorHTML()}`,
   draw: (r, t) => {
     const out = [];
     for (let i = 0; i < CHAT.length; i++) {
@@ -1280,6 +1304,7 @@ scene({ id: 'talk', dur: 16, chapter: '晴晴 · 对话', capLeft: true, caption
     let inp = ''; for (const [at, who, txt] of CHAT) if (who === 'me') { const send = at + [...txt].length / 14 + 0.3; if (t >= at && t < send) inp = typed(txt, t, at, 14); }
     $(r, 'cinp').textContent = inp;
     press($(r, 'chip'), t, 11.2);
+    aimMouse(r, [[0, [1060, 1010]], [10.2, [1060, 1010]], [11.1, 'chip']], t);
     const c = $(r, 'crisis'); pop(c, t, 12.0); if (t < 12) c.style.opacity = 0;
   } });
 
@@ -1332,7 +1357,7 @@ scene({ id: 'rest', dur: 13, chapter: '晴晴 · 休息与专注', capLeft: true
     <div style="font-size:18px;color:#8b857b;margin-top:10px">今日已喝水 2 次 · 点“喝了”可获得 1 点晴天值</div>
   </div>
   <div data-k="plus" class="abs" style="left:1500px;top:330px;font-size:30px;font-weight:900;color:#e08a1e">+1 晴天值 ☀</div>
-  ${widgetHTML(1440, 704)}`,
+  ${widgetHTML(1440, 704)}${cursorHTML()}`,
   draw: (r, t) => {
     const n = Math.floor(clamp(t - 0.3, 0, 3.0) * 30 + clamp(t - 9.5, 0, 3) * 20);
     const txt = [...DOC].slice(0, 70 + n).join(''); $(r, 'doc').innerHTML = txt.replace(/\n/g, '<br>') + '<span class="caret"></span>';
@@ -1345,6 +1370,7 @@ scene({ id: 'rest', dur: 13, chapter: '晴晴 · 休息与专注', capLeft: true
     press($(r, 'done'), t, 7.2);
     const w = $(r, 'water'); pop(w, t, 8.3); if (t < 8.3) w.style.opacity = 0; if (t > 11.6) w.style.opacity = 1 - P(t, 11.6, 12.0);
     press($(r, 'drink'), t, 10.8);
+    aimMouse(r, [[0, [1700, 1010]], [6.2, [1700, 1010]], [7.1, 'done'], [9.6, 'done'], [10.7, 'drink']], t);
     const pl = $(r, 'plus'); pl.style.opacity = t >= 11 ? 1 - P(t, 12, 12.8) : 0; pl.style.transform = `translateY(${-P(t, 11, 12.8) * 50}px)`;
     widgetSet(r, t, t >= 3.8 && t < 8 ? { wx: 'sunny', msg: '看看 6 米外的地方，休息 20 秒吧。', right: '📅 15:00 组会', changed: 3.8 } : { wx: 'sunny', msg: '今天也辛苦啦，慢慢来就好。', right: '📅 15:00 组会', left: '⌨ 今日 3 小时 05 分' });
   } });
@@ -1403,7 +1429,7 @@ scene({ id: 'evening', dur: 12, chapter: '晴晴 · 回顾', capLeft: true, capD
     <div style="font-size:20px;color:#b8740e;font-weight:800">晴晴的周信 · 9月21日 – 9月27日</div>
     <div data-k="ltx" style="font-size:24px;line-height:1.85;margin-top:10px;color:#4a3f2a;min-height:230px"></div>
   </div>
-  ${widgetHTML(1440, 704)}`,
+  ${widgetHTML(1440, 704)}${cursorHTML()}`,
   draw: (r, t) => {
     pop($(r, 'sum'), t, 0.4);
     const segs = [['sunny', 3], ['cloudy', 0.8], ['sunny', 2.5], ['rain', 1], ['sunny', 1.4], ['night', 0.8]]; const tot = segs.reduce((a, b) => a + b[1], 0);
@@ -1411,6 +1437,7 @@ scene({ id: 'evening', dur: 12, chapter: '晴晴 · 回顾', capLeft: true, capD
     $(r, 'band').innerHTML = segs.map(([w, f]) => { const a0 = acc / tot; acc += f; const vis = clamp((kk - a0) / (f / tot)); return `<div style="width:${f / tot * 100 * vis}%;background:${W[w]}"></div>`; }).join('');
     const m = $(r, 'mail'); pop(m, t, 4.6); if (t < 4.6) m.style.opacity = 0;
     press($(r, 'open'), t, 6.2);
+    aimMouse(r, [[0, [1360, 1010]], [5.1, [1360, 1010]], [6.1, 'open']], t);
     const l = $(r, 'letter'); pop(l, t, 6.6); if (t < 6.6) l.style.opacity = 0;
     const L = '这一周有四天是晴天。周四下午下了一场小雨，后来你和我聊了聊，很快又放晴了。周三你熬到了凌晨一点，这个周末记得早点睡。下周也要按时吃饭哦。\n—— 晴晴';
     $(r, 'ltx').innerHTML = [...L].slice(0, Math.floor(clamp(t - 7.0, 0, 9) * 16)).join('').replace('\n', '<br>');
@@ -1425,7 +1452,7 @@ scene({ id: 'board', dur: 16, chapter: '晴晴 · 情绪看板', capLeft: true, 
     <div style="flex:1;position:relative">
       <div data-k="pg0" class="abs" style="inset:0;padding:24px 30px">
         <b style="font-size:34px">今天 · 10月3日 周六</b>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:16px">${[['⌨', 't0', '今日输入时长'], ['', 't1', '主导天气（占 62%）'], ['♡', 't2', '暖心话'], ['👁', 't3', '休息完成率 5/7']].map(([ic, k, s], i) => `<div class="mc" style="position:relative;padding:14px 18px;display:flex;gap:14px;align-items:center">${i === 1 ? thumb('sunny', 0.3) : `<span style="font-size:40px">${ic}</span>`}<div><div data-k="${k}" style="font-size:34px;font-weight:900"></div><div style="font-size:18px;color:#8b857b">${s}</div></div></div>`).join('')}</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:16px">${[['⌨', 't0', '今日输入时长'], ['', 't1', '主导天气（占 62%）'], ['♡', 't2', '暖心话'], ['👁', 't3', '休息完成率 5/7']].map(([ic, k, s], i) => `<div class="mc" style="position:relative;padding:14px 18px;display:flex;gap:14px;align-items:center">${i === 1 ? wIcon('sunny', 54) : `<span style="font-size:40px">${ic}</span>`}<div><div data-k="${k}" style="font-size:34px;font-weight:900"></div><div style="font-size:18px;color:#8b857b">${s}</div></div></div>`).join('')}</div>
         <div class="mc" style="position:relative;margin-top:16px;padding:16px 20px"><b style="font-size:22px">打字心电图</b><span style="font-size:17px;color:#8b857b;margin-left:10px">最近 60 秒 · 按键间隔（毫秒）</span><svg data-k="becg" width="1300" height="190"></svg></div>
         <div class="mc" style="position:relative;margin-top:14px;padding:16px 20px"><b style="font-size:22px">状态时间线</b><div data-k="tl" style="margin-top:12px;height:30px;border-radius:15px;overflow:hidden;display:flex;background:#eee8dc"></div>
           <div style="display:flex;justify-content:space-between;font-size:16px;color:#8b857b;margin-top:6px">${['00:00', '03:00', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00', '24:00'].map(s => `<span>${s}</span>`).join('')}</div></div>
@@ -1435,7 +1462,7 @@ scene({ id: 'board', dur: 16, chapter: '晴晴 · 情绪看板', capLeft: true, 
         <div><b style="font-size:34px">2026 年 9 月</b>
           <div style="display:grid;grid-template-columns:repeat(7,118px);gap:10px;margin-top:16px">${['一', '二', '三', '四', '五', '六', '日'].map(s => `<div style="text-align:center;font-size:20px;color:#8b857b">${s}</div>`).join('')}
           <div></div>${Array.from({ length: 30 }, (_, i) => { const d = i + 1, w = { 3: 'cloudy', 7: 'rain', 9: 'night', 14: 'cloudy', 16: 'night', 18: 'storm', 22: 'night', 25: 'cloudy', 29: 'rain' }[d] || ([5, 12, 20].includes(d) ? '' : 'sunny');
-            return `<div data-k="d${d}" style="height:104px;border:2px solid ${d === 24 ? '#f0a03a' : '#ece4d6'};background:${d === 24 ? '#fff6e6' : '#fff'};border-radius:14px;position:relative"><span style="position:absolute;left:10px;top:4px;font-size:18px">${d}</span><div style="position:absolute;left:30px;top:24px">${w ? thumb(w, 0.33) : '<div style="color:#bbb;font-size:30px;margin:14px 0 0 6px">—</div>'}</div></div>`; }).join('')}</div></div>
+            return `<div data-k="d${d}" style="height:104px;border:2px solid ${d === 24 ? '#f0a03a' : '#ece4d6'};background:${d === 24 ? '#fff6e6' : '#fff'};border-radius:14px;position:relative"><span style="position:absolute;left:10px;top:4px;font-size:18px">${d}</span><div style="position:absolute;left:26px;top:26px">${w ? wIcon(w, 66) : '<div style="color:#bbb;font-size:30px;margin:14px 0 0 10px">—</div>'}</div></div>`; }).join('')}</div></div>
         <div style="flex:1;display:flex;flex-direction:column;gap:16px">
           <div class="mc" style="position:relative;padding:18px 22px"><b style="font-size:24px">9月24日 周四</b><div style="margin-top:12px;height:18px;border-radius:9px;overflow:hidden;display:flex">${[['sunny', 3], ['cloudy', 0.6], ['sunny', 2], ['rain', 1], ['sunny', 1.6], ['night', 1.4]].map(([w, f]) => `<div style="flex:${f};background:${W[w]}"></div>`).join('')}</div>
             <div style="font-size:20px;line-height:1.9;margin-top:10px">主导天气：晴（46%）<br>暖心话：2 次（👍 1）<br>休息提醒：完成 4 / 6<br>停止打字：01:20</div></div>
@@ -1459,7 +1486,7 @@ scene({ id: 'board', dur: 16, chapter: '晴晴 · 情绪看板', capLeft: true, 
     [0, 1, 2].forEach(i => { const el = $(r, 'pg' + i); el.style.opacity = i === pg ? E(t, [0, 5.6, 10.8][i], [0, 5.6, 10.8][i] + 0.4) : 0; });
     [0, 1, 2].forEach(i => { const n = $(r, 'nav' + i); n.style.background = i === pg ? '#fff' : 'transparent'; n.style.fontWeight = i === pg ? 900 : 400; });
     if (t >= 5.6) sfx('pop', CUR_START + 5.6, 'pg1'); if (t >= 10.8) sfx('pop', CUR_START + 10.8, 'pg2');
-    moveMouse(r, [[0, 900, 900], [4.6, 900, 900], [5.4, 300, 345], [9.8, 300, 345], [10.6, 300, 404]], t);
+    aimMouse(r, [[0, [900, 900]], [4.6, [900, 900]], [5.4, 'nav1'], [9.9, 'nav1'], [10.6, 'nav2']], t);
     const k = E(t, 0.3, 2.0);
     $(r, 't0').textContent = `${Math.floor(3 * k)}:${String(Math.floor(20 * k)).padStart(2, '0')}`; $(r, 't1').textContent = '晴'; $(r, 't2').textContent = `${Math.round(2 * k)} 次`; $(r, 't3').textContent = `${Math.round(71 * k)}%`;
     let pts = ''; const nPts = Math.floor(180 * E(t, 0.3, 3.2));
@@ -1482,10 +1509,50 @@ scene({ id: 'board', dur: 16, chapter: '晴晴 · 情绪看板', capLeft: true, 
       `<polyline points="${ly.slice(0, np).map((v, i) => `${40 + i * 100},${150 - (v - 21) * 30}`).join(' ')}" fill="none" stroke="#7fa7c9" stroke-width="3"/>` + ly.slice(0, np).map((v, i) => `<circle cx="${40 + i * 100}" cy="${150 - (v - 21) * 30}" r="6" fill="${v > 24 ? '#e8875b' : '#7fa7c9'}"/>`).join('');
   } });
 
+// ── 换装：导入的社区桌宠
+const SKINS = [['', '晴晴', '内置'], ['roxy-pixel', 'Roxy', '像素'], ['miku-kimono', '初音未来', '和服'], ['goku', '悟空', ''], ['cute-rem', '蕾姆', ''], ['hutao', '胡桃', ''], ['liuying-firefly-pixel', '流萤', '像素']];
+const skinUrl = k => k ? `assets/skin-${k}.png` : 'assets/pet-sunny.png';
+function petSkin(el, state, t, k) {
+  const [row, frames, dur] = ROWS[state]; const f = Math.floor(((t % dur) / dur) * frames) % frames;
+  el.children[0].style.display = 'none'; const l = el.children[1];
+  l.style.backgroundImage = `url(${skinUrl(k)})`; l.style.backgroundPosition = `${-f * 192}px ${-row * 208}px`;
+}
+const SW = [0, 1.4, 3.0, 4.6, 6.2, 7.8, 9.4, 11.0];
+scene({ id: 'skins', dur: 13.5, chapter: '晴晴 · 换装', capLeft: true, caption: ['换上你喜欢的桌宠', '一键导入 Codex 格式的社区桌宠，导入时校验尺寸与格式；换装后动作和暖心话照常'], build: () => `
+  ${desk()}
+  <div class="mc" style="left:110px;top:210px;width:800px;padding:24px 26px">
+    <div style="display:flex;align-items:center"><b style="font-size:28px">桌宠库</b><span style="font-size:19px;color:#8b857b;margin-left:12px">点一下就换装</span><span class="gb" style="margin-left:auto;font-size:19px">＋ 导入桌宠</span></div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:18px">
+      ${SKINS.map(([k, n, tag], i) => `<div data-k="sk${i}" style="border:2px solid #ece4d6;border-radius:16px;background:#fff;text-align:center;padding:8px 0 10px">
+        <div style="width:115px;height:125px;margin:0 auto;background:url(${skinUrl(k)}) 0 0 / ${1536 * 0.6}px ${1872 * 0.6}px no-repeat"></div>
+        <div style="font-size:21px;font-weight:800">${n}</div><div style="font-size:15px;color:#8b857b;height:20px">${tag}</div></div>`).join('')}
+      <div style="border:2px dashed #ddd3c2;border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#8b857b;font-size:19px;gap:6px"><span style="font-size:40px">＋</span>导入 .zip</div>
+    </div>
+    <div style="margin-top:14px;font-size:16px;color:#9a9389">社区桌宠为用户导入示意，形象版权归原作者</div>
+  </div>
+  <div class="abs" style="left:1000px;top:250px;width:820px;height:720px">
+    <div data-k="chip" class="abs" style="left:0;right:0;top:40px;text-align:center"><span data-k="chipt" style="display:inline-block;background:#fffdf8;border:1px solid #efe6d8;border-radius:999px;padding:8px 24px;font-size:26px;font-weight:800;box-shadow:0 8px 24px rgba(0,0,0,.08)"></span></div>
+    ${petHTML('big', 1.75, 'left:314px;top:260px')}
+    <div data-k="spark" class="abs" style="left:300px;top:240px;font-size:70px;letter-spacing:120px">✨✨</div>
+  </div>
+  ${cursorHTML()}`,
+  draw: (r, t) => {
+    let idx = 0; for (let i = 0; i < SW.length; i++) if (t >= SW[i]) idx = i;
+    const k = idx === SW.length - 1 ? 0 : idx, since = t - SW[idx];
+    SKINS.forEach((_, i) => { const el = $(r, 'sk' + i); el.style.borderColor = i === k ? '#f0a03a' : '#ece4d6'; el.style.background = i === k ? '#fff6e6' : '#fff'; });
+    const big = $(r, 'big'); petSkin(big, since < 1.0 && idx > 0 ? 'wave' : (idx === SW.length - 1 ? 'wave' : 'idle'), t, SKINS[k][0]);
+    const pk = P(since, 0, 0.35); big.style.transform = `scale(${1.75 * (idx > 0 ? lerp(0.85, 1, back(pk)) : 1)})`;
+    $(r, 'chipt').textContent = SKINS[k][1] + (SKINS[k][2] ? ' · ' + SKINS[k][2] : '');
+    const sp = $(r, 'spark'); sp.style.opacity = idx > 0 ? 1 - P(since, 0.1, 0.7) : 0; sp.style.transform = `translateY(${-P(since, 0, 0.7) * 40}px)`;
+    if (idx > 0) { sfx('pop', CUR_START + SW[idx], 'sk' + idx); }
+    const path = [[0, [1700, 1010]]]; for (let i = 1; i < SW.length; i++) path.push([SW[i] - 0.15, 'sk' + (i === SW.length - 1 ? 0 : i)], [SW[i] + 0.6, 'sk' + (i === SW.length - 1 ? 0 : i)]);
+    aimMouse(r, path, t);
+  } });
+
 // ───────── 场景顺序：情绪功能放最前 ─────────
 {
   const by = new Map(S.map(s => [s.id || s.caption[0], s]));
-  const ORDER = ['intro', 'pain', '晴晴就在桌面上陪着你',
+  const ORDER = ['intro', 'pain', '晴晴就在桌面上陪着你', 'skins',
     'sched', 'rhythm', 'self', 'talk', 'rewrite', 'rest', 'priv', 'evening', 'board',
     '打字顺手，是一切的前提', '候选多？按 ↓ 展开成矩阵', 'Buffer：先写好，再发出去', '剪贴板历史：刚才复制的，都还在', '并击：几个键同时按，出一个音节',
     '截图、取字，一气呵成', '资料库：随手记，随手用', '密码库：真正加密，用完即清', '发出去之前，再想一想', 'more',
@@ -1536,7 +1603,7 @@ window.renderAt = (T) => {
   document.getElementById('progress').style.width = (T / TOTAL * 100) + '%';
 };
 window.ready = document.fonts.ready.then(() => new Promise(res => {
-  const imgs = ['assets/body.png', 'assets/lines.png', 'assets/logo-horizontal.png', 'assets/mark.png'].map(src => new Promise(ok => { const im = new Image(); im.onload = im.onerror = ok; im.src = src; }));
+  const imgs = ['assets/body.png', 'assets/lines.png', 'assets/logo-horizontal.png', 'assets/mark.png', 'assets/pet-sunny.png', 'assets/pet-cloudy.png', 'assets/pet-rain.png', 'assets/pet-storm.png', 'assets/pet-night.png', ...['roxy-pixel', 'miku-kimono', 'goku', 'cute-rem', 'hutao', 'liuying-firefly-pixel'].map(k => `assets/skin-${k}.png`)].map(src => new Promise(ok => { const im = new Image(); im.onload = im.onerror = ok; im.src = src; }));
   Promise.all(imgs).then(res);
 }));
 window.ready.then(() => window.renderAt(0));

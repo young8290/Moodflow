@@ -26,151 +26,158 @@
   {
     "i": 3,
     "start": 27,
-    "dur": 17,
+    "dur": 13.5,
+    "chapter": "晴晴 · 换装",
+    "title": "换上你喜欢的桌宠"
+  },
+  {
+    "i": 4,
+    "start": 40.5,
+    "dur": 19,
     "chapter": "晴晴 · 日程与待办",
     "title": "聊天里约好的事，它帮你记下"
   },
   {
-    "i": 4,
-    "start": 44,
+    "i": 5,
+    "start": 59.5,
     "dur": 18,
     "chapter": "晴晴 · 心情天气",
     "title": "只看打字节奏，不看你打了什么"
   },
   {
-    "i": 5,
-    "start": 62,
+    "i": 6,
+    "start": 77.5,
     "dur": 10,
     "chapter": "晴晴 · 自评",
     "title": "不想等它猜？直接告诉晴晴"
   },
   {
-    "i": 6,
-    "start": 72,
+    "i": 7,
+    "start": 87.5,
     "dur": 16,
     "chapter": "晴晴 · 对话",
     "title": "想说话的时候，晴晴在"
   },
   {
-    "i": 7,
-    "start": 88,
+    "i": 8,
+    "start": 103.5,
     "dur": 15,
     "chapter": "晴晴 · 温柔改写",
     "title": "情绪上头时，一键把话说得更温和"
   },
   {
-    "i": 8,
-    "start": 103,
+    "i": 9,
+    "start": 118.5,
     "dur": 13,
     "chapter": "晴晴 · 休息与专注",
     "title": "按真实输入时长，提醒你歇一歇"
   },
   {
-    "i": 9,
-    "start": 116,
+    "i": 10,
+    "start": 131.5,
     "dur": 15,
     "chapter": "隐私",
     "title": "密码框里，晴晴会闭上眼"
   },
   {
-    "i": 10,
-    "start": 131,
+    "i": 11,
+    "start": 146.5,
     "dur": 12,
     "chapter": "晴晴 · 回顾",
     "title": "每天一句小结，每周一封信"
   },
   {
-    "i": 11,
-    "start": 143,
+    "i": 12,
+    "start": 158.5,
     "dur": 16,
     "chapter": "晴晴 · 情绪看板",
     "title": "看见自己的情绪天气"
   },
   {
-    "i": 12,
-    "start": 159,
+    "i": 13,
+    "start": 174.5,
     "dur": 10,
     "chapter": "输入法",
     "title": "打字顺手，是一切的前提",
     "status": "done"
   },
   {
-    "i": 13,
-    "start": 169,
+    "i": 14,
+    "start": 184.5,
     "dur": 9,
     "chapter": "输入法",
     "title": "候选多？按 ↓ 展开成矩阵",
     "status": "preview"
   },
   {
-    "i": 14,
-    "start": 178,
+    "i": 15,
+    "start": 193.5,
     "dur": 12,
     "chapter": "输入法",
     "title": "Buffer：先写好，再发出去",
     "status": "preview"
   },
   {
-    "i": 15,
-    "start": 190,
+    "i": 16,
+    "start": 205.5,
     "dur": 9,
     "chapter": "输入法",
     "title": "剪贴板历史：刚才复制的，都还在",
     "status": "preview"
   },
   {
-    "i": 16,
-    "start": 199,
+    "i": 17,
+    "start": 214.5,
     "dur": 9,
     "chapter": "输入法",
     "title": "并击：几个键同时按，出一个音节",
     "status": "preview"
   },
   {
-    "i": 17,
-    "start": 208,
+    "i": 18,
+    "start": 223.5,
     "dur": 11,
     "chapter": "效率工具 · 截图",
     "title": "截图、取字，一气呵成"
   },
   {
-    "i": 18,
-    "start": 219,
+    "i": 19,
+    "start": 234.5,
     "dur": 12,
     "chapter": "效率工具 · 资料库",
     "title": "资料库：随手记，随手用"
   },
   {
-    "i": 19,
-    "start": 231,
+    "i": 20,
+    "start": 246.5,
     "dur": 11,
     "chapter": "效率工具 · 密码库",
     "title": "密码库：真正加密，用完即清"
   },
   {
-    "i": 20,
-    "start": 242,
+    "i": 21,
+    "start": 257.5,
     "dur": 10,
     "chapter": "效率工具 · Buffer 动作",
     "title": "发出去之前，再想一想"
   },
   {
-    "i": 21,
-    "start": 252,
+    "i": 22,
+    "start": 267.5,
     "dur": 13,
     "chapter": "效率工具",
     "title": "还有更多"
   },
   {
-    "i": 22,
-    "start": 265,
+    "i": 23,
+    "start": 280.5,
     "dur": 12,
     "chapter": "Android（预览）",
     "title": "Android 版（预览）"
   },
   {
-    "i": 23,
-    "start": 277,
+    "i": 24,
+    "start": 292.5,
     "dur": 8,
     "chapter": "",
     "title": "",
