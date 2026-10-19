@@ -1,0 +1,430 @@
+{
+  "comment": "桌宠生图的切图布局。SKILL.md 第二、三节是这份文件的人话版本；改这里要同步改那边。tools/pet_from_grid.py 读它。",
+  "canvas": [
+    1024,
+    1536
+  ],
+  "grid": [
+    4,
+    4
+  ],
+  "cell": [
+    256,
+    384
+  ],
+  "source": {
+    "ground_y": 320,
+    "center_x": 128,
+    "stand_height": 200,
+    "background": "#FF00FF"
+  },
+  "target": {
+    "cell": [
+      192,
+      208
+    ],
+    "columns": 8,
+    "rows": 9,
+    "floor_y": 186,
+    "center_x": 96,
+    "stand_height": 120,
+    "rest_head": {
+      "center": [
+        96,
+        122
+      ],
+      "radius": 54,
+      "tolerance": 12
+    }
+  },
+  "anchor_cell": 15,
+  "swatch_cell": 16,
+  "states": {
+    "idle": {
+      "row": 0,
+      "frames": 6,
+      "ms": 1100
+    },
+    "running-right": {
+      "row": 1,
+      "frames": 8,
+      "ms": 1060
+    },
+    "running-left": {
+      "row": 2,
+      "frames": 8,
+      "ms": 1060
+    },
+    "waving": {
+      "row": 3,
+      "frames": 4,
+      "ms": 700
+    },
+    "jumping": {
+      "row": 4,
+      "frames": 5,
+      "ms": 840
+    },
+    "failed": {
+      "row": 5,
+      "frames": 8,
+      "ms": 1220
+    },
+    "waiting": {
+      "row": 6,
+      "frames": 6,
+      "ms": 1010
+    },
+    "running": {
+      "row": 7,
+      "frames": 6,
+      "ms": 820
+    },
+    "review": {
+      "row": 8,
+      "frames": 6,
+      "ms": 1030
+    }
+  },
+  "rest_states": [
+    "idle",
+    "waiting",
+    "review"
+  ],
+  "airborne": {
+    "jumping": [
+      1,
+      2,
+      3
+    ]
+  },
+  "mirror": {
+    "running-left": "running-right"
+  },
+  "sheets": [
+    {
+      "file": "sheet-1.png",
+      "title": "idle + running-right",
+      "cells": [
+        {
+          "cell": 1,
+          "state": "idle",
+          "frame": 0
+        },
+        {
+          "cell": 2,
+          "state": "idle",
+          "frame": 1
+        },
+        {
+          "cell": 3,
+          "state": "idle",
+          "frame": 2
+        },
+        {
+          "cell": 4,
+          "state": "idle",
+          "frame": 3
+        },
+        {
+          "cell": 5,
+          "state": "idle",
+          "frame": 4
+        },
+        {
+          "cell": 6,
+          "state": "idle",
+          "frame": 5
+        },
+        {
+          "cell": 7,
+          "state": "running-right",
+          "frame": 0
+        },
+        {
+          "cell": 8,
+          "state": "running-right",
+          "frame": 1
+        },
+        {
+          "cell": 9,
+          "state": "running-right",
+          "frame": 2
+        },
+        {
+          "cell": 10,
+          "state": "running-right",
+          "frame": 3
+        },
+        {
+          "cell": 11,
+          "state": "running-right",
+          "frame": 4
+        },
+        {
+          "cell": 12,
+          "state": "running-right",
+          "frame": 5
+        },
+        {
+          "cell": 13,
+          "state": "running-right",
+          "frame": 6
+        },
+        {
+          "cell": 14,
+          "state": "running-right",
+          "frame": 7
+        }
+      ]
+    },
+    {
+      "file": "sheet-2.png",
+      "title": "failed + waiting",
+      "cells": [
+        {
+          "cell": 1,
+          "state": "failed",
+          "frame": 0
+        },
+        {
+          "cell": 2,
+          "state": "failed",
+          "frame": 1
+        },
+        {
+          "cell": 3,
+          "state": "failed",
+          "frame": 2
+        },
+        {
+          "cell": 4,
+          "state": "failed",
+          "frame": 3
+        },
+        {
+          "cell": 5,
+          "state": "failed",
+          "frame": 4
+        },
+        {
+          "cell": 6,
+          "state": "failed",
+          "frame": 5
+        },
+        {
+          "cell": 7,
+          "state": "failed",
+          "frame": 6
+        },
+        {
+          "cell": 8,
+          "state": "failed",
+          "frame": 7
+        },
+        {
+          "cell": 9,
+          "state": "waiting",
+          "frame": 0
+        },
+        {
+          "cell": 10,
+          "state": "waiting",
+          "frame": 1
+        },
+        {
+          "cell": 11,
+          "state": "waiting",
+          "frame": 2
+        },
+        {
+          "cell": 12,
+          "state": "waiting",
+          "frame": 3
+        },
+        {
+          "cell": 13,
+          "state": "waiting",
+          "frame": 4
+        },
+        {
+          "cell": 14,
+          "state": "waiting",
+          "frame": 5
+        }
+      ]
+    },
+    {
+      "file": "sheet-3.png",
+      "title": "running + review（格 13–14 留空）",
+      "cells": [
+        {
+          "cell": 1,
+          "state": "running",
+          "frame": 0
+        },
+        {
+          "cell": 2,
+          "state": "running",
+          "frame": 1
+        },
+        {
+          "cell": 3,
+          "state": "running",
+          "frame": 2
+        },
+        {
+          "cell": 4,
+          "state": "running",
+          "frame": 3
+        },
+        {
+          "cell": 5,
+          "state": "running",
+          "frame": 4
+        },
+        {
+          "cell": 6,
+          "state": "running",
+          "frame": 5
+        },
+        {
+          "cell": 7,
+          "state": "review",
+          "frame": 0
+        },
+        {
+          "cell": 8,
+          "state": "review",
+          "frame": 1
+        },
+        {
+          "cell": 9,
+          "state": "review",
+          "frame": 2
+        },
+        {
+          "cell": 10,
+          "state": "review",
+          "frame": 3
+        },
+        {
+          "cell": 11,
+          "state": "review",
+          "frame": 4
+        },
+        {
+          "cell": 12,
+          "state": "review",
+          "frame": 5
+        }
+      ]
+    },
+    {
+      "file": "sheet-4.png",
+      "title": "waving + jumping（格 10–14 留空）",
+      "cells": [
+        {
+          "cell": 1,
+          "state": "waving",
+          "frame": 0
+        },
+        {
+          "cell": 2,
+          "state": "waving",
+          "frame": 1
+        },
+        {
+          "cell": 3,
+          "state": "waving",
+          "frame": 2
+        },
+        {
+          "cell": 4,
+          "state": "waving",
+          "frame": 3
+        },
+        {
+          "cell": 5,
+          "state": "jumping",
+          "frame": 0
+        },
+        {
+          "cell": 6,
+          "state": "jumping",
+          "frame": 1
+        },
+        {
+          "cell": 7,
+          "state": "jumping",
+          "frame": 2
+        },
+        {
+          "cell": 8,
+          "state": "jumping",
+          "frame": 3
+        },
+        {
+          "cell": 9,
+          "state": "jumping",
+          "frame": 4
+        }
+      ]
+    },
+    {
+      "file": "sheet-5.png",
+      "title": "running-left（可选；不画就把 running-right 镜像过来）",
+      "optional": true,
+      "cells": [
+        {
+          "cell": 1,
+          "state": "running-left",
+          "frame": 0,
+          "optional": true
+        },
+        {
+          "cell": 2,
+          "state": "running-left",
+          "frame": 1,
+          "optional": true
+        },
+        {
+          "cell": 3,
+          "state": "running-left",
+          "frame": 2,
+          "optional": true
+        },
+        {
+          "cell": 4,
+          "state": "running-left",
+          "frame": 3,
+          "optional": true
+        },
+        {
+          "cell": 5,
+          "state": "running-left",
+          "frame": 4,
+          "optional": true
+        },
+        {
+          "cell": 6,
+          "state": "running-left",
+          "frame": 5,
+          "optional": true
+        },
+        {
+          "cell": 7,
+          "state": "running-left",
+          "frame": 6,
+          "optional": true
+        },
+        {
+          "cell": 8,
+          "state": "running-left",
+          "frame": 7,
+          "optional": true
+        }
+      ]
+    }
+  ]
+}
