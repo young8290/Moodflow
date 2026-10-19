@@ -1,71 +1,64 @@
 #!/usr/bin/env python3
-"""生成 Moodflow 的占位图标（产品书 14 §1 第 4 步“替换图标”）。
+"""从品牌母版生成 Moodflow 的全部图标（logo 源文件见 assets/brand/，说明见 assets/README.md）。
 
-输出三份品牌资产（规格见 assets/README.md）：
-  moodflow_tsf/res/moodflow_input.ico  TSF DLL 与核心 exe 的图标，10 层 16→256
-  assets/installer.ico         安装程序图标，同上
-  assets/logo.png              安装向导 logo，144×144
+输入：assets/brand/icon-1024.png（应用图标母版，1024×1024，白色圆角底 + 深蓝/天蓝浪花 M + 太阳）
+输出：
+  moodflow_tsf/res/moodflow_input.ico        TSF DLL 与核心 exe 的图标，10 层 16→256
+  assets/installer.ico                       安装程序图标，同上
+  assets/logo.png                            安装向导 logo，144×144
+  moodflow_hub/src-tauri/icons/32x32.png、128x128.png、128x128@2x.png（256）、icon.png（512）、icon.ico（10 层）
 
-图案是暖色圆角方块上的白色“晴”字，只是占位，正式图标由设计稿替换后重新生成
-或直接覆盖这三个文件。需要 Pillow 和一款含“晴”字的中文字体：
+缩放一律先预乘 alpha 再缩、之后反预乘，避免透明区的黑色渗进圆角边缘。需要 Pillow：
 
-    python3 scripts/moodflow/gen_icons.py --font /usr/share/fonts/truetype/wqy/wqy-zenhei.ttc
+    python3 scripts/moodflow/gen_icons.py
 """
 
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
+MASTER = ROOT / "assets" / "brand" / "icon-1024.png"
 ICO_SIZES = [16, 20, 24, 32, 40, 48, 64, 96, 128, 256]
-TOP = (255, 196, 92)  # 晨光琥珀
-BOTTOM = (240, 128, 96)  # 暖珊瑚
-SS = 4  # 超采样倍数
+HUB = ROOT / "moodflow_hub" / "src-tauri" / "icons"
 
 
-def render(size: int, font_path: str) -> Image.Image:
-    big = size * SS
-    grad = Image.new("RGB", (big, big))
-    px = grad.load()
-    for y in range(big):
-        for x in range(big):
-            t = (x + y) / (2 * (big - 1))
-            px[x, y] = tuple(round(a + (b - a) * t) for a, b in zip(TOP, BOTTOM))
-    mask = Image.new("L", (big, big), 0)
-    ImageDraw.Draw(mask).rounded_rectangle(
-        (0, 0, big - 1, big - 1), radius=round(big * 0.22), fill=255
-    )
-    img = Image.new("RGBA", (big, big), (0, 0, 0, 0))
-    img.paste(grad, (0, 0), mask)
+def scaled(src: Image.Image, size: int) -> Image.Image:
+    """预乘 alpha 后用 LANCZOS 缩放，再反预乘。"""
+    rgba = src.convert("RGBA")
+    pre = Image.new("RGBA", rgba.size)
+    r, g, b, a = rgba.split()
+    from PIL import ImageChops
 
-    # 16/20 像素下笔画太密，字放大到几乎满幅以保留轮廓
-    scale = 0.86 if size <= 20 else 0.72
-    font = ImageFont.truetype(font_path, round(big * scale))
-    d = ImageDraw.Draw(img)
-    l, t, r, b = d.textbbox((0, 0), "晴", font=font)
-    d.text(((big - (r - l)) / 2 - l, (big - (b - t)) / 2 - t), "晴", font=font, fill="white")
+    pre = Image.merge("RGBA", (ImageChops.multiply(r, a), ImageChops.multiply(g, a), ImageChops.multiply(b, a), a))
+    small = pre.resize((size, size), Image.LANCZOS)
+    px = small.load()
+    for y in range(size):
+        for x in range(size):
+            pr, pg, pb, pa = px[x, y]
+            if pa:
+                px[x, y] = (min(255, pr * 255 // pa), min(255, pg * 255 // pa), min(255, pb * 255 // pa), pa)
+            else:
+                px[x, y] = (0, 0, 0, 0)
+    return small
 
-    # 预乘 alpha 后缩放，避免透明区的黑色渗进圆角边缘
-    return img.convert("RGBa").resize((size, size), Image.LANCZOS).convert("RGBA")
+
+def write_ico(src: Image.Image, path: Path) -> None:
+    layers = [scaled(src, s) for s in ICO_SIZES]
+    layers[-1].save(path, format="ICO", sizes=[(s, s) for s in ICO_SIZES], append_images=layers[:-1])
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--font", required=True, help="含“晴”字的 TTF/TTC 字体路径")
-    font = ap.parse_args().font
-
-    layers = [render(s, font) for s in ICO_SIZES]
-    biggest = layers[-1]
-    for out in ["moodflow_tsf/res/moodflow_input.ico", "assets/installer.ico"]:
-        biggest.save(
-            ROOT / out, format="ICO", sizes=[(s, s) for s in ICO_SIZES], append_images=layers[:-1]
-        )
-        print(out)
-    render(144, font).save(ROOT / "assets/logo.png")
-    print("assets/logo.png")
+    src = Image.open(MASTER)
+    write_ico(src, ROOT / "moodflow_tsf" / "res" / "moodflow_input.ico")
+    write_ico(src, ROOT / "assets" / "installer.ico")
+    scaled(src, 144).save(ROOT / "assets" / "logo.png", optimize=True)
+    for name, size in (("32x32.png", 32), ("128x128.png", 128), ("128x128@2x.png", 256), ("icon.png", 512)):
+        scaled(src, size).save(HUB / name, optimize=True)
+    write_ico(src, HUB / "icon.ico")
+    print("已生成：TSF / 安装包 / Hub 图标")
 
 
 if __name__ == "__main__":

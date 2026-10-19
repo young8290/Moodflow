@@ -8,6 +8,10 @@
   color-scheme: light dark;
 
   --mf-bg: #fffdf8;
+  /* 品牌 logo（AppLogo.vue）：墨色随深浅色变，波浪蓝与太阳黄固定 */
+  --mf-logo-ink: #1d3557;
+  --mf-logo-wave: #4f9de8;
+  --mf-logo-sun: #f7b940;
   --mf-surface: #ffffff;
   --mf-surface-2: #f6f3ee;
   --mf-border: #e7e1d8;
@@ -69,6 +73,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     --mf-bg: #1b1a19;
+    --mf-logo-ink: #ffffff;
     --mf-surface: #252321;
     --mf-surface-2: #2f2c29;
     --mf-border: #3d3935;
@@ -88,6 +93,7 @@
 
 :root[data-theme='dark'] {
   --mf-bg: #1b1a19;
+  --mf-logo-ink: #ffffff;
   --mf-surface: #252321;
   --mf-surface-2: #2f2c29;
   --mf-border: #3d3935;
@@ -115,6 +121,9 @@
 @media (forced-colors: active) {
   :root {
     --mf-bg: Canvas;
+    --mf-logo-ink: CanvasText;
+    --mf-logo-wave: CanvasText;
+    --mf-logo-sun: CanvasText;
     --mf-surface: Canvas;
     --mf-surface-2: Canvas;
     --mf-border: CanvasText;

@@ -1,19 +1,17 @@
 <script setup lang="ts">
-// Moodflow logo（07 DS-BRAND-02）：一朵圆润的云后面露出半个太阳。界面内用这个矢量版；
-// 应用图标由 tools/gen_hub_icons.py 按同一套几何生成（坐标都以画布的 1/100 为单位），改形状时两边一起改。
-// 不使用 Moodflow 输入法的任何 logo 元素（C-LAW-08）。
+// Moodflow logo：一笔起伏的波浪写成“M”，右上角一颗小太阳。源稿是 assets/brand/mark.svg，
+// 应用图标由 scripts/moodflow/gen_icons.py 从 assets/brand/icon-1024.png 生成；改形状时两边一起改。
+// 第一段笔画用 --mf-logo-ink（浅色深蓝、深色白色），波浪蓝和太阳黄是品牌色，不随主题变。
 import { t } from '@/i18n'
 
 // `decorative`：旁边已经写着“Moodflow”（引导页标题）时读屏不必再念一遍
 withDefaults(defineProps<{ size?: number; decorative?: boolean }>(), { size: 64, decorative: false })
 
-// 云：三个圆加一个圆角底座（与 gen_hub_icons.py 的 cloud_shapes / base 对应）
-const CIRCLES = [
-  { cx: 32, cy: 68, r: 18 },
-  { cx: 52, cy: 56, r: 22 },
-  { cx: 71, cy: 67, r: 17 },
-]
-const BASE = { x: 14, y: 62, width: 74, height: 24, rx: 12 }
+const WAVE =
+  'M276 408 C 320 356, 360 298, 386 274 C 420 244, 450 268, 470 330 C 488 386, 502 414, 530 412 ' +
+  'C 558 410, 586 342, 612 312 C 636 286, 662 288, 686 320 C 704 346, 720 372, 742 386'
+const INK = 'M276 408 C 320 356, 360 298, 386 274'
+const BRIDGE = 'M384 276 C 420 244, 450 268, 470 330'
 </script>
 
 <template>
@@ -21,21 +19,15 @@ const BASE = { x: 14, y: 62, width: 74, height: 24, rx: 12 }
     class="logo"
     :width="size"
     :height="size"
-    viewBox="0 0 100 100"
+    viewBox="240 60 540 540"
     :role="decorative ? undefined : 'img'"
     :aria-label="decorative ? undefined : t('window.widget')"
     :aria-hidden="decorative ? 'true' : undefined"
   >
-    <circle class="sun" cx="68" cy="32" r="24" />
-    <!-- 先整体描一圈粗边，再在上面铺无边的填充：几个形状并起来只留外轮廓 -->
-    <g class="outline">
-      <circle v-for="(c, i) in CIRCLES" :key="i" v-bind="c" />
-      <rect v-bind="BASE" />
-    </g>
-    <g class="cloud">
-      <circle v-for="(c, i) in CIRCLES" :key="i" v-bind="c" />
-      <rect v-bind="BASE" />
-    </g>
+    <path class="wave" :d="WAVE" stroke-linecap="round" stroke-linejoin="round" />
+    <path class="ink" :d="INK" stroke-linecap="round" />
+    <path class="wave" :d="BRIDGE" stroke-linecap="butt" />
+    <circle class="sun" cx="712" cy="250" r="33" />
   </svg>
 </template>
 
@@ -45,17 +37,21 @@ const BASE = { x: 14, y: 62, width: 74, height: 24, rx: 12 }
   flex: none;
 }
 
+.wave,
+.ink {
+  fill: none;
+  stroke-width: 62;
+}
+
+.wave {
+  stroke: var(--mf-logo-wave);
+}
+
+.ink {
+  stroke: var(--mf-logo-ink);
+}
+
 .sun {
-  fill: var(--mf-w-sunny);
-}
-
-.outline > * {
-  fill: var(--mf-text-2);
-  stroke: var(--mf-text-2);
-  stroke-width: 8;
-}
-
-.cloud > * {
-  fill: var(--mf-surface);
+  fill: var(--mf-logo-sun);
 }
 </style>

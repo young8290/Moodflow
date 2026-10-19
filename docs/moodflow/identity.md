@@ -23,7 +23,7 @@
 | TSF DLL | `moodflow_tsf[_x86][_dev].dll` | `CMakeLists.txt`、`Makefile`、`version.rc.in`、`moodflow_tsf.def`、上述脚本 |
 | Hub | `moodflow_hub[_dev].exe`，Tauri identifier `com.moodflow.hub`，自启动值名 `MoodflowHub` | `tauri.conf.json`、`config/app.toml`、`coordinator.rs` 的 `settings_app_path` |
 | 系统目录副本 | `System32\IME\Moodflow` | `config/app.toml` |
-| 图标 | 占位图标（暖色底白色“晴”字） | `moodflow_tsf/res/moodflow_input.ico`、`assets/installer.ico`、`assets/logo.png` |
+| 图标 | 波浪“M”+ 小太阳（深蓝 #1D3557、蓝 #4F9DE8、黄 #F7B940），源稿在 `assets/brand/` | `moodflow_tsf/res/moodflow_input.ico`、`assets/installer.ico`、`assets/logo.png`、`moodflow_hub/src-tauri/icons/*`、`moodflow_hub/src/components/AppLogo.vue` |
 
 窗口类名和窗口消息与上游不同名，是因为两个输入法的 DLL 会被同一个宿主进程加载：
 `TextService.cpp` 用 `FindWindowExW` 按类名找热键窗口，同名时会找到对方的窗口。
@@ -37,7 +37,7 @@ ADR 0045 改了数据目录、注册表键、exe / dll 名和 Tauri identifier�
 ## 已知限制
 
 - 安装包由独立仓库 `young8290/wind-installer` 生成（CI 检出到 `moodflow-installer/`）。仓库名没改，改名要在 GitHub 上操作。
-- 图标是占位图，正式图标出稿后覆盖上面三个文件即可（或改 `scripts/moodflow/gen_icons.py` 重新生成）。
+- 图标全部由 `python3 scripts/moodflow/gen_icons.py` 从 `assets/brand/icon-1024.png` 生成；换 logo 时改 `assets/brand/` 的源稿后重跑，并同步 `AppLogo.vue` 的矢量路径。
 
 ## 验证
 

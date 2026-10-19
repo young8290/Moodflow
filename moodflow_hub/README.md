@@ -10,7 +10,7 @@
 - 连接输入法：启动后作为 MFP 客户端连接核心（10 第 2 节），Windows 上是命名管道 `moodflow_tap`（调试构建 `moodflow_tap_dev`）；设置环境变量 `MF_MFP_TCP=127.0.0.1:18765` 时改连 `mf-sim --tcp`，任何平台都能这样联调。出厂模板默认从可执行文件旁的 `hub_templates/` 读取，调试构建回退到仓库根目录，也可用 `MF_HUB_TEMPLATES` 指定。调试构建另读 `MF_SIM_BASELINE`（固定基线）和 `MF_SIM_START_AT`（时钟起点），供 `mf-sim --baseline / --start-at` 回放复现（ADR 0021）。
 - AI 服务：外壳托管 `Arc<Ai>`（`src-tauri/src/gateway.rs`，本身实现 `AiGateway`）。配置来源按优先级：调试构建的仓库根目录 `secrets.toml`（或 `MF_SECRETS_FILE` 指定）→ 设置页保存的 `secrets.bin`（DPAPI，只在 Windows）→ 调试构建连本机 mock-ai（`MF_JEV_BASE_URL` / `MF_LLM_BASE_URL` 可改）→ 离线（ADR 0012）。
 - 数据目录：`%LOCALAPPDATA%\Moodflow\hub\`（调试构建为 `MoodflowDev`）；设置环境变量 `MF_HUB_DATA_DIR` 可指到别处，演示和测试时不碰真实数据。“删除全部数据”在这里留一个 `wipe-pending.json` 并重启，下次启动打开数据库之前删掉数据库文件（ADR 0037）；覆盖导入前的自动备份是 `moodflow.db.bak-<时间>`。
-- 图标：`src-tauri/icons/` 是几何占位（`python3 tools/gen_hub_icons.py` 生成），正式设计稿到位后直接覆盖。
+- 图标：`src-tauri/icons/` 由 `python3 scripts/moodflow/gen_icons.py` 从 `assets/brand/icon-1024.png` 生成，换 logo 时改源图后重跑，别手改。
 
 ## 开发
 

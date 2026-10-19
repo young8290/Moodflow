@@ -7,6 +7,10 @@
 | --------------- | --------------------------------------------- | ----------------------- |
 | `logo.png`      | 安装/卸载向导界面顶部显示的 logo（72×72 圆角）| 144×144，满幅圆角       |
 | `installer.ico` | `*-Setup.exe` / `uninstall.exe` 的 PE 图标    | 10 层，16→256           |
+| `brand/`        | logo 源稿：横版 / 图标 SVG（含深色版）、`icon-1024.png` | 所有图标从这里生成 |
+
+上面两个文件、`moodflow_tsf\res\moodflow_input.ico` 和 Hub 的 `src-tauri\icons\*` 都由
+`python3 scripts/moodflow/gen_icons.py` 从 `brand/icon-1024.png` 生成，不要手改。
 
 ## logo.png 为什么是 144×144
 
@@ -24,7 +28,7 @@
 初版曾是 64×64（比显示尺寸还小，被放大着画，实测发虚）。**不要图省事换成 256×256** ——
 100% DPI 下要 3.56× 点采样缩小，笔画边缘反而变硬、断续。
 
-现版本由 `installer.ico` 的 256×256 层降采样而来（LANCZOS）。重做时必须**先预乘 alpha
+现版本由 `brand/icon-1024.png` 直接降采样而来（LANCZOS，见 `gen_icons.py`）。重做时必须**先预乘 alpha
 再缩放、之后反预乘**：透明区 RGB 通常是黑色，逐通道插值会把黑渗进圆角边缘形成暗边。
 
 两点约束：
