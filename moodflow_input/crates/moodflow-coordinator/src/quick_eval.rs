@@ -222,8 +222,7 @@ mod tests {
 
     /// 内置的通用文本函数照常可用，可与 quick 取值函数复合。
     ///
-    /// ⚠️ `s2t` / `pinyin` 目前是 **stub（原样返回）**，繁体金额、数字读音这类需求
-    /// 要等 cmdbar 补上实现，别在文档里承诺。
+    /// 宿主服务驱动的文本函数在快捷格式上下文中不可用；这里不注入平台服务。
     #[test]
     fn builtin_text_funcs_compose_with_quick_funcs() {
         let n = QuickValues::Number {
@@ -240,8 +239,8 @@ mod tests {
         };
         assert_eq!(eval_expr("{default(amt(), '—')}", &d).unwrap(), "—");
 
-        // 现状记录：stub 函数原样返回（不是本改动引入的，改动时会红）
-        assert_eq!(eval_expr("{s2t(amt())}", &n).unwrap(), "壹佰贰拾叁元整");
+        // 转换函数需要宿主服务；快捷格式上下文没有宿主服务，应丢弃该表达式。
+        assert!(eval_expr("{s2t(amt())}", &n).is_none());
     }
 
     /// 错误一律吞成 None（候选不出现），不 panic、不上屏半成品。
