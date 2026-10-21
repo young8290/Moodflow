@@ -61,6 +61,8 @@ impl Coordinator {
         svc.config = Some(Arc::new(CoordConfig(weak.clone())));
         // 桌面提示：ui.toast。
         svc.notify = Some(Arc::new(CoordNotify(weak.clone())));
+        svc.text_transform = Some(Arc::new(CoordTextTransform(weak.clone())));
+        svc.pinyin = Some(Arc::new(CoordPinyin(weak.clone())));
         // search：经 open 默认可用，留 None。
         let _ = self.cmdbar_services.set(svc);
     }
@@ -262,6 +264,59 @@ struct CmdbarCtx<'a> {
     /// 协调器自身（`dict.rev` 的反查渲染需要引擎与反查表）。两个构造点都在
     /// `impl Coordinator` 里，直接借 `&self` 即可，无需 Weak 升级。
     coord: &'a Coordinator,
+}
+
+struct CoordTextTransform(Weak<Coordinator>);
+
+impl moodflow_cmdbar::TextTransformService for CoordTextTransform {
+    fn traditional_to_simplified(&self, text: &str) -> anyhow::Result<String> {
+        let coordinator = self
+            .0
+            .upgrade()
+            .ok_or_else(|| anyhow::anyhow!("coordinator is unavailable"))?;
+        let converter = coordinator
+            .t2s
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        converter
+            .as_ref()
+            .map(|converter| converter.convert(text))
+            .ok_or_else(|| anyhow::anyhow!("traditional-to-simplified dictionary is unavailable"))
+    }
+
+    fn simplified_to_traditional(&self, text: &str) -> anyhow::Result<String> {
+        let coordinator = self
+            .0
+            .upgrade()
+            .ok_or_else(|| anyhow::anyhow!("coordinator is unavailable"))?;
+        let converter = coordinator
+            .s2t
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        converter
+            .as_ref()
+            .map(|converter| converter.convert(text))
+            .ok_or_else(|| anyhow::anyhow!("simplified-to-traditional dictionary is unavailable"))
+    }
+}
+
+struct CoordPinyin(Weak<Coordinator>);
+
+impl moodflow_cmdbar::PinyinService for CoordPinyin {
+    fn to_pinyin(&self, text: &str) -> anyhow::Result<String> {
+        let coordinator = self
+            .0
+            .upgrade()
+            .ok_or_else(|| anyhow::anyhow!("coordinator is unavailable"))?;
+        let reverse = coordinator
+            .reverse
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if reverse.is_empty() {
+            anyhow::bail!("pinyin reading table is unavailable");
+        }
+        Ok(reverse.gen_pinyin(text))
+    }
 }
 
 impl EvalContext for CmdbarCtx<'_> {

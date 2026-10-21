@@ -32,8 +32,8 @@ pub use phrase::{PhraseEval, evaluate_phrase, is_cmdbar_grammar, run_actions};
 pub use registry::{Category, FuncSpec, Registry, default_registry};
 pub use services::{
     CliSpawn, ClipboardService, ConfigService, DEFAULT_CLI_WAIT_MS, DictService, ImeController,
-    KeyInjector, NotifyService, ProcSpawn, ProcessRunner, SearchEngine, Services, ToastSpec,
-    UrlOpener,
+    KeyInjector, NotifyService, PinyinService, ProcSpawn, ProcessRunner, SearchEngine, Services,
+    TextTransformService, ToastSpec, UrlOpener,
 };
 
 #[cfg(test)]

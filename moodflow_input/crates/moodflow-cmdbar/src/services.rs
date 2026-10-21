@@ -201,6 +201,17 @@ pub trait SearchEngine: Send + Sync {
     fn search(&self, engine: &str, query: &str) -> anyhow::Result<()>;
 }
 
+/// Text conversion provided by the host's already-loaded conversion dictionaries.
+pub trait TextTransformService: Send + Sync {
+    fn traditional_to_simplified(&self, text: &str) -> anyhow::Result<String>;
+    fn simplified_to_traditional(&self, text: &str) -> anyhow::Result<String>;
+}
+
+/// Character-by-character pinyin conversion backed by the host's loaded reading table.
+pub trait PinyinService: Send + Sync {
+    fn to_pinyin(&self, text: &str) -> anyhow::Result<String>;
+}
+
 /// 注入到 [`EvalContext`](crate::context::EvalContext) 的副作用依赖束。每个字段可为 `None`。
 #[derive(Default, Clone)]
 pub struct Services {
@@ -213,6 +224,8 @@ pub struct Services {
     pub config: Option<Arc<dyn ConfigService>>,
     pub search: Option<Arc<dyn SearchEngine>>,
     pub notify: Option<Arc<dyn NotifyService>>,
+    pub text_transform: Option<Arc<dyn TextTransformService>>,
+    pub pinyin: Option<Arc<dyn PinyinService>>,
 }
 
 impl Services {
