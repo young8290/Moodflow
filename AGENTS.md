@@ -46,7 +46,7 @@
 | `moodflow-assoc` | 联想候选的生成与合并（纯逻辑）：与 phrase / punct / quick-input 同构的「输入 → 候选」单元，词典与用户数据以 trait 注入 | — |
 | `moodflow-softkeyboard` | 软键盘映射表：常驻符号面板开启后接管主键区，按当前面映射转换上屏 | — |
 | `moodflow-host` | 核心 ↔ 宿主的接缝（纯数据 + trait）：给薄宿主（Android 等）补上厚宿主（TSF / IMKit）替协调器做的过滤、组合区、就绪状态 | — |
-| `moodflow-webdata` | Web 设置数据 RPC：schema / dict / temp / freq / shadow / stats / theme / phrase / quick / commonChars / backup 等命名空间，经 `moodflow-rpc` 的 `data_rpc` 转发，方法名与设置端 `contract.ts` 一一对应 | — |
+| `moodflow-webdata` | Web 设置数据 RPC：schema / dict / temp / freq / shadow / stats / theme / phrase / quick / commonChars / backup / plugins（插件管理页）等命名空间，经 `moodflow-rpc` 的 `data_rpc` 转发，方法名与设置端 `contract.ts` 一一对应 | — |
 | `moodflow-utils` | 全仓共用的无业务语义基础工具（文本文件读取规整等），零外部依赖 | — |
 | `moodflow-buffer` | Buffer 上屏前文本工作台（纯逻辑、零依赖）：块编辑、目标绑定与投递授权、两段式投递、容量上限；设计见 `docs/design/buffer.md` | — |
 | `moodflow-chord` | 并击输入（纯逻辑）：键位方案 JSON 格式与校验（草稿/应用两级）、同批与先左后右的结算、组合 → 拼音片段 | — |
@@ -55,7 +55,7 @@
 | `moodflow-manifest` | 安装数据逐文件 SHA-256 清单：打包时生成 `data/manifest.json`（拒收用户库、build/、sync/、符号链接），安装/解包时复核；工具 `moodflow-tools --bin data_manifest` | — |
 | `moodflow-plugin-api` | 插件清单、能力与设置声明（纯数据 + 校验，ADR 0054）：逐键扩展点不得联网、内容包不得声明代码能力、升级新增能力需重新同意 | — |
 | `moodflow-plugin-host` | L1 沙箱插件宿主（wasmi 纯解释器，portable-dispatch）：按能力放行 `mf` 宿主函数、加载时检查导入、每次调用限步数与内存、连续失败自动停用、密码框/无痕等场景不调用插件 | — |
-| `moodflow-market` | 插件市场客户端（不联网，只处理字节）：Ed25519 签名索引校验、可用更新与撤回、安装包哈希/身份/解压安全/安全资产检查、按版本原子安装与卸载 | — |
+| `moodflow-market` | 插件市场客户端（不联网，只处理字节）：Ed25519 签名索引校验、可用更新与撤回、安装包哈希/身份/解压安全/安全资产检查（另有不对照索引的本地包检查 `inspect_local_package`）、按版本原子安装与卸载 | — |
 | `moodflow-plugin-registry` | 插件注册表：从用户目录加载已安装且在 `plugins.enabled` 里的 WASM 插件，按优先级汇总候选来源、串联上屏变换、路由命令函数；单个插件失败只影响自己；插件私有存储按插件隔离并限额；安全模式全部不加载 | — |
 | `moodflow-aux-code` | 辅助码过滤：拼音后追加字形辅助码，按字形裁减候选字词（**出厂关闭**，`schema.pinyin.aux_code.enabled`） | [AGENTS.md](moodflow_input/crates/moodflow-aux-code/AGENTS.md) |
 | `moodflow-punct` | 标点转换纯逻辑（中英标点/全半角/数字后智能） | — |
