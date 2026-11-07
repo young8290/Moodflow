@@ -149,6 +149,11 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::ime::ime_config_get,
             commands::ime::ime_config_defaults,
             commands::ime::ime_config_set,
+            commands::ime::plugins_list,
+            commands::ime::plugins_inspect,
+            commands::ime::plugins_install,
+            commands::ime::plugins_uninstall,
+            commands::ime::plugins_reenable,
         ])
         .events(collect_events![
             events::StatusChanged,

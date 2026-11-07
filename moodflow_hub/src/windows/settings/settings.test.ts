@@ -123,12 +123,13 @@ describe('设置中心', () => {
     mocks.settingsSet.mockReset().mockImplementation(() => ok(null))
   })
 
-  it('左侧分类按 FR-SET-01 命名，当前分类有 aria-current', async () => {
+  it('左侧分类按 FR-SET-01 命名（“插件”是 FR-SET-12 新加的），当前分类有 aria-current', async () => {
     const w = mount(App)
     await flushPromises()
     const nav = w.findAll('nav button')
     expect(nav.map((b) => b.text())).toEqual([
       '输入法',
+      '插件',
       '常规',
       '感知',
       '关怀',
