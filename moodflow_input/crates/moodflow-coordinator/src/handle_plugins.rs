@@ -25,6 +25,9 @@ use tracing::info;
 
 use crate::coordinator::Coordinator;
 
+/// 插件清单 `min_host_version` 对照的宿主版本（产品版本，`docs/VERSION`）。
+pub const PLUGIN_HOST_VERSION: &str = env!("MOODFLOW_APP_VERSION");
+
 /// 逐键扩展点每次调用的执行步数上限：wasmi 解释执行约每秒上亿步，50 万步约几毫秒，
 /// 足够查表类插件，又不会让一个写坏的插件把按键拖慢到可感知。
 const FUEL_PER_KEY: u64 = 500_000;
@@ -95,7 +98,7 @@ pub(crate) fn merge_plugin_candidates(
 }
 
 impl Coordinator {
-    fn plugin_dirs(&self) -> Option<(std::path::PathBuf, std::path::PathBuf)> {
+    pub(crate) fn plugin_dirs(&self) -> Option<(std::path::PathBuf, std::path::PathBuf)> {
         let user = self.compat_dirs.1.as_ref()?;
         Some((user.join("plugins"), user.join("plugin-data")))
     }
@@ -132,7 +135,7 @@ impl Coordinator {
             plugins_dir: &plugins_dir,
             data_dir: &data_dir,
             enabled: &cfg.enabled,
-            host_version: env!("MOODFLOW_APP_VERSION"),
+            host_version: PLUGIN_HOST_VERSION,
             platform: PLATFORM,
             safe_mode: cfg.safe_mode,
             limits: Limits {

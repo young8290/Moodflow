@@ -253,6 +253,50 @@ pub fn inspect_package(
     })
 }
 
+/// 检查本地文件里的包（侧载：开发者自测、未上架的插件）。没有签名索引可对照，包内清单就是身份，
+/// 界面须标明“未审核”；其余检查（解压安全、入口文件、内容包不带安全资产、新增能力）与
+/// [`inspect_package`] 完全相同。`installed` 按插件 id 给出已装版本的清单（首次安装为 `None`）。
+pub fn inspect_local_package(
+    bytes: &[u8],
+    host_version: &str,
+    installed: impl FnOnce(&str) -> Option<Manifest>,
+) -> Result<InstallPlan, MarketError> {
+    if bytes.len() as u64 > MAX_PACKAGE_BYTES {
+        return Err(MarketError::TooLarge);
+    }
+    let files = read_zip(bytes)?;
+    let text = files
+        .iter()
+        .find(|(p, _)| p == "manifest.toml")
+        .map(|(_, b)| String::from_utf8_lossy(b).into_owned())
+        .ok_or(MarketError::MissingManifest)?;
+    let manifest = Manifest::from_toml(&text, host_version)
+        .map_err(|e| MarketError::Manifest(e.to_string()))?;
+    let release = Release {
+        version: manifest.version.clone(),
+        url: String::new(),
+        sha256: hex(&Sha256::digest(bytes)),
+        size: bytes.len() as u64,
+        min_host_version: manifest.min_host_version.clone(),
+        platforms: manifest.platforms.clone(),
+    };
+    let old = installed(&manifest.id);
+    inspect_package(bytes, &manifest.id, &release, host_version, old.as_ref())
+}
+
+/// 已装插件某个版本的清单（只解析不校验，见 [`Manifest::parse_toml`]）。读不到或解析失败为 `None`。
+pub fn installed_manifest(plugins_dir: &Path, id: &str, version: &str) -> Option<Manifest> {
+    if [id, version]
+        .iter()
+        .any(|s| s.is_empty() || s.contains(['/', '\\']) || s.contains(".."))
+    {
+        return None;
+    }
+    let text =
+        std::fs::read_to_string(plugins_dir.join(id).join(version).join("manifest.toml")).ok()?;
+    Manifest::parse_toml(&text).ok()
+}
+
 /// 安装到 `plugins_dir/<id>/<version>/`：先写临时目录再改名，同版本已存在则先移开再替换。
 pub fn install(plan: &InstallPlan, plugins_dir: &Path) -> Result<PathBuf, MarketError> {
     let base = plugins_dir.join(&plan.manifest.id);
