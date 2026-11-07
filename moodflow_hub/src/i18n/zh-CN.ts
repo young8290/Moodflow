@@ -686,7 +686,7 @@ export const zhCN = {
   "plugins.no_user_dir": "取不到输入法的用户目录，暂时不能管理插件。",
   "plugins.safe_mode": "安全模式",
   "plugins.safe_mode_label": "安全模式（所有插件都不加载）",
-  "plugins.safe_mode_hint": "装了某个插件后输入异常时，先打开安全模式排查。",
+  "plugins.safe_mode_hint": "装了某个插件后打字不对劲时，先打开安全模式排查。",
   "plugins.safe_mode_on": "已打开安全模式，所有插件都不加载",
   "plugins.safe_mode_off": "已关闭安全模式",
   "plugins.installed_title": "已安装",
