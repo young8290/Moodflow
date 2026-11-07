@@ -16,6 +16,7 @@
 //! | `log(ptr, len)` | 无（宿主只在 debug 级别记录，`info` 不落正文） |
 //! | `storage_get(kptr, klen, out_ptr, out_cap) -> i32` | `storage` |
 //! | `storage_set(kptr, klen, vptr, vlen) -> i32` | `storage` |
+//! | `settings_get(out_ptr, out_cap) -> i32` | 无（只读本插件自己的设置，JSON 对象：默认值叠上用户在设置页改过的值） |
 //! | `notify(ptr, len) -> i32` | `notify` |
 //!
 //! 加载时就检查导入：导入了没声明能力的函数、或导入了不存在的函数，直接拒绝加载（市场审核 CI 用同一套检查）。
@@ -79,6 +80,8 @@ pub trait HostServices: Send {
     fn storage_get(&mut self, plugin: &str, key: &str) -> Option<Vec<u8>>;
     fn storage_set(&mut self, plugin: &str, key: &str, value: &[u8]) -> bool;
     fn notify(&mut self, plugin: &str, text: &str);
+    /// 本插件的设置（UTF-8 JSON 对象，不含密钥字段）；插件没有设置声明时为 `None`。
+    fn settings(&mut self, plugin: &str) -> Option<Vec<u8>>;
 }
 
 /// 内存实现，测试与「不落盘」场景用。
@@ -86,6 +89,8 @@ pub trait HostServices: Send {
 pub struct MemoryHost {
     pub storage: BTreeMap<(String, String), Vec<u8>>,
     pub notices: Vec<(String, String)>,
+    /// 插件 id → 设置 JSON
+    pub settings: BTreeMap<String, Vec<u8>>,
 }
 
 impl HostServices for MemoryHost {
@@ -101,6 +106,9 @@ impl HostServices for MemoryHost {
     }
     fn notify(&mut self, plugin: &str, text: &str) {
         self.notices.push((plugin.to_owned(), text.to_owned()));
+    }
+    fn settings(&mut self, plugin: &str) -> Option<Vec<u8>> {
+        self.settings.get(plugin).cloned()
     }
 }
 
@@ -187,6 +195,7 @@ const IMPORTS: &[(&str, Option<&str>)] = &[
     ("storage_get", Some("storage")),
     ("storage_set", Some("storage")),
     ("notify", Some("notify")),
+    ("settings_get", None),
 ];
 
 impl PluginInstance {
@@ -509,6 +518,29 @@ fn define_imports(linker: &mut Linker<State>) -> Result<(), wasmi::errors::Linke
             } else {
                 -1
             }
+        },
+    )?;
+    linker.func_wrap(
+        "mf",
+        "settings_get",
+        |mut caller: Caller<'_, State>, out_ptr: i32, out_cap: i32| -> i32 {
+            let id = caller.data().plugin_id.clone();
+            let Some(value) = caller.data_mut().host.settings(&id) else {
+                return -1;
+            };
+            if value.len() > out_cap.max(0) as usize {
+                return -2;
+            }
+            let Some(Extern::Memory(mem)) = caller.get_export("memory") else {
+                return -4;
+            };
+            if mem
+                .write(&mut caller, out_ptr as u32 as usize, &value)
+                .is_err()
+            {
+                return -4;
+            }
+            value.len() as i32
         },
     )?;
     linker.func_wrap(

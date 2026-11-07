@@ -525,6 +525,24 @@ pub trait WebDataRpc: WebDataHost {
             "plugins.inspect" => self.web_plugins_inspect(params),
             "plugins.install" => self.web_plugins_install(params),
             "plugins.uninstall" => self.web_plugins_uninstall(params),
+            "plugins.settings" => {
+                let id = str_param(params, "id")?;
+                let (plugins_dir, data_dir) = self
+                    .plugin_dirs()
+                    .ok_or_else(|| anyhow::anyhow!("plugins.no_user_dir: 取不到输入法用户目录"))?;
+                plugins::settings_json(&plugins_dir, &data_dir, id)
+            }
+            "plugins.saveSettings" => {
+                let id = str_param(params, "id")?;
+                let (plugins_dir, data_dir) = self
+                    .plugin_dirs()
+                    .ok_or_else(|| anyhow::anyhow!("plugins.no_user_dir: 取不到输入法用户目录"))?;
+                let values = params.get("values").cloned().unwrap_or(Value::Null);
+                plugins::save_settings(&plugins_dir, &data_dir, id, &values)?;
+                // 插件在加载时读设置：存完重载，新值马上生效
+                self.reload_plugins();
+                Ok(json!({ "ok": true }))
+            }
             "plugins.reenable" => {
                 let id = str_param(params, "id")?;
                 Ok(json!({ "ok": self.plugin_reenable(id) }))

@@ -12,12 +12,15 @@
 //!
 //! 隐私闸门在插件宿主里：[`InputContext`] 不允许输入时插件根本不被调用。
 //! 插件私有存储落在 `data_dir/<id>/storage.json`，按插件隔离，单个插件总量有上限。
+//! 插件设置（清单 `contributes.settings` 指向的声明，设置页按它渲染）存在 `data_dir/<id>/settings.json`，
+//! 加载时叠到声明的默认值上，经宿主函数 `settings_get` 给插件读（[`settings_schema`]、[`saved_settings`]、
+//! [`write_settings`] 也给设置页的 RPC 用）。
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-pub use moodflow_plugin_api::{Manifest, Platform};
+pub use moodflow_plugin_api::{Manifest, Platform, SettingsSchema};
 pub use moodflow_plugin_host::{CallError, InputContext, Limits, PluginCandidate};
 use moodflow_plugin_host::{HostServices, PluginInstance};
 use serde::Serialize;
@@ -26,6 +29,50 @@ use serde::Serialize;
 pub const STORAGE_LIMIT_BYTES: usize = 1024 * 1024;
 /// 存储键的最大长度。
 pub const STORAGE_KEY_MAX: usize = 256;
+
+/// 插件设置存在私有数据目录下的这个文件里。
+pub const SETTINGS_FILE: &str = "settings.json";
+
+/// 已装插件的设置声明（`plugin_dir` 是 `plugins/<id>/<版本>/`）。清单没有声明设置时为 `Ok(None)`；
+/// 声明文件读不出或不合法时报错（这样的插件也不加载）。
+pub fn settings_schema(
+    plugin_dir: &Path,
+    manifest: &Manifest,
+) -> Result<Option<SettingsSchema>, String> {
+    let Some(rel) = &manifest.contributes.settings else {
+        return Ok(None);
+    };
+    if rel.contains("..") || rel.starts_with(['/', '\\']) {
+        return Err("设置声明的路径不合法".into());
+    }
+    let text = std::fs::read_to_string(plugin_dir.join(rel))
+        .map_err(|e| format!("读不到设置声明：{e}"))?;
+    SettingsSchema::from_toml(&text)
+        .map(Some)
+        .map_err(|e| format!("设置声明不合法：{e}"))
+}
+
+/// 用户存过的设置（`data_dir/<id>/settings.json`，不校验；读不到为空）。
+pub fn saved_settings(data_dir: &Path, id: &str) -> BTreeMap<String, serde_json::Value> {
+    std::fs::read_to_string(data_dir.join(id).join(SETTINGS_FILE))
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_default()
+}
+
+/// 保存设置（调用方先用 [`SettingsSchema::check_values`] 校验）：先写临时文件再改名。
+pub fn write_settings(
+    data_dir: &Path,
+    id: &str,
+    values: &BTreeMap<String, serde_json::Value>,
+) -> std::io::Result<()> {
+    let dir = data_dir.join(id);
+    std::fs::create_dir_all(&dir)?;
+    let text = serde_json::to_string_pretty(values).map_err(std::io::Error::other)?;
+    let tmp = dir.join("settings.json.tmp");
+    std::fs::write(&tmp, text)?;
+    std::fs::rename(&tmp, dir.join(SETTINGS_FILE))
+}
 
 /// 插件发出的提示（toast），由协调器转给界面。插件 id 与文本。
 pub type Notifier = Arc<dyn Fn(&str, &str) + Send + Sync>;
@@ -282,7 +329,11 @@ fn load_one(dir: &Path, id: &str, opts: &LoadOptions<'_>) -> Result<Loaded, Stri
         return Err("内容包不由注册表加载".into());
     };
     let wasm = std::fs::read(dir.join(entry)).map_err(|e| e.to_string())?;
-    let host = FileHost::new(opts.data_dir.join(id), opts.notifier.clone());
+    let settings = settings_schema(dir, &manifest)?
+        .map(|schema| schema.resolved(&saved_settings(opts.data_dir, id)))
+        .map(|values| serde_json::to_vec(&values).unwrap_or_default());
+    let mut host = FileHost::new(opts.data_dir.join(id), opts.notifier.clone());
+    host.settings = settings;
     let priority = priority_of(&manifest);
     let inst = PluginInstance::load(manifest, &wasm, opts.limits, Box::new(host))
         .map_err(|e| e.to_string())?;
@@ -294,6 +345,8 @@ struct FileHost {
     dir: PathBuf,
     cache: Option<BTreeMap<String, String>>,
     notifier: Notifier,
+    /// 加载时算好的设置 JSON（默认值叠上用户的值）；没有设置声明时为空。
+    settings: Option<Vec<u8>>,
 }
 
 impl FileHost {
@@ -302,6 +355,7 @@ impl FileHost {
             dir,
             cache: None,
             notifier,
+            settings: None,
         }
     }
 
@@ -357,6 +411,10 @@ impl HostServices for FileHost {
         // 限长：一条提示最多 200 字，防止插件刷屏。
         let short: String = text.chars().take(200).collect();
         (self.notifier)(plugin, &short);
+    }
+
+    fn settings(&mut self, _plugin: &str) -> Option<Vec<u8>> {
+        self.settings.clone()
     }
 }
 

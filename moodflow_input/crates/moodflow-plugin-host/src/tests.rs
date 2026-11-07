@@ -240,3 +240,21 @@ fn notify_requires_capability_and_reaches_host() {
     let mut p = load(manifest("candidate_provider = {}", "notify = true"), &wasm).unwrap();
     assert_eq!(p.candidates(&OK, "a"), Ok(vec![]));
 }
+
+#[test]
+fn settings_get_needs_no_capability_and_returns_the_host_json() {
+    // transform：不管入参，把宿主给的设置 JSON 原样当结果返回（测试里的设置恰好是 {"text": …} 形状）
+    let wasm = module(
+        r#"(import "mf" "settings_get" (func $settings (param i32 i32) (result i32)))"#,
+        r#"(func (export "mf_transform") (param $p i32) (param $n i32) (result i64)
+    (local $len i32)
+    (local.set $len (call $settings (i32.const 32768) (i32.const 4096)))
+    (i64.or (i64.shl (i64.const 32768) (i64.const 32)) (i64.extend_i32_u (local.get $len))))"#,
+    );
+    let m = manifest("commit_transform = {}", "");
+    let mut host = MemoryHost::default();
+    host.settings
+        .insert(m.id.clone(), br#"{"text":"ja"}"#.to_vec());
+    let mut p = PluginInstance::load(m, &wasm, Limits::default(), Box::new(host)).unwrap();
+    assert_eq!(p.transform(&OK, "x").unwrap(), "ja");
+}

@@ -11,6 +11,8 @@
 //! | `plugins.install` | `{path, accept:[能力]}` | 重新检查一遍，`added` 必须都在 `accept` 里才装 |
 //! | `plugins.uninstall` | `{id, deleteData}` | 删掉全部版本，可选同时删私有数据 |
 //! | `plugins.reenable` | `{id}` | 重新启用被自动停用的插件 |
+//! | `plugins.settings` | `{id}` | `{fields, values}`：设置声明（设置页按它渲染）与当前值（默认值叠上存过的） |
+//! | `plugins.saveSettings` | `{id, values}` | 按声明校验后存进 `plugin-data/<id>/settings.json`，重载插件 |
 //!
 //! 现在还没有签名市场，装的都是本地文件（侧载），结果里 `source` 恒为 `"local"`，界面标“未审核”。
 //! 能力用字符串表示：`storage`、`secrets`、`clipboard_read`、`context_recent`、`notify`、
@@ -171,6 +173,69 @@ pub(crate) fn check_consent(
             missing.join("、")
         )
     }
+}
+
+/// 某个已装插件的目录与清单（最新版本）。
+fn installed_plugin(
+    plugins_dir: &Path,
+    id: &str,
+) -> anyhow::Result<(std::path::PathBuf, Manifest)> {
+    if !safe_id(id) {
+        anyhow::bail!("plugins.bad_id: 插件 id 不合法");
+    }
+    let version = moodflow_market::installed(plugins_dir)
+        .into_iter()
+        .find(|(i, _)| i == id)
+        .map(|(_, v)| v)
+        .ok_or_else(|| anyhow::anyhow!("plugins.not_installed: 没有安装这个插件"))?;
+    let manifest = moodflow_market::installed_manifest(plugins_dir, id, &version)
+        .ok_or_else(|| anyhow::anyhow!("plugins.bad_manifest: 清单读不出来"))?;
+    Ok((plugins_dir.join(id).join(version), manifest))
+}
+
+fn schema_of(
+    plugins_dir: &Path,
+    id: &str,
+) -> anyhow::Result<Option<moodflow_plugin_api::SettingsSchema>> {
+    let (dir, manifest) = installed_plugin(plugins_dir, id)?;
+    moodflow_plugin_registry::settings_schema(&dir, &manifest)
+        .map_err(|e| anyhow::anyhow!("plugins.bad_settings_schema: {e}"))
+}
+
+/// `plugins.settings`：设置声明与当前值。没有设置声明的插件给空表。
+pub(crate) fn settings_json(
+    plugins_dir: &Path,
+    data_dir: &Path,
+    id: &str,
+) -> anyhow::Result<Value> {
+    let Some(schema) = schema_of(plugins_dir, id)? else {
+        return Ok(json!({ "fields": [], "values": {} }));
+    };
+    let values = schema.resolved(&moodflow_plugin_registry::saved_settings(data_dir, id));
+    Ok(json!({ "fields": schema.fields, "values": values }))
+}
+
+/// `plugins.saveSettings`：校验后保存。不认识的字段、密钥字段、超范围的值都拒绝，错误里只有字段 id。
+pub(crate) fn save_settings(
+    plugins_dir: &Path,
+    data_dir: &Path,
+    id: &str,
+    values: &Value,
+) -> anyhow::Result<()> {
+    let schema = schema_of(plugins_dir, id)?
+        .ok_or_else(|| anyhow::anyhow!("plugins.no_settings: 这个插件没有设置"))?;
+    let values: std::collections::BTreeMap<String, Value> = values
+        .as_object()
+        .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+        .ok_or_else(|| anyhow::anyhow!("plugins.bad_settings: values 必须是对象"))?;
+    schema.check_values(&values).map_err(|e| match e {
+        moodflow_plugin_api::SettingsError::Invalid { field, hint } => {
+            anyhow::anyhow!("plugins.bad_settings: {field}：{hint}")
+        }
+        other => anyhow::anyhow!("plugins.bad_settings: {other}"),
+    })?;
+    moodflow_plugin_registry::write_settings(data_dir, id, &values)
+        .map_err(|e| anyhow::anyhow!("plugins.io: {e}"))
 }
 
 /// 插件 id 能不能当目录名用（卸载、删私有数据前检查）。
@@ -367,5 +432,99 @@ cmdbar_functions = ["emoji"]
         for bad in ["", "..", "a/b", "a\\b", "../x"] {
             assert!(!safe_id(bad), "{bad}");
         }
+    }
+
+    fn install_with_settings(dir: &Path) {
+        let manifest = r#"
+id = "dev.example.tr"
+name = "翻译"
+version = "1.0.0"
+sdk = 1
+min_host_version = "0.120.0"
+type = "wasm"
+entry = "plugin.wasm"
+platforms = ["windows"]
+license = "MIT"
+[contributes]
+commit_transform = {}
+settings = "settings.toml"
+"#;
+        let settings = r#"
+[[fields]]
+id = "lang"
+label = "目标语言"
+help = "翻译成哪种语言"
+type = "choice"
+options = ["en", "ja"]
+default = "en"
+
+[[fields]]
+id = "api_key"
+label = "密钥"
+help = "服务商给的密钥"
+type = "secure_text"
+"#;
+        let bytes = zip_of(&[
+            ("manifest.toml", manifest.as_bytes()),
+            ("plugin.wasm", b"\0asm"),
+            ("settings.toml", settings.as_bytes()),
+        ]);
+        let (plan, _) = inspect(&bytes, dir, HOST).unwrap();
+        moodflow_market::install(&plan, dir).unwrap();
+    }
+
+    #[test]
+    fn settings_read_validate_and_save() {
+        let root = tmp("settings");
+        let (plugins, data) = (root.join("plugins"), root.join("data"));
+        install_with_settings(&plugins);
+        let v = settings_json(&plugins, &data, "dev.example.tr").unwrap();
+        assert_eq!(v["fields"][0]["id"], json!("lang"));
+        assert_eq!(v["fields"][0]["type"], json!("choice"));
+        assert_eq!(v["fields"][1]["type"], json!("secure_text"));
+        assert_eq!(v["values"], json!({ "lang": "en" }));
+
+        save_settings(&plugins, &data, "dev.example.tr", &json!({ "lang": "ja" })).unwrap();
+        assert_eq!(
+            settings_json(&plugins, &data, "dev.example.tr").unwrap()["values"],
+            json!({ "lang": "ja" })
+        );
+
+        let err = save_settings(&plugins, &data, "dev.example.tr", &json!({ "lang": "fr" }))
+            .unwrap_err()
+            .to_string();
+        assert!(err.starts_with("plugins.bad_settings: lang"), "{err}");
+        // 密钥不走普通设置
+        assert!(
+            save_settings(
+                &plugins,
+                &data,
+                "dev.example.tr",
+                &json!({ "api_key": "sk" })
+            )
+            .is_err()
+        );
+        let err = save_settings(&plugins, &data, "dev.nope", &json!({}))
+            .unwrap_err()
+            .to_string();
+        assert!(err.starts_with("plugins.not_installed"), "{err}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn plugin_without_settings_gives_empty_form_and_refuses_save() {
+        let root = tmp("nosettings");
+        let (plugins, data) = (root.join("plugins"), root.join("data"));
+        let (plan, _) = inspect(&pkg("dev.a.one", "1.0.0", ""), &plugins, HOST).unwrap();
+        moodflow_market::install(&plan, &plugins).unwrap();
+        assert_eq!(
+            settings_json(&plugins, &data, "dev.a.one").unwrap(),
+            json!({ "fields": [], "values": {} })
+        );
+        let err = save_settings(&plugins, &data, "dev.a.one", &json!({}))
+            .unwrap_err()
+            .to_string();
+        assert!(err.starts_with("plugins.no_settings"), "{err}");
+        let _ = std::fs::remove_dir_all(&root);
     }
 }
