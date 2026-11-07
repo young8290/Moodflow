@@ -218,6 +218,169 @@ impl ImeRpc {
             skipped: w.skipped,
         })
     }
+
+    /// `plugins.list`：已装插件、启用与运行状态（07 FR-SET-12）。
+    pub fn plugins(&self) -> Result<PluginList, ImeRpcError> {
+        parse(snake_keys(self.call("plugins.list", json!({}))?))
+    }
+
+    /// `plugins.inspect`：检查本地包，不写任何东西。
+    pub fn plugin_inspect(&self, path: &str) -> Result<PluginPreview, ImeRpcError> {
+        parse(snake_keys(
+            self.call("plugins.inspect", json!({ "path": path }))?,
+        ))
+    }
+
+    /// `plugins.install`：`accept` 是用户在预览里同意的能力；核心重新检查，新增能力没被同意就拒绝。
+    pub fn plugin_install(&self, path: &str, accept: &[String]) -> Result<(), ImeRpcError> {
+        self.call("plugins.install", json!({ "path": path, "accept": accept }))
+            .map(|_| ())
+    }
+
+    /// `plugins.uninstall`：删掉全部版本；`delete_data` 时连插件的私有数据一起删。
+    pub fn plugin_uninstall(&self, id: &str, delete_data: bool) -> Result<(), ImeRpcError> {
+        self.call(
+            "plugins.uninstall",
+            json!({ "id": id, "deleteData": delete_data }),
+        )
+        .map(|_| ())
+    }
+
+    /// `plugins.reenable`：重新启用被自动停用的插件。
+    pub fn plugin_reenable(&self, id: &str) -> Result<bool, ImeRpcError> {
+        let v = self.call("plugins.reenable", json!({ "id": id }))?;
+        Ok(v.get("ok").and_then(Value::as_bool).unwrap_or(false))
+    }
+}
+
+/// 把对象键从 camelCase 改成 snake_case（递归；值里的字符串不动）。
+fn snake_keys(v: Value) -> Value {
+    match v {
+        Value::Object(m) => Value::Object(
+            m.into_iter()
+                .map(|(k, v)| {
+                    let mut out = String::with_capacity(k.len() + 4);
+                    for c in k.chars() {
+                        if c.is_ascii_uppercase() {
+                            out.push('_');
+                            out.push(c.to_ascii_lowercase());
+                        } else {
+                            out.push(c);
+                        }
+                    }
+                    (out, snake_keys(v))
+                })
+                .collect(),
+        ),
+        Value::Array(a) => Value::Array(a.into_iter().map(snake_keys).collect()),
+        other => other,
+    }
+}
+
+/// 核心返回的插件错误里的稳定错误码（`plugins.consent_mismatch: …` 开头那一段）；
+/// 核心太旧、还没有 `plugins.*` 方法时是 `plugins.unsupported`。其他错误为 `None`。
+pub fn plugin_error_code(remote: &str) -> Option<String> {
+    if remote.contains("unknown method: plugins.") {
+        return Some("plugins.unsupported".into());
+    }
+    let start = remote.find("plugins.")?;
+    let code: String = remote[start..]
+        .chars()
+        .take_while(|c| c.is_ascii_lowercase() || *c == '_' || *c == '.')
+        .collect();
+    (code.len() > "plugins.".len()).then_some(code)
+}
+
+/// 插件管理页（07 FR-SET-12）：`plugins.list` 的结果。核心的线上字段是 camelCase，先经 [`snake_keys`]
+/// 转成 snake_case 再解析，导出给界面的类型因此只有一份（不分序列化 / 反序列化）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct PluginList {
+    /// 输入法取得到用户目录（取不到时没法装插件）
+    pub available: bool,
+    /// `plugins.safe_mode`：开着时所有插件都不加载
+    pub safe_mode: bool,
+    pub plugins: Vec<PluginItem>,
+}
+
+/// 插件在核心里的状态。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "snake_case")]
+pub enum PluginState {
+    /// 不在启用列表里
+    Disabled,
+    /// 启用了，但安全模式开着
+    SafeMode,
+    Loaded,
+    /// 连续出错被自动停用，可以重新启用
+    AutoDisabled,
+    /// 启用了却没加载上（不兼容、平台不支持、包坏了）
+    LoadFailed,
+}
+
+/// 插件类型：`wasm`（沙箱插件）或 `content`（内容包，`content` 是哪一类）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct PluginKind {
+    #[serde(rename = "type")]
+    pub kind: String,
+    #[serde(default)]
+    pub content: Option<String>,
+}
+
+/// 插件接入了哪些扩展点（界面写“它会做什么”）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct PluginContributes {
+    pub candidates: bool,
+    pub candidate_filter: bool,
+    pub association: bool,
+    pub commit_transform: bool,
+    pub cmdbar_functions: Vec<String>,
+    pub buffer_action: Option<String>,
+    pub has_settings: bool,
+}
+
+/// 已装的一个插件。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct PluginItem {
+    pub id: String,
+    pub name: String,
+    pub version: String,
+    pub description: String,
+    pub license: String,
+    /// 清单读不出来时为空（仍然列出来，好让用户卸载）
+    pub kind: Option<PluginKind>,
+    pub platforms: Vec<String>,
+    /// 能力：`storage`、`secrets`、`clipboard_read`、`context_recent`、`notify`、`network:<主机>`
+    pub capabilities: Vec<String>,
+    pub contributes: Option<PluginContributes>,
+    pub enabled: bool,
+    pub state: PluginState,
+    /// `local`：从本地文件装的，没经过市场审核
+    pub source: String,
+}
+
+/// `plugins.inspect`：安装前的预览。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct PluginPreview {
+    pub id: String,
+    pub name: String,
+    pub version: String,
+    pub description: String,
+    pub license: String,
+    pub kind: Option<PluginKind>,
+    pub platforms: Vec<String>,
+    pub capabilities: Vec<String>,
+    pub contributes: Option<PluginContributes>,
+    /// 这次需要用户同意的能力（首次安装是全部，升级是新增的）
+    pub added: Vec<String>,
+    /// 已装的版本（升级时）
+    pub upgrade_from: Option<String>,
+    pub source: String,
 }
 
 /// 输入法配置变了（核心的 `config.changed`，或外壳刚连上事件通道）。界面据此重新取一次配置。
@@ -476,6 +639,83 @@ mod tests {
             std::fs::read_to_string(path).expect("找不到 Moodflow 的 moodflow-rpc/src/server.rs");
         assert!(src.contains(r#"format!(r"\\.\pipe\moodflow_rpc_ctrl{}", suffix)"#));
         assert!(src.contains(r#"format!(r"\\.\pipe\moodflow_rpc{}_events", suffix)"#));
+    }
+
+    /// 线上形状照 moodflow-webdata `plugins.rs` 的 `list_json` / `preview_json` 抄来：核心改字段时这里会失败。
+    #[test]
+    fn plugin_list_and_preview_parse_from_core_shape() {
+        let list: PluginList = parse(snake_keys(json!({
+            "available": true,
+            "safeMode": false,
+            "plugins": [{
+                "id": "dev.example.emoji", "name": "表情", "version": "1.0.0",
+                "description": "打字时给出表情候选", "license": "MIT",
+                "kind": { "type": "wasm" }, "platforms": ["windows", "android"],
+                "capabilities": ["storage", "network:api.example.com"],
+                "contributes": {
+                    "candidates": true, "candidateFilter": false, "association": false,
+                    "commitTransform": false, "cmdbarFunctions": ["emoji"],
+                    "bufferAction": null, "hasSettings": false
+                },
+                "enabled": true, "state": "auto_disabled", "source": "local"
+            }, {
+                "id": "dev.x.broken", "name": "dev.x.broken", "version": "1.0.0",
+                "description": "", "license": "", "kind": null, "platforms": [],
+                "capabilities": [], "contributes": null,
+                "enabled": false, "state": "disabled", "source": "local"
+            }]
+        })))
+        .unwrap();
+        assert!(!list.safe_mode);
+        assert_eq!(list.plugins[0].state, PluginState::AutoDisabled);
+        assert_eq!(
+            list.plugins[0]
+                .contributes
+                .as_ref()
+                .unwrap()
+                .cmdbar_functions,
+            vec!["emoji"]
+        );
+        assert!(list.plugins[1].kind.is_none());
+        // 导出给界面的是 snake_case
+        let out = serde_json::to_value(&list).unwrap();
+        assert_eq!(out["safe_mode"], json!(false));
+        assert_eq!(
+            out["plugins"][0]["contributes"]["cmdbar_functions"],
+            json!(["emoji"])
+        );
+
+        let p: PluginPreview = parse(snake_keys(json!({
+            "id": "dev.example.emoji", "name": "表情", "version": "1.1.0",
+            "description": "", "license": "MIT",
+            "kind": { "type": "content", "content": "pet" }, "platforms": ["windows"],
+            "capabilities": ["storage", "notify"],
+            "contributes": {
+                "candidates": false, "candidateFilter": false, "association": false,
+                "commitTransform": false, "cmdbarFunctions": [], "bufferAction": null,
+                "hasSettings": false
+            },
+            "added": ["notify"], "upgradeFrom": "1.0.0", "source": "local"
+        })))
+        .unwrap();
+        assert_eq!(p.added, vec!["notify"]);
+        assert_eq!(p.upgrade_from.as_deref(), Some("1.0.0"));
+        assert_eq!(p.kind.unwrap().content.as_deref(), Some("pet"));
+    }
+
+    #[test]
+    fn plugin_error_codes_come_from_the_core_message() {
+        assert_eq!(
+            plugin_error_code("plugins.consent_mismatch: 这些能力还没有经过同意：notify")
+                .as_deref(),
+            Some("plugins.consent_mismatch")
+        );
+        assert_eq!(
+            plugin_error_code("unknown method: plugins.list").as_deref(),
+            Some("plugins.unsupported")
+        );
+        assert_eq!(plugin_error_code("missing param: path"), None);
+        assert_eq!(plugin_error_code("plugins.: x"), None);
     }
 
     fn frame(v: Value) -> Vec<u8> {

@@ -99,6 +99,8 @@ fn dispose_contract_rows(
 }
 use moodflow_coordinator::web_host::WebDataHost;
 
+mod plugins;
+
 /// 解析方案的权威引擎类型（schema.toml 的 engine.type 可能为空，
 /// 此时按 Schema::is_pinyin/is_mixed 依据默认词库类型推断）。
 fn resolve_engine_type(s: &moodflow_config::Schema) -> &'static str {
@@ -349,6 +351,104 @@ pub trait WebDataRpc: WebDataHost {
         map.into_iter().collect()
     }
 
+    /// `plugins.list`：已装插件、启用与运行状态。
+    fn web_plugins_list(&self) -> Value {
+        let (enabled, safe_mode) = self.plugins_config();
+        let dirs = self.plugin_dirs();
+        plugins::list_json(
+            dirs.as_ref().map(|d| d.0.as_path()),
+            &enabled,
+            safe_mode,
+            &self.plugin_status(),
+        )
+    }
+
+    /// 读调用方选中的本地包（`path`）并检查。
+    fn web_plugins_plan(
+        &self,
+        params: &Value,
+    ) -> anyhow::Result<(
+        moodflow_market::InstallPlan,
+        Option<String>,
+        std::path::PathBuf,
+    )> {
+        let (plugins_dir, _) = self
+            .plugin_dirs()
+            .ok_or_else(|| anyhow::anyhow!("plugins.no_user_dir: 取不到输入法用户目录"))?;
+        let path = str_param(params, "path")?;
+        let meta = std::fs::metadata(path).map_err(|e| anyhow::anyhow!("plugins.io: {e}"))?;
+        if meta.len() > moodflow_market::MAX_PACKAGE_BYTES {
+            anyhow::bail!("plugins.too_large: 插件包超过 32 MiB");
+        }
+        let bytes = std::fs::read(path).map_err(|e| anyhow::anyhow!("plugins.io: {e}"))?;
+        let (plan, from) = plugins::inspect(
+            &bytes,
+            &plugins_dir,
+            moodflow_coordinator::PLUGIN_HOST_VERSION,
+        )?;
+        Ok((plan, from, plugins_dir))
+    }
+
+    /// `plugins.inspect`：安装前的预览（说明与要同意的能力），不写任何东西。
+    fn web_plugins_inspect(&self, params: &Value) -> anyhow::Result<Value> {
+        let (plan, from, _) = self.web_plugins_plan(params)?;
+        Ok(plugins::preview_json(&plan, from.as_deref()))
+    }
+
+    /// `plugins.install`：重新检查，新增能力都在 `accept` 里才装，装完重载。
+    fn web_plugins_install(&self, params: &Value) -> anyhow::Result<Value> {
+        let (plan, _, plugins_dir) = self.web_plugins_plan(params)?;
+        let accept: Vec<String> = params
+            .get("accept")
+            .and_then(Value::as_array)
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(str::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default();
+        plugins::check_consent(&plan, &accept)?;
+        moodflow_market::install(&plan, &plugins_dir)
+            .map_err(|e| anyhow::anyhow!("plugins.io: {e}"))?;
+        self.reload_plugins();
+        tracing::info!(
+            "插件：已安装 {} {}",
+            plan.manifest.id,
+            plan.manifest.version
+        );
+        Ok(json!({ "id": plan.manifest.id, "version": plan.manifest.version }))
+    }
+
+    /// `plugins.uninstall`：删除全部版本；`deleteData` 为真时连私有数据一起删。
+    fn web_plugins_uninstall(&self, params: &Value) -> anyhow::Result<Value> {
+        let id = str_param(params, "id")?;
+        if !plugins::safe_id(id) {
+            anyhow::bail!("plugins.bad_id: 插件 id 不合法");
+        }
+        let (plugins_dir, data_dir) = self
+            .plugin_dirs()
+            .ok_or_else(|| anyhow::anyhow!("plugins.no_user_dir: 取不到输入法用户目录"))?;
+        moodflow_market::uninstall(&plugins_dir, id)
+            .map_err(|e| anyhow::anyhow!("plugins.io: {e}"))?;
+        let delete_data = params
+            .get("deleteData")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        if delete_data {
+            match std::fs::remove_dir_all(data_dir.join(id)) {
+                Ok(()) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => anyhow::bail!("plugins.io: {e}"),
+            }
+        }
+        self.reload_plugins();
+        tracing::info!(
+            "插件：已卸载 {id}（私有数据{}）",
+            if delete_data { "已删除" } else { "保留" }
+        );
+        Ok(json!({ "ok": true }))
+    }
+
     /// 数据类 RPC 总分派。方法名以 `<ns>.<method>` 形式分组；未知方法返回 Err。
     fn web_data_rpc(&self, method: &str, params: &Value) -> anyhow::Result<Value> {
         match method {
@@ -419,6 +519,15 @@ pub trait WebDataRpc: WebDataHost {
                 self.ui_toast(text, &s("kind"), &s("color"), &s("pos"), ms)
                     .map_err(|e| anyhow::anyhow!("{e}"))?;
                 Ok(json!({ "ok": true }))
+            }
+            // ── plugins.*（插件管理页，见 plugins.rs）────────────
+            "plugins.list" => Ok(self.web_plugins_list()),
+            "plugins.inspect" => self.web_plugins_inspect(params),
+            "plugins.install" => self.web_plugins_install(params),
+            "plugins.uninstall" => self.web_plugins_uninstall(params),
+            "plugins.reenable" => {
+                let id = str_param(params, "id")?;
+                Ok(json!({ "ok": self.plugin_reenable(id) }))
             }
             "schema.delete" => self.web_schema_delete(params),
             "schema.references" => Ok(json!({})), // 引用关系（删除安全检查）：暂返空，前端宽松消费

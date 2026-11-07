@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // 设置中心 · 感知（07 FR-SET-04）：云端判断（同意 ②，FR-STA-08）、增强模式（同意 ⑤，开启前单独说明）、
 // 不感知 / 只感知的程序与记住无痕状态、无痕模式快捷键（输入法配置 moodflow.*，ADR 0016）、个人基线进度与“重新熟悉”（FR-STA-03）。
-// “从正在运行的程序中选择”需要外壳列出进程的命令，还没有，先手填程序名。
+// 程序名输入框聚焦时列出正在运行的程序当候选（useRunningApps，FR-SET-04），也可以手填。
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { commands, events, unwrap, type ConsentItem } from '@/api'
 import { errorText, t, type CopyKey } from '@/i18n'

@@ -4,7 +4,10 @@
 //! 配置值是任意 JSON。specta 把 `serde_json::Value` 当递归类型内联导出时会栈溢出，所以值字段在
 //! TypeScript 里标成 `unknown`（`#[specta(type = Unknown)]`），由前端按 `ime_schema` 的类型自己判断。
 
-use moodflow_hub_core::infra::imeconf::{ImeField, ImeItem, ImeRpc, ImeRpcError, ImeSetResult};
+use moodflow_hub_core::infra::imeconf::{
+    ImeField, ImeItem, ImeRpc, ImeRpcError, ImeSetResult, PluginList, PluginPreview,
+    plugin_error_code,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
@@ -75,4 +78,65 @@ pub async fn ime_config_set(items: Vec<ImeItemInput>) -> Result<ImeSetResult, Ui
         })
         .collect();
     blocking(move |r| r.set_items(&items)).await
+}
+
+// ── 插件管理（07 FR-SET-12，plugin-system.md §11 P5）──────────────────────────
+// 装、卸、列表都在输入法核心里做（只有它知道用户目录在哪）；启用列表与安全模式是普通配置项
+// （`plugins.enabled` / `plugins.safe_mode`），界面用 `ime_config_set` 改。
+
+/// 插件命令的错误：核心给的 `plugins.*` 错误码映射成文案键 `error.plugin_*`，其余照常。
+fn plugin_error(e: ImeRpcError) -> UiError {
+    if let ImeRpcError::Remote(msg) = &e
+        && let Some(code) = plugin_error_code(msg)
+    {
+        crate::hlog!("[{code}] {msg}");
+        let key = format!("error.plugin_{}", &code["plugins.".len()..]);
+        return UiError::new(&code, &key);
+    }
+    UiError::from(e)
+}
+
+async fn plugin_call<T: Send + 'static>(
+    f: impl FnOnce(ImeRpc) -> Result<T, ImeRpcError> + Send + 'static,
+) -> Result<T, UiError> {
+    tauri::async_runtime::spawn_blocking(move || f(rpc()))
+        .await
+        .map_err(|e| UiError::internal("ime.join", e))?
+        .map_err(plugin_error)
+}
+
+/// 已装插件、启用与运行状态。
+#[tauri::command]
+#[specta::specta]
+pub async fn plugins_list() -> Result<PluginList, UiError> {
+    plugin_call(|r| r.plugins()).await
+}
+
+/// 安装前检查一个本地插件包（`path` 来自文件对话框），返回说明与要同意的能力；不写任何东西。
+#[tauri::command]
+#[specta::specta]
+pub async fn plugins_inspect(path: String) -> Result<PluginPreview, UiError> {
+    plugin_call(move |r| r.plugin_inspect(&path)).await
+}
+
+/// 安装：`accept` 是用户在确认框里同意的能力。核心重新检查一遍，新增能力没被同意就拒绝
+/// （`plugins.consent_mismatch`，界面重新预览）。
+#[tauri::command]
+#[specta::specta]
+pub async fn plugins_install(path: String, accept: Vec<String>) -> Result<(), UiError> {
+    plugin_call(move |r| r.plugin_install(&path, &accept)).await
+}
+
+/// 卸载全部版本；`delete_data` 时连插件的私有数据一起删。启用列表由界面另行去掉这一项。
+#[tauri::command]
+#[specta::specta]
+pub async fn plugins_uninstall(id: String, delete_data: bool) -> Result<(), UiError> {
+    plugin_call(move |r| r.plugin_uninstall(&id, delete_data)).await
+}
+
+/// 重新启用被连续出错自动停用的插件；核心里没加载这个插件时返回 false。
+#[tauri::command]
+#[specta::specta]
+pub async fn plugins_reenable(id: String) -> Result<bool, UiError> {
+    plugin_call(move |r| r.plugin_reenable(&id)).await
 }
