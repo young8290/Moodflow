@@ -2,7 +2,7 @@
 // 看板 · 周报（07 FR-DSH-04）：一句话总结（本地模板，不调 AI）、休息完成率与饮水（和上周比）、新加的日程与完成的待办、
 // 状态分布、“低落 / 疲劳”7 × 24 热力图、每日输入时长，以及作息洞察（RoutineInsight，FR-REV-03）。
 // 每张图都有一句读屏概括，和一张“按天查看”的表格（dataviz：图表不只靠颜色，也不只靠悬停）。
-// 专注时长（FR-RST-10）、晴天值（FR-REV-04）都是 P2，还没有数据，暂不显示。
+// 专注时长（FR-RST-10）有记录时才显示；晴天值（FR-REV-04）关掉晴天收集时不显示（P2）。
 import { computed, onMounted, ref, watch } from 'vue'
 import { commands, unwrap, type WeekReport } from '@/api'
 import EChart from '@/components/EChart.vue'

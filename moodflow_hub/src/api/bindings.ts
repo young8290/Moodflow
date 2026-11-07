@@ -303,6 +303,26 @@ export const commands = {
 	imeConfigDefaults: () => typedError<ImeConfig, UiError>(__TAURI_INVOKE("ime_config_defaults")),
 	/**  写入若干项：失败项不让整批失败，`skipped` 里带原因，界面显示在对应控件旁（17 第 3.4 节）。 */
 	imeConfigSet: (items: ImeItemInput[]) => typedError<ImeSetResult, UiError>(__TAURI_INVOKE("ime_config_set", { items })),
+	/**  已装插件、启用与运行状态。 */
+	pluginsList: () => typedError<PluginList, UiError>(__TAURI_INVOKE("plugins_list")),
+	/**  安装前检查一个本地插件包（`path` 来自文件对话框），返回说明与要同意的能力；不写任何东西。 */
+	pluginsInspect: (path: string) => typedError<PluginPreview, UiError>(__TAURI_INVOKE("plugins_inspect", { path })),
+	/**
+	 *  安装：`accept` 是用户在确认框里同意的能力。核心重新检查一遍，新增能力没被同意就拒绝
+	 *  （`plugins.consent_mismatch`，界面重新预览）。
+	 */
+	pluginsInstall: (path: string, accept: string[]) => typedError<null, UiError>(__TAURI_INVOKE("plugins_install", { path, accept })),
+	/**  卸载全部版本；`delete_data` 时连插件的私有数据一起删。启用列表由界面另行去掉这一项。 */
+	pluginsUninstall: (id: string, deleteData: boolean) => typedError<null, UiError>(__TAURI_INVOKE("plugins_uninstall", { id, deleteData })),
+	/**  重新启用被连续出错自动停用的插件；核心里没加载这个插件时返回 false。 */
+	pluginsReenable: (id: string) => typedError<boolean, UiError>(__TAURI_INVOKE("plugins_reenable", { id })),
+	/**  插件的设置声明与当前值；没有设置的插件 `fields` 为空。 */
+	pluginsSettings: (id: string) => typedError<PluginSettings, UiError>(__TAURI_INVOKE("plugins_settings", { id })),
+	/**
+	 *  保存插件设置（`values`：每项是字段 id 与值，形状同 `ime_config_set`）。核心按声明校验，
+	 *  不合法时 `plugins.bad_settings`。
+	 */
+	pluginsSaveSettings: (id: string, values: ImeItemInput[]) => typedError<null, UiError>(__TAURI_INVOKE("plugins_save_settings", { id, values })),
 };
 
 /** Events */
@@ -971,6 +991,109 @@ export type PetSheet = {
 	body: string | null,
 	lines: string | null,
 };
+
+/**  插件接入了哪些扩展点（界面写“它会做什么”）。 */
+export type PluginContributes = {
+	candidates: boolean,
+	candidate_filter: boolean,
+	association: boolean,
+	commit_transform: boolean,
+	cmdbar_functions: string[],
+	buffer_action: string | null,
+	has_settings: boolean,
+};
+
+/**  已装的一个插件。 */
+export type PluginItem = {
+	id: string,
+	name: string,
+	version: string,
+	description: string,
+	license: string,
+	/**  清单读不出来时为空（仍然列出来，好让用户卸载） */
+	kind: PluginKind | null,
+	platforms: string[],
+	/**  能力：`storage`、`secrets`、`clipboard_read`、`context_recent`、`notify`、`network:<主机>` */
+	capabilities: string[],
+	contributes: PluginContributes | null,
+	enabled: boolean,
+	state: PluginState,
+	/**  `local`：从本地文件装的，没经过市场审核 */
+	source: string,
+};
+
+/**  插件类型：`wasm`（沙箱插件）或 `content`（内容包，`content` 是哪一类）。 */
+export type PluginKind = {
+	type: string,
+	content?: string | null,
+};
+
+/**
+ *  插件管理页（07 FR-SET-12）：`plugins.list` 的结果。核心的线上字段是 camelCase，先经 [`snake_keys`]
+ *  转成 snake_case 再解析，导出给界面的类型因此只有一份（不分序列化 / 反序列化）。
+ */
+export type PluginList = {
+	/**  输入法取得到用户目录（取不到时没法装插件） */
+	available: boolean,
+	/**  `plugins.safe_mode`：开着时所有插件都不加载 */
+	safe_mode: boolean,
+	plugins: PluginItem[],
+};
+
+/**  `plugins.inspect`：安装前的预览。 */
+export type PluginPreview = {
+	id: string,
+	name: string,
+	version: string,
+	description: string,
+	license: string,
+	kind: PluginKind | null,
+	platforms: string[],
+	capabilities: string[],
+	contributes: PluginContributes | null,
+	/**  这次需要用户同意的能力（首次安装是全部，升级是新增的） */
+	added: string[],
+	/**  已装的版本（升级时） */
+	upgrade_from: string | null,
+	source: string,
+};
+
+/**
+ *  插件设置声明里的一项（插件不带界面，设置页按它渲染，ADR 0054 第 7 条）。
+ *  `kind` 是 `text` / `secure_text` / `toggle` / `choice` / `number`，其余字段按类型有无。
+ */
+export type PluginSettingField = {
+	id: string,
+	label: string,
+	help: string,
+	type: string,
+	/**  默认值（密钥字段没有） */
+	default?: unknown,
+	/**  text：最长字数 */
+	max_len?: number | null,
+	/**  choice：可选项 */
+	options?: string[] | null,
+	/**  number：范围 */
+	min?: number | null,
+	max?: number | null,
+};
+
+/**  `plugins_settings` 的结果：设置声明与当前值（字段 id → 值，不含密钥字段）。 */
+export type PluginSettings = {
+	fields: PluginSettingField[],
+	values: unknown,
+};
+
+/**  插件在核心里的状态。 */
+export type PluginState = 
+/**  不在启用列表里 */
+"disabled" | 
+/**  启用了，但安全模式开着 */
+"safe_mode" | "loaded" | 
+/**  连续出错被自动停用，可以重新启用 */
+"auto_disabled" | 
+/**  启用了却没加载上（不兼容、平台不支持、包坏了） */
+"load_failed";
 
 /**  练习过程中的一次输入框内容变化。`t_ms` 是从练习开始算起的毫秒数。 */
 export type PracticeEvent = {

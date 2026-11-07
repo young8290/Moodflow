@@ -271,16 +271,21 @@ impl std::error::Error for ManifestError {}
 impl Manifest {
     /// 解析并校验。`host_version` 是当前宿主版本（`docs/VERSION`，可带预发布后缀）。
     pub fn from_toml(text: &str, host_version: &str) -> Result<Self, ManifestError> {
-        let m: Manifest = toml::from_str(text).map_err(|e| {
+        let m = Self::parse_toml(text)?;
+        m.validate(host_version)?;
+        Ok(m)
+    }
+
+    /// 只解析不校验：给已装插件的列表用（宿主升级后某个旧插件不再兼容，也要能列出来、能卸载）。
+    pub fn parse_toml(text: &str) -> Result<Self, ManifestError> {
+        toml::from_str(text).map_err(|e| {
             // 只报位置与类别，不回显原文（清单里可能被误填了密钥）。
             let at = e
                 .span()
                 .map(|s| format!("字节 {}", s.start))
                 .unwrap_or_default();
             ManifestError::Parse(format!("{at} {}", e.message()))
-        })?;
-        m.validate(host_version)?;
-        Ok(m)
+        })
     }
 
     pub fn validate(&self, host_version: &str) -> Result<(), ManifestError> {

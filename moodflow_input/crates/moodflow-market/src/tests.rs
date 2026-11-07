@@ -353,3 +353,80 @@ fn install_lists_and_uninstalls_atomically() {
     assert!(installed(&dir).is_empty());
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn local_package_uses_its_own_manifest_and_reports_capabilities() {
+    let pkg = zip_of(&[
+        ("manifest.toml", wasm_manifest("1.0.0", "").as_bytes()),
+        ("plugin.wasm", b"\0asm"),
+    ]);
+    let mut asked = None;
+    let plan = inspect_local_package(&pkg, HOST, |id| {
+        asked = Some(id.to_owned());
+        None
+    })
+    .unwrap();
+    assert_eq!(asked.as_deref(), Some("dev.example.emoji"));
+    assert_eq!(plan.manifest.version, "1.0.0");
+    // 首次安装：清单里的能力全部要同意
+    assert_eq!(plan.added_capabilities, vec![Capability::Storage]);
+}
+
+#[test]
+fn local_upgrade_lists_only_new_capabilities() {
+    let old_pkg = zip_of(&[
+        ("manifest.toml", wasm_manifest("1.0.0", "").as_bytes()),
+        ("plugin.wasm", b"\0asm"),
+    ]);
+    let old = inspect_local_package(&old_pkg, HOST, |_| None)
+        .unwrap()
+        .manifest;
+    let new_pkg = zip_of(&[
+        (
+            "manifest.toml",
+            wasm_manifest("1.1.0", "clipboard_read = true").as_bytes(),
+        ),
+        ("plugin.wasm", b"\0asm"),
+    ]);
+    let plan = inspect_local_package(&new_pkg, HOST, |_| Some(old)).unwrap();
+    assert_eq!(plan.added_capabilities, vec![Capability::ClipboardRead]);
+}
+
+#[test]
+fn local_package_still_gets_the_safety_checks() {
+    let no_entry = zip_of(&[("manifest.toml", wasm_manifest("1.0.0", "").as_bytes())]);
+    assert!(matches!(
+        inspect_local_package(&no_entry, HOST, |_| None),
+        Err(MarketError::MissingEntry(_))
+    ));
+    let traversal = zip_of(&[
+        ("manifest.toml", wasm_manifest("1.0.0", "").as_bytes()),
+        ("plugin.wasm", b"\0asm"),
+        ("../evil.dll", b"x"),
+    ]);
+    assert!(matches!(
+        inspect_local_package(&traversal, HOST, |_| None),
+        Err(MarketError::UnsafePath(_))
+    ));
+    assert!(matches!(
+        inspect_local_package(b"not a zip", HOST, |_| None),
+        Err(MarketError::Zip(_))
+    ));
+}
+
+#[test]
+fn installed_manifest_reads_back_and_refuses_odd_paths() {
+    let dir = std::env::temp_dir().join(format!("mf-market-manifest-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let pkg = zip_of(&[
+        ("manifest.toml", wasm_manifest("1.0.0", "").as_bytes()),
+        ("plugin.wasm", b"\0asm"),
+    ]);
+    install(&inspect_local_package(&pkg, HOST, |_| None).unwrap(), &dir).unwrap();
+    let m = installed_manifest(&dir, "dev.example.emoji", "1.0.0").unwrap();
+    assert_eq!(m.name, "表情");
+    assert!(installed_manifest(&dir, "dev.example.emoji", "9.9.9").is_none());
+    assert!(installed_manifest(&dir, "..", "1.0.0").is_none());
+    assert!(installed_manifest(&dir, "dev.example.emoji", "../1.0.0").is_none());
+    let _ = std::fs::remove_dir_all(&dir);
+}

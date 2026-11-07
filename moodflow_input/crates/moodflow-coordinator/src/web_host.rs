@@ -232,6 +232,17 @@ pub trait WebDataHost {
         content: &str,
         replace: bool,
     ) -> anyhow::Result<crate::handle_quick_format::QuickImportOutcome>;
+
+    /// 插件安装目录与私有数据目录（用户目录下的 `plugins/`、`plugin-data/`）；用户目录取不到时为 `None`。
+    fn plugin_dirs(&self) -> Option<(std::path::PathBuf, std::path::PathBuf)>;
+    /// 当前配置里的 `(plugins.enabled, plugins.safe_mode)`。
+    fn plugins_config(&self) -> (Vec<String>, bool);
+    /// 已加载插件的运行状态（含连续出错被自动停用的）。
+    fn plugin_status(&self) -> Vec<moodflow_plugin_registry::PluginStatus>;
+    /// 重新启用一个被自动停用的插件；没加载这个插件时返回 false。
+    fn plugin_reenable(&self, id: &str) -> bool;
+    /// 装、卸、升级之后按当前配置强制重载插件。
+    fn reload_plugins(&self);
 }
 
 impl WebDataHost for Coordinator {
@@ -463,5 +474,24 @@ impl WebDataHost for Coordinator {
         duration_ms: u64,
     ) -> Result<(), String> {
         Coordinator::ui_toast(self, text, kind, color, pos, duration_ms)
+    }
+    fn plugin_dirs(&self) -> Option<(std::path::PathBuf, std::path::PathBuf)> {
+        Coordinator::plugin_dirs(self)
+    }
+    fn plugins_config(&self) -> (Vec<String>, bool) {
+        let rt = self.rt();
+        (
+            rt.config.plugins.enabled.clone(),
+            rt.config.plugins.safe_mode,
+        )
+    }
+    fn plugin_status(&self) -> Vec<moodflow_plugin_registry::PluginStatus> {
+        Coordinator::plugin_status(self)
+    }
+    fn plugin_reenable(&self, id: &str) -> bool {
+        Coordinator::plugin_reenable(self, id)
+    }
+    fn reload_plugins(&self) {
+        Coordinator::reload_plugins(self)
     }
 }

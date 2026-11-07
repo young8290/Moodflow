@@ -349,3 +349,84 @@ fn file_host_enforces_key_and_size_limits() {
     assert_eq!(again.storage_get("p", "big"), None);
     let _ = std::fs::remove_dir_all(&root);
 }
+
+#[test]
+fn plugin_reads_its_settings_defaults_overlaid_with_saved_values() {
+    let root = tmp("settings");
+    let (plugins, data) = (root.join("plugins"), root.join("data"));
+    // transform：返回 settings_get 拿到的 JSON（{"text": …} 形状，正好当结果）
+    let wasm = module(
+        r#"(import "mf" "settings_get" (func $s (param i32 i32) (result i32)))"#,
+        r#"(func (export "mf_transform") (param i32 i32) (result i64)
+    (local $len i32)
+    (local.set $len (call $s (i32.const 32768) (i32.const 4096)))
+    (i64.or (i64.shl (i64.const 32768) (i64.const 32)) (i64.extend_i32_u (local.get $len))))"#,
+    );
+    let m = manifest(
+        "dev.s",
+        "commit_transform = {}\nsettings = \"settings.toml\"",
+        "",
+        r#""windows""#,
+    );
+    install(&plugins, "dev.s", &m, &wasm);
+    std::fs::write(
+        plugins.join("dev.s/1.0.0/settings.toml"),
+        r#"
+[[fields]]
+id = "text"
+label = "替换成"
+help = "上屏时换成这段文字"
+type = "text"
+default = "默认"
+"#,
+    )
+    .unwrap();
+    let enabled = ids(&["dev.s"]);
+    let (mut reg, report) = Registry::load(&opts(&plugins, &data, &enabled, quiet()));
+    assert_eq!(report.loaded, ids(&["dev.s"]));
+    assert_eq!(reg.transform(&OK, "x"), "默认");
+
+    let dir = plugins.join("dev.s/1.0.0");
+    let manifest =
+        Manifest::parse_toml(&std::fs::read_to_string(dir.join("manifest.toml")).unwrap()).unwrap();
+    let schema = settings_schema(&dir, &manifest).unwrap().unwrap();
+    let values = BTreeMap::from([("text".to_string(), serde_json::Value::from("改过"))]);
+    schema.check_values(&values).unwrap();
+    write_settings(&data, "dev.s", &values).unwrap();
+    assert_eq!(saved_settings(&data, "dev.s"), values);
+    let (mut reg, _) = Registry::load(&opts(&plugins, &data, &enabled, quiet()));
+    assert_eq!(reg.transform(&OK, "x"), "改过");
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn broken_settings_declaration_keeps_the_plugin_from_loading() {
+    let root = tmp("bad-settings");
+    let (plugins, data) = (root.join("plugins"), root.join("data"));
+    let m = manifest(
+        "dev.b",
+        "candidate_provider = {}\nsettings = \"settings.toml\"",
+        "",
+        r#""windows""#,
+    );
+    install(
+        &plugins,
+        "dev.b",
+        &m,
+        &module("", &returns("mf_candidates", 1024, "[]")),
+    );
+    std::fs::write(
+        plugins.join("dev.b/1.0.0/settings.toml"),
+        "[[fields]]\nid = \"X\"",
+    )
+    .unwrap();
+    let enabled = ids(&["dev.b"]);
+    let (_, report) = Registry::load(&opts(&plugins, &data, &enabled, quiet()));
+    assert_eq!(report.failed.len(), 1);
+    assert!(
+        report.failed[0].1.contains("设置声明"),
+        "{:?}",
+        report.failed
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}

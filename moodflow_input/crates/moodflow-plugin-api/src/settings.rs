@@ -170,6 +170,22 @@ impl SettingsSchema {
         }
         Ok(())
     }
+
+    /// 插件运行时读到的设置：默认值上叠用户存过的值。存的值里不合法或已不存在的字段
+    /// （插件升级后改了声明）逐个丢掉、回落默认，不让一项坏值连累整份设置。密钥字段不在其中。
+    pub fn resolved(&self, saved: &BTreeMap<String, Value>) -> BTreeMap<String, Value> {
+        let mut out = self.defaults();
+        for (k, v) in saved {
+            if !out.contains_key(k) {
+                continue;
+            }
+            let one = BTreeMap::from([(k.clone(), v.clone())]);
+            if self.check_values(&one).is_ok() {
+                out.insert(k.clone(), v.clone());
+            }
+        }
+        out
+    }
 }
 
 #[cfg(test)]
@@ -242,5 +258,21 @@ max = 5000
         let mut v = BTreeMap::new();
         v.insert("api_key".to_string(), Value::from("sk-123"));
         assert!(s.check_values(&v).is_err(), "密钥不能走普通设置");
+    }
+
+    #[test]
+    fn resolved_overlays_saved_values_and_drops_bad_ones() {
+        let s = SettingsSchema::from_toml(SCHEMA).unwrap();
+        let saved = BTreeMap::from([
+            ("target_lang".to_string(), Value::from("ja")),
+            ("max_chars".to_string(), Value::from(99999)),
+            ("gone".to_string(), Value::from(1)),
+            ("api_key".to_string(), Value::from("sk-123")),
+        ]);
+        let r = s.resolved(&saved);
+        assert_eq!(r.get("target_lang"), Some(&Value::from("ja")));
+        assert_eq!(r.get("max_chars"), Some(&Value::from(500.0)));
+        assert!(!r.contains_key("gone"));
+        assert!(!r.contains_key("api_key"));
     }
 }
