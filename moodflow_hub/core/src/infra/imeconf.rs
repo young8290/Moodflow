@@ -246,6 +246,20 @@ impl ImeRpc {
         .map(|_| ())
     }
 
+    /// `plugins.settings`：插件的设置声明与当前值（`{fields, values}`，字段名本来就是 snake_case）。
+    pub fn plugin_settings(&self, id: &str) -> Result<Value, ImeRpcError> {
+        self.call("plugins.settings", json!({ "id": id }))
+    }
+
+    /// `plugins.saveSettings`：核心按声明校验后保存并重载插件。
+    pub fn plugin_save_settings(&self, id: &str, values: &Value) -> Result<(), ImeRpcError> {
+        self.call(
+            "plugins.saveSettings",
+            json!({ "id": id, "values": values }),
+        )
+        .map(|_| ())
+    }
+
     /// `plugins.reenable`：重新启用被自动停用的插件。
     pub fn plugin_reenable(&self, id: &str) -> Result<bool, ImeRpcError> {
         let v = self.call("plugins.reenable", json!({ "id": id }))?;

@@ -3,6 +3,7 @@
 // 它会做什么）、启用 / 停用、重新启用被自动停用的、卸载（可连私有数据一起删）、顶部的安全模式；从本地文件安装，
 // 装之前用通俗的话逐项列出要同意的权限，升级只列新增的。装、卸、列表都在输入法核心里做（plugins.*）；
 // 启用列表与安全模式是输入法配置 `plugins.enabled` / `plugins.safe_mode`。还没有签名市场，本地装的一律标“未审核”。
+// 声明了设置的插件有“设置”按钮，按声明渲染表单（PluginSettingsForm）。
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
 import {
@@ -15,6 +16,7 @@ import {
   type PluginPreview,
 } from '@/api'
 import { errorText, t } from '@/i18n'
+import PluginSettingsForm from './PluginSettingsForm.vue'
 import SectionHead from './SectionHead.vue'
 import {
   capabilityText,
@@ -37,6 +39,8 @@ const busy = ref(false)
 const pending = ref<{ path: string; preview: PluginPreview } | null>(null)
 /** 正在确认卸载的插件 id 与“同时删除数据” */
 const removing = ref<{ id: string; deleteData: boolean } | null>(null)
+/** 展开了设置表单的插件 id */
+const configuring = ref<string | null>(null)
 const cancelBtn = ref<HTMLButtonElement | null>(null)
 let noticeTimer: ReturnType<typeof setTimeout> | undefined
 let unlisten: (() => void) | undefined
@@ -258,6 +262,15 @@ async function uninstall(p: PluginItem): Promise<void> {
                 {{ t('plugins.reenable') }}
               </button>
               <button
+                v-if="p.contributes?.has_settings"
+                type="button"
+                class="s-compact"
+                :aria-expanded="configuring === p.id"
+                @click="configuring = configuring === p.id ? null : p.id"
+              >
+                {{ t('plugins.settings') }}
+              </button>
+              <button
                 v-if="removing?.id !== p.id"
                 type="button"
                 class="s-compact"
@@ -267,6 +280,13 @@ async function uninstall(p: PluginItem): Promise<void> {
                 {{ t('plugins.uninstall') }}
               </button>
             </div>
+            <PluginSettingsForm
+              v-if="configuring === p.id"
+              :id="p.id"
+              :name="p.name"
+              @saved="flash(t('plugins.settings_saved', { name: p.name }))"
+              @close="configuring = null"
+            />
             <div
               v-if="removing?.id === p.id"
               class="s-confirm"

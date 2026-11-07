@@ -1,6 +1,6 @@
-// 插件管理页的纯函数（07 FR-SET-12）：能力与状态的通俗说明、插件“会做什么”、启用列表的增删。
+// 插件管理页的纯函数（07 FR-SET-12）：能力与状态的通俗说明、插件“会做什么”、启用列表的增删、插件设置的校验。
 // 能力字符串与核心 moodflow-webdata `plugins.rs` 的 `cap_str` 一致。
-import type { PluginContributes, PluginItem, PluginKind, PluginState } from '@/api'
+import type { PluginContributes, PluginItem, PluginKind, PluginSettingField, PluginState } from '@/api'
 import { t, type CopyKey } from '@/i18n'
 
 const CAP_LABEL: Record<string, CopyKey> = {
@@ -87,4 +87,20 @@ export function sortPlugins(plugins: readonly PluginItem[]): PluginItem[] {
       Number(stateIsProblem(b.state)) - Number(stateIsProblem(a.state)) ||
       a.name.localeCompare(b.name, 'zh-CN'),
   )
+}
+
+/**
+ * 插件设置一项的问题（界面先拦，核心保存时按同一份声明再校验）：数字要在范围内，文字不超过长度。
+ * 没问题返回 null；密钥字段、开关、单选不在界面上出错。
+ */
+export function fieldProblem(f: PluginSettingField, value: unknown): string | null {
+  if (f.type === 'number') {
+    const min = f.min ?? -Infinity
+    const max = f.max ?? Infinity
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max)
+      return t('plugins.settings_number_range', { min: f.min ?? '', max: f.max ?? '' })
+  }
+  if (f.type === 'text' && f.max_len != null && typeof value === 'string' && [...value].length > f.max_len)
+    return t('plugins.settings_text_too_long', { n: f.max_len })
+  return null
 }

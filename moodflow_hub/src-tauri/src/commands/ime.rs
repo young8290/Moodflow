@@ -140,3 +140,86 @@ pub async fn plugins_uninstall(id: String, delete_data: bool) -> Result<(), UiEr
 pub async fn plugins_reenable(id: String) -> Result<bool, UiError> {
     plugin_call(move |r| r.plugin_reenable(&id)).await
 }
+
+/// 插件设置声明里的一项（插件不带界面，设置页按它渲染，ADR 0054 第 7 条）。
+/// `kind` 是 `text` / `secure_text` / `toggle` / `choice` / `number`，其余字段按类型有无。
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct PluginSettingField {
+    pub id: String,
+    pub label: String,
+    pub help: String,
+    #[serde(rename = "type")]
+    pub kind: String,
+    /// 默认值（密钥字段没有）
+    #[serde(default)]
+    #[specta(type = Unknown)]
+    pub default: Value,
+    /// text：最长字数
+    #[serde(default)]
+    pub max_len: Option<u32>,
+    /// choice：可选项
+    #[serde(default)]
+    pub options: Option<Vec<String>>,
+    /// number：范围
+    #[serde(default)]
+    pub min: Option<f64>,
+    #[serde(default)]
+    pub max: Option<f64>,
+}
+
+/// `plugins_settings` 的结果：设置声明与当前值（字段 id → 值，不含密钥字段）。
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct PluginSettings {
+    pub fields: Vec<PluginSettingField>,
+    #[specta(type = Unknown)]
+    pub values: Value,
+}
+
+/// 插件的设置声明与当前值；没有设置的插件 `fields` 为空。
+#[tauri::command]
+#[specta::specta]
+pub async fn plugins_settings(id: String) -> Result<PluginSettings, UiError> {
+    let v = plugin_call(move |r| r.plugin_settings(&id)).await?;
+    serde_json::from_value(v).map_err(|e| UiError::internal("plugins.settings_shape", e))
+}
+
+/// 保存插件设置（`values`：每项是字段 id 与值，形状同 `ime_config_set`）。核心按声明校验，
+/// 不合法时 `plugins.bad_settings`。
+#[tauri::command]
+#[specta::specta]
+pub async fn plugins_save_settings(id: String, values: Vec<ImeItemInput>) -> Result<(), UiError> {
+    let values = Value::Object(values.into_iter().map(|i| (i.key, i.value)).collect());
+    plugin_call(move |r| r.plugin_save_settings(&id, &values)).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    /// 形状照 moodflow-webdata `plugins.rs` 的 `settings_json`（`Field` 平铺 `FieldKind`，标签字段是 `type`）。
+    #[test]
+    fn plugin_settings_parse_from_core_shape() {
+        let s: PluginSettings = serde_json::from_value(json!({
+            "fields": [
+                { "id": "lang", "label": "目标语言", "help": "翻译成哪种语言",
+                  "type": "choice", "options": ["en", "ja"], "default": "en" },
+                { "id": "limit", "label": "最长字数", "help": "超过就截断",
+                  "type": "number", "default": 500.0, "min": 1.0, "max": 5000.0 },
+                { "id": "note", "label": "前缀", "help": "加在前面",
+                  "type": "text", "default": "", "max_len": 256 },
+                { "id": "key", "label": "密钥", "help": "服务商给的", "type": "secure_text" }
+            ],
+            "values": { "lang": "ja", "limit": 500.0, "note": "" }
+        }))
+        .unwrap();
+        assert_eq!(
+            s.fields[0].options.as_deref(),
+            Some(&["en".to_string(), "ja".to_string()][..])
+        );
+        assert_eq!(s.fields[1].max, Some(5000.0));
+        assert_eq!(s.fields[2].max_len, Some(256));
+        assert!(s.fields[3].default.is_null());
+        assert_eq!(s.values["lang"], json!("ja"));
+    }
+}

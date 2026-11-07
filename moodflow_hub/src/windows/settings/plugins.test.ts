@@ -1,8 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount, type VueWrapper } from '@vue/test-utils'
-import type { PluginItem, PluginList, PluginPreview } from '@/api'
+import type { PluginItem, PluginList, PluginPreview, PluginSettingField, PluginSettings } from '@/api'
 import { t } from '@/i18n'
-import { capabilityText, contributesText, kindText, sortPlugins, toggledEnabled } from './plugins'
+import {
+  capabilityText,
+  contributesText,
+  fieldProblem,
+  kindText,
+  sortPlugins,
+  toggledEnabled,
+} from './plugins'
 
 const contributes = (over: Partial<PluginItem['contributes'] & object> = {}) => ({
   candidates: false,
@@ -71,6 +78,8 @@ describe('插件页的说明文字', () => {
 })
 
 const mocks = vi.hoisted(() => ({
+  settings: null as PluginSettings | null,
+  saveSettings: vi.fn(),
   list: null as PluginList | null,
   unavailable: false,
   preview: null as PluginPreview | null,
@@ -93,6 +102,8 @@ vi.mock('@/api', async (orig) => ({
     pluginsInstall: mocks.install,
     pluginsUninstall: mocks.uninstall,
     pluginsReenable: mocks.reenable,
+    pluginsSettings: async () => ok(mocks.settings),
+    pluginsSaveSettings: mocks.saveSettings,
     imeConfigSet: mocks.imeConfigSet,
   },
   events: { imeConfigChanged: { listen: async () => () => {} } },
@@ -142,6 +153,56 @@ beforeEach(() => {
   mocks.install.mockReset().mockImplementation(() => ok())
   mocks.uninstall.mockReset().mockImplementation(() => ok())
   mocks.reenable.mockReset().mockImplementation(() => ok(true))
+  mocks.saveSettings.mockReset().mockImplementation(() => ok())
+  mocks.settings = {
+    fields: [
+      {
+        id: 'lang',
+        label: '目标语言',
+        help: '翻译成哪种语言',
+        type: 'choice',
+        default: 'en',
+        max_len: null,
+        options: ['en', 'ja'],
+        min: null,
+        max: null,
+      },
+      {
+        id: 'limit',
+        label: '最长字数',
+        help: '超过就截断',
+        type: 'number',
+        default: 500,
+        max_len: null,
+        options: null,
+        min: 1,
+        max: 5000,
+      },
+      {
+        id: 'on',
+        label: '启用缓存',
+        help: '记住翻译过的句子',
+        type: 'toggle',
+        default: true,
+        max_len: null,
+        options: null,
+        min: null,
+        max: null,
+      },
+      {
+        id: 'key',
+        label: '密钥',
+        help: '服务商给的密钥',
+        type: 'secure_text',
+        default: null,
+        max_len: null,
+        options: null,
+        min: null,
+        max: null,
+      },
+    ],
+    values: { lang: 'en', limit: 500, on: true },
+  }
   mocks.imeConfigSet
     .mockReset()
     .mockImplementation((items: { key: string }[]) =>
@@ -289,5 +350,106 @@ describe('插件管理页', () => {
     expect(mocks.imeConfigSet).toHaveBeenCalledWith([
       { key: 'plugins.enabled', value: ['dev.example.broken'] },
     ])
+  })
+})
+
+describe('插件设置', () => {
+  const field = (over: Partial<PluginSettingField>): PluginSettingField => ({
+    id: 'x',
+    label: 'x',
+    help: 'x',
+    type: 'text',
+    default: '',
+    max_len: null,
+    options: null,
+    min: null,
+    max: null,
+    ...over,
+  })
+
+  it('数字要在范围内，文字不超过长度', () => {
+    const n = field({ type: 'number', min: 1, max: 10 })
+    expect(fieldProblem(n, 5)).toBeNull()
+    expect(fieldProblem(n, 11)).toBe(t('plugins.settings_number_range', { min: 1, max: 10 }))
+    expect(fieldProblem(n, null)).not.toBeNull()
+    const s = field({ type: 'text', max_len: 2 })
+    expect(fieldProblem(s, '你好')).toBeNull()
+    expect(fieldProblem(s, '你好呀')).toBe(t('plugins.settings_text_too_long', { n: 2 }))
+  })
+
+  it('有设置的插件可以展开表单，按声明渲染，保存全部非密钥字段', async () => {
+    mocks.list!.plugins[0] = item({ contributes: contributes({ candidates: true, has_settings: true }) })
+    const w = await show()
+    const row = plugin(w, 'dev.example.emoji')
+    expect(
+      plugin(w, 'dev.example.broken')
+        .findAll('button')
+        .some((b) => b.text() === t('plugins.settings')),
+    ).toBe(false)
+    await row
+      .findAll('button')
+      .find((b) => b.text() === t('plugins.settings'))!
+      .trigger('click')
+    await flushPromises()
+    const form = row.find('[data-form="settings"]')
+    expect(form.find('[data-field="lang"] select').exists()).toBe(true)
+    expect(form.find('[data-field="key"]').text()).toContain(t('plugins.settings_secret'))
+    await form.find('[data-field="lang"] select').setValue('ja')
+    await form.find('[data-field="on"] input').setValue(false)
+    await form
+      .findAll('button')
+      .find((b) => b.text() === t('plugins.settings_save'))!
+      .trigger('click')
+    await flushPromises()
+    expect(mocks.saveSettings).toHaveBeenCalledWith('dev.example.emoji', [
+      { key: 'lang', value: 'ja' },
+      { key: 'limit', value: 500 },
+      { key: 'on', value: false },
+    ])
+    expect(w.find('[role="status"]').text()).toBe(t('plugins.settings_saved', { name: '表情' }))
+  })
+
+  it('超出范围的数字不保存，提示怎么改', async () => {
+    mocks.list!.plugins[0] = item({ contributes: contributes({ has_settings: true }) })
+    const w = await show()
+    const row = plugin(w, 'dev.example.emoji')
+    await row
+      .findAll('button')
+      .find((b) => b.text() === t('plugins.settings'))!
+      .trigger('click')
+    await flushPromises()
+    await row.find('[data-field="limit"] input').setValue('99999')
+    await row
+      .findAll('button')
+      .find((b) => b.text() === t('plugins.settings_save'))!
+      .trigger('click')
+    await flushPromises()
+    expect(mocks.saveSettings).not.toHaveBeenCalled()
+    expect(row.find('[data-field="limit"] [role="alert"]').text()).toBe(
+      t('plugins.settings_number_range', { min: 1, max: 5000 }),
+    )
+  })
+
+  it('核心拒绝时显示原因', async () => {
+    mocks.saveSettings.mockImplementation(() =>
+      Promise.resolve({
+        status: 'error',
+        error: { code: 'plugins.bad_settings', message_key: 'error.plugin_bad_settings' },
+      }),
+    )
+    mocks.list!.plugins[0] = item({ contributes: contributes({ has_settings: true }) })
+    const w = await show()
+    const row = plugin(w, 'dev.example.emoji')
+    await row
+      .findAll('button')
+      .find((b) => b.text() === t('plugins.settings'))!
+      .trigger('click')
+    await flushPromises()
+    await row
+      .findAll('button')
+      .find((b) => b.text() === t('plugins.settings_save'))!
+      .trigger('click')
+    await flushPromises()
+    expect(row.find('[data-form="settings"] > [role="alert"]').text()).toBe(t('error.plugin_bad_settings'))
   })
 })

@@ -316,6 +316,13 @@ export const commands = {
 	pluginsUninstall: (id: string, deleteData: boolean) => typedError<null, UiError>(__TAURI_INVOKE("plugins_uninstall", { id, deleteData })),
 	/**  重新启用被连续出错自动停用的插件；核心里没加载这个插件时返回 false。 */
 	pluginsReenable: (id: string) => typedError<boolean, UiError>(__TAURI_INVOKE("plugins_reenable", { id })),
+	/**  插件的设置声明与当前值；没有设置的插件 `fields` 为空。 */
+	pluginsSettings: (id: string) => typedError<PluginSettings, UiError>(__TAURI_INVOKE("plugins_settings", { id })),
+	/**
+	 *  保存插件设置（`values`：每项是字段 id 与值，形状同 `ime_config_set`）。核心按声明校验，
+	 *  不合法时 `plugins.bad_settings`。
+	 */
+	pluginsSaveSettings: (id: string, values: ImeItemInput[]) => typedError<null, UiError>(__TAURI_INVOKE("plugins_save_settings", { id, values })),
 };
 
 /** Events */
@@ -1049,6 +1056,32 @@ export type PluginPreview = {
 	/**  已装的版本（升级时） */
 	upgrade_from: string | null,
 	source: string,
+};
+
+/**
+ *  插件设置声明里的一项（插件不带界面，设置页按它渲染，ADR 0054 第 7 条）。
+ *  `kind` 是 `text` / `secure_text` / `toggle` / `choice` / `number`，其余字段按类型有无。
+ */
+export type PluginSettingField = {
+	id: string,
+	label: string,
+	help: string,
+	type: string,
+	/**  默认值（密钥字段没有） */
+	default?: unknown,
+	/**  text：最长字数 */
+	max_len?: number | null,
+	/**  choice：可选项 */
+	options?: string[] | null,
+	/**  number：范围 */
+	min?: number | null,
+	max?: number | null,
+};
+
+/**  `plugins_settings` 的结果：设置声明与当前值（字段 id → 值，不含密钥字段）。 */
+export type PluginSettings = {
+	fields: PluginSettingField[],
+	values: unknown,
 };
 
 /**  插件在核心里的状态。 */
