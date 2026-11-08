@@ -2049,6 +2049,13 @@ function Do-Installer ([string]$profile = "release", [bool]$skipBuild = $false) 
         ErrMsg "无 $outdir 产物; 去掉 skip 先全构建, 或运行 '$(if($profile -eq 'dev'){'d1'}else{'1'})'。"; return $false
     }
 
+    # CMake unit tests belong in the build tree, never in a distributable payload.
+    $testArtifacts = @(Get-ChildItem -LiteralPath $outdir -File -Filter '*_test.exe')
+    if ($testArtifacts.Count -gt 0) {
+        ErrMsg '产物目录含测试程序，请清理或全构建后重新打包。'
+        return $false
+    }
+
     # Inspect actual PE imports before signing or archiving the payload.
     $crtCheck = Join-Path $instDir 'scripts\verify-static-crt.ps1'
     if (-not (Test-Path $crtCheck)) { ErrMsg "缺少 CRT 发布检查: $crtCheck"; return $false }
