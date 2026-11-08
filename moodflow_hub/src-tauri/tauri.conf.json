@@ -8,7 +8,10 @@
     "devUrl": "http://localhost:1420",
     "frontendDist": "../dist",
     "beforeDevCommand": "pnpm dev",
-    "beforeBuildCommand": "pnpm build"
+    "beforeBuildCommand": "pnpm build",
+    "windows": {
+      "staticVCRuntime": false
+    }
   },
   "app": {
     "withGlobalTauri": false,

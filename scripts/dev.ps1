@@ -2047,6 +2047,13 @@ function Do-Installer ([string]$profile = "release", [bool]$skipBuild = $false) 
         ErrMsg "无 $outdir 产物; 去掉 skip 先全构建, 或运行 '$(if($profile -eq 'dev'){'d1'}else{'1'})'。"; return $false
     }
 
+    # Inspect actual PE imports before signing or archiving the payload.
+    $crtCheck = Join-Path $instDir 'scripts\verify-static-crt.ps1'
+    if (-not (Test-Path $crtCheck)) { ErrMsg "缺少 CRT 发布检查: $crtCheck"; return $false }
+    $payloadPe = @(Get-ChildItem -LiteralPath $outdir -File | Where-Object { $_.Extension -in '.exe', '.dll' } | ForEach-Object { $_.FullName })
+    & $crtCheck -Path $payloadPe
+    if ($LASTEXITCODE -ne 0) { ErrMsg '包内程序存在动态 CRT 依赖'; return $false }
+
     # 2.5 签 build\ 下的 PE —— 必须在 pack 之前, 因为 pack 就是把它们封进压缩块。
     #
     # ⚠️ 这一步【不能】只依赖 Do-Full 里那次: skip 模式 (8s/d8s) 根本不走 Do-Full,
