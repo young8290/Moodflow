@@ -47,6 +47,7 @@
 ### 2026-11-09 进展
 
 - W1/W2/W3 已完成本轮代码接入：焦点修订号、精确实例投递、写入前授权、真实编辑回执、拒收/未知保留、英文直输与退格。运行验收尚未完成，故上方整体交付项暂不勾选。
+- W4 已接入按下/松开生命周期：短按一块、长按冻结队列、成功回执推进、可选间隔与完成后关闭；支持取消和自动重复抑制，长按判定不依赖后台线程及时运行。配置及右键选项已接入；实际 TSF 桌面操作仍待验收。
 - 安装器仓库位于 `.cache/wind-installer`，分支 `codex/moodflow-installer`，本地提交 `0b01471`。程序/工具、品牌资产、PE 身份、日志、CI 和参考清单已改为 Moodflow；保留原始 MIT 与第三方署名。
 - 安装前校验现先于任何进程终止或系统修改；检查全部路径、长度、CRC，且 Moodflow 强制验证 `data/manifest.json` 的逐文件 SHA-256。Unicode/空格路径实际打包、解包、卸载器清单读取、同长度篡改拒收已通过。
 - 签名支持 CurrentUser/My 或 LocalMachine/My 中的代码签名证书；明确请求签名后，缺证书或验签失败会中止。16 项策略检查通过。
@@ -59,7 +60,7 @@
 
 - `dist/MoodflowDev-Setup-0.124.1-beta.exe`：未签名的开发验证包；包含核心、双架构 TSF、Hub、运行数据与卸载器。最终长度和哈希以同目录 `latest-dev.json` 为准。未执行系统安装或 TSF 注册。
 - 包内 105 个文件经过验证和解包复核。`latest-dev.json` 指向 Moodflow 自己的 GitHub Release 下载地址，SHA-256/size 与最终 Setup 一致。
-- 协调器完整单元回归：1123 通过、1 原有忽略；Bridge 55、Buffer 27、IPC 62、TSF C++ 12 项通过。
+- W4 后协调器完整单元回归：1130 通过、1 原有忽略；Buffer 29、配置 622、菜单协议 29、TSF C++ 12 项通过。Bridge 55、IPC 62 项在前序投递协议变更后通过。
 - 输入工作区全目标 Clippy（`--workspace --all-targets -D warnings`）和格式检查通过；Hub 的类型、ESLint、Prettier、365 项测试及原生 Release 构建通过。
 - 在 Windows 文件沙箱中，全量测试的临时文件/目录联接操作会失败；使用本项目 `.cache/coordinator-test-tmp` 并限制两个测试线程后全量通过。未改动真实重启删除队列。
 - 验证实际“缺证书但要求签名”路径会拒绝发布并保留原文件；尚未进行真实证书签名。

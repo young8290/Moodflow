@@ -3754,7 +3754,44 @@ impl Default for CaretPlacementConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct InputBufferConfig {
+    /// Hold threshold; consumers clamp handwritten values to 500..=3000 ms.
+    pub hold_ms: i64,
+    /// off / 1s / 2s / 3s / 5s, measured after the previous accepted receipt.
+    pub pace: String,
+    pub close_after_send: bool,
+}
+
+impl Default for InputBufferConfig {
+    fn default() -> Self {
+        Self {
+            hold_ms: 1200,
+            pace: "off".into(),
+            close_after_send: false,
+        }
+    }
+}
+
+impl InputBufferConfig {
+    pub fn hold_ms(&self) -> u64 {
+        self.hold_ms.clamp(500, 3000) as u64
+    }
+    pub fn pace_ms(&self) -> u64 {
+        match self.pace.as_str() {
+            "1s" => 1000,
+            "2s" => 2000,
+            "3s" => 3000,
+            "5s" => 5000,
+            _ => 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InputConfig {
+    #[serde(default)]
+    pub buffer: InputBufferConfig,
     #[serde(default = "default_filter_mode")]
     pub filter_mode: String,
     /// 含生僻字的**词**要不要吃 `filter_mode` 这一刀：`keep`（出厂，整词放行）/ `filter`
@@ -4010,6 +4047,7 @@ impl InputConfig {
 impl Default for InputConfig {
     fn default() -> Self {
         Self {
+            buffer: InputBufferConfig::default(),
             filter_mode: "smart".to_string(),
             rare_phrase: default_rare_phrase(),
             commit_newline: default_commit_newline(),

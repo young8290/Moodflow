@@ -1488,6 +1488,18 @@ STDAPI CKeyEventSink::OnKeyDown(ITfContext* pContext, WPARAM wParam, LPARAM lPar
         _chordDown.insert((UINT)wParam);
     }
 
+    // Buffer needs physical hotkey release to distinguish a tap from a hold.
+    // Mirror all non-modifier action hotkeys while capture is active; the core
+    // consumes only the matching Buffer press. Other key-up events stay inert.
+    auto* bufferIpc = _pTextService->GetIPCClient();
+    if (isKeyDownHotkey && bufferIpc
+        && bufferIpc->BufferCaptureRevision() == _pTextService->GetFocusSessionId()
+        && bufferIpc->BufferCaptureRevision() != 0
+        && !_IsPureModifierKey(wParam) && wParam != VK_CAPITAL
+        && wParam != VK_LWIN && wParam != VK_RWIN) {
+        _bufferActionKeysDown[(UINT)wParam] = modifiers;
+    }
+
     // Send key to Go Service using binary protocol (SYNC mode)
     if (!_SendKeyToService((uint32_t)wParam, modifiers, KEY_EVENT_DOWN))
     {
@@ -1698,6 +1710,11 @@ STDAPI CKeyEventSink::OnTestKeyUp(ITfContext* pContext, WPARAM wParam, LPARAM lP
     if (_pTextService->IsKeyboardDisabled())
         return S_OK;
 
+    if (_DispatchBufferActionKeyUp(wParam)) {
+        *pfEaten = TRUE;
+        return S_OK;
+    }
+
     // direct_commit 顶码：余码新组合在**触发键**的 keyup 才开。先到者开组合，另一处
     // HasDeferredComposition()==FALSE 后自然 no-op。
     // ⚠️ 不能是「下一个 keyup」：快打时按下触发键那一刻前一个编码键常还按着，它的 keyup
@@ -1767,6 +1784,11 @@ STDAPI CKeyEventSink::OnKeyUp(ITfContext* pContext, WPARAM wParam, LPARAM lParam
     // 真实按键处理——注意与下一行注释里的「顶码触发键」不是同一个概念，只是恰好同名字。
     if (wParam == VK_ASYNC_COMMIT_TRIGGER)
     {
+        *pfEaten = TRUE;
+        return S_OK;
+    }
+
+    if (_DispatchBufferActionKeyUp(wParam)) {
         *pfEaten = TRUE;
         return S_OK;
     }
@@ -2123,6 +2145,16 @@ BOOL CKeyEventSink::_DispatchPendingToggleKeyUp(WPARAM wParam)
             MOODFLOW_LOG_ERROR(L"IPC failed for toggle key, not toggling locally");
     }
 
+    return TRUE;
+}
+
+BOOL CKeyEventSink::_DispatchBufferActionKeyUp(WPARAM vk)
+{
+    auto found = _bufferActionKeysDown.find((UINT)vk);
+    if (found == _bufferActionKeysDown.end()) return FALSE;
+    const auto modifiers = found->second;
+    _bufferActionKeysDown.erase(found);
+    if (_SendKeyToService((uint32_t)vk, modifiers, KEY_EVENT_UP)) _HandleServiceResponse();
     return TRUE;
 }
 

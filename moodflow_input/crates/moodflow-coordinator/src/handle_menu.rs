@@ -216,7 +216,17 @@ impl Coordinator {
             | MenuCmd::BufferDeleteLast
             | MenuCmd::BufferClear
             | MenuCmd::BufferReleaseHold
-            | MenuCmd::BufferClose => self.run_buffer_menu_cmd(cmd),
+            | MenuCmd::BufferClose
+            | MenuCmd::BufferCancelSequence => self.run_buffer_menu_cmd(cmd),
+            MenuCmd::BufferPaceOff
+            | MenuCmd::BufferPace1
+            | MenuCmd::BufferPace2
+            | MenuCmd::BufferPace3
+            | MenuCmd::BufferPace5
+            | MenuCmd::BufferToggleClose
+            | MenuCmd::BufferHold500
+            | MenuCmd::BufferHold1200
+            | MenuCmd::BufferHold3000 => self.run_buffer_menu_cmd(cmd),
             MenuCmd::SchemaEnglish => {
                 // ctrl_held=false：菜单点的，与按键无关。它只被 `ignore_host_ime_close`
                 // 消费，而那条规则只拦 compartment 来源，菜单永远照办。

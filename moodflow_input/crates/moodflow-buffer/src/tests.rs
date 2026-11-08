@@ -1,6 +1,39 @@
 use super::*;
 
 #[test]
+fn sequence_freezes_the_whole_prefix_and_excludes_new_input() {
+    let mut b = bound();
+    b.push_phrase("一").unwrap();
+    b.push_latin('a').unwrap();
+    assert_eq!(b.freeze_queue(), 2);
+    assert_eq!(b.backspace(), Err(EditError::Busy));
+    b.push_latin('b').unwrap();
+    assert_eq!(texts(&b), ["一", "a", "b"]);
+    let first = b.begin_next(A).unwrap();
+    assert_eq!(first.text, "一");
+    b.finish(first.token, Outcome::Accepted).unwrap();
+    assert_eq!(b.frozen_queue_len(), 1);
+    let second = b.begin_next(A).unwrap();
+    assert_eq!(second.text, "a");
+    b.finish(second.token, Outcome::Accepted).unwrap();
+    assert_eq!(b.frozen_queue_len(), 0);
+    assert_eq!(b.text(), "b");
+}
+
+#[test]
+fn releasing_a_sequence_does_not_unlock_a_delivery_in_flight() {
+    let mut b = bound();
+    b.push_phrase("原文").unwrap();
+    b.freeze_queue();
+    let delivery = b.begin_next(A).unwrap();
+    b.release_queue();
+    assert_eq!(b.backspace(), Err(EditError::Busy));
+    b.finish(delivery.token, Outcome::Rejected).unwrap();
+    b.backspace().unwrap();
+    assert!(b.is_empty());
+}
+
+#[test]
 fn suffix_replacement_is_atomic_and_preserves_frozen_prefix() {
     let mut b = Buffer::new(7);
     b.bind(Target::new(1, 1), FieldKind::Normal).unwrap();

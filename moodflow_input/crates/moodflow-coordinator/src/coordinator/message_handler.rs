@@ -970,6 +970,9 @@ impl MessageHandler for Coordinator {
         // 于 keyUp 转发该键事件（_SendKeyToService(..., KEY_EVENT_UP)）。因此服务端
         // 收到 toggle 键的 keyUp 即应直接切换，无需 keydown/pending（对齐 Go HandleKeyEvent）。
         if data.event_type == EVENT_KEY_UP {
+            if let Some(action) = self.buffer_send_released(data) {
+                return action;
+            }
             // 并击键的松开（TSF 只在并击开启时转发字母键的 keyup，见 handle_chord）。
             if let Some(act) = self.chord_key_up(data) {
                 return act;
@@ -1219,7 +1222,7 @@ impl MessageHandler for Coordinator {
                 return self.buffer_mode_action();
             } else if action == "buffer_send" {
                 // Buffer 没打开时返回 None：落回常规链路（见 handle_buffer 模块文档）。
-                if let Some(act) = self.buffer_send_keyed() {
+                if let Some(act) = self.buffer_send_pressed(data) {
                     return act;
                 }
             } else if let Some(act) = self.dispatch_bound_action_hotkey(&action) {

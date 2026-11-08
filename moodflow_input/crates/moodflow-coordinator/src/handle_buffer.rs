@@ -4,7 +4,7 @@
 //!   绑定已暂停（换过框、切过应用）时再按一次重新绑定；已打开且绑定有效时再按一次关闭（内容保留）。
 //! - 打开且绑定有效时，按键动作里的上屏正文**改进 Buffer**（每次一块），宿主只收到一次空上屏
 //!   用来结束组字——候选窗、组字区照常收尾，文档里什么都没写进去。
-//! - `keys.buffer_send`（出厂 Ctrl+Shift+Enter）：把整个 Buffer 投递到绑定的输入框。有组字时只
+//! - `keys.buffer_send`（出厂 Ctrl+Shift+Enter）：短按发送一块，长按发送冻结队列。有组字时只
 //!   确认组字，这次按键不顺带发送（契约 7）。
 //! - 右键浮窗：发送、删除最后一块、清空、关闭。
 //!
@@ -28,6 +28,8 @@ use moodflow_ipc::buffer::{DELIVERY_TIMEOUT_MS, Delivery, Mode, Receipt, Receipt
 use moodflow_ui_types::{BufferView, MenuAnchor, MenuCmd, MenuItemSpec as M, MenuKind, UiCommand};
 
 use crate::coordinator::Coordinator;
+
+mod sequence;
 
 /// Buffer 容量：16,384 个 UTF-16 码元（契约 11）。
 const CAPACITY_UTF16: usize = 16_384;
@@ -54,10 +56,16 @@ struct Inner {
     capture_target: Option<Target>,
     last_mode: Mode,
     notice: Option<&'static str>,
+    /// 队列、回执与焦点撤销必须在同一把锁下推进；后台节拍不持输入 State 锁。
+    sequence: Option<sequence::Sequence>,
+    /// 物理按下的锁存独立于队列，完成后仍阻止自动重复启动下一队列。
+    send_key_down: Option<u32>,
 }
 
 impl Inner {
     fn revoke(&mut self) {
+        self.stop_sequence();
+        self.send_key_down = None;
         self.capture_target = None;
         // 宿主可能已经写入但回执尚未抵达，不能把在途文字恢复为可自动重发。
         if let Some(pending) = self.pending.take() {
@@ -82,6 +90,8 @@ impl Default for BufferState {
                     generation: 0,
                 },
                 notice: None,
+                sequence: None,
+                send_key_down: None,
             }),
             next_delivery: AtomicU64::new(
                 SystemTime::now()
@@ -187,13 +197,29 @@ impl BufferState {
     /// 冻结当前内容，保留原块直至宿主回执。
     fn begin_all(&self) -> Result<Delivery, DeliverError> {
         let mut g = self.lock();
+        if g.sequence.is_some() {
+            return Err(DeliverError::Busy);
+        }
+        self.begin_locked(&mut g, true, Instant::now())
+    }
+
+    fn begin_locked(
+        &self,
+        g: &mut Inner,
+        all: bool,
+        now: Instant,
+    ) -> Result<Delivery, DeliverError> {
         if !g.open {
             return Err(DeliverError::Suspended);
         }
         let Some(cur) = g.current else {
             return Err(DeliverError::NotBound);
         };
-        let d = g.buf.begin_all(cur)?;
+        let d = if all {
+            g.buf.begin_all(cur)?
+        } else {
+            g.buf.begin_next(cur)?
+        };
         if !g.buf.is_authorized(d.token, cur) {
             return Err(DeliverError::TargetMismatch);
         }
@@ -202,7 +228,7 @@ impl BufferState {
             id,
             token: d.token,
             target: cur,
-            started: Instant::now(),
+            started: now,
             authorized: false,
         });
         Ok(Delivery {
@@ -235,6 +261,10 @@ impl BufferState {
     }
 
     fn finish(&self, receipt: Receipt) -> bool {
+        self.finish_at(receipt, Instant::now())
+    }
+
+    fn finish_at(&self, receipt: Receipt, now: Instant) -> bool {
         let mut g = self.lock();
         let Some(p) = g.pending.as_ref() else {
             return false;
@@ -251,7 +281,11 @@ impl BufferState {
             ReceiptOutcome::Rejected => Outcome::Rejected,
             ReceiptOutcome::Unknown => Outcome::Unknown,
         };
-        g.buf.finish(token, outcome).is_ok()
+        let finished = g.buf.finish(token, outcome).is_ok();
+        if finished {
+            g.sequence_receipt(receipt.outcome, now);
+        }
+        finished
     }
 
     fn expire(&self, id: u64) -> bool {
@@ -268,13 +302,19 @@ impl BufferState {
         let g = self.lock();
         let status = match g.buf.state() {
             State::Ready if g.pending.is_some() => "正在发送 · 等待输入框确认".to_string(),
-            State::Ready => format!("已绑定 · {hint_send} 发送 · 右键更多"),
+            State::Ready => format!("已绑定 · {hint_send} 短按一块 / 长按逐块 · 右键更多"),
             State::Suspended | State::Unbound => {
                 format!("已暂停（换过输入框）· 回到要发送的框按 {hint_toggle} 重新绑定")
             }
             State::Held => "上次发送结果不明，已暂停 · 右键确认后继续".to_string(),
         };
-        (g.buf.text(), g.notice.map(str::to_owned).unwrap_or(status))
+        (
+            g.buf.text(),
+            g.notice
+                .map(str::to_owned)
+                .or_else(|| g.sequence_status())
+                .unwrap_or(status),
+        )
     }
 }
 
@@ -460,50 +500,54 @@ impl Coordinator {
             return;
         }
         match self.buffer.begin_all() {
-            Ok(mut delivery) => {
-                if let KeyAction::InsertText { text, .. } =
-                    self.apply_plugin_transform(KeyAction::InsertText {
-                        text: delivery.text.clone(),
-                        new_composition: None,
-                        mode_changed: false,
-                        chinese_mode: self.is_chinese_mode(),
-                        has_new_composition: false,
-                    })
-                {
-                    delivery.text = text;
-                }
-                delivery.text = self.convert_commit_newline(delivery.text);
-                let queued = delivery.encode().is_some_and(|body| {
-                    self.push_server.push_to_token(
-                        delivery.client,
-                        &moodflow_ipc::codec::encode_ext(
-                            moodflow_ipc::protocol::ext_kind::BUFFER_DELIVER,
-                            &body,
-                        ),
-                    )
-                });
-                if !queued {
-                    self.buffer.finish(Receipt {
-                        id: delivery.id,
-                        client: delivery.client,
-                        revision: delivery.revision,
-                        outcome: ReceiptOutcome::Rejected,
-                    });
-                    self.show_tip("输入框未连接，文字已保留");
-                } else if let Some(weak) = self.self_weak.get().cloned() {
-                    std::thread::spawn(move || {
-                        std::thread::sleep(Duration::from_millis(DELIVERY_TIMEOUT_MS));
-                        if let Some(c) = weak.upgrade()
-                            && c.buffer.expire(delivery.id)
-                        {
-                            c.push_buffer_panel();
-                        }
-                    });
-                }
-            }
-            Err(e) => self.show_tip(deliver_error_tip(e)),
+            Ok(delivery) => self.dispatch_buffer_delivery(delivery, true),
+            Err(error) => self.show_tip(deliver_error_tip(error)),
         }
         self.push_buffer_panel();
+    }
+
+    fn dispatch_buffer_delivery(&self, mut delivery: Delivery, timeout_worker: bool) {
+        self.buffer.lock().notice = None;
+
+        if let KeyAction::InsertText { text, .. } =
+            self.apply_plugin_transform(KeyAction::InsertText {
+                text: delivery.text.clone(),
+                new_composition: None,
+                mode_changed: false,
+                chinese_mode: self.is_chinese_mode(),
+                has_new_composition: false,
+            })
+        {
+            delivery.text = text;
+        }
+        delivery.text = self.convert_commit_newline(delivery.text);
+        let queued = delivery.encode().is_some_and(|body| {
+            self.push_server.push_to_token(
+                delivery.client,
+                &moodflow_ipc::codec::encode_ext(
+                    moodflow_ipc::protocol::ext_kind::BUFFER_DELIVER,
+                    &body,
+                ),
+            )
+        });
+        if !queued {
+            self.buffer.finish(Receipt {
+                id: delivery.id,
+                client: delivery.client,
+                revision: delivery.revision,
+                outcome: ReceiptOutcome::Rejected,
+            });
+            self.show_tip("输入框未连接，文字已保留");
+        } else if timeout_worker && let Some(weak) = self.self_weak.get().cloned() {
+            std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_millis(DELIVERY_TIMEOUT_MS));
+                if let Some(c) = weak.upgrade()
+                    && c.buffer.expire(delivery.id)
+                {
+                    c.push_buffer_panel();
+                }
+            });
+        }
     }
 
     pub(crate) fn buffer_receipt(&self, receipt: Receipt) {
@@ -658,6 +702,47 @@ impl Coordinator {
             ),
             M::leaf("清空", cmd(MenuCmd::BufferClear), !empty, false),
         ];
+        if self.buffer.lock().sequence.is_some() {
+            items.push(M::leaf(
+                "停止逐块发送",
+                cmd(MenuCmd::BufferCancelSequence),
+                true,
+                false,
+            ));
+        }
+        items.push(M::separator());
+        let config = self.rt().config.input.buffer.clone();
+        let mut pace_items = Vec::new();
+        for (label, command, selected) in [
+            ("连续发送", MenuCmd::BufferPaceOff, config.pace == "off"),
+            ("每隔 1 秒", MenuCmd::BufferPace1, config.pace == "1s"),
+            ("每隔 2 秒", MenuCmd::BufferPace2, config.pace == "2s"),
+            ("每隔 3 秒", MenuCmd::BufferPace3, config.pace == "3s"),
+            ("每隔 5 秒", MenuCmd::BufferPace5, config.pace == "5s"),
+        ] {
+            pace_items.push(M::leaf(label, cmd(command), true, selected));
+        }
+        items.push(M::submenu("逐块发送间隔", pace_items));
+        let mut hold_items = Vec::new();
+        for (label, command, value) in [
+            ("长按 0.5 秒", MenuCmd::BufferHold500, 500),
+            ("长按 1.2 秒", MenuCmd::BufferHold1200, 1200),
+            ("长按 3 秒", MenuCmd::BufferHold3000, 3000),
+        ] {
+            hold_items.push(M::leaf(
+                label,
+                cmd(command),
+                true,
+                config.hold_ms() == value,
+            ));
+        }
+        items.push(M::submenu("长按阈值", hold_items));
+        items.push(M::leaf(
+            "发送完关闭 Buffer",
+            cmd(MenuCmd::BufferToggleClose),
+            true,
+            config.close_after_send,
+        ));
         if held {
             items.push(M::separator());
             items.push(M::leaf(
@@ -683,12 +768,30 @@ impl Coordinator {
 
     pub(crate) fn run_buffer_menu_cmd(&self, cmd: MenuCmd) {
         match cmd {
+            MenuCmd::BufferPaceOff => self.set_buffer_option("pace", "off".into()),
+            MenuCmd::BufferPace1 => self.set_buffer_option("pace", "1s".into()),
+            MenuCmd::BufferPace2 => self.set_buffer_option("pace", "2s".into()),
+            MenuCmd::BufferPace3 => self.set_buffer_option("pace", "3s".into()),
+            MenuCmd::BufferPace5 => self.set_buffer_option("pace", "5s".into()),
+            MenuCmd::BufferHold500 => self.set_buffer_option("hold_ms", toml::Value::Integer(500)),
+            MenuCmd::BufferHold1200 => {
+                self.set_buffer_option("hold_ms", toml::Value::Integer(1200))
+            }
+            MenuCmd::BufferHold3000 => {
+                self.set_buffer_option("hold_ms", toml::Value::Integer(3000))
+            }
+            MenuCmd::BufferToggleClose => {
+                let value = !self.rt().config.input.buffer.close_after_send;
+                self.set_buffer_option("close_after_send", toml::Value::Boolean(value));
+            }
+            MenuCmd::BufferCancelSequence => self.cancel_buffer_sequence(),
             MenuCmd::BufferSend => self.send_buffer(),
             MenuCmd::BufferDeleteLast => {
                 let _ = self.buffer.lock().buf.delete_last_block();
             }
             MenuCmd::BufferClear => {
                 let mut g = self.buffer.lock();
+                g.stop_sequence();
                 g.pending = None;
                 g.buf.clear();
             }
@@ -701,6 +804,15 @@ impl Coordinator {
             _ => {}
         }
         self.push_buffer_panel();
+    }
+
+    fn set_buffer_option(&self, key: &str, value: toml::Value) {
+        if moodflow_config::Config::set_user_value(&["input", "buffer", key], value).is_ok() {
+            self.reload_user_config();
+            self.buffer.lock().notice = Some("设置已保存，下次发送生效");
+        } else {
+            self.show_tip("保存 Buffer 设置失败");
+        }
     }
 }
 
@@ -962,6 +1074,49 @@ mod tests {
             event_seq: 0,
             prev_char: 0,
         }
+    }
+
+    #[test]
+    fn cancel_keeps_physical_press_latched_and_rejects_late_authorization() {
+        use moodflow_keys::keymap::VK_RETURN;
+        let c = ready();
+        let data = key(VK_RETURN, 0);
+        assert!(matches!(
+            c.buffer_send_pressed(&data),
+            Some(KeyAction::Consumed)
+        ));
+        assert!(c.buffer.lock().sequence.is_some());
+        let next_delivery = c.buffer.next_delivery.load(Ordering::Relaxed);
+        assert!(matches!(
+            c.buffer_send_pressed(&data),
+            Some(KeyAction::Consumed)
+        ));
+        assert_eq!(
+            c.buffer.next_delivery.load(Ordering::Relaxed),
+            next_delivery
+        );
+        let delivery = {
+            let mut g = c.buffer.lock();
+            c.buffer
+                .begin_locked(&mut g, false, Instant::now())
+                .unwrap()
+        };
+        assert!(c.buffer_authorize(delivery.id, delivery.client, delivery.revision));
+        c.cancel_buffer_sequence();
+        assert_eq!(c.buffer.lock().buf.state(), State::Held);
+        assert_eq!(c.buffer.lock().buf.text(), "保留内容");
+        assert!(!c.buffer_authorize(delivery.id, delivery.client, delivery.revision));
+        assert!(
+            !c.buffer
+                .finish(receipt(&delivery, ReceiptOutcome::Accepted))
+        );
+        c.buffer_send_pressed(&data);
+        assert!(
+            c.buffer.lock().sequence.is_none(),
+            "repeat must not start a new sequence"
+        );
+        assert!(c.buffer_send_released(&data).is_some());
+        assert!(c.buffer.lock().send_key_down.is_none());
     }
 
     #[test]
