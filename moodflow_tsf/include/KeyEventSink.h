@@ -5,6 +5,7 @@
 #include "SkipKeyTable.h"
 #include "PassthroughNote.h"
 #include "ToggleTapPolicy.h"
+#include "PhysicalKeyRelease.h"
 #include <string>
 #include <cstdint>
 #include <deque>
@@ -305,8 +306,8 @@ private:
     // 与没开面板时完全一致，于是这一面上能正常组码打中文。
     bool _IsSoftKeyboardEatenKey(WPARAM vk, uint32_t modifiers) const;
     bool _IsBufferInputKey(WPARAM vk, uint32_t modifiers) const;
-    BOOL _DispatchBufferActionKeyUp(WPARAM vk);
-    std::map<UINT, uint32_t> _bufferActionKeysDown;
+    BOOL _DispatchBufferActionKeyUp(WPARAM vk, bool testCallback);
+    moodflow::keys::PhysicalKeyRelease _bufferActionKeys;
     // Ctrl+Shift+F12（环形日志导出）的**唯一判据**。`OnTestKeyDown`（吃）与
     // `OnKeyDown`（导出）都调它，纪律同上：两处各写一份条件，就会在开关切换的瞬间
     // 出现「这边吃了、那边不认」而把键吞掉。

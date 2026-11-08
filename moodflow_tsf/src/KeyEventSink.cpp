@@ -1497,7 +1497,7 @@ STDAPI CKeyEventSink::OnKeyDown(ITfContext* pContext, WPARAM wParam, LPARAM lPar
         && bufferIpc->BufferCaptureRevision() != 0
         && !_IsPureModifierKey(wParam) && wParam != VK_CAPITAL
         && wParam != VK_LWIN && wParam != VK_RWIN) {
-        _bufferActionKeysDown[(UINT)wParam] = modifiers;
+        _bufferActionKeys.Down((UINT)wParam, modifiers);
     }
 
     // Send key to Go Service using binary protocol (SYNC mode)
@@ -1710,7 +1710,7 @@ STDAPI CKeyEventSink::OnTestKeyUp(ITfContext* pContext, WPARAM wParam, LPARAM lP
     if (_pTextService->IsKeyboardDisabled())
         return S_OK;
 
-    if (_DispatchBufferActionKeyUp(wParam)) {
+    if (_DispatchBufferActionKeyUp(wParam, true)) {
         *pfEaten = TRUE;
         return S_OK;
     }
@@ -1788,7 +1788,7 @@ STDAPI CKeyEventSink::OnKeyUp(ITfContext* pContext, WPARAM wParam, LPARAM lParam
         return S_OK;
     }
 
-    if (_DispatchBufferActionKeyUp(wParam)) {
+    if (_DispatchBufferActionKeyUp(wParam, false)) {
         *pfEaten = TRUE;
         return S_OK;
     }
@@ -2148,14 +2148,12 @@ BOOL CKeyEventSink::_DispatchPendingToggleKeyUp(WPARAM wParam)
     return TRUE;
 }
 
-BOOL CKeyEventSink::_DispatchBufferActionKeyUp(WPARAM vk)
+BOOL CKeyEventSink::_DispatchBufferActionKeyUp(WPARAM vk, bool testCallback)
 {
-    auto found = _bufferActionKeysDown.find((UINT)vk);
-    if (found == _bufferActionKeysDown.end()) return FALSE;
-    const auto modifiers = found->second;
-    _bufferActionKeysDown.erase(found);
-    if (_SendKeyToService((uint32_t)vk, modifiers, KEY_EVENT_UP)) _HandleServiceResponse();
-    return TRUE;
+    const auto release = _bufferActionKeys.Up((UINT)vk, testCallback);
+    if (release.forward && _SendKeyToService((uint32_t)vk, release.modifiers, KEY_EVENT_UP))
+        _HandleServiceResponse();
+    return release.consume ? TRUE : FALSE;
 }
 
 BOOL CKeyEventSink::_DispatchChordKeyUp(WPARAM wParam)
