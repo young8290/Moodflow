@@ -84,6 +84,18 @@ pub enum MenuCmd {
     BufferClear,
     /// Buffer：关闭（保留内容，下次打开还在）。
     BufferClose,
+    /// 用户核实上次没有写入后，解除未知结果的暂停。
+    BufferReleaseHold,
+    BufferCancelSequence,
+    BufferPaceOff,
+    BufferPace1,
+    BufferPace2,
+    BufferPace3,
+    BufferPace5,
+    BufferToggleClose,
+    BufferHold500,
+    BufferHold1200,
+    BufferHold3000,
     /// 切到英文模式
     SchemaEnglish,
     /// 选择第 N 个输入方案
@@ -327,6 +339,17 @@ impl MenuKind {
                 MenuCmd::BufferDeleteLast => 139,
                 MenuCmd::BufferClear => 140,
                 MenuCmd::BufferClose => 141,
+                MenuCmd::BufferReleaseHold => 142,
+                MenuCmd::BufferCancelSequence => 143,
+                MenuCmd::BufferPaceOff => 144,
+                MenuCmd::BufferPace1 => 145,
+                MenuCmd::BufferPace2 => 146,
+                MenuCmd::BufferPace3 => 147,
+                MenuCmd::BufferPace5 => 148,
+                MenuCmd::BufferToggleClose => 149,
+                MenuCmd::BufferHold500 => 150,
+                MenuCmd::BufferHold1200 => 151,
+                MenuCmd::BufferHold3000 => 152,
                 MenuCmd::ClipboardPaste(i) => 19000 + i as i32,
                 MenuCmd::ClipboardTogglePin(i) => 20000 + i as i32,
                 MenuCmd::ClipboardRemove(i) => 21000 + i as i32,
@@ -409,6 +432,17 @@ impl MenuKind {
             139 => MenuCmd::BufferDeleteLast,
             140 => MenuCmd::BufferClear,
             141 => MenuCmd::BufferClose,
+            142 => MenuCmd::BufferReleaseHold,
+            143 => MenuCmd::BufferCancelSequence,
+            144 => MenuCmd::BufferPaceOff,
+            145 => MenuCmd::BufferPace1,
+            146 => MenuCmd::BufferPace2,
+            147 => MenuCmd::BufferPace3,
+            148 => MenuCmd::BufferPace5,
+            149 => MenuCmd::BufferToggleClose,
+            150 => MenuCmd::BufferHold500,
+            151 => MenuCmd::BufferHold1200,
+            152 => MenuCmd::BufferHold3000,
             19000..=19999 => MenuCmd::ClipboardPaste((id - 19000) as u16),
             20000..=20999 => MenuCmd::ClipboardTogglePin((id - 20000) as u16),
             21000..=21999 => MenuCmd::ClipboardRemove((id - 21000) as u16),
@@ -573,6 +607,31 @@ impl MenuItemSpec {
             enabled: true,
             checked: false,
             children,
+        }
+    }
+}
+
+#[cfg(test)]
+mod buffer_menu_tests {
+    use super::*;
+
+    #[test]
+    fn buffer_sequence_ids_are_stable_and_round_trip() {
+        for (id, command) in [
+            (143, MenuCmd::BufferCancelSequence),
+            (144, MenuCmd::BufferPaceOff),
+            (145, MenuCmd::BufferPace1),
+            (146, MenuCmd::BufferPace2),
+            (147, MenuCmd::BufferPace3),
+            (148, MenuCmd::BufferPace5),
+            (149, MenuCmd::BufferToggleClose),
+            (150, MenuCmd::BufferHold500),
+            (151, MenuCmd::BufferHold1200),
+            (152, MenuCmd::BufferHold3000),
+        ] {
+            let kind = MenuKind::Command(command);
+            assert_eq!(kind.to_menu_id(), id);
+            assert_eq!(MenuKind::from_menu_id(id), Some(kind));
         }
     }
 }

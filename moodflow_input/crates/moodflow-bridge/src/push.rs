@@ -146,8 +146,7 @@ impl PushServer {
     pub fn push_to_token(&self, token: u64, data: &[u8]) -> bool {
         let clients = self.clients.lock().unwrap();
         if let Some(c) = clients.iter().find(|c| c.token == token) {
-            let _ = c.tx.send(data.to_vec());
-            true
+            c.tx.send(data.to_vec()).is_ok()
         } else {
             false
         }
@@ -636,11 +635,11 @@ mod tests {
         #[cfg(windows)]
         {
             assert!(
-                dev_name.contains(r"\moodflow_input_push_dev_S-"),
+                dev_name.contains(r"\moodflow_push_dev_S-"),
                 "缺 per-user SID 后缀，实得 {dev_name}"
             );
             assert!(
-                rel_name.contains(r"\moodflow_input_push_S-"),
+                rel_name.contains(r"\moodflow_push_S-"),
                 "缺 per-user SID 后缀，实得 {rel_name}"
             );
         }
@@ -665,6 +664,19 @@ mod tests {
         // 未命中：即使只有一个客户端也不得兜底投递
         assert!(!srv.push_to_token(0xBB_0000_0002, &[9]));
         assert!(rx.try_recv().is_err(), "不匹配的 token 不得收到任何帧");
+    }
+
+    #[test]
+    fn push_to_disconnected_receiver_reports_failure() {
+        let srv = PushServer::new(PushConfig::default());
+        let (tx, rx) = std::sync::mpsc::channel::<Vec<u8>>();
+        drop(rx);
+        srv.clients_for_test().lock().unwrap().push(PushClient {
+            token: 77,
+            tx,
+            hooked: false,
+        });
+        assert!(!srv.push_to_token(77, &[1]));
     }
 
     fn add_test_client(srv: &PushServer, token: u64) {

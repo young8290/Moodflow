@@ -8,6 +8,7 @@
 
 class CTextService;
 struct ServiceResponse;
+namespace moodflow::buffer { struct Delivery; }
 
 // Menu item IDs for language bar right-click menu
 #define MENU_ID_TOGGLE_MODE      1
@@ -76,6 +77,8 @@ public:
     // Thread-safe commit text from async thread (posts message to UI thread)
     // This ensures EndComposition is called before InsertText on the correct thread
     void PostCommitText(const std::wstring& text);
+    // Returns false if the request could not be queued; no direct-write fallback.
+    bool PostBufferDelivery(const moodflow::buffer::Delivery& delivery);
 
     // Thread-safe replace-backward from async thread (undo commit push):
     // delete `count` chars before caret then insert text on the UI thread
@@ -130,6 +133,7 @@ private:
     static LRESULT CALLBACK _MsgWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
     static const UINT WM_UPDATE_STATUS;
     static const UINT WM_COMMIT_TEXT;
+    static const UINT WM_BUFFER_DELIVERY;
     static const UINT WM_CLEAR_COMPOSITION;
     static const UINT WM_UPDATE_COMPOSITION;
     static const UINT WM_SERVICE_READY;

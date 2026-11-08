@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Globals.h"
+#include "BufferDelivery.h"
 #include <ctffunc.h> // ITfIntegratableCandidateListUIElement（Dota 2 等自绘候选宿主的必需接口）
 #include "BinaryProtocol.h" // HostWindowKind / HOST_WINDOW_KIND_COUNT for the host window array
 #include "UiElementPolicy.h" // 候选 UI 元素的纯判据（可单测，见 tests/uielement_policy_test.cpp）
@@ -48,6 +49,7 @@ class CTextService : public ITfTextInputProcessorEx,
     friend class CUpdateCompositionEditSession;
     friend class CEndCompositionEditSession;
     friend class CCommitTextEditSession;
+    friend class CBufferDeliveryEditSession;
     friend class CReplaceBackwardEditSession;
     friend class CInsertTextEditSession;
 public:
@@ -194,6 +196,9 @@ public:
     // 失败（KeyEventSink 未装配 / SendInput 出错）时退回旧的 `CommitText(text, TRUE, ...)`
     // 直接异步提交，保证至少不丢字。
     BOOL CommitTextViaSyntheticKey(const std::wstring& text, BOOL replacingHeld = FALSE);
+    // Called on the TSF thread. Never falls back to global keyboard injection.
+    void DeliverBuffer(const moodflow::buffer::Delivery& delivery);
+    bool IsBufferTargetCurrent(const moodflow::buffer::Delivery& delivery, ITfContext* expected);
 
     // 把光标前 count 个已上屏字符替换为 text（智能符号纠错替换）。
     // 优先走 TSF 同步 EditSession（原子、不受输入队列时序/修饰键影响）；

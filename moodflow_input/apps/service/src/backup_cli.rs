@@ -1,10 +1,11 @@
 //! `moodflow_input backup ...` 命令行：整机备份的创建/查看/还原。
 //!
-//! 经 RPC 打给运行中的 core（仅在线）。**文件读写在 core 进程内完成**
+//! create/restore 经 RPC 打给运行中的 core。**这些文件读写在 core 进程内完成**
 //! （`backup.create`/`backup.restore` 的 RPC 收路径参数），故 CLI 侧必须先把
 //! 相对路径转为绝对路径——否则会按 core 进程的工作目录解析而非当前终端。
 //! 路径经 [`resolve_path`] 解析，支持 `${APP_DIR}` / `${USER_DATA}` /
 //! `${LOCAL_DATA}` 内部目录变量。
+//! `recover` 完全离线：只读锁定原库，在临时副本上复用 transfer 的备份导出。
 
 use serde_json::{Value, json};
 
@@ -38,6 +39,10 @@ const RESTORE_SECTIONS: &[&str] = &[
 /// 子命令入口。`args` 为 `backup` 之后的参数。返回进程退出码。
 pub fn run(args: &[String]) -> i32 {
     let r = match args.first().map(String::as_str) {
+        Some("recover") => match (args.get(1), args.get(2), args.len()) {
+            (Some(source), Some(file), 3) => cmd_recover(source, file),
+            _ => return usage_err("recover <原库.redb> <新文件.zip>（离线，只读原库）"),
+        },
         Some("create") => match args.get(1) {
             Some(file) => cmd_create(file, &args[2..]),
             None => return usage_err("create <文件.zip> [--stats] [--state]"),
@@ -71,11 +76,12 @@ pub fn run(args: &[String]) -> i32 {
 
 fn print_usage() {
     eprintln!(
-        "用法: moodflow_input backup <命令>   （需要输入法服务在线）\n\
+        "用法: moodflow_input backup <命令>   （create/restore 需要输入法服务在线）\n\
          \n\
          命令:\n  \
          create <文件.zip> [--stats] [--state]      创建整机备份（可选包含统计/界面状态）\n  \
          inspect <文件.zip>                         查看备份包内容清单\n  \
+         recover <原库.redb> <新文件.zip>           离线恢复导出；只读原库、在副本上处理、不覆盖输出\n  \
          restore <文件.zip> [--replace] [--sections a,b]\n                                             \
          还原（缺省合并；--replace 覆盖）\n\
          \n\
@@ -87,6 +93,26 @@ fn print_usage() {
 fn usage_err(form: &str) -> i32 {
     eprintln!("用法: moodflow_input backup {form}");
     2
+}
+
+fn cmd_recover(source: &str, file: &str) -> anyhow::Result<i32> {
+    let source = resolve_path(source)?;
+    let output = resolve_path(file)?;
+    let report = moodflow_transfer::recovery::export_backup(
+        std::path::Path::new(&source),
+        std::path::Path::new(&output),
+        env!("MOODFLOW_APP_VERSION"),
+        std::env::consts::OS,
+        &chrono::Utc::now().to_rfc3339(),
+    )?;
+    println!(
+        "✓ 恢复包已导出: {}（{} 个条目；原库未修改）",
+        report.path.display(),
+        report.entries.len()
+    );
+    println!("原库 SHA-256: {}", report.source_sha256);
+    println!("此包仅含数据库内可读取的数据；配置、方案和主题请另行保留整个用户目录备份。");
+    Ok(0)
 }
 
 fn cmd_create(file: &str, rest: &[String]) -> anyhow::Result<i32> {
@@ -206,4 +232,36 @@ fn manifest_entry_count(v: &Value) -> Option<usize> {
         .get("contents")
         .and_then(Value::as_array)
         .map(Vec::len)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn recover_routes_offline_and_rejects_extra_or_missing_arguments() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("原库.redb");
+        let output = dir.path().join("recovered.zip");
+        {
+            let store = moodflow_store::Store::open(&source).unwrap();
+            store
+                .add_user_word("wubi", "abcd", "恢复测试", 100, 0)
+                .unwrap();
+        }
+        let original = std::fs::read(&source).unwrap();
+        let mut args = vec![
+            "recover".into(),
+            source.to_str().unwrap().into(),
+            output.to_str().unwrap().into(),
+        ];
+        assert_eq!(run(&args), 0, "recovery must work without the RPC service");
+        assert_eq!(std::fs::read(&source).unwrap(), original);
+        let exported = std::fs::read(&output).unwrap();
+        assert_eq!(run(&args), 1, "existing output must be refused");
+        assert_eq!(std::fs::read(&output).unwrap(), exported);
+        args.push("--replace".into());
+        assert_eq!(run(&args), 2);
+        assert_eq!(run(&["recover".into()]), 2);
+    }
 }

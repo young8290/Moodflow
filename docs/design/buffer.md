@@ -1,6 +1,6 @@
 # Buffer（上屏前的文本工作台）
 
-> 状态（2026-10-18）：P1 纯逻辑已实现（`moodflow_input/crates/moodflow-buffer`，26 个单测）；Windows 已接入协调器
+> 状态（2026-10-18）：P1 纯逻辑已实现（`moodflow_input/crates/moodflow-buffer`，27 个单测）；Windows 已接入协调器
 > （`handle_buffer`）与浮窗（`moodflow-ui::buffer_panel`），在 `main`；Android 门面（`moodflow-mobile::buffer`）在 `main`，
 > 键盘内 Buffer 栏换成移植自 XSIME 的 `BufferRail`（PR #100）。两端都**未真机验证**。
 > 来源：[XSIME 吸收计划](xsime-feature-port-plan.md) §2.1；行为契约取自 XSIME 在 macOS / Windows / Android 上验证过的规则。
@@ -46,25 +46,25 @@
 发送键、绑定键的出厂值放标量配置字段（如 `keys.toggle_buffer`、`keys.buffer_send`），不放 `keys.key_actions`，
 保证用户删得掉（AGENTS.md「出厂预置的绑定/开关」）。
 
-## 4. Windows 接入现状（2026-10-17）
+## 4. Windows 接入现状（2026-11-09）
 
-- 绑定 `keys.toggle_buffer`（出厂 Alt+Shift+B）：打开并绑定当前输入框；暂停后再按重新绑定；已绑定时再按关闭（内容保留）。
-- 发送 `keys.buffer_send`（出厂 Ctrl+Shift+Enter）：经按键响应同步写入，按 Accepted 结算；有组字时只提示，不顺带发送。
-  Buffer 关着时这个键落回常规链路。
-- 截获点：按键动作出口（`handle_key_event_policed`），在插件上屏变换与换行改写之前；收进 Buffer 后宿主只收到一次空上屏。
-- 浮窗贴在光标行上方，右键菜单：全部发送、删除最后一块、清空、关闭。
-- **已知差距**：
-  1. 目标身份是 TSF 客户端令牌（进程 + 实例），同一进程内换框识别不到；补偿做法是任何有效失焦都暂停，回框后按一次绑定键。
-     要做到真正按输入框区分，需要 TSF 在 `FocusGainedPayload` 里带上文档/上下文身份。
-  2. 推送通道（菜单发送）没有回执，「结果不明 → 暂停不重发」暂时区分不了，按 Accepted 处理。
-  3. 英文直输不经协调器出字，不会合进 Buffer（契约 1 的后半句在 Windows 上尚未实现）。
-  4. 长按逐块投递、节奏投递未做。
+- 绑定键 `keys.toggle_buffer`（出厂 Alt+Shift+B）显式绑定客户端令牌与 TSF 焦点修订号。换框、失焦、切换输入法或关闭 Buffer 撤销授权。修订号为 0 的旧宿主不允许绑定。
+- 发送键 `keys.buffer_send`（出厂 Ctrl+Shift+Enter）按下时冻结当前块队列，短按松开发送第一块，长按达到阈值后逐块发送整个冻结队列；按键自动重复不能重启队列。有组字时这一整次按住仅确认组字，下一次发送操作才投递。
+- `[input.buffer]` 的 `hold_ms` 默认 1200（限制在 500–3000 ms），`pace` 支持 `off` / `1s` / `2s` / `3s` / `5s`，以上一块成功回执为间隔起点。`close_after_send` 默认 false。右键菜单可保存这些选项，下次发送使用新值；在途队列保持按下时的配置快照。
+- 同时最多一块在途；冻结前缀不可编辑，新增输入另起块且不加入当前队列。右键「停止逐块发送」保留剩余文字；已在途而结果不明时暂停，禁止自动重试。队列完成可选关闭 Buffer，并保留新增文字。
+- `buffer.deliver` 精确发往绑定实例。TSF 编辑会话持有原始上下文，在实际写入前通过 `buffer.authorize` 单次复核，调用 `InsertTextAtSelection` 后才发 `buffer.receipt`。没有全局模拟输入兜底。
+- Accepted 回执才移除冻结块；Rejected 保留；Unknown 或五秒超时保留并暂停。右键“我已确认上次没有写入，允许重试”由用户解除暂停。发送期间新输入另起块。
+- `buffer.mode` 带客户端、修订号和单调代数；同步热键回包与异步状态推送共用，旧帧不能覆盖新状态。TSF 两处键判定共用同一捕获门，英文直输和空组字退格也送到协调器。
+- 英文按 Shift/CapsLock 组合生成字符并连续成块；退格逐字删除英文，整块删除已确认候选。满容量整次拒收，状态栏明确提示。
+- 截获覆盖普通提交、带光标提交、余码组合重开、智能符号后缀替换和异步命令提交。Buffer 内智能符号使用本地后缀替换，避免由宿主定时提交预览文字。
+- 插件变换及宿主换行转换在最终投递时执行一次。正文不写日志、不落盘。
 
-## 5. 下一步
+已完成原生 MSVC 构建和逻辑回归；真实桌面、AppContainer、LPAC 的操作验收仍待完成。
 
-1. TSF：焦点事件带文档身份；推送上屏加回执。
-2. Android：协调器接入后改走同一套截获（目前 Android 上 Buffer 直接截获宿主侧的上屏指令）。
-3. 长按发送逐块投递（默认约 1.2 秒，可配 500–3000 ms）、可选 1/2/3/5 秒节奏投递：在协调器里用 `begin_next` 循环实现，本 crate 不管计时。
+## 5. 下一步（Windows）
+
+1. 对真实 TSF 宿主验证短按、长按、重复按键、取消、拒收、超时、同应用换框、切换输入法及隐私状态变化。
+2. 二期资料库、AI/翻译、密码库、截图、工作区等全部保留在交付范围内。Android 当前暂停。
 
 ## 6. Android 接入现状（2026-10-18，PR #100）
 

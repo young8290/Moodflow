@@ -12,9 +12,10 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 # Debug variant option: builds with separate CLSID/pipe names for coexistence
 option(MOODFLOW_DEV_VARIANT "Build debug variant with separate CLSID/pipe names" OFF)
+option(MOODFLOW_TSF_TESTS "Build moodflow_tsf unit tests" OFF)
 
 if(MOODFLOW_DEV_VARIANT)
-    add_definitions(-DWIND_DEV_VARIANT)
+    add_definitions(-DMOODFLOW_DEV_VARIANT)
     set(TSF_TARGET_NAME "moodflow_tsf_dev")
 else()
     set(TSF_TARGET_NAME "moodflow_tsf")
@@ -44,7 +45,10 @@ configure_file(
 )
 
 # 设置输出目录（对多配置生成器也生效）
-if(MOODFLOW_DEV_VARIANT)
+if(MOODFLOW_TSF_TESTS)
+    # A test build must not replace production DLLs (including version resources).
+    set(TSF_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/runtime)
+elseif(MOODFLOW_DEV_VARIANT)
     set(TSF_OUTPUT_DIR ${CMAKE_SOURCE_DIR}/../build_dev)
 else()
     set(TSF_OUTPUT_DIR ${CMAKE_SOURCE_DIR}/../build)
@@ -70,6 +74,7 @@ set(SOURCES
     src/ClassFactory.cpp
     src/Register.cpp
     src/TextService.cpp
+    src/BufferDelivery.cpp
     src/KeyEventSink.cpp
     src/IPCClient.cpp
     src/LangBarItemButton.cpp
@@ -140,9 +145,20 @@ target_sources(${TSF_TARGET_NAME} PRIVATE ${CMAKE_BINARY_DIR}/${TSF_TARGET_NAME}
 # 经 CMake 跑（需 MSVC，本机无，未实跑；但 configure 阶段每次构建都会走到，语法错
 # 误跑 dev.ps1 dm1 就会暴露）：
 #   cmake -S moodflow_tsf -B build/tsf-tests -DWIND_TSF_TESTS=ON && cmake --build build/tsf-tests && ctest --test-dir build/tsf-tests
-option(MOODFLOW_TSF_TESTS "Build moodflow_tsf unit tests" OFF)
 if(MOODFLOW_TSF_TESTS)
     enable_testing()
+    add_executable(physical_key_release_test tests/physical_key_release_test.cpp)
+    target_include_directories(physical_key_release_test PRIVATE ${CMAKE_SOURCE_DIR}/include)
+    if(MSVC)
+        target_compile_options(physical_key_release_test PRIVATE /utf-8 /W4)
+    endif()
+    add_test(NAME physical_key_release COMMAND physical_key_release_test)
+    add_executable(buffer_delivery_test tests/buffer_delivery_test.cpp)
+    target_include_directories(buffer_delivery_test PRIVATE ${CMAKE_SOURCE_DIR}/include)
+    if(MSVC)
+        target_compile_options(buffer_delivery_test PRIVATE /utf-8 /W4)
+    endif()
+    add_test(NAME buffer_delivery COMMAND buffer_delivery_test)
     add_executable(skip_key_table_test tests/skip_key_table_test.cpp)
     target_include_directories(skip_key_table_test PRIVATE ${CMAKE_SOURCE_DIR}/include)
     if(MSVC)
@@ -219,4 +235,23 @@ if(MOODFLOW_TSF_TESTS)
         target_compile_options(loading_icon_test PRIVATE /utf-8 /W4)
     endif()
     add_test(NAME loading_icon COMMAND loading_icon_test)
+
+    # The DLL goes to build[_dev], which is packaged verbatim. Test executables
+    # must stay in the CMake build tree, including when tests run after a full build.
+    get_property(tsf_test_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+    foreach(test_target IN LISTS tsf_test_targets)
+        get_target_property(test_target_type ${test_target} TYPE)
+        if(test_target_type STREQUAL "EXECUTABLE")
+            set_target_properties(${test_target} PROPERTIES
+                RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/tests"
+                PDB_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/tests"
+            )
+            foreach(test_config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
+                set_target_properties(${test_target} PROPERTIES
+                    RUNTIME_OUTPUT_DIRECTORY_${test_config} "${CMAKE_CURRENT_BINARY_DIR}/tests/${test_config}"
+                    PDB_OUTPUT_DIRECTORY_${test_config} "${CMAKE_CURRENT_BINARY_DIR}/tests/${test_config}"
+                )
+            endforeach()
+        endif()
+    endforeach()
 endif()

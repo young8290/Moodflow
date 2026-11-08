@@ -345,6 +345,13 @@ pub const CMD_EXT: u16 = 0x0E01;
 /// 扩展信封的 `kind` 常量登记处。**新增 kind 必须在此登记**（而不是在调用点写裸串），
 /// 否则两端拼写不一致的错误只会表现为「消息静默丢失」。
 pub mod ext_kind {
+    pub const BUFFER_MODE: &str = "buffer.mode";
+    /// 下行：有回执的 Buffer 投递；布局见 `crate::buffer`。
+    pub const BUFFER_DELIVER: &str = "buffer.deliver";
+    /// 上行：编辑会话的实际结果；布局见 `crate::buffer`。
+    pub const BUFFER_RECEIPT: &str = "buffer.receipt";
+    /// 上行同步：编辑会话写入前复核授权；body 为 receipt 的前三个 u64。
+    pub const BUFFER_AUTHORIZE: &str = "buffer.authorize";
     /// 下行：请求 `.app` 打开设置应用。body = `{"args":["--page=dict", …]}`。
     pub const SETTINGS_OPEN: &str = "settings.open";
     /// 上行：候选窗被拖动到新位置。body = `{"x":123,"y":456}`，wire 坐标系（屏幕左上为

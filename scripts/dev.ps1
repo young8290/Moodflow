@@ -153,9 +153,9 @@ $PortableDataDir    = "userdata"
 # moodflow-installer: 通用安装器生成器 (兄弟项目, app.toml 驱动); 8/d8 打包命令调用其 pack.ps1。
 # 与 SettingDir/PortableDir 同源 (见上面的 Resolve-SiblingRoot), 否则 worktree 里打包会
 # 找不到 pack.ps1。
-$InstallerDir  = Join-Path $SiblingRoot "moodflow-installer"
+$InstallerDir  = if ($env:MOODFLOW_INSTALLER_DIR) { $env:MOODFLOW_INSTALLER_DIR } else { Join-Path $SiblingRoot "moodflow-installer" }
 # 在线升级元数据里的下载地址前缀 (不含结尾斜杠); 打包后生成的 latest*.json 据此拼 exeUrl。
-$CdnBase       = "https://dl.windinput.com"
+$CdnBase       = "https://github.com/young8290/Moodflow/releases/download/v$Version"
 # 可在 scripts\deploy.local.ps1 覆盖上述变量 (PowerShell 赋值语法; 该文件 gitignore)。
 $deployCfg = "$ScriptDir\deploy.local.ps1"
 if (Test-Path $deployCfg) { . $deployCfg }
@@ -240,6 +240,8 @@ function Build-Core ([string]$profile = "release", [string]$outdir = $null) {
     # CLI 包装器 (moodflow_input config ...; 运行时自辨 dev/release exe, 两变体共用一份)
     $cli = "$ProjectRoot\scripts\moodflow_cli.bat"
     if (Test-Path $cli) { Copy-Item $cli "$outdir\moodflow_cli.bat" -Force; Gray "已复制: moodflow_cli.bat" }
+    # 离线恢复命令与说明随核心一同交付；无需联网查看恢复步骤。
+    Copy-Item (Join-Path $ProductRoot "docs\user-dictionary-recovery.md") "$outdir\USER-DATA-RECOVERY.md" -Force -ErrorAction Stop
     return $true
 }
 
@@ -286,7 +288,7 @@ function Build-TsfAll ([string]$profile = "release", [string]$outdir = $null) {
         $bin = "$CacheDir\tsf-cmake\$($a.A)$suffix"
         New-Item -ItemType Directory -Path $bin -Force | Out-Null
         cmake -S $TsfDir -B $bin -G "Visual Studio 17 2022" -A $a.A `
-            "-DWIND_DEV_VARIANT=$dvFlag" `
+            "-DMOODFLOW_DEV_VARIANT=$dvFlag" `
             "-DAPP_VERSION_STR=$Version" `
             "-DAPP_VERSION_MAJOR=$vMaj" "-DAPP_VERSION_MINOR=$vMin" "-DAPP_VERSION_PATCH=$vPat" `
             | Out-Null
@@ -378,6 +380,9 @@ function Build-Hub ([string]$profile = "release", [string]$outdir = $null) {
     }
     New-Item -ItemType Directory -Path $outdir -Force | Out-Null
     Say "`n[hub] 构建 Moodflow Hub (release)..."
+    # The generated Windows API crate is large; avoid exhausting commit/pagefile on high-core hosts.
+    $previousBuildJobs = $env:CARGO_BUILD_JOBS
+    if (-not $previousBuildJobs) { $env:CARGO_BUILD_JOBS = '2' }
     Push-Location (Join-Path $ProductRoot "moodflow_hub")
     try {
         # pnpm 的输出走标准输出, 不 Out-Host 就会混进本函数的返回值: 调用方拿到的是
@@ -386,7 +391,7 @@ function Build-Hub ([string]$profile = "release", [string]$outdir = $null) {
         if ($LASTEXITCODE -ne 0) { ErrMsg "Hub 前端依赖安装失败!"; return $false }
         pnpm tauri build --no-bundle | Out-Host
         if ($LASTEXITCODE -ne 0) { ErrMsg "Moodflow Hub 构建失败!"; return $false }
-    } finally { Pop-Location }
+    } finally { Pop-Location; $env:CARGO_BUILD_JOBS = $previousBuildJobs }
     $exe = Join-Path (Get-CargoTargetDir $ProductRoot) "release\moodflow_hub.exe"
     if (-not (Test-Path $exe)) { ErrMsg "未找到产物: $exe"; return $false }
     Copy-Item $exe "$outdir\moodflow_hub.exe" -Force
@@ -908,24 +913,24 @@ function Invoke-BuildStagesParallel ([string]$profile, [string]$outdir) {
 #      build\ 里每个 PE 都已签好, 故 Do-PortableZip 在 Compress-Archive 前再签一次
 #      (幂等: 已签的会被跳过, skip 模式下没走 Do-Full 时这一次就是唯一的机会)。
 #
-# 签名不可用时【只警告不中断】—— 本机日常开发不该被一个过期的签名会话挡住。
+# 未请求 sign 时保留未签名的开发构建；显式请求 sign 后，证书或验签不可用必须失败。
 # 正式发版用 `dev.ps1 8 verify-sign` 或 `sign.ps1 -Verify dist` 硬校验。
 function Invoke-SignArtifacts ([string[]]$targets, [string]$what) {
     # 没写 sign 就整段不走 —— 签名次数按月计费, 默认必须是不签。
     if (-not $script:SignRequested) { return $true }
     $ps1 = Join-Path $ScriptDir "sign.ps1"
-    if (-not (Test-Path $ps1)) { return $true }   # 脚本被删也不该拖垮构建
+    if (-not (Test-Path $ps1)) { ErrMsg "签名脚本缺失: $ps1"; return $false }
     $existing = @($targets | Where-Object { Test-Path $_ })
-    if ($existing.Count -eq 0) { return $true }
+    if ($existing.Count -ne $targets.Count) { ErrMsg "签名目标缺失: $what"; return $false }
 
     $global:LASTEXITCODE = 0
     try {
-        & $ps1 @existing
+        & $ps1 -Path $existing -RequireSigned
     } catch {
         ErrMsg "签名 $what 失败: $($_.Exception.Message)"
         return $false
     }
-    # sign.ps1 未配置/会话不可用时退 0 (警告后跳过); 只有真正签失败才非 0。
+    # 签名与即时验签必须都成功，才继续生成升级元数据。
     if ($LASTEXITCODE -ne 0) { ErrMsg "签名 $what 失败 (见上方 signtool 输出)"; return $false }
     return $true
 }
@@ -2044,6 +2049,20 @@ function Do-Installer ([string]$profile = "release", [bool]$skipBuild = $false) 
         ErrMsg "无 $outdir 产物; 去掉 skip 先全构建, 或运行 '$(if($profile -eq 'dev'){'d1'}else{'1'})'。"; return $false
     }
 
+    # CMake unit tests belong in the build tree, never in a distributable payload.
+    $testArtifacts = @(Get-ChildItem -LiteralPath $outdir -File -Filter '*_test.exe')
+    if ($testArtifacts.Count -gt 0) {
+        ErrMsg '产物目录含测试程序，请清理或全构建后重新打包。'
+        return $false
+    }
+
+    # Inspect actual PE imports before signing or archiving the payload.
+    $crtCheck = Join-Path $instDir 'scripts\verify-static-crt.ps1'
+    if (-not (Test-Path $crtCheck)) { ErrMsg "缺少 CRT 发布检查: $crtCheck"; return $false }
+    $payloadPe = @(Get-ChildItem -LiteralPath $outdir -File | Where-Object { $_.Extension -in '.exe', '.dll' } | ForEach-Object { $_.FullName })
+    & $crtCheck -Path $payloadPe
+    if ($LASTEXITCODE -ne 0) { ErrMsg '包内程序存在动态 CRT 依赖'; return $false }
+
     # 2.5 签 build\ 下的 PE —— 必须在 pack 之前, 因为 pack 就是把它们封进压缩块。
     #
     # ⚠️ 这一步【不能】只依赖 Do-Full 里那次: skip 模式 (8s/d8s) 根本不走 Do-Full,
@@ -2159,9 +2178,9 @@ $StageManifestName = "stage.json"
 function Get-InstallerBinaries ([string]$dir = $InstallerDir) {
     $t = Get-CargoTargetDir $dir
     return [ordered]@{
-        "wind-installer.exe"   = Join-Path $t "release\wind-installer.exe"
-        "wind-packer.exe"      = Join-Path $t "release\wind-packer.exe"
-        "wind-uninstaller.exe" = Join-Path $t "release\wind-uninstaller.exe"
+        "moodflow-installer.exe"   = Join-Path $t "release\moodflow-installer.exe"
+        "moodflow-packer.exe"      = Join-Path $t "release\moodflow-packer.exe"
+        "moodflow-uninstaller.exe" = Join-Path $t "release\moodflow-uninstaller.exe"
     }
 }
 
@@ -2253,7 +2272,7 @@ function Do-Unstage ([string]$zipPath) {
 
     if (Test-Path "$tmp\installer") {
         $bins = Get-InstallerBinaries
-        $dst  = Split-Path $bins["wind-packer.exe"] -Parent
+        $dst  = Split-Path $bins["moodflow-packer.exe"] -Parent
         New-Item -ItemType Directory -Path $dst -Force | Out-Null
         foreach ($n in $bins.Keys) {
             $src = Join-Path "$tmp\installer" $n

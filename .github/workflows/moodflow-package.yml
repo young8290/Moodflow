@@ -11,7 +11,7 @@ on:
       installer_ref:
         description: "moodflow-installer（young8290 的 fork）的分支或提交，用来试还没合进 main 的安装器改动"
         required: false
-        default: main
+        default: 0b01471fe75bb520f34c51d28d12cf6e5f127ef9
   pull_request:
     branches: [main]
     paths:
@@ -48,7 +48,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: young8290/wind-installer
-          ref: ${{ inputs.installer_ref || 'main' }}
+          ref: ${{ inputs.installer_ref || '0b01471fe75bb520f34c51d28d12cf6e5f127ef9' }}
           path: moodflow-installer
       - name: 检出 moodflow-portable
         uses: actions/checkout@v4

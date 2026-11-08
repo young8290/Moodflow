@@ -3,6 +3,7 @@
 //! 与 Go 版本 `moodflow_input/internal/ipc/` 和 `moodflow_input/pkg/rpcapi/` 对齐。
 //! 二进制协议用于 TSF DLL ↔ Go 服务通信，JSON-RPC 用于设置前端 ↔ 服务通信。
 
+pub mod buffer;
 pub mod codec;
 pub mod protocol;
 pub mod rpc;

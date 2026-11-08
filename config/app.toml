@@ -8,7 +8,7 @@
 #      --config config/app.toml \
 #      --version <VERSION>      # 覆盖 app.version
 #      --source-dir <DIR>       # 覆盖 package.source_dir
-#      --stub wind-installer.exe
+#      --stub moodflow-installer.exe
 # ============================================================================
 
 [app]
@@ -29,6 +29,9 @@ process_names   = ["wind_setting", "wind_portable", "moodflow_core", "moodflow_h
 acl_dlls        = ["moodflow_tsf.dll", "moodflow_tsf_x86.dll"]
 legacy_files    = []
 legacy_dirs     = []
+
+[integrity]
+data_manifest = "data/manifest.json"
 
 [ui]
 install_win   = { w = 520, h = 420 }

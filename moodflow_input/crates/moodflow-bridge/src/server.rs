@@ -378,6 +378,7 @@ fn handle_client(
             && let Ok(fg) = decode_focus_gained(payload)
         {
             let data = FocusData {
+                target_revision: decode_focus_gained_target_revision(payload),
                 x: fg.caret.x,
                 y: fg.caret.y,
                 height: fg.caret.height,
@@ -965,6 +966,31 @@ pub(crate) fn dispatch_command(
         // 解不出 / 未知 kind 一律安静忽略：这正是新旧版本互相兼容的根本，绝不能升级成错误。
         CMD_EXT => {
             match decode_ext(payload) {
+                Some((moodflow_ipc::protocol::ext_kind::BUFFER_AUTHORIZE, body)) if !is_async => {
+                    let allowed = if body.len() == 24 {
+                        let id = u64::from_le_bytes(body[0..8].try_into().unwrap());
+                        let client = u64::from_le_bytes(body[8..16].try_into().unwrap());
+                        let revision = u64::from_le_bytes(body[16..24].try_into().unwrap());
+                        client >> 32 == u64::from(ctx.pid)
+                            && ctx.pid != 0
+                            && handler.authorize_buffer_delivery(id, client, revision)
+                    } else {
+                        false
+                    };
+                    return Some(if allowed {
+                        encode_consumed()
+                    } else {
+                        encode_ack()
+                    });
+                }
+                Some((moodflow_ipc::protocol::ext_kind::BUFFER_RECEIPT, body)) => {
+                    if let Some(receipt) = moodflow_ipc::buffer::Receipt::decode(body)
+                        && receipt.client >> 32 == u64::from(ctx.pid)
+                        && ctx.pid != 0
+                    {
+                        handler.handle_ext(moodflow_ipc::protocol::ext_kind::BUFFER_RECEIPT, body);
+                    }
+                }
                 Some((kind, body)) => handler.handle_ext(kind, body),
                 None => warn!("CMD_EXT 载荷无法解析（长度 {}），忽略", payload.len()),
             }
@@ -1107,6 +1133,10 @@ fn encode_key_action(action: &KeyAction) -> Vec<u8> {
     use moodflow_ipc::codec::*;
 
     match action {
+        KeyAction::BufferMode(mode) => encode_ext(
+            moodflow_ipc::protocol::ext_kind::BUFFER_MODE,
+            &mode.encode(),
+        ),
         KeyAction::InsertText {
             text,
             new_composition,

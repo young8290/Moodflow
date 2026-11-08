@@ -33,7 +33,7 @@ pub fn to_outcome(action: KeyAction) -> KeyOutcome {
         KeyAction::NotHandled | KeyAction::PassThrough => KeyOutcome::passthrough(),
 
         // ── 消费但无文本变更 ──
-        KeyAction::Consumed => KeyOutcome::consumed_silently(),
+        KeyAction::Consumed | KeyAction::BufferMode(_) => KeyOutcome::consumed_silently(),
         KeyAction::StatusUpdate(_) => KeyOutcome {
             consumed: true,
             mode_changed: true,

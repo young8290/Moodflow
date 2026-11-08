@@ -1387,6 +1387,8 @@ STDAPI CTextService::ActivateEx(ITfThreadMgr* pThreadMgr, TfClientId tfClientId,
 STDAPI CTextService::Deactivate()
 {
     MOODFLOW_LOG_INFO(L"TextService::Deactivate called\n");
+    // Invalidate queued Buffer sessions before releasing the IPC client or context.
+    ++_focusSessionId;
 
     // 最先注销 compartment sinks：系统在输入法切换过程中会写 OPENCLOSE/CONVERSION
     // compartment，若 sink 仍挂着会被 OnChange 当作用户切换请求上报服务，
@@ -3078,7 +3080,7 @@ STDAPI CTextService::OnSetFocus(ITfDocumentMgr* pDocMgrFocus, ITfDocumentMgr* pD
             const LONGLONG focusIpcT0 = MoodflowLog::PerfNow();
             const BOOL focusSent = _pIPCClient->SendFocusGained(
                 caretX, caretY, caretHeight, inputScopeMask, _bKeyboardDisabled != FALSE, inputReason,
-                caretSource, focusRootClass.c_str());
+                caretSource, focusRootClass.c_str(), _focusSessionId);
             focusIpcMs += MoodflowLog::PerfMsSince(focusIpcT0);
             // 排队档的异步回调据此判定"该补发 caret_update"。**必须在这里置位而非发送前**：
             // 内联档的回调早已在上面跑完，那时它读到的是旧值（≠本会话），于是正确地选择"不补发"。
@@ -3206,11 +3208,16 @@ STDAPI CTextService::OnSetFocus(ITfDocumentMgr* pDocMgrFocus, ITfDocumentMgr* pD
 
 STDAPI CTextService::OnPushContext(ITfContext* pContext)
 {
+    // Even when the document manager stays the same, a different context must invalidate Buffer.
+    ++_focusSessionId;
+    _needsFocusRecovery = TRUE;
     return S_OK;
 }
 
 STDAPI CTextService::OnPopContext(ITfContext* pContext)
 {
+    ++_focusSessionId;
+    _needsFocusRecovery = TRUE;
     return S_OK;
 }
 
@@ -4380,7 +4387,8 @@ void CTextService::TryRecoverFocusState()
     }
     uint8_t recoveryReason = ComputeInputReason(_bKeyboardDisabled != FALSE, recoveryMask, false);
     if (_pIPCClient->SendFocusGained((int)caretX, (int)caretY, (int)caretHeight, recoveryMask,
-                                     _bKeyboardDisabled != FALSE, recoveryReason, caretSource))
+                                     _bKeyboardDisabled != FALSE, recoveryReason, caretSource,
+                                     nullptr, _focusSessionId))
     {
         _needsFocusRecovery = FALSE;
         _pIPCClient->ClearNeedsSyncFlag();
@@ -4544,6 +4552,12 @@ BOOL CTextService::_InitIPCClient()
                 response.iconLabel.empty() ? nullptr : response.iconLabel.c_str()
             );
         }
+    });
+
+    _pIPCClient->SetBufferDeliveryCallback([pThis](const moodflow::buffer::Delivery& delivery) {
+        // Only queue on the reader thread. Rejection/receipt happens on the TSF thread or timeout.
+        if (pThis->_pLangBarItemButton != nullptr)
+            pThis->_pLangBarItemButton->PostBufferDelivery(delivery);
     });
 
     // Set up commit text callback for mouse click on candidate

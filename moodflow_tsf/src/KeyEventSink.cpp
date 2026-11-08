@@ -362,6 +362,18 @@ bool CKeyEventSink::_IsLogDumpHotkey(WPARAM vk)
         && !(GetKeyState(VK_MENU) & 0x8000);
 }
 
+bool CKeyEventSink::_IsBufferInputKey(WPARAM vk, uint32_t modifiers) const
+{
+    auto* ipc = _pTextService->GetIPCClient();
+    if (!ipc || (modifiers & (KEYMOD_CTRL | KEYMOD_ALT | KEYMOD_WIN))) return false;
+    const auto revision = ipc->BufferCaptureRevision();
+    if (!revision || revision != _pTextService->GetFocusSessionId()) return false;
+    const auto kind = CHotkeyManager::ClassifyInputKey(vk, modifiers);
+    return kind == HotkeyType::Letter || kind == HotkeyType::Number
+        || kind == HotkeyType::Punctuation || kind == HotkeyType::Space
+        || kind == HotkeyType::Backspace || kind == HotkeyType::Enter;
+}
+
 STDAPI CKeyEventSink::OnTestKeyDown(ITfContext* pContext, WPARAM wParam, LPARAM lParam, BOOL* pfEaten)
 {
     *pfEaten = FALSE;
@@ -675,6 +687,11 @@ STDAPI CKeyEventSink::OnTestKeyDown(ITfContext* pContext, WPARAM wParam, LPARAM 
     // 判据收口在 _HasInputSession()（含 defer 真空期，见其定义）。此处不得就地展开：
     // OnTestKeyDown 放行的键根本不会调到 OnKeyDown，两边不一致即「吃了再吐」或直接丢键。
     BOOL hasInputSession = _HasInputSession();
+
+    if (_IsBufferInputKey(wParam, modifiers)) {
+        *pfEaten = TRUE;
+        return S_OK;
+    }
 
     // English auto-pair: intercept bracket keys in English mode.
     // Ctrl/Alt 组合留给热键/宿主（如 Ctrl+Shift+] open_settings），不做配对。
@@ -1421,6 +1438,8 @@ STDAPI CKeyEventSink::OnKeyDown(ITfContext* pContext, WPARAM wParam, LPARAM lPar
         isInputKey = TRUE;
     }
 
+    if (_IsBufferInputKey(wParam, modifiers)) isInputKey = TRUE;
+
     if (!isKeyDownHotkey && !isInputKey)
     {
         // CRITICAL FIX: If OnTestKeyDown decided to eat this key (based on the state
@@ -1467,6 +1486,18 @@ STDAPI CKeyEventSink::OnKeyDown(ITfContext* pContext, WPARAM wParam, LPARAM lPar
         && !(modifiers & (KEYMOD_CTRL | KEYMOD_ALT)))
     {
         _chordDown.insert((UINT)wParam);
+    }
+
+    // Buffer needs physical hotkey release to distinguish a tap from a hold.
+    // Mirror all non-modifier action hotkeys while capture is active; the core
+    // consumes only the matching Buffer press. Other key-up events stay inert.
+    auto* bufferIpc = _pTextService->GetIPCClient();
+    if (isKeyDownHotkey && bufferIpc
+        && bufferIpc->BufferCaptureRevision() == _pTextService->GetFocusSessionId()
+        && bufferIpc->BufferCaptureRevision() != 0
+        && !_IsPureModifierKey(wParam) && wParam != VK_CAPITAL
+        && wParam != VK_LWIN && wParam != VK_RWIN) {
+        _bufferActionKeys.Down((UINT)wParam, modifiers);
     }
 
     // Send key to Go Service using binary protocol (SYNC mode)
@@ -1679,6 +1710,11 @@ STDAPI CKeyEventSink::OnTestKeyUp(ITfContext* pContext, WPARAM wParam, LPARAM lP
     if (_pTextService->IsKeyboardDisabled())
         return S_OK;
 
+    if (_DispatchBufferActionKeyUp(wParam, true)) {
+        *pfEaten = TRUE;
+        return S_OK;
+    }
+
     // direct_commit 顶码：余码新组合在**触发键**的 keyup 才开。先到者开组合，另一处
     // HasDeferredComposition()==FALSE 后自然 no-op。
     // ⚠️ 不能是「下一个 keyup」：快打时按下触发键那一刻前一个编码键常还按着，它的 keyup
@@ -1748,6 +1784,11 @@ STDAPI CKeyEventSink::OnKeyUp(ITfContext* pContext, WPARAM wParam, LPARAM lParam
     // 真实按键处理——注意与下一行注释里的「顶码触发键」不是同一个概念，只是恰好同名字。
     if (wParam == VK_ASYNC_COMMIT_TRIGGER)
     {
+        *pfEaten = TRUE;
+        return S_OK;
+    }
+
+    if (_DispatchBufferActionKeyUp(wParam, false)) {
         *pfEaten = TRUE;
         return S_OK;
     }
@@ -2105,6 +2146,14 @@ BOOL CKeyEventSink::_DispatchPendingToggleKeyUp(WPARAM wParam)
     }
 
     return TRUE;
+}
+
+BOOL CKeyEventSink::_DispatchBufferActionKeyUp(WPARAM vk, bool testCallback)
+{
+    const auto release = _bufferActionKeys.Up((UINT)vk, testCallback);
+    if (release.forward && _SendKeyToService((uint32_t)vk, release.modifiers, KEY_EVENT_UP))
+        _HandleServiceResponse();
+    return release.consume ? TRUE : FALSE;
 }
 
 BOOL CKeyEventSink::_DispatchChordKeyUp(WPARAM wParam)

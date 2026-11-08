@@ -681,6 +681,15 @@ top_commit_learn = true
 # 关掉后 TSF 侧的吃键门控同步放行，输入诊断 HUD 仍照常显示宿主报的 InputScope。
 password_force_english = true
 
+# Buffer 长按与节奏投递
+[input.buffer]
+# 长按发送阈值，500–3000 毫秒；手写越界值按边界处理。
+hold_ms = 1200
+# 逐块投递间隔（以上一块写入成功的回执为起点）：off / 1s / 2s / 3s / 5s。
+pace = "off"
+# 冻结队列发送完成后关闭 Buffer；发送期间新输入的文本仍保留。
+close_after_send = false
+
 # 检索范围放宽（filter_mode = "smart" 时的增强，见 docs/design/smart-filter-scope-relax.md）
 #
 # 智能档会滤掉「同码位已有常用字」的生僻字，代价是唯一编码被占的字彻底打不出——如五笔

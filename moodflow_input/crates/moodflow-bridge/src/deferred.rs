@@ -123,6 +123,10 @@ impl MessageHandler for DeferredHandler {
         self.with_handler((), |h| h.handle_ext(kind, body))
     }
 
+    fn authorize_buffer_delivery(&self, id: u64, client: u64, revision: u64) -> bool {
+        self.with_handler(false, |h| h.authorize_buffer_delivery(id, client, revision))
+    }
+
     fn handle_menu_pointer(&self, event: u32, button: u32, x: i32, y: i32) {
         self.with_handler((), |h| h.handle_menu_pointer(event, button, x, y))
     }

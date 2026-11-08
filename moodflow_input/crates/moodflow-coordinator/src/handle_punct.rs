@@ -709,6 +709,9 @@ impl Coordinator {
     /// 删改，Tabby 一类终端下会出严重错误——给那类宿主单独配 `HoldComposition`，
     /// 全程不做删改。
     pub(crate) fn effective_smart_method(&self) -> SmartMethod {
+        if self.buffer.is_capturing() {
+            return SmartMethod::DeleteReplace;
+        }
         if let Some(m) = self
             .active_compat
             .lock()

@@ -4590,6 +4590,16 @@ impl Coordinator {
         if text.is_empty() {
             return;
         }
+        if crate::moodflow::input_privacy().input_allowed() && self.buffer.is_capturing() {
+            self.route_commit_to_buffer(KeyAction::InsertText {
+                text: text.to_owned(),
+                new_composition: None,
+                mode_changed: false,
+                chinese_mode: self.is_chinese_mode(),
+                has_new_composition: false,
+            });
+            return;
+        }
         // push 路不经 `handle_key_event_policed`，换行改写要在这里各自接一次（A3-3）。
         let text = self.convert_commit_newline(text.to_string());
         let encoded = moodflow_ipc::codec::encode_commit_text(&text, None, false, true, false);

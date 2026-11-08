@@ -507,6 +507,11 @@ impl MessageHandler for Coordinator {
     fn handle_ext(&self, kind: &str, body: &[u8]) {
         use moodflow_ipc::protocol::ext_kind;
         match kind {
+            ext_kind::BUFFER_RECEIPT => {
+                if let Some(receipt) = moodflow_ipc::buffer::Receipt::decode(body) {
+                    self.buffer_receipt(receipt);
+                }
+            }
             // 拖动落点回报。落不落盘由 save_* 按当前定位方式自行判定：固定位置=重新摆放，
             // 跟随光标=只是临时挪开，不写配置。
             ext_kind::POS_CANDIDATE | ext_kind::POS_STATUS_TIP => {
@@ -545,6 +550,10 @@ impl MessageHandler for Coordinator {
             }
             _ => tracing::debug!("未处理的扩展消息 kind={kind}"),
         }
+    }
+
+    fn authorize_buffer_delivery(&self, id: u64, client: u64, revision: u64) -> bool {
+        self.buffer_authorize(id, client, revision)
     }
 
     /// macOS `.app` 候选右键动作：动作串 → 词条操作/复制，作用于页内下标候选。
@@ -734,6 +743,9 @@ impl MessageHandler for Coordinator {
             }
         }
         let action = self.handle_key_event(data);
+        if self.buffer.is_open() {
+            self.push_buffer_panel();
+        }
         // Moodflow：改写模式被表外的键退出时，这个键 C++ 已经吃了，要交给宿主就得由它重放
         let action = crate::moodflow::replay_if_exited(data, action);
         // 上屏换行改写。与 record_input_stats / note_commit_action 同一收口理由（上屏路径
@@ -888,6 +900,16 @@ impl MessageHandler for Coordinator {
         // 而 `input.numpad_half_width` 要在出字那一步知道。写进 `state` 见下方加锁处
         // （此处还没拿到锁）。
         let numpad_origin = numpad_to_main(data.key_code).is_some();
+        let buffer_event;
+        let data = if let Some(prev_char) = self.buffer.previous_char() {
+            buffer_event = KeyEventData {
+                prev_char,
+                ..data.clone()
+            };
+            &buffer_event
+        } else {
+            data
+        };
         let normalized;
         let data = match numpad_to_main(data.key_code) {
             Some((vk, need_shift)) if self.rt().config.input.numpad_behavior == "follow_main" => {
@@ -948,6 +970,9 @@ impl MessageHandler for Coordinator {
         // 于 keyUp 转发该键事件（_SendKeyToService(..., KEY_EVENT_UP)）。因此服务端
         // 收到 toggle 键的 keyUp 即应直接切换，无需 keydown/pending（对齐 Go HandleKeyEvent）。
         if data.event_type == EVENT_KEY_UP {
+            if let Some(action) = self.buffer_send_released(data) {
+                return action;
+            }
             // 并击键的松开（TSF 只在并击开启时转发字母键的 keyup，见 handle_chord）。
             if let Some(act) = self.chord_key_up(data) {
                 return act;
@@ -1194,10 +1219,10 @@ impl MessageHandler for Coordinator {
                 return KeyAction::Consumed;
             } else if action == "toggle_buffer" {
                 self.toggle_buffer();
-                return KeyAction::Consumed;
+                return self.buffer_mode_action();
             } else if action == "buffer_send" {
                 // Buffer 没打开时返回 None：落回常规链路（见 handle_buffer 模块文档）。
-                if let Some(act) = self.buffer_send_keyed() {
+                if let Some(act) = self.buffer_send_pressed(data) {
                     return act;
                 }
             } else if let Some(act) = self.dispatch_bound_action_hotkey(&action) {
@@ -1276,6 +1301,19 @@ impl MessageHandler for Coordinator {
         // 中文里打的配对」的根因之一）。守卫与失效方向见 try_jump_out。
         if let Some(act) = self.try_jump_out(&state, data) {
             return act;
+        }
+
+        // Direct English/caps input and Buffer backspace precede host pass-through.
+        if data.modifiers & MOD_SHORTCUT == 0
+            && state.input_buffer.is_empty()
+            && state.preedit.is_empty()
+            && state.committed_text.is_empty()
+            && state.active.is_none()
+            && state.candidates.is_empty()
+            && let Some(action) =
+                self.buffer_direct_key(data, state.chinese_mode, state.caps_lock, state.full_width)
+        {
+            return action;
         }
 
         // 英文模式
@@ -2409,7 +2447,7 @@ impl MessageHandler for Coordinator {
         // 各发一条），全靠 menu_close_on_focus_change 的守卫期挡住刚弹出的菜单。
         self.menu_close_on_focus_change("focus_gained");
         self.close_softkeyboard_on_focus_change("focus_gained");
-        self.buffer_focus_gained(data.client_token);
+        self.buffer_focus_gained(data.client_token, data.target_revision);
         // 解析焦点进程的 caret 兼容态（微信 caret_use_top、per-app caret_offset_* 等）。
         // ★★ 必须在下面的 `apply_focus_caret` **之前**跑：那一步会读 `active_compat` 做
         // `caret_use_top`/`caret_offset_*` 变换，若仍在这之后调用，本次焦点事件带来的第一份
@@ -2879,6 +2917,7 @@ impl MessageHandler for Coordinator {
         if self.is_stale_focus_event(client_token, "handle_ime_deactivated") {
             return;
         }
+        self.buffer_focus_lost();
         // 切走本输入法（换到别的 IME / 非输入法应用）：清激活态、清输入、隐藏全部 UI。
         // 对齐 Go SetIMEActivated(false)（隐藏工具栏 + hideUI），根治“切走仍残留显示”。
         // 宿主接管候选绘制的记账随之清掉（DLL 重新激活时会再报，见 ActivateEx）。

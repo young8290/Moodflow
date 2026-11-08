@@ -44,7 +44,7 @@ endif
 # 产物命名按 arch + variant 组合：moodflow_tsf[_x86][_dev].dll
 ifeq ($(DEV_VARIANT),1)
   OUTDIR   ?= build_dev
-  VARFLAGS := -DWIND_DEV_VARIANT
+  VARFLAGS := -DMOODFLOW_DEV_VARIANT
   DBGSUFFIX := _dev
 else
   OUTDIR   ?= build

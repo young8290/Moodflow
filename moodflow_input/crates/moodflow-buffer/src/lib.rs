@@ -188,6 +188,8 @@ pub struct Buffer {
     suspended: bool,
     held: bool,
     in_flight: Option<InFlight>,
+    /// Prefix frozen by a multi-block delivery sequence, including blocks not yet sent.
+    frozen_queue: usize,
     next_block: u64,
     next_token: u64,
 }
@@ -207,6 +209,7 @@ impl Buffer {
             suspended: false,
             held: false,
             in_flight: None,
+            frozen_queue: 0,
             next_block: 0,
             next_token: 0,
         }
@@ -266,6 +269,7 @@ impl Buffer {
     /// 那需要用户先确认上一次到底有没有写进去。
     pub fn bind(&mut self, target: Target, field: FieldKind) -> Result<(), BindError> {
         self.in_flight = None;
+        self.frozen_queue = 0;
         if field == FieldKind::Private {
             self.binding = None;
             self.suspended = false;
@@ -286,6 +290,7 @@ impl Buffer {
     /// 撤销授权但保留内容（失焦、隐藏面板、切输入法）。
     pub fn suspend(&mut self) {
         self.in_flight = None;
+        self.frozen_queue = 0;
         if self.binding.is_some() {
             self.suspended = true;
         }
@@ -298,6 +303,7 @@ impl Buffer {
         self.suspended = false;
         self.held = false;
         self.in_flight = None;
+        self.frozen_queue = 0;
     }
 
     /// 用户确认了上次结果不明的投递后，解除暂停。
@@ -319,7 +325,7 @@ impl Buffer {
     /// 追加一个直输的英文字符：并入末尾的英文块，否则新起一块。
     pub fn push_latin(&mut self, ch: char) -> Result<BlockId, EditError> {
         self.check_capacity(ch.len_utf16())?;
-        let in_flight = self.in_flight_count();
+        let in_flight = self.edit_locked_count();
         if self.blocks.len() > in_flight
             && let Some(last) = self.blocks.last_mut()
             && last.kind == BlockKind::Latin
@@ -357,6 +363,39 @@ impl Buffer {
         self.blocks.clear();
         self.in_flight = None;
         self.held = false;
+        self.frozen_queue = 0;
+    }
+
+    /// Atomically replace a suffix measured in Unicode scalar values. Never edit frozen blocks.
+    pub fn replace_tail(&mut self, count: usize, text: &str) -> Result<(), EditError> {
+        let mut blocks = self.blocks.clone();
+        let frozen = self.edit_locked_count();
+        let mut remaining = count;
+        while remaining > 0 {
+            if blocks.len() <= frozen {
+                return Err(if frozen > 0 {
+                    EditError::Busy
+                } else {
+                    EditError::Empty
+                });
+            }
+            let last = blocks.last_mut().unwrap();
+            while remaining > 0 && last.text.pop().is_some() {
+                remaining -= 1;
+            }
+            if last.text.is_empty() {
+                blocks.pop();
+            }
+        }
+        let size: usize = blocks.iter().map(|b| utf16_len(&b.text)).sum();
+        if size.saturating_add(utf16_len(text)) > self.capacity_utf16 {
+            return Err(EditError::CapacityExceeded);
+        }
+        self.blocks = blocks;
+        if !text.is_empty() {
+            self.push_block(BlockKind::Phrase, text.to_owned());
+        }
+        Ok(())
     }
 
     /// 发送键的语义，见 [`SendKeyAction`]。
@@ -371,6 +410,21 @@ impl Buffer {
     }
 
     // ── 投递 ──────────────────────────────────────────────
+
+    /// Freeze the current prefix for a delivery sequence. Later input starts new blocks.
+    /// Authorization is still checked separately by every `begin_*` and receipt.
+    pub fn freeze_queue(&mut self) -> usize {
+        self.frozen_queue = self.blocks.len();
+        self.frozen_queue
+    }
+
+    pub fn release_queue(&mut self) {
+        self.frozen_queue = 0;
+    }
+
+    pub fn frozen_queue_len(&self) -> usize {
+        self.frozen_queue
+    }
 
     /// 取出下一块待投递。
     pub fn begin_next(&mut self, target: Target) -> Result<Delivery, DeliverError> {
@@ -401,6 +455,7 @@ impl Buffer {
         match outcome {
             Outcome::Accepted => {
                 self.blocks.drain(..flight.count);
+                self.frozen_queue = self.frozen_queue.saturating_sub(flight.count);
             }
             Outcome::Rejected => {}
             Outcome::Unknown => self.held = true,
@@ -450,11 +505,15 @@ impl Buffer {
         self.in_flight.as_ref().map_or(0, |f| f.count)
     }
 
+    fn edit_locked_count(&self) -> usize {
+        self.in_flight_count().max(self.frozen_queue)
+    }
+
     fn check_last_editable(&self) -> Result<(), EditError> {
         if self.blocks.is_empty() {
             return Err(EditError::Empty);
         }
-        if self.blocks.len() <= self.in_flight_count() {
+        if self.blocks.len() <= self.edit_locked_count() {
             return Err(EditError::Busy);
         }
         Ok(())

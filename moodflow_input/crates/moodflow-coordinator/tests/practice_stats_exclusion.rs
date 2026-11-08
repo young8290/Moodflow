@@ -22,6 +22,7 @@ fn focus_on(package: &str) -> FocusData {
         composition_start_x: 0,
         composition_start_y: 0,
         client_token: 1,
+        target_revision: 0,
         input_scope_mask: 0,
         disabled: false,
         reason: 0,

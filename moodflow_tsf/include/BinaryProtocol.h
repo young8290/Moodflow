@@ -89,8 +89,7 @@ constexpr uint16_t CMD_CARET_PROBE      = 0x0304; // First-show probe: one pre-r
 // Unknown `kind` MUST be ignored silently (log at debug, never error, never drop the
 // connection) -- that is what lets old and new peers interoperate.
 //
-// Currently unused on the Windows side; declared here so the three copies of this
-// protocol (Rust / C++ / Swift) stay in step.
+// Windows Buffer uses target-scoped mode/delivery and write-authorization/receipt extensions.
 constexpr uint16_t CMD_EXT              = 0x0E01;
 
 constexpr uint16_t CMD_BATCH_EVENTS     = 0x0F01; // Batch events container
@@ -786,6 +785,7 @@ struct FocusGainedPayload
     // ⚠ 本结构之后还有**两个前后相接的变长段**（不在结构体里，由 SendFocusGained 手工拼接）：
     //
     //   [本结构 39 字节][bundleIdLen:u32][bundleId][windowClassLen:u32][windowClass]
+    //   [targetRevision:u64]：输入上下文修订号，0/缺失表示不支持 Buffer 回执协议。
     //
     //   ① bundleId    macOS `.app` 专属。**Windows 发 len=0 占位**——不是冗余，是让两个
     //                 平台共用同一条线性走法，否则窗口类段的偏移会因平台而异。

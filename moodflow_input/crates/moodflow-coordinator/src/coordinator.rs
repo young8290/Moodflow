@@ -10988,6 +10988,7 @@ mod caret_compat_tests {
             moodflow_ipc::protocol::caret_source::TSF_SELECTION,
         );
         c.handle_focus_gained(&FocusData {
+            target_revision: 0,
             x: 9999,
             y: 9999,
             height: 0, // 退化矩形：同步段会挡，重型段直写则不会
@@ -11025,6 +11026,7 @@ mod caret_compat_tests {
         let c = coord();
         *c.composition_start.lock().unwrap() = (593, 572, true);
         c.handle_focus_gained(&FocusData {
+            target_revision: 0,
             x: 1457,
             y: 959,
             height: 37,
@@ -11054,6 +11056,7 @@ mod caret_compat_tests {
             ac.caret_use_top = true;
         }
         c.handle_focus_gained(&FocusData {
+            target_revision: 0,
             x: 100,
             y: 300,
             height: 30,
@@ -11098,6 +11101,7 @@ mod caret_compat_tests {
         *c.app_compat.lock().unwrap() = moodflow_config::app_compat::AppCompat::from_rules(rules);
 
         c.handle_focus_gained(&FocusData {
+            target_revision: 0,
             x: 100,
             y: 300,
             height: 30,
@@ -13425,6 +13429,7 @@ mod caret_compat_tests {
         c.caret_cache_verified
             .store(true, std::sync::atomic::Ordering::Relaxed);
         c.handle_focus_gained(&FocusData {
+            target_revision: 0,
             x: 100,
             y: 300,
             height: 30,
@@ -14734,6 +14739,7 @@ mod initial_mode_tests {
         };
 
         let focus = |class: &str| FocusData {
+            target_revision: 0,
             x: 0,
             y: 0,
             height: 0,
@@ -14832,6 +14838,7 @@ mod initial_mode_tests {
             .insert(200, "explorer.exe".into());
 
         let focus = |class: &str| FocusData {
+            target_revision: 0,
             x: 0,
             y: 0,
             height: 0,
@@ -14940,6 +14947,7 @@ mod initial_mode_tests {
 
         // 重型段随后落地的值。
         c.handle_focus_gained(&FocusData {
+            target_revision: 0,
             x: 0,
             y: 0,
             height: 0,
@@ -15880,6 +15888,7 @@ mod focus_ownership_tests {
         let c = activated(NOTEPAD);
         open_menu_settled(&c);
         c.handle_focus_gained(&FocusData {
+            target_revision: 0,
             x: 10,
             y: 20,
             height: 16,

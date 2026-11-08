@@ -742,7 +742,10 @@ describe('一句话区（FR-WGT-04、FR-CMF-04/05）', () => {
 
   describe('新的暖心话', () => {
     beforeEach(() =>
-      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] }),
+      vi.useFakeTimers({
+        now: new Date(2026, 10, 8, 12, 0, 0),
+        toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'],
+      }),
     )
     afterEach(() => vi.useRealTimers())
 

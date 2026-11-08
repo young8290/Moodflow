@@ -4,6 +4,7 @@ pub mod backup;
 pub mod bundle;
 pub mod envelope;
 pub mod merge;
+pub mod recovery;
 pub mod rime_import;
 pub mod scheme;
 pub mod theme;

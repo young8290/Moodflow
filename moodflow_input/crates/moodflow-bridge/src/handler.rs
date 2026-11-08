@@ -110,6 +110,8 @@ pub const COMPOSITION_PLACEHOLDER: &str = " ";
 /// 按键事件结果类型
 #[derive(Debug, Clone)]
 pub enum KeyAction {
+    /// Synchronous acknowledgement of target-scoped Buffer capture.
+    BufferMode(moodflow_ipc::buffer::Mode),
     /// 插入文本
     InsertText {
         text: String,
@@ -242,6 +244,8 @@ impl KeyAction {
 /// 焦点数据
 #[derive(Debug, Clone)]
 pub struct FocusData {
+    /// TSF 输入上下文修订号；0 为不支持有回执 Buffer 投递的旧宿主。
+    pub target_revision: u64,
     pub x: i32,
     pub y: i32,
     pub height: i32,
@@ -459,6 +463,11 @@ pub trait MessageHandler: Send + Sync {
     /// 强制每个实现（含测试夹具）写一遍空函数换不来任何安全性。
     fn handle_ext(&self, kind: &str, _body: &[u8]) {
         tracing::debug!("未处理的扩展消息 kind={kind}");
+    }
+
+    /// 写入前只读内存复核；未就绪／旧服务一律拒绝。
+    fn authorize_buffer_delivery(&self, _id: u64, _client: u64, _revision: u64) -> bool {
+        false
     }
 
     /// darwin: 查询功能菜单，返回已编码的 `CmdMenuShow` 帧字节（响应 `CmdShowContextMenu`）。
