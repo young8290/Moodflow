@@ -240,6 +240,8 @@ function Build-Core ([string]$profile = "release", [string]$outdir = $null) {
     # CLI 包装器 (moodflow_input config ...; 运行时自辨 dev/release exe, 两变体共用一份)
     $cli = "$ProjectRoot\scripts\moodflow_cli.bat"
     if (Test-Path $cli) { Copy-Item $cli "$outdir\moodflow_cli.bat" -Force; Gray "已复制: moodflow_cli.bat" }
+    # 离线恢复命令与说明随核心一同交付；无需联网查看恢复步骤。
+    Copy-Item (Join-Path $ProductRoot "docs\user-dictionary-recovery.md") "$outdir\USER-DATA-RECOVERY.md" -Force -ErrorAction Stop
     return $true
 }
 

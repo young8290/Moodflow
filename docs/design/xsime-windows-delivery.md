@@ -60,9 +60,10 @@
 
 - `dist/MoodflowDev-Setup-0.124.1-beta.exe`：未签名的开发验证包；包含核心、双架构 TSF、Hub、运行数据与卸载器。最终长度和哈希以同目录 `latest-dev.json` 为准。未执行系统安装或 TSF 注册。
 - 包内 105 个文件经过验证和解包复核。`latest-dev.json` 指向 Moodflow 自己的 GitHub Release 下载地址，SHA-256/size 与最终 Setup 一致。
-- W4 后协调器完整单元回归：1130 通过、1 原有忽略；Buffer 29、配置 622、菜单协议 29、TSF C++ 12 项通过。Bridge 55、IPC 62 项在前序投递协议变更后通过。
+- W4 后协调器完整单元回归：1130 通过、1 原有忽略；Buffer 29、配置 622、菜单协议 29、TSF C++ 13 项通过（含双松键回调、自动重复与重叠热键）。Bridge 55、IPC 62 项在前序投递协议变更后通过。
 - 输入工作区全目标 Clippy（`--workspace --all-targets -D warnings`）和格式检查通过；Hub 的类型、ESLint、Prettier、365 项测试及原生 Release 构建通过。
 - 在 Windows 文件沙箱中，全量测试的临时文件/目录联接操作会失败；使用本项目 `.cache/coordinator-test-tmp` 并限制两个测试线程后全量通过。未改动真实重启删除队列。
 - 验证实际“缺证书但要求签名”路径会拒绝发布并保留原文件；尚未进行真实证书签名。
 - 安装器提交 `0b01471fe75bb520f34c51d28d12cf6e5f127ef9` 已推送，主仓打包 CI 固定该提交，避免检出旧工具名称。
 - Hub 改用 Rust 完整静态 CRT 链接，关闭 Tauri 默认会选择动态 UCRT 的辅助逻辑；打包前实际检查所有自有 PE，拒绝动态 CRT 依赖。安装器草稿 PR：<https://github.com/young8290/wind-installer/pull/2>。
+- W10 的离线 `backup recover <原库.redb> <新文件.zip>` 与 [恢复说明](../user-dictionary-recovery.md) 已接入。原库只读加锁，redb 仅打开临时副本；输出不覆盖已有文件，失败不发布半包。传输模块 106 项、恢复往返与异常场景 4 项、离线 CLI 1 项通过。故障常驻提示与设置页状态仍待补齐，W10 暂不作为整项交付勾选。

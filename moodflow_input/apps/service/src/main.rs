@@ -51,7 +51,7 @@ fn print_root_usage() {
          theme     主题列表 / 主题包 .wtheme 预览、导入与导出（需 core 在线）\n  \
          dict      用户词库按方案导入导出（需 core 在线）\n  \
          phrase    用户短语导入导出 / 系统短语恢复（需 core 在线）\n  \
-         backup    整机备份创建/查看/还原（需 core 在线）\n  \
+         backup    整机备份创建/查看/还原、离线恢复导出\n  \
          restart   重启输入法服务（未运行则直接启动）\n  \
          ui        桌面提示：ui toast <文案>（需 core 在线）\n  \
          system    系统集成：Dota 2 兼容等（写 HKLM，需管理员权限）\n  \
