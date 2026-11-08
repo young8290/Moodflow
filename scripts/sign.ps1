@@ -6,41 +6,11 @@
 #   .\scripts\sign.ps1 build\moodflow_tsf.dll    签指定文件
 #   .\scripts\sign.ps1 -Verify dist\*.exe    只验签
 #
-# ══════════════════════════════════════════════════════════════════════════
-#  证书形态: 云签名 (私钥在服务商的 HSM 里)
-# ══════════════════════════════════════════════════════════════════════════
-#
-# 本脚本【不假设】任何具体的签名服务商, 也不涉及任何物理硬件 (USB token / 智能卡)。
-# 它只要求一件事: 签名时证书能在 Cert:\CurrentUser\My 里按指纹找到且私钥可用。
-#
-# 云签名的形态是: 私钥永远在服务商的 HSM 里, 不可导出; 本地客户端登录后把证书投射进
-# Windows 证书存储, signtool 按指纹取用它。至于服务商用什么机制投射 (多数是在 PC/SC
-# 层注册一个软件读卡器, 让系统走 Base Smart Card Crypto Provider 访问远端密钥), 对
-# 本脚本是透明的 —— 换服务商不需要改这里一行。
-#
-# ⚠️ 登录会话【有时限】(本项目所用服务商为 2 小时), 且开启会话需要二次验证。过期后
-#    本脚本会因「找不到证书」而跳过或报错 (取决于 -RequireSigned), 不会签出一个坏包。
-#
-# ⚠️ 因此签名【不能】在 GitHub 托管 runner 上做: 那里没人能完成二次验证。
-#    详见 docs\design\code-signing.md。
-#
-# ══════════════════════════════════════════════════════════════════════════
-#  什么是秘密, 什么不是
-# ══════════════════════════════════════════════════════════════════════════
-#
-#  不是秘密 (可以进仓库、进 CI 环境变量、贴到 issue 里):
-#    · 证书指纹 thumbprint —— 它就是证书公钥部分的 SHA-1, 签名文件里本来就带着;
-#      知道它只能【指定用哪张证书】, 不能拿它签任何东西。
-#    · 时间戳服务器地址、签名算法。
-#
-#  是秘密 (只存在于你本机与二次验证设备上, 【绝不】写进本仓、CI secrets、聊天记录):
-#    · 签名服务的账号 / 密码 / PIN
-#    · 二次验证的 TOTP 种子 —— 这一条最要命: 种子不是「一次性密码」而是「密码生成器」,
-#      拿到它等于永久接管这张证书。任何把它塞进 GitHub Secrets 的方案都是把证书交出去。
-#
-#  本脚本因此【只读】thumbprint 一项配置, 不接受也不存储任何口令。
-#  服务商相关的一切 (客户端在哪、会话怎么开、时间戳用谁家) 都留在 sign.local.ps1 里,
-#  那个文件不入库 —— 仓库里因此不含任何签名平台的名字。
+# Supports certificates exposed to the Windows CurrentUser/My or LocalMachine/My store
+# by a hardware token, cloud provider or other Windows cryptographic provider.
+# Private keys and provider credentials are never accepted as script arguments.
+# A trusted publisher identity requires a purchased code-signing certificate.
+# See docs/design/code-signing.md for configuration and the immutable signing order.
 
 param(
     # 待签文件 (支持通配)。留空则按 -Status / -Verify 的语义处理。
@@ -68,12 +38,9 @@ function Gray ([string]$m) { Write-Host $m -ForegroundColor DarkGray }
 # ---------- 配置 ----------
 # 证书指纹。留空 = 签名整体关闭 (本机日常开发的默认状态)。
 $MOODFLOW_SIGN_THUMBPRINT = $env:MOODFLOW_SIGN_THUMBPRINT
+$MOODFLOW_SIGN_STORE = if ($env:MOODFLOW_SIGN_STORE) { $env:MOODFLOW_SIGN_STORE } else { 'CurrentUser' }
 
-# RFC3161 时间戳服务器。【必须有】—— 没有时间戳的签名会在证书到期当天集体失效,
-# 已经发出去的安装包会突然变成「未知发布者」。有时间戳则签名在证书有效期内永久有效。
-#
-# 时间戳与签名证书的来源【无关】(RFC3161 是通用协议, 任何 TSA 都能用), 故这里放一个
-# 通用公共服务作默认。你的 CA 若指定了自家 TSA, 在 sign.local.ps1 里覆盖即可。
+# RFC3161 timestamp; the provider can override this public endpoint.
 $MOODFLOW_SIGN_TIMESTAMP_URL = "http://timestamp.digicert.com"
 
 # 单个文件的签名尝试上限 (含首次)。覆盖两类瞬时故障: 时间戳服务器抽风、以及打包器
@@ -88,6 +55,13 @@ $MOODFLOW_SIGN_SESSION_HINT = "打开签名服务的本地客户端并登录, �
 # 可在 scripts\sign.local.ps1 覆盖以上变量 (该文件 gitignore; 模板见 .example)。
 $signCfg = "$ScriptDir\sign.local.ps1"
 if (Test-Path $signCfg) { . $signCfg }
+if ($MOODFLOW_SIGN_STORE -notin @('CurrentUser', 'LocalMachine')) {
+    throw 'MOODFLOW_SIGN_STORE must be CurrentUser or LocalMachine'
+}
+$MOODFLOW_SIGN_THUMBPRINT = ($MOODFLOW_SIGN_THUMBPRINT -replace '[\s\u200e\u200f]', '').ToUpperInvariant()
+if ($MOODFLOW_SIGN_THUMBPRINT -and $MOODFLOW_SIGN_THUMBPRINT -notmatch '^[A-F0-9]{40}$') {
+    throw 'MOODFLOW_SIGN_THUMBPRINT must be the 40-character certificate fingerprint'
+}
 
 # ---------- signtool 定位 ----------
 # Windows SDK 按版本号建目录, 取版本号最大的那个 x64 版。
@@ -117,13 +91,17 @@ function Resolve-SignTool {
 # 判据是【私钥可用】而不仅仅是「证书在存储里」: 签名会话结束后, 证书条目可能还残留在
 # Cert:\CurrentUser\My, 但 HasPrivateKey 为假 —— 此时 signtool 会在真正签名那一刻才
 # 失败, 而那时安装包已经打好了。提前拦在这里。
+function Test-SigningCertificate ($cert, [datetime]$now = (Get-Date)) {
+    if (-not $cert -or -not $cert.HasPrivateKey) { return $false }
+    if ($cert.NotBefore -gt $now -or $cert.NotAfter -le $now) { return $false }
+    return (@($cert.EnhancedKeyUsageList | ForEach-Object { [string]$_.ObjectId }) -contains '1.3.6.1.5.5.7.3.3')
+}
+
 function Resolve-SigningCert {
     if (-not $MOODFLOW_SIGN_THUMBPRINT) { return $null }
-    $tp = ($MOODFLOW_SIGN_THUMBPRINT -replace '[^0-9A-Fa-f]', '').ToUpper()
-    $cert = Get-ChildItem Cert:\CurrentUser\My -ErrorAction SilentlyContinue |
-        Where-Object { $_.Thumbprint -eq $tp }
-    if (-not $cert) { return $null }
-    if (-not $cert.HasPrivateKey) { return $null }
+    $cert = Get-ChildItem "Cert:\$MOODFLOW_SIGN_STORE\My" -ErrorAction SilentlyContinue |
+        Where-Object { $_.Thumbprint -eq $MOODFLOW_SIGN_THUMBPRINT } | Select-Object -First 1
+    if (-not (Test-SigningCertificate $cert)) { return $null }
     return $cert
 }
 
@@ -141,7 +119,7 @@ function Show-Status {
 
     $cert = Resolve-SigningCert
     if (-not $cert) {
-        Warn "  会话     : 不可用 —— 证书不在 Cert:\CurrentUser\My, 或私钥不可用"
+        Warn "  会话     : 不可用 —— 证书不可用（检查存储位置、私钥、有效期与代码签名用途）"
         Gray "             多半是签名会话没开或已过期:"
         Gray "             $MOODFLOW_SIGN_SESSION_HINT"
         Gray "             建立会话后再跑一次 -Status"
@@ -158,28 +136,18 @@ function Show-Status {
 }
 
 # ---------- 签名 ----------
-# 判据是「这个文件已经被【我们这张】证书签过了吗」, 问的是签名者身份, 不是签名状态。
-#
-# ⚠️ 不要用 `$sig.Status -eq 'Valid'` —— Status 问的是「这个签名可信吗」, 取决于证书链、
-#    CRL 能否联网、根证书是否受信任, 全是与「签没签过」无关的外部条件。离线一次就会让
-#    所有文件被判成未签名而全部重签; 用自签名证书做冒烟测试时更是恒假。
-#
-# 按指纹比对还顺带管了换证书的情况: 旧证书签的文件指纹对不上, 会被正确地重签, 而不是
-# 被当成「已签好」留在包里。
-#
-# ⚠️ 必须 try/catch, 不能只靠 -ErrorAction SilentlyContinue: 文件被占用时
-#    Get-AuthenticodeSignature 冒泡的是 .NET 异常, -ErrorAction 压不住它, 叠加脚本级
-#    $ErrorActionPreference = "Stop" 会【直接中断整个构建】。实测踩过。
-#    读不出来就当"没签过", 把处置权交给 Invoke-SignOne —— 那里的占用重试能自愈,
-#    在这里硬失败等于把一个瞬时故障升级成构建失败。
+# Only a valid, timestamped signature from the configured identity may be reused.
+# A matching fingerprint alone can also accompany a tampered file.
+function Test-SignatureIdentity ($signature, [string]$thumbprint) {
+    if (-not $signature -or "$($signature.Status)" -ne 'Valid' -or
+        -not $signature.SignerCertificate -or -not $signature.TimeStamperCertificate) { return $false }
+    return (-not $thumbprint -or $signature.SignerCertificate.Thumbprint -eq $thumbprint)
+}
+
 function Test-AlreadySigned ([string]$file, [string]$thumbprint) {
     try {
-        $sig = Get-AuthenticodeSignature -FilePath $file -ErrorAction Stop
-    } catch {
-        return $false
-    }
-    if (-not $sig -or -not $sig.SignerCertificate) { return $false }
-    return ($sig.SignerCertificate.Thumbprint -eq $thumbprint)
+        return (Test-SignatureIdentity (Get-AuthenticodeSignature -LiteralPath $file -ErrorAction Stop) $thumbprint)
+    } catch { return $false }
 }
 
 # 两类瞬时故障值得重试, 其余 (证书没了、指纹不对) 重试多少次都是一样的结果, 立即失败。
@@ -198,9 +166,15 @@ function Invoke-SignOne ([string]$signtool, [string]$thumbprint, [string]$file) 
         # /fd SHA256      文件摘要算法
         # /tr + /td       RFC3161 时间戳 (/t 是老式 Authenticode 时间戳, 不要用)
         # /sha1           按指纹选证书 —— 比 /n 主体名精确, 存储里有多张证书时不会选错
-        $out = & $signtool sign /fd SHA256 /sha1 $thumbprint `
+        $storeArgs = @()
+        if ($MOODFLOW_SIGN_STORE -eq 'LocalMachine') { $storeArgs = @('/sm') }
+        $out = & $signtool sign /fd SHA256 /sha1 $thumbprint @storeArgs `
             /tr $MOODFLOW_SIGN_TIMESTAMP_URL /td SHA256 $file 2>&1
-        if ($LASTEXITCODE -eq 0) { return $true }
+        if ($LASTEXITCODE -eq 0) {
+            if (Invoke-VerifyOne $signtool $file) { return $true }
+            ErrMsg "签名后验证失败（发布者、信任链或时间戳不符）: $file"
+            return $false
+        }
 
         $text = ($out | Out-String)
         $why = $null; $wait = 0
@@ -227,7 +201,8 @@ function Invoke-SignOne ([string]$signtool, [string]$thumbprint, [string]$file) 
 function Invoke-VerifyOne ([string]$signtool, [string]$file) {
     # /pa = 用「Authenticode 代码签名」策略验证。不加它走的是默认驱动策略, 正常的
     # 应用程序签名会被判不合格 —— 这是验签环节最容易得出错误结论的地方。
-    & $signtool verify /pa /q $file 2>&1 | Out-Null
+    if (-not (Test-AlreadySigned $file $MOODFLOW_SIGN_THUMBPRINT)) { return $false }
+    & $signtool verify /pa /all /tw /q $file 2>&1 | Out-Null
     return ($LASTEXITCODE -eq 0)
 }
 
@@ -255,10 +230,11 @@ foreach ($p in $Path) {
         }
     }
 }
-$files = $files | Select-Object -Unique
+$files = @($files | Select-Object -Unique)
 
 if ($files.Count -eq 0) {
     Warn "没有可签名的文件 (参数: $($Path -join ', '))"
+    if ($Verify -or $RequireSigned) { exit 1 }
     exit 0
 }
 

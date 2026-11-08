@@ -44,6 +44,7 @@ fn focus(coord: &Coordinator) {
         composition_start_x: 0,
         composition_start_y: 0,
         client_token: (PID as u64) << 32 | 1,
+        target_revision: 0,
         input_scope_mask: 0,
         disabled: false,
         reason: 2,

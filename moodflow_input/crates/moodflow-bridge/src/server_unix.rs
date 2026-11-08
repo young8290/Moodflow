@@ -72,6 +72,7 @@ fn handle_uds_client(mut stream: UnixStream, handler: Arc<dyn MessageHandler>) {
             && let Ok(fg) = decode_focus_gained(&payload)
         {
             handler.handle_focus_gained(&FocusData {
+                target_revision: moodflow_ipc::codec::decode_focus_gained_target_revision(&payload),
                 x: fg.caret.x,
                 y: fg.caret.y,
                 height: fg.caret.height,

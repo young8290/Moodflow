@@ -14,7 +14,7 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 option(MOODFLOW_DEV_VARIANT "Build debug variant with separate CLSID/pipe names" OFF)
 
 if(MOODFLOW_DEV_VARIANT)
-    add_definitions(-DWIND_DEV_VARIANT)
+    add_definitions(-DMOODFLOW_DEV_VARIANT)
     set(TSF_TARGET_NAME "moodflow_tsf_dev")
 else()
     set(TSF_TARGET_NAME "moodflow_tsf")
@@ -70,6 +70,7 @@ set(SOURCES
     src/ClassFactory.cpp
     src/Register.cpp
     src/TextService.cpp
+    src/BufferDelivery.cpp
     src/KeyEventSink.cpp
     src/IPCClient.cpp
     src/LangBarItemButton.cpp
@@ -143,6 +144,12 @@ target_sources(${TSF_TARGET_NAME} PRIVATE ${CMAKE_BINARY_DIR}/${TSF_TARGET_NAME}
 option(MOODFLOW_TSF_TESTS "Build moodflow_tsf unit tests" OFF)
 if(MOODFLOW_TSF_TESTS)
     enable_testing()
+    add_executable(buffer_delivery_test tests/buffer_delivery_test.cpp)
+    target_include_directories(buffer_delivery_test PRIVATE ${CMAKE_SOURCE_DIR}/include)
+    if(MSVC)
+        target_compile_options(buffer_delivery_test PRIVATE /utf-8 /W4)
+    endif()
+    add_test(NAME buffer_delivery COMMAND buffer_delivery_test)
     add_executable(skip_key_table_test tests/skip_key_table_test.cpp)
     target_include_directories(skip_key_table_test PRIVATE ${CMAKE_SOURCE_DIR}/include)
     if(MSVC)

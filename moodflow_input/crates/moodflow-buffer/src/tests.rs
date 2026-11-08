@@ -1,5 +1,29 @@
 use super::*;
 
+#[test]
+fn suffix_replacement_is_atomic_and_preserves_frozen_prefix() {
+    let mut b = Buffer::new(7);
+    b.bind(Target::new(1, 1), FieldKind::Normal).unwrap();
+    b.push_phrase("你好").unwrap();
+    b.push_latin('🙂').unwrap();
+    b.replace_tail(1, ".").unwrap();
+    assert_eq!(b.text(), "你好.");
+    assert_eq!(b.replace_tail(9, "x"), Err(EditError::Empty));
+    assert_eq!(b.text(), "你好.");
+    assert_eq!(
+        b.replace_tail(1, "123456"),
+        Err(EditError::CapacityExceeded)
+    );
+    assert_eq!(b.text(), "你好.");
+    let d = b.begin_all(Target::new(1, 1)).unwrap();
+    b.push_latin('a').unwrap();
+    assert_eq!(b.replace_tail(2, "!"), Err(EditError::Busy));
+    assert_eq!(b.text(), "你好.a");
+    b.replace_tail(1, "b").unwrap();
+    b.finish(d.token, Outcome::Accepted).unwrap();
+    assert_eq!(b.text(), "b");
+}
+
 const A: Target = Target::new(1, 0);
 const A2: Target = Target::new(1, 1); // 同一输入框，上下文重建后
 const B: Target = Target::new(2, 0);

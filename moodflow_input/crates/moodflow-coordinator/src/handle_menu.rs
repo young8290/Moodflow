@@ -215,6 +215,7 @@ impl Coordinator {
             MenuCmd::BufferSend
             | MenuCmd::BufferDeleteLast
             | MenuCmd::BufferClear
+            | MenuCmd::BufferReleaseHold
             | MenuCmd::BufferClose => self.run_buffer_menu_cmd(cmd),
             MenuCmd::SchemaEnglish => {
                 // ctrl_held=false：菜单点的，与按键无关。它只被 `ignore_host_ime_close`

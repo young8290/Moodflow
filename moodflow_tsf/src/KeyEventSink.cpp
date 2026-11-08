@@ -362,6 +362,18 @@ bool CKeyEventSink::_IsLogDumpHotkey(WPARAM vk)
         && !(GetKeyState(VK_MENU) & 0x8000);
 }
 
+bool CKeyEventSink::_IsBufferInputKey(WPARAM vk, uint32_t modifiers) const
+{
+    auto* ipc = _pTextService->GetIPCClient();
+    if (!ipc || (modifiers & (KEYMOD_CTRL | KEYMOD_ALT | KEYMOD_WIN))) return false;
+    const auto revision = ipc->BufferCaptureRevision();
+    if (!revision || revision != _pTextService->GetFocusSessionId()) return false;
+    const auto kind = CHotkeyManager::ClassifyInputKey(vk, modifiers);
+    return kind == HotkeyType::Letter || kind == HotkeyType::Number
+        || kind == HotkeyType::Punctuation || kind == HotkeyType::Space
+        || kind == HotkeyType::Backspace || kind == HotkeyType::Enter;
+}
+
 STDAPI CKeyEventSink::OnTestKeyDown(ITfContext* pContext, WPARAM wParam, LPARAM lParam, BOOL* pfEaten)
 {
     *pfEaten = FALSE;
@@ -675,6 +687,11 @@ STDAPI CKeyEventSink::OnTestKeyDown(ITfContext* pContext, WPARAM wParam, LPARAM 
     // 判据收口在 _HasInputSession()（含 defer 真空期，见其定义）。此处不得就地展开：
     // OnTestKeyDown 放行的键根本不会调到 OnKeyDown，两边不一致即「吃了再吐」或直接丢键。
     BOOL hasInputSession = _HasInputSession();
+
+    if (_IsBufferInputKey(wParam, modifiers)) {
+        *pfEaten = TRUE;
+        return S_OK;
+    }
 
     // English auto-pair: intercept bracket keys in English mode.
     // Ctrl/Alt 组合留给热键/宿主（如 Ctrl+Shift+] open_settings），不做配对。
@@ -1420,6 +1437,8 @@ STDAPI CKeyEventSink::OnKeyDown(ITfContext* pContext, WPARAM wParam, LPARAM lPar
     {
         isInputKey = TRUE;
     }
+
+    if (_IsBufferInputKey(wParam, modifiers)) isInputKey = TRUE;
 
     if (!isKeyDownHotkey && !isInputKey)
     {

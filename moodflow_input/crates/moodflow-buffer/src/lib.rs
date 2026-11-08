@@ -359,6 +359,38 @@ impl Buffer {
         self.held = false;
     }
 
+    /// Atomically replace a suffix measured in Unicode scalar values. Never edit frozen blocks.
+    pub fn replace_tail(&mut self, count: usize, text: &str) -> Result<(), EditError> {
+        let mut blocks = self.blocks.clone();
+        let frozen = self.in_flight_count();
+        let mut remaining = count;
+        while remaining > 0 {
+            if blocks.len() <= frozen {
+                return Err(if frozen > 0 {
+                    EditError::Busy
+                } else {
+                    EditError::Empty
+                });
+            }
+            let last = blocks.last_mut().unwrap();
+            while remaining > 0 && last.text.pop().is_some() {
+                remaining -= 1;
+            }
+            if last.text.is_empty() {
+                blocks.pop();
+            }
+        }
+        let size: usize = blocks.iter().map(|b| utf16_len(&b.text)).sum();
+        if size.saturating_add(utf16_len(text)) > self.capacity_utf16 {
+            return Err(EditError::CapacityExceeded);
+        }
+        self.blocks = blocks;
+        if !text.is_empty() {
+            self.push_block(BlockKind::Phrase, text.to_owned());
+        }
+        Ok(())
+    }
+
     /// 发送键的语义，见 [`SendKeyAction`]。
     pub fn send_key_action(&self, composing: bool) -> SendKeyAction {
         if composing {

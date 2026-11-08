@@ -100,8 +100,8 @@ setup_xwin_env || exit 1
   cargo build --release --bin moodflow-packer --features packer
 )
 
-STUB="$INSTALLER_DIR/target/$TARGET/release/wind-installer.exe"
-UNINSTALLER="$INSTALLER_DIR/target/$TARGET/release/wind-uninstaller.exe"
+STUB="$INSTALLER_DIR/target/$TARGET/release/moodflow-installer.exe"
+UNINSTALLER="$INSTALLER_DIR/target/$TARGET/release/moodflow-uninstaller.exe"
 PACKER="$INSTALLER_DIR/target/release/moodflow-packer"
 for b in "$STUB" "$UNINSTALLER" "$PACKER"; do
   [[ -f "$b" ]] || { echo "[ERROR] 缺少编译产物: $b" >&2; exit 1; }

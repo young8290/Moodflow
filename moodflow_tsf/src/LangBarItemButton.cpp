@@ -43,6 +43,7 @@ const UINT CLangBarItemButton::WM_ACTIVATION_STATUS = WM_USER + 105;
 const UINT CLangBarItemButton::WM_REPLACE_BACKWARD = WM_USER + 106;
 const UINT CLangBarItemButton::WM_PAIR_COMMIT = WM_USER + 107;
 const UINT CLangBarItemButton::WM_REFRESH_ICON = WM_USER + 108;
+const UINT CLangBarItemButton::WM_BUFFER_DELIVERY = WM_USER + 109;
 
 static const UINT_PTR TIMER_ID_CARET_RETRY    = 0xC401;
 static const UINT_PTR TIMER_ID_SERVICE_READY  = 0xC402;
@@ -643,6 +644,14 @@ LRESULT CALLBACK CLangBarItemButton::_MsgWndProc(HWND hwnd, UINT msg, WPARAM wPa
         delete pData;
         return 0;
     }
+    else if (msg == WM_BUFFER_DELIVERY)
+    {
+        auto* data = reinterpret_cast<moodflow::buffer::Delivery*>(lParam);
+        auto* self = reinterpret_cast<CLangBarItemButton*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+        if (self && self->_pTextService && data) self->_pTextService->DeliverBuffer(*data);
+        delete data;
+        return 0;
+    }
     else if (msg == WM_COMMIT_TEXT)
     {
         // lParam contains pointer to CommitTextData (allocated by sender)
@@ -982,6 +991,11 @@ BOOL CLangBarItemButton::Initialize()
 void CLangBarItemButton::Uninitialize()
 {
     MOODFLOW_LOG_INFO(L"LangBarItemButton::Uninitialize\n");
+    if (_hMsgWnd) {
+        MSG pending = {};
+        while (PeekMessageW(&pending, _hMsgWnd, WM_BUFFER_DELIVERY, WM_BUFFER_DELIVERY, PM_REMOVE))
+            delete reinterpret_cast<moodflow::buffer::Delivery*>(pending.lParam);
+    }
 
     // Destroy message window
     if (_hMsgWnd != NULL)
@@ -1146,6 +1160,17 @@ void CLangBarItemButton::PostUpdateFullStatus(BOOL bChineseMode, BOOL bFullWidth
     {
         MOODFLOW_LOG_DEBUG(L"PostUpdateFullStatus: Message posted to UI thread\n");
     }
+}
+
+bool CLangBarItemButton::PostBufferDelivery(const moodflow::buffer::Delivery& delivery)
+{
+    if (!_hMsgWnd) return false;
+    auto* data = new moodflow::buffer::Delivery(delivery);
+    if (!PostMessageW(_hMsgWnd, WM_BUFFER_DELIVERY, 0, reinterpret_cast<LPARAM>(data))) {
+        delete data;
+        return false;
+    }
+    return true;
 }
 
 void CLangBarItemButton::PostCommitText(const std::wstring& text)

@@ -633,6 +633,7 @@ impl Coordinator {
             // 根因，见 `schema_switch_key_action`）；`MoveCursorRight` / `DeletePair` 在
             // C++ 侧也不碰组合、不清 `_hasCandidates`（`KeyEventSink.cpp` 对应分支）。
             KeyAction::StatusUpdate(_)
+            | KeyAction::BufferMode(_)
             | KeyAction::Consumed
             | KeyAction::MoveCursorRight { .. }
             | KeyAction::DeletePair => Fate::Untouched,

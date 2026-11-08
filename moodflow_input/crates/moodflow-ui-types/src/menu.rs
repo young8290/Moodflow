@@ -84,6 +84,8 @@ pub enum MenuCmd {
     BufferClear,
     /// Buffer：关闭（保留内容，下次打开还在）。
     BufferClose,
+    /// 用户核实上次没有写入后，解除未知结果的暂停。
+    BufferReleaseHold,
     /// 切到英文模式
     SchemaEnglish,
     /// 选择第 N 个输入方案
@@ -327,6 +329,7 @@ impl MenuKind {
                 MenuCmd::BufferDeleteLast => 139,
                 MenuCmd::BufferClear => 140,
                 MenuCmd::BufferClose => 141,
+                MenuCmd::BufferReleaseHold => 142,
                 MenuCmd::ClipboardPaste(i) => 19000 + i as i32,
                 MenuCmd::ClipboardTogglePin(i) => 20000 + i as i32,
                 MenuCmd::ClipboardRemove(i) => 21000 + i as i32,
@@ -409,6 +412,7 @@ impl MenuKind {
             139 => MenuCmd::BufferDeleteLast,
             140 => MenuCmd::BufferClear,
             141 => MenuCmd::BufferClose,
+            142 => MenuCmd::BufferReleaseHold,
             19000..=19999 => MenuCmd::ClipboardPaste((id - 19000) as u16),
             20000..=20999 => MenuCmd::ClipboardTogglePin((id - 20000) as u16),
             21000..=21999 => MenuCmd::ClipboardRemove((id - 21000) as u16),

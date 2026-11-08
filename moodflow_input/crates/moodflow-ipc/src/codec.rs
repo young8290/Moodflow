@@ -145,6 +145,21 @@ pub fn decode_focus_gained_window_class(payload: &[u8]) -> &str {
     }
 }
 
+/// 两个变长字符串之后追加的输入框修订号。0 表示旧宿主，不能授权 Buffer 投递。
+pub fn decode_focus_gained_target_revision(payload: &[u8]) -> u64 {
+    let (_, Some(next)) = read_len_prefixed(payload, FocusGainedPayload::VAR_SECTION_OFFSET) else {
+        return 0;
+    };
+    let (_, Some(next)) = read_len_prefixed(payload, next) else {
+        return 0;
+    };
+    payload
+        .get(next..next + 8)
+        .and_then(|b| b.try_into().ok())
+        .map(u64::from_le_bytes)
+        .unwrap_or(0)
+}
+
 /// 从载荷字节解码 InputStateReportPayload（CMD_INPUT_STATE_REPORT 0x0213）
 pub fn decode_input_state_report(payload: &[u8]) -> Result<InputStateReportPayload, CodecError> {
     InputStateReportPayload::from_bytes(payload).ok_or(CodecError::BufferTooShort {
@@ -1240,6 +1255,27 @@ mod tests {
         p.extend_from_slice(&(class.len() as u32).to_le_bytes());
         p.extend_from_slice(class.as_bytes());
         p
+    }
+
+    #[test]
+    fn focus_target_revision_is_an_optional_bounded_tail() {
+        for (bundle, class) in [("", "Edit"), ("com.example.editor", "窗口")] {
+            let legacy = focus_payload_with_sections(bundle, class);
+            assert_eq!(decode_focus_gained_target_revision(&legacy), 0);
+            let mut payload = legacy.clone();
+            payload.extend_from_slice(&87u64.to_le_bytes());
+            assert_eq!(decode_focus_gained_target_revision(&payload), 87);
+            assert_eq!(decode_focus_gained_window_class(&payload), class);
+            assert_eq!(decode_focus_gained_bundle_id(&payload), bundle);
+            for length in legacy.len()..payload.len() {
+                assert_eq!(decode_focus_gained_target_revision(&payload[..length]), 0);
+            }
+        }
+        assert_eq!(decode_focus_gained_target_revision(&[]), 0);
+        assert_eq!(decode_focus_gained_target_revision(&[0; 39]), 0);
+        let mut corrupt = vec![0; 39];
+        corrupt.extend_from_slice(&u32::MAX.to_le_bytes());
+        assert_eq!(decode_focus_gained_target_revision(&corrupt), 0);
     }
 
     #[test]

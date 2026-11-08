@@ -1392,13 +1392,13 @@ STAGE_MANIFEST_NAME="stage.json"
 #
 # 落点是 .cache/installer-bins/ —— 由 `dev.sh instbins` 从【编译机】取回的原生 MSVC 版。
 # ★ 为什么不能在 Linux 上交叉编它们, 以及为什么落点不放在 cargo 的 target 里, 见
-#   do_instbins 头部那段。简言之: wind-installer.exe 是 Setup.exe 的外壳、
-#   wind-uninstaller.exe 装到用户机器上, 两者都进最终产物, 受 6dbc8595 约束必须原生
+#   do_instbins 头部那段。简言之: moodflow-installer.exe 是 Setup.exe 的外壳、
+#   moodflow-uninstaller.exe 装到用户机器上, 两者都进最终产物, 受 6dbc8595 约束必须原生
 #   MSVC; 而放进 target/ 会被下一次本地 cargo xwin build 悄悄覆盖成交叉编版本。
 installer_binaries() {
-    printf '%s\n' "wind-installer.exe|$INSTALLER_BIN_DIR/wind-installer.exe" \
-                  "wind-packer.exe|$INSTALLER_BIN_DIR/wind-packer.exe" \
-                  "wind-uninstaller.exe|$INSTALLER_BIN_DIR/wind-uninstaller.exe"
+    printf '%s\n' "moodflow-installer.exe|$INSTALLER_BIN_DIR/moodflow-installer.exe" \
+                  "moodflow-packer.exe|$INSTALLER_BIN_DIR/moodflow-packer.exe" \
+                  "moodflow-uninstaller.exe|$INSTALLER_BIN_DIR/moodflow-uninstaller.exe"
 }
 
 # 单个 PE 是不是【原生 MSVC】链接器产出的。
@@ -1676,11 +1676,11 @@ Get-ChildItem \$env:APPDATA,\$env:LOCALAPPDATA -Filter 'Moodflow*' -Directory -E
 #
 # ★★ 为什么必须从编译机取, 而不是在 Linux 上交叉编:
 #    本机 unstage 后 `sign 8s` 会给 pack.ps1 透传 -SkipBuild, 直接拿这三个 exe 打包 ——
-#    其中 wind-installer.exe 就是【Setup.exe 的外壳】, wind-uninstaller.exe 会【装到用户
+#    其中 moodflow-installer.exe 就是【Setup.exe 的外壳】, moodflow-uninstaller.exe 会【装到用户
 #    机器上】。两者都进最终产物、都要签名、都被杀软扫, 因此和 moodflow_tsf.dll 一样受
 #    6dbc8595 约束: 必须原生 MSVC。交叉编它们等于把已判死的工具链重新放回发版链,
 #    而 check_native_msvc 闸门正会在出口拦下 —— 那时「三件套齐了」反而变成出不了包。
-#    (三个里只有 wind-packer.exe 是纯打包工具、不进产物, 但既然另外两个必须从编译机来,
+#    (三个里只有 moodflow-packer.exe 是纯打包工具、不进产物, 但既然另外两个必须从编译机来,
 #     顺手一起取最省事, 也免得三个文件来路不一。)
 #
 # 落点刻意【不是】cargo 的 target 目录: 放进去的话, 下一次本地 `cargo xwin build` 会把
@@ -1717,7 +1717,7 @@ if (\$LASTEXITCODE -ne 0) { exit \$LASTEXITCODE }
 \$j = cargo metadata --format-version 1 --no-deps 2>\$null | ConvertFrom-Json
 \$t = if (\$j) { \$j.target_directory } else { Join-Path '$rdir' 'target' }
 \$t = Join-Path \$t 'release'
-foreach (\$n in @('wind-installer.exe','wind-packer.exe','wind-uninstaller.exe')) {
+foreach (\$n in @('moodflow-installer.exe','moodflow-packer.exe','moodflow-uninstaller.exe')) {
   if (-not (Test-Path (Join-Path \$t \$n))) { [Console]::Error.WriteLine('编出来了但找不到: ' + \$n); exit 4 }
 }
 \$t" || { err "编译机上编安装器失败"; rbuild_cleanup; rbuild_trap_off; return 1; }
@@ -1731,14 +1731,14 @@ if (\$j) { Join-Path \$j.target_directory 'release' } else { '$rdir/target/relea
     gray "[3/3] 回传 → $INSTALLER_BIN_DIR"
     mkdir -p "$INSTALLER_BIN_DIR"
     local n ok=1
-    for n in wind-installer.exe wind-packer.exe wind-uninstaller.exe; do
+    for n in moodflow-installer.exe moodflow-packer.exe moodflow-uninstaller.exe; do
         rbuild_scp "$MOODFLOW_BUILD_REMOTE:${rt//\\//}/$n" "$INSTALLER_BIN_DIR/$n" "回传 $n" || { err "回传 $n 失败"; ok=0; }
     done
     rbuild_cleanup; rbuild_trap_off
     [ "$ok" = 1 ] || return 1
 
     say "\n三件套已就位:"
-    for n in wind-installer.exe wind-packer.exe wind-uninstaller.exe; do
+    for n in moodflow-installer.exe moodflow-packer.exe moodflow-uninstaller.exe; do
         gray "  $n  $(fsize "$INSTALLER_BIN_DIR/$n")"
     done
     gray "  下一步: dev.sh stage —— 中转包这次会带上 installer/, 本机 unstage 后零编译"

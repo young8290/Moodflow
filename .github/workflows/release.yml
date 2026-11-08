@@ -92,7 +92,8 @@ jobs:
       - name: 检出 moodflow-installer
         uses: actions/checkout@v7
         with:
-          repository: huanfeng/wind-installer
+          repository: young8290/wind-installer
+          ref: 0b01471fe75bb520f34c51d28d12cf6e5f127ef9
           path: moodflow-installer
       - name: 检出 moodflow-portable
         uses: actions/checkout@v7

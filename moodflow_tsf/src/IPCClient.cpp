@@ -692,6 +692,11 @@ BOOL CIPCClient::Connect()
 
 void CIPCClient::Disconnect()
 {
+    {
+        std::lock_guard<std::mutex> guard(_bufferModeLock);
+        _bufferCaptureRevision.store(0);
+        _bufferModeGeneration = 0;
+    }
     if (_hPipe != INVALID_HANDLE_VALUE)
     {
         CancelIo(_hPipe);
@@ -979,7 +984,7 @@ BOOL CIPCClient::SendCompositionTerminated()
 
 BOOL CIPCClient::SendFocusGained(int caretX, int caretY, int caretHeight, UINT64 inputScopeMask,
                                   bool disabled, uint8_t reason, int caretSource,
-                                  const wchar_t* windowClass)
+                                  const wchar_t* windowClass, uint64_t targetRevision)
 {
     if (!_ShouldAttemptOperation())
     {
@@ -1038,6 +1043,7 @@ BOOL CIPCClient::SendFocusGained(int caretX, int caretY, int caretHeight, UINT64
     frame.insert(frame.end(), (const uint8_t*)&classLen,
                  (const uint8_t*)&classLen + sizeof(classLen));
     frame.insert(frame.end(), classUtf8.begin(), classUtf8.end());
+    moodflow::buffer::Append(frame, targetRevision, 8);
 
     if (!_SendBinaryMessage(CMD_FOCUS_GAINED, frame.data(), (uint32_t)frame.size(), false /* sync */))
     {
@@ -1351,6 +1357,21 @@ BOOL CIPCClient::ReceiveResponse(ServiceResponse& response)
     return _ParseResponse(header, payload, response);
 }
 
+bool CIPCClient::_ApplyBufferMode(const uint8_t* data, size_t size)
+{
+    const uint8_t* body = nullptr;
+    size_t bodySize = 0;
+    if (!moodflow::buffer::DecodeEnvelope(data, size, moodflow::buffer::kMode, body, bodySize)
+        || bodySize != 24 || moodflow::buffer::Read(body, 8) != _clientToken) return false;
+    const auto generation = moodflow::buffer::Read(body + 16, 8);
+    std::lock_guard<std::mutex> guard(_bufferModeLock);
+    if (generation >= _bufferModeGeneration) {
+        _bufferModeGeneration = generation;
+        _bufferCaptureRevision.store(moodflow::buffer::Read(body + 8, 8));
+    }
+    return true;
+}
+
 BOOL CIPCClient::_ParseResponse(const IpcHeader& header, const std::vector<uint8_t>& payload, ServiceResponse& response)
 {
     // Reset response
@@ -1358,6 +1379,11 @@ BOOL CIPCClient::_ParseResponse(const IpcHeader& header, const std::vector<uint8
 
     switch (header.command)
     {
+    case CMD_EXT:
+        // Unknown extensions are harmless consumed responses to an already eaten hotkey.
+        _ApplyBufferMode(payload.data(), payload.size());
+        response.type = ResponseType::Consumed;
+        break;
     case CMD_ACK:
         response.type = ResponseType::Ack;
         _LogDebug(L"Response: Ack");
@@ -2247,6 +2273,30 @@ void CIPCClient::SetPairCommitCallback(PairCommitCallback callback)
     LeaveCriticalSection(&_asyncLock);
 }
 
+bool CIPCClient::AuthorizeBufferDelivery(const moodflow::buffer::Delivery& delivery)
+{
+    if (delivery.client != _clientToken) return false;
+    auto frame = moodflow::buffer::Envelope(moodflow::buffer::kAuthorize, moodflow::buffer::Identity(delivery));
+    ServiceResponse response;
+    return SendSync(CMD_EXT, frame.data(), static_cast<uint32_t>(frame.size()), response)
+        && response.type == ResponseType::Consumed;
+}
+
+void CIPCClient::SendBufferReceipt(const moodflow::buffer::Delivery& delivery, moodflow::buffer::Outcome outcome)
+{
+    auto body = moodflow::buffer::Identity(delivery);
+    body.push_back(static_cast<uint8_t>(outcome));
+    auto frame = moodflow::buffer::Envelope(moodflow::buffer::kReceipt, body);
+    SendAsync(CMD_EXT, frame.data(), static_cast<uint32_t>(frame.size()));
+}
+
+void CIPCClient::SetBufferDeliveryCallback(BufferDeliveryCallback callback)
+{
+    EnterCriticalSection(&_asyncLock);
+    _bufferDeliveryCallback = callback;
+    LeaveCriticalSection(&_asyncLock);
+}
+
 void CIPCClient::SetCommitTextCallback(CommitTextCallback callback)
 {
     EnterCriticalSection(&_asyncLock);
@@ -2833,6 +2883,32 @@ void CIPCClient::_AsyncReaderLoop()
                         callback(response.text);
                     }
                 }
+            }
+            else if (header.command == CMD_EXT)
+            {
+                if (bytesRead < sizeof(IpcHeader) + header.length) continue;
+                if (_ApplyBufferMode(buffer.data() + sizeof(IpcHeader), header.length)) continue;
+                const uint8_t* body = nullptr;
+                size_t bodySize = 0;
+                const char* utf8 = nullptr;
+                size_t bytes = 0;
+                moodflow::buffer::Delivery delivery;
+                if (bytesRead < sizeof(IpcHeader) + header.length
+                    || !moodflow::buffer::DecodeEnvelope(buffer.data() + sizeof(IpcHeader), header.length,
+                        moodflow::buffer::kDeliver, body, bodySize)
+                    || !moodflow::buffer::DecodeDeliveryHead(body, bodySize, delivery, utf8, bytes)
+                    || delivery.client != _clientToken) continue;
+                const int count = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8,
+                                                      static_cast<int>(bytes), nullptr, 0);
+                if (count <= 0 || static_cast<size_t>(count) > moodflow::buffer::kMaxUtf16) continue;
+                delivery.text.resize(static_cast<size_t>(count));
+                MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8, static_cast<int>(bytes),
+                                    delivery.text.data(), count);
+                delivery.receivedAt = GetTickCount64();
+                EnterCriticalSection(&_asyncLock);
+                auto callback = _bufferDeliveryCallback;
+                LeaveCriticalSection(&_asyncLock);
+                if (callback) callback(delivery);
             }
             else if (header.command == CMD_REPLACE_BACKWARD)
             {

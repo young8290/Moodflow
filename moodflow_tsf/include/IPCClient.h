@@ -1,11 +1,14 @@
 #pragma once
 
+#include "BufferDelivery.h"
+
 #include "Globals.h"
 #include "BinaryProtocol.h"
 #include <atomic>
 #include <string>
 #include <vector>
 #include <functional>
+#include <mutex>
 
 // IPC Configuration
 namespace IPCConfig
@@ -189,6 +192,11 @@ public:
     // reason 取 FOCUS_LOST_REASON_*，决定服务端清哪些状态；三种语义的区别见
     // BinaryProtocol.h。默认 THREAD＝最保守的「整个应用离开了」。
     BOOL SendFocusLost(uint8_t reason = FOCUS_LOST_REASON_THREAD);
+    // Buffer writes are authorized once and acknowledged only by the edit session.
+    bool AuthorizeBufferDelivery(const moodflow::buffer::Delivery& delivery);
+    void SendBufferReceipt(const moodflow::buffer::Delivery& delivery, moodflow::buffer::Outcome outcome);
+    uint64_t GetClientToken() const { return _clientToken; }
+    uint64_t BufferCaptureRevision() const { return _bufferCaptureRevision.load(); }
 
     // Send focus gained notification (with optional caret position and InputScope bitmask).
     // disabled/reason: input diagnostics HUD state for the newly focused control (Task 7).
@@ -211,7 +219,7 @@ public:
     BOOL SendFocusGained(int caretX = 0, int caretY = 0, int caretHeight = 0, UINT64 inputScopeMask = 0,
                          bool disabled = false, uint8_t reason = 0,
                          int caretSource = CARET_SRC_UNKNOWN,
-                         const wchar_t* windowClass = nullptr);
+                         const wchar_t* windowClass = nullptr, uint64_t targetRevision = 0);
 
     // Send input state report (async, fire-and-forget): standalone disabled/reason change
     // for the currently focused control, e.g. a GUID_COMPARTMENT_KEYBOARD_DISABLED flip that
@@ -296,6 +304,8 @@ public:
 
     // Callback type for commit text from Go (mouse click on candidate)
     using CommitTextCallback = std::function<void(const std::wstring&)>;
+    using BufferDeliveryCallback = std::function<void(const moodflow::buffer::Delivery&)>;
+    void SetBufferDeliveryCallback(BufferDeliveryCallback callback);
 
     // Callback type for clear composition from Go (mode toggle via menu)
     using ClearCompositionCallback = std::function<void()>;
@@ -485,6 +495,11 @@ private:
     StatePushCallback _statePushCallback;
     ActivationPushCallback _activationPushCallback;
     CommitTextCallback _commitTextCallback;
+    BufferDeliveryCallback _bufferDeliveryCallback;
+    std::atomic<uint64_t> _bufferCaptureRevision{0};
+    std::mutex _bufferModeLock;
+    uint64_t _bufferModeGeneration = 0;
+    bool _ApplyBufferMode(const uint8_t* data, size_t size);
     ClearCompositionCallback _clearCompositionCallback;
     ReplaceBackwardCallback _replaceBackwardCallback;
     PairCommitCallback _pairCommitCallback;
