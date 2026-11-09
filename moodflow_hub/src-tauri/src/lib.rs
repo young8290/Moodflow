@@ -309,22 +309,30 @@ pub fn run() {
             // 日程与待办识别、提醒调度（C-05、C-06）
             schedule::start(app.handle());
 
-            // 第 6 步：首次运行或隐私说明升级 → 引导窗口；否则显示小组件（`widget.visible` 关闭时不显示）。
-            // 核心以 `--background` 拉起时同样走这一步（03 第 3.1 节），区别只是不额外打开其他窗口。
-            if needs_onboarding {
-                windows::open(app.handle(), WindowTarget::Onboarding)?;
-            } else if app.state::<state::AppState>().widget_visible()? {
-                windows::open(app.handle(), WindowTarget::Widget)?;
-            }
-            if let Some(target) = launch.open {
-                windows::open(app.handle(), target)?;
-            }
+            let show_widget = !needs_onboarding && app.state::<state::AppState>().widget_visible()?;
             app.manage(hotkeys::Hotkeys::default());
             hotkeys::apply(app.handle());
             // 前台全屏时自动隐藏小组件（FR-WGT-01）
             fullscreen::start(app.handle());
             // 输入法配置变更：设置中心跟着刷新（ADR 0017）
             ime_events::start(app.handle());
+            // Finish setup before WebView2 can call back into native commands.
+            // Window creation pumps COM messages on Windows; creating the first
+            // WebView inline can re-enter a partially initialized application.
+            // A separate thread queues construction onto the running event loop.
+            let handle = app.handle().clone();
+            std::thread::Builder::new().name("hub-startup-windows".into()).spawn(move || {
+                let initial = if needs_onboarding { Some(WindowTarget::Onboarding) } else if show_widget { Some(WindowTarget::Widget) } else { None };
+                for target in initial.into_iter().chain(launch.open) {
+                    crate::hlog!("打开启动窗口：{}",target.label());
+                    if let Err(error) = windows::open(&handle,target) {
+                        crate::hlog!("启动窗口失败：{error}");
+                        handle.exit(1);
+                        return;
+                    }
+                    crate::hlog!("启动窗口已就绪：{}",target.label());
+                }
+            })?;
             Ok(())
         })
         .build(tauri::generate_context!())
