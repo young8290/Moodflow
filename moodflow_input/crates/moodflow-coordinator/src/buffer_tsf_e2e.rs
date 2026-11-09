@@ -3,6 +3,15 @@
 use crate::Coordinator;
 use moodflow_bridge::server::{BridgeConfig, BridgeServer};
 use moodflow_ui_types::MenuCmd;
+struct FixtureRpcCore;
+impl moodflow_rpc::CoreRpc for FixtureRpcCore {
+    fn is_chinese_mode(&self) -> bool {
+        true
+    }
+    fn active_schema_id(&self) -> String {
+        "wubi86".into()
+    }
+}
 use std::{
     path::{Path, PathBuf},
     process::{Child, Command},
@@ -71,6 +80,11 @@ fn actual_tsf_buffer_engine_desktop_appcontainer_and_lpac() {
     config.input.default.chinese_mode = true;
     config.moodflow.enabled = false;
     let (coordinator, _ui) = Coordinator::new_headless_with_ui_at(config, Some(&data), Some(&user));
+    let suffix = format!("_e2e_{}", std::process::id());
+    moodflow_rpc::RpcServer::new(std::sync::Arc::new(FixtureRpcCore), "release", &suffix)
+        .unwrap()
+        .start()
+        .unwrap();
     coordinator.push_server.start().unwrap();
     BridgeServer::new(BridgeConfig::default(), coordinator.clone())
         .start()
@@ -79,13 +93,32 @@ fn actual_tsf_buffer_engine_desktop_appcontainer_and_lpac() {
     for identity in ["ordinary", "appcontainer", "lpac"] {
         let report = root.join(identity);
         assert!(report.is_dir());
-        let mut child = OwnedChild(
-            Command::new(&host)
-                .arg(identity)
-                .arg(&report)
-                .spawn()
-                .unwrap(),
-        );
+        let mut command = Command::new(&host);
+        command.env_clear();
+        for name in [
+            "SystemRoot",
+            "WINDIR",
+            "PATH",
+            "USERPROFILE",
+            "LOCALAPPDATA",
+            "TEMP",
+            "TMP",
+        ] {
+            if let Some(value) = std::env::var_os(name) {
+                command.env(name, value);
+            }
+        }
+        command
+            .env("GITHUB_ACTIONS", "true")
+            .env(
+                "MOODFLOW_TSF_E2E_RPC_CTRL",
+                moodflow_rpc::ctrl_endpoint(&suffix),
+            )
+            .env(
+                "MOODFLOW_TSF_E2E_RPC_EVENTS",
+                moodflow_rpc::events_endpoint(&suffix),
+            );
+        let mut child = OwnedChild(command.arg(identity).arg(&report).spawn().unwrap());
         wait(&mut child, &report, "ready");
         coordinator.stage_buffer_text(" buffered").unwrap();
         coordinator.toggle_buffer();

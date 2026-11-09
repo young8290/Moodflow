@@ -1467,6 +1467,7 @@ dependencies = [
  "moodflow-punct",
  "moodflow-quick-input",
  "moodflow-reverse",
+ "moodflow-rpc",
  "moodflow-softkeyboard",
  "moodflow-store",
  "moodflow-tap",

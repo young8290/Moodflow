@@ -2,7 +2,6 @@
 //! no API key, input text, automatic refresh or redirect is used by this client.
 use crate::error::UiError;
 use anyhow::{Result, anyhow, bail};
-use moodflow_hub_core::infra::imeconf::ImeRpc;
 use serde_json::{Value, json};
 use std::sync::{
     Arc, Mutex,
@@ -66,7 +65,7 @@ fn text<'a>(value: &'a Value, key: &str) -> Result<&'a str> {
 async fn rpc(method: &str, params: Value) -> Result<Value> {
     let method = method.to_owned();
     tauri::async_runtime::spawn_blocking(move || -> Result<Value> {
-        let client = ImeRpc::from_env(cfg!(debug_assertions));
+        let client = crate::ime_client::rpc();
         if method == "plugins.market.inspect" {
             Ok(serde_json::to_value(client.market_inspect(params)?)?)
         } else {

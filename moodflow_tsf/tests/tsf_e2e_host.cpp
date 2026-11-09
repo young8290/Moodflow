@@ -7,6 +7,7 @@
 #include <msctf.h>
 #include <richedit.h>
 #include <userenv.h>
+#include <sddl.h>
 #include <wrl/client.h>
 #include <filesystem>
 #include <fstream>
@@ -14,6 +15,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <algorithm>
 
 using Microsoft::WRL::ComPtr;
 namespace fs = std::filesystem;
@@ -50,6 +52,25 @@ static DWORD TokenFlag(TOKEN_INFORMATION_CLASS type) {
     DWORD flag = 0, bytes = 0; const BOOL ok = GetTokenInformation(token, type, &flag, sizeof(flag), &bytes); CloseHandle(token);
     Check(ok != FALSE, "query actual token"); return flag;
 }
+static std::wstring Env(const wchar_t* key) {
+    const auto size=GetEnvironmentVariableW(key,nullptr,0); if (!size) return {};
+    std::wstring value(size,L'\0'); const auto got=GetEnvironmentVariableW(key,value.data(),size);
+    Check(got>0 && got<size,"read fixture environment"); value.resize(got); return value;
+}
+static void CheckPrivateRpc(const std::wstring& kind,const fs::path& report) {
+    for (const auto name : {L"MOODFLOW_TSF_E2E_RPC_CTRL",L"MOODFLOW_TSF_E2E_RPC_EVENTS"}) {
+        const auto endpoint=Env(name); Check(!endpoint.empty(),"private RPC fixture endpoint missing");
+        HANDLE handle=INVALID_HANDLE_VALUE; DWORD error=0;
+        for (int attempt=0;attempt<100;++attempt) {
+            handle=CreateFileW(endpoint.c_str(),GENERIC_READ,0,nullptr,OPEN_EXISTING,0,nullptr);
+            if (handle!=INVALID_HANDLE_VALUE) break;
+            error=GetLastError(); if (error!=ERROR_PIPE_BUSY) break; Sleep(20);
+        }
+        if (kind==L"ordinary") { Check(handle!=INVALID_HANDLE_VALUE,"same-user medium RPC access denied"); CloseHandle(handle); }
+        else { if (handle!=INVALID_HANDLE_VALUE) CloseHandle(handle); Check(handle==INVALID_HANDLE_VALUE && error==ERROR_ACCESS_DENIED,"sandbox could access settings RPC"); }
+    }
+    Mark(report,"private-rpc",kind==L"ordinary"?"owner allowed":"sandbox denied");
+}
 static void Key(ITfKeystrokeMgr* keys, UINT key) {
     const LPARAM scan = static_cast<LPARAM>(MapVirtualKeyW(key, MAPVK_VK_TO_VSC)) << 16;
     BOOL eaten = FALSE;
@@ -65,6 +86,7 @@ static int Client(const std::wstring& kind, const fs::path& report) {
     Check(app == (kind == L"ordinary" ? 0u : 1u), "wrong AppContainer token");
     Check(lpac == (kind == L"lpac" ? 1u : 0u), "wrong LPAC token");
     Mark(report, "token", std::to_string(app) + ":" + std::to_string(lpac));
+    CheckPrivateRpc(kind,report);
     Hr(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED), "COM STA");
     Check(LoadLibraryW(L"Msftedit.dll") != nullptr, "load system Rich Edit");
     {
@@ -135,6 +157,20 @@ struct CapabilityMemory {
 static std::wstring Quote(const std::wstring& value) {
     Check(value.find(L'"') == std::wstring::npos, "unexpected quote in fixture path"); return L"\"" + value + L"\"";
 }
+static std::vector<wchar_t> ChildEnvironment(PSID package,const fs::path& bin) {
+    wchar_t system[32768]{},windows[32768]{};
+    Check(GetSystemDirectoryW(system,32768)>0 && GetWindowsDirectoryW(windows,32768)>0,"system fixture paths");
+    LPWSTR sid=nullptr; Check(ConvertSidToStringSidW(package,&sid)!=FALSE,"package SID string");
+    PWSTR folder=nullptr; const auto result=GetAppContainerFolderPath(sid,&folder); LocalFree(sid); Hr(result,"package private folder");
+    const std::wstring local=folder; CoTaskMemFree(folder); const auto temp=local+L"\\Temp";
+    Check(CreateDirectoryW(temp.c_str(),nullptr)!=FALSE || GetLastError()==ERROR_ALREADY_EXISTS,"package temp directory");
+    std::vector<std::wstring> entries={L"GITHUB_ACTIONS=true",L"SystemRoot="+std::wstring(windows),L"WINDIR="+std::wstring(windows),
+        L"PATH="+std::wstring(system)+L";"+windows+L";"+bin.wstring(),L"LOCALAPPDATA="+local,L"TEMP="+temp,L"TMP="+temp};
+    for (const auto name : {L"MOODFLOW_TSF_E2E_RPC_CTRL",L"MOODFLOW_TSF_E2E_RPC_EVENTS"}) entries.push_back(std::wstring(name)+L"="+Env(name));
+    std::sort(entries.begin(),entries.end()); std::vector<wchar_t> block;
+    for (const auto& entry:entries) { block.insert(block.end(),entry.begin(),entry.end());block.push_back(L'\0'); }
+    block.push_back(L'\0'); return block;
+}
 static int Launch(const std::wstring& kind, const fs::path& report) {
     wchar_t exe[32768]{}; Check(GetModuleFileNameW(nullptr, exe, 32768) != 0, "own executable path");
     const auto moniker = L"Moodflow.TsfE2E." + std::to_wstring(GetCurrentProcessId()) + L"." + std::to_wstring(GetTickCount64());
@@ -156,11 +192,12 @@ static int Launch(const std::wstring& kind, const fs::path& report) {
         STARTUPINFOEXW startup{}; startup.StartupInfo.cb = sizeof(startup); startup.lpAttributeList = attributes;
         PROCESS_INFORMATION process{};
         std::wstring command = Quote(exe) + L" --child " + kind + L" " + Quote(report.wstring());
+        auto environment=ChildEnvironment(package,fs::path(exe).parent_path());
         HANDLE job = CreateJobObjectW(nullptr, nullptr); Check(job != nullptr, "create fixture child job");
         JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{}; limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
         Check(SetInformationJobObject(job, JobObjectExtendedLimitInformation, &limits, sizeof(limits)) != FALSE, "bound fixture lifetime");
         const BOOL created = CreateProcessW(exe, command.data(), nullptr, nullptr, FALSE,
-            EXTENDED_STARTUPINFO_PRESENT | CREATE_SUSPENDED, nullptr, fs::path(exe).parent_path().c_str(), &startup.StartupInfo, &process);
+            EXTENDED_STARTUPINFO_PRESENT | CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT, environment.data(), fs::path(exe).parent_path().c_str(), &startup.StartupInfo, &process);
         DeleteProcThreadAttributeList(attributes); Check(created != FALSE, "launch actual sandbox token");
         if (!AssignProcessToJobObject(job, process.hProcess)) { TerminateProcess(process.hProcess, 1); CloseHandle(process.hThread); CloseHandle(process.hProcess); CloseHandle(job); throw std::runtime_error("assign sandbox job"); }
         ResumeThread(process.hThread); CloseHandle(process.hThread);

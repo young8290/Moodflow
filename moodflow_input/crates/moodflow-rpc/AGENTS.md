@@ -56,5 +56,7 @@
 
 - 日志 INFO 级不得含用户输入/候选内容，见根 `AGENTS.md` 日志红线。
 - `cargo fmt` 改完必跑。
+- Windows 设置控制与事件管道只授予当前用户、SYSTEM 与管理员，设置中完整性读写闸门并拒绝远程客户端；不得复用 TSF 宿主所需的 World/AppContainer/低完整性授权。
+- 原生客户端在已打开的同一管道句柄上调用 `verify_server`，确认服务端为同用户、非 AppContainer、至少中完整性后才发送请求或接收事件。Hub 的平台适配器与独立设置端均须使用此检查；不要在纯 Hub core 引入 Windows API。
 
 <!-- MANUAL: 此行以下为人工补充区，重新生成时保留 -->

@@ -158,13 +158,19 @@ pub fn default_events_endpoint(dev: bool) -> String {
 pub struct ImeRpc {
     endpoint: String,
     next_id: AtomicU64,
+    connection_check: Option<ConnectionCheck>,
 }
+
+/// Platform adapter verifies the peer on the opened handle, before any request bytes.
+/// The core keeps this as a callback and does not depend on Windows APIs.
+pub type ConnectionCheck = fn(&EventStream) -> io::Result<()>;
 
 impl ImeRpc {
     pub fn new(endpoint: impl Into<String>) -> Self {
         Self {
             endpoint: endpoint.into(),
             next_id: AtomicU64::new(1),
+            connection_check: None,
         }
     }
 
@@ -173,12 +179,18 @@ impl ImeRpc {
         Self::new(std::env::var(ENDPOINT_ENV).unwrap_or_else(|_| default_endpoint(dev)))
     }
 
+    pub fn with_connection_check(mut self, check: ConnectionCheck) -> Self {
+        self.connection_check = Some(check);
+        self
+    }
+
     /// 发一条请求、读一条响应。
     pub fn call(&self, method: &str, params: Value) -> Result<Value, ImeRpcError> {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let req =
             json!({ "version": PROTOCOL_VERSION, "id": id, "method": method, "params": params });
         let mut stream = connect(&self.endpoint).map_err(ImeRpcError::Unavailable)?;
+        if let Some(check) = self.connection_check { check(&stream)?; }
         exchange(&mut stream, &req)
     }
 
@@ -443,9 +455,13 @@ pub struct ImeEvents<S = EventStream> {
 impl ImeEvents {
     /// 连接事件通道；核心没有运行时返回 [`ImeRpcError::Unavailable`]。
     pub fn connect(endpoint: &str) -> Result<Self, ImeRpcError> {
-        connect_events(endpoint)
-            .map(|stream| Self { stream })
-            .map_err(ImeRpcError::Unavailable)
+        Self::connect_with_check(endpoint, None)
+    }
+
+    pub fn connect_with_check(endpoint: &str, check: Option<ConnectionCheck>) -> Result<Self, ImeRpcError> {
+        let stream=connect_events(endpoint).map_err(ImeRpcError::Unavailable)?;
+        if let Some(check)=check { check(&stream)?; }
+        Ok(Self{stream})
     }
 
     /// `MF_IME_RPC_EVENTS` 优先，否则用默认地址。
@@ -606,6 +622,26 @@ fn read_frame<S: Read>(stream: &mut S) -> Result<Vec<u8>, ImeRpcError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn rejected_peer_receives_no_request_or_event_subscription() {
+        fn reject(_: &EventStream) -> io::Result<()> {
+            Err(io::ErrorKind::PermissionDenied.into())
+        }
+        let path = std::env::temp_dir().join(format!("mf-ipc-peer-{}.fixture", std::process::id()));
+        let sentinel = b"synthetic private content";
+        std::fs::write(&path, sentinel).unwrap();
+        let endpoint = path.to_string_lossy();
+        let result = ImeRpc::new(endpoint.as_ref())
+            .with_connection_check(reject)
+            .call("buffer.read", json!({"text":"must not leave client"}));
+        assert!(matches!(result, Err(ImeRpcError::Io(e)) if e.kind() == io::ErrorKind::PermissionDenied));
+        assert!(matches!(ImeEvents::connect_with_check(&endpoint, Some(reject)),
+            Err(ImeRpcError::Io(e)) if e.kind() == io::ErrorKind::PermissionDenied));
+        assert_eq!(std::fs::read(&path).unwrap(), sentinel);
+        std::fs::remove_file(path).unwrap();
+    }
 
     /// 协议版本号与 Moodflow 那边逐字核对：两边都改了才会对得上。
     #[test]

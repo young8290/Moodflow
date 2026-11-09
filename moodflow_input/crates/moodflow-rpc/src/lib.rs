@@ -19,6 +19,7 @@ pub mod client;
 pub mod custom_edition;
 mod dispatch;
 mod events;
+#[cfg(windows)]
 mod security;
 mod server;
 
@@ -26,4 +27,6 @@ pub(crate) use dispatch::APP_VERSION;
 
 pub use dispatch::{CoreRpc, DispatchState, dispatch};
 pub use events::EventSink;
+#[cfg(windows)]
+pub use security::verify_server;
 pub use server::{RpcServer, ctrl_endpoint, events_endpoint};

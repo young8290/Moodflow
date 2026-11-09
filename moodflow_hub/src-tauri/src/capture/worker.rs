@@ -42,7 +42,7 @@ fn core_allowed(request: &Request) -> bool {
         Ok(apps) => apps,
         Err(_) => return false,
     };
-    moodflow_hub_core::infra::imeconf::ImeRpc::from_env(cfg!(debug_assertions))
+    crate::ime_client::rpc()
         .call("tools.captureAllowed", json!({"apps":apps}))
         .ok()
         .is_some_and(|v| v["allowed"].as_bool() == Some(true))
@@ -52,7 +52,7 @@ pub fn allowed(app: &AppHandle) -> bool {
 }
 pub fn reviewed(app: &AppHandle) -> bool {
     allowed(app)
-        && moodflow_hub_core::infra::imeconf::ImeRpc::from_env(cfg!(debug_assertions))
+        && crate::ime_client::rpc()
             .call("tools.allowed", json!({}))
             .ok()
             .is_some_and(|v| v["allowed"] == true)

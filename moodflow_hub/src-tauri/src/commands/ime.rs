@@ -34,7 +34,7 @@ pub struct ImeConfig {
 
 fn rpc() -> ImeRpc {
     // 开发版 Hub 连开发版核心（管道名带 `_dev`），与 MFP 管道的规则一致
-    ImeRpc::from_env(cfg!(debug_assertions))
+    crate::ime_client::rpc()
 }
 
 async fn blocking<T: Send + 'static>(

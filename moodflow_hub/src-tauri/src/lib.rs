@@ -17,6 +17,7 @@ mod focus;
 mod fullscreen;
 mod gateway;
 mod hotkeys;
+mod ime_client;
 mod ime_events;
 mod letter;
 #[cfg(windows)]

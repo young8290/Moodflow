@@ -27,25 +27,29 @@ unsafe impl Sync for PipeHandle {}
 
 /// 创建一个 PIPE_ACCESS_DUPLEX 命名管道实例（带共享 SDDL 安全描述符）。
 fn create_pipe_instance(pipe_name_c: &CString) -> Option<HANDLE> {
-    let sd = create_pipe_security_attributes();
-    let sa = sd.as_ref().map(|s| {
+    // Do not fall back to an implicit default DACL when owner lookup or parsing fails.
+    let sd = create_pipe_security_attributes().or_else(|| {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        None
+    })?;
+    let sa = {
         use windows::Win32::Security::SECURITY_ATTRIBUTES;
         SECURITY_ATTRIBUTES {
             nLength: std::mem::size_of::<SECURITY_ATTRIBUTES>() as u32,
-            lpSecurityDescriptor: s.as_ptr() as *mut _,
+            lpSecurityDescriptor: sd.as_ptr() as *mut _,
             bInheritHandle: false.into(),
         }
-    });
+    };
     let handle = unsafe {
         CreateNamedPipeA(
             windows::core::PCSTR(pipe_name_c.as_ptr() as *const u8),
             PIPE_ACCESS_DUPLEX,
-            PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
+            PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
             PIPE_UNLIMITED_INSTANCES,
             65536,
             65536,
             0,
-            sa.as_ref().map(|s| s as *const _),
+            Some(&sa),
         )
     };
     match handle {
