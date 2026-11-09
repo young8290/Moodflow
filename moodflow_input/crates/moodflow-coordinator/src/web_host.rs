@@ -252,7 +252,7 @@ pub trait WebDataHost {
 
 impl WebDataHost for Coordinator {
     fn tools_allowed(&self) -> bool {
-        crate::moodflow::input_privacy().input_allowed()
+        crate::moodflow::reviewed_tools_allowed()
     }
     fn read_buffer_text(&self) -> Result<String, String> {
         Coordinator::read_buffer_text(self)

@@ -332,7 +332,7 @@ fn deliver_error_tip(e: DeliverError) -> &'static str {
 impl Coordinator {
     /// 仅供用户在工具页主动点“读取 Buffer”。不绑定目标，也不修改队列。
     pub fn read_buffer_text(&self) -> Result<String, String> {
-        if !crate::moodflow::input_privacy().input_allowed() {
+        if !crate::moodflow::reviewed_tools_allowed() {
             return Err("当前隐私状态不允许读取 Buffer".into());
         }
         Ok(self.buffer.lock().buf.text())
@@ -342,7 +342,7 @@ impl Coordinator {
         if text.is_empty() || text.contains('\0') {
             return Err("请选择非空文本，且不能包含空字符".into());
         }
-        if !crate::moodflow::input_privacy().input_allowed() {
+        if !crate::moodflow::reviewed_tools_allowed() {
             return Err("当前隐私状态不允许加入 Buffer".into());
         }
         {

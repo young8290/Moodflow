@@ -744,6 +744,52 @@ impl InputPrivacy {
     }
 }
 
+/// User-invoked Hub tools are distinct from passive input extensions. The Hub is
+/// always excluded from MFP sensing, so that exclusion must not disable its own
+/// reviewed Buffer / dictionary actions. Password, secure desktop and pause gates
+/// still apply; passive clipboard, plugins and sensing keep using input_allowed.
+pub(crate) fn reviewed_tools_allowed() -> bool {
+    reviewed_tool_policy(input_privacy(), focus_in_own_app())
+}
+
+fn reviewed_tool_policy(privacy: InputPrivacy, own_app: bool) -> bool {
+    !privacy.private_field
+        && !privacy.secure_desktop
+        && !privacy.incognito
+        && (!privacy.app_blocked || own_app)
+}
+
+#[cfg(test)]
+mod reviewed_tool_policy_tests {
+    use super::*;
+    #[test]
+    fn own_hub_exclusion_does_not_disable_explicit_tools_or_open_passive_gates() {
+        let own = InputPrivacy {
+            app_blocked: true,
+            ..Default::default()
+        };
+        assert!(!own.input_allowed());
+        assert!(reviewed_tool_policy(own, true));
+        assert!(!reviewed_tool_policy(own, false));
+        for privacy in [
+            InputPrivacy {
+                private_field: true,
+                ..own
+            },
+            InputPrivacy {
+                secure_desktop: true,
+                ..own
+            },
+            InputPrivacy {
+                incognito: true,
+                ..own
+            },
+        ] {
+            assert!(!reviewed_tool_policy(privacy, true));
+        }
+    }
+}
+
 /// `(private_field, secure_desktop)`，每次焦点变化时更新；无 Tap 时也更新。
 static FOCUS_PRIVACY: Mutex<(bool, bool)> = Mutex::new((false, false));
 
