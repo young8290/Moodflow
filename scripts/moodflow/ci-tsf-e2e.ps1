@@ -31,15 +31,43 @@ if ($LASTEXITCODE -ne 0) { throw 'Cannot grant synthetic report access.' }
 if ($LASTEXITCODE -ne 0) { throw 'Cannot label synthetic reports for low integrity.' }
 $dll=Join-Path $bin 'moodflow_tsf.dll'
 $registered=$false
-$languageChanged=$false
-$originalLanguages=Get-WinUserLanguageList
-try {
+$env:MOODFLOW_TSF_E2E_LANGUAGE_DIR=$fixture
+# International cmdlets use Windows PowerShell's native marshaller on Server 2022.
+# Keep the typed language objects inside that process instead of PS7 remoting them.
+function Invoke-FixtureLanguage([ValidateSet('enable','restore')][string]$Action) {
+    $env:MOODFLOW_TSF_E2E_LANGUAGE_ACTION=$Action
+    $script=@'
+$ErrorActionPreference='Stop'
+$marker=Join-Path $env:MOODFLOW_TSF_E2E_LANGUAGE_DIR 'added-language'
+if ($env:MOODFLOW_TSF_E2E_LANGUAGE_ACTION -eq 'enable') {
     $languages=Get-WinUserLanguageList
     if (-not ($languages | Where-Object { $_.LanguageTag -like 'zh-Hans*' -or $_.LanguageTag -like 'zh-CN*' })) {
+        [IO.File]::WriteAllText($marker,'zh-Hans-CN')
         $languages.Add('zh-Hans-CN')
-        $languageChanged=$true
         Set-WinUserLanguageList -LanguageList $languages -Force
     }
+} elseif (Test-Path -LiteralPath $marker) {
+    $languages=Get-WinUserLanguageList
+    foreach ($language in @($languages | Where-Object { $_.LanguageTag -eq 'zh-Hans-CN' })) {
+        $languages.Remove($language) | Out-Null
+    }
+    if ($languages.Count -eq 0) { throw 'Cannot remove the only language.' }
+    Set-WinUserLanguageList -LanguageList $languages -Force
+    Remove-Item -LiteralPath $marker -Force
+}
+'@
+    $encoded=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($script))
+    $stdout=Join-Path $fixture ("language-$Action.stdout.log")
+    $stderr=Join-Path $fixture ("language-$Action.stderr.log")
+    $powershell=Join-Path $env:WINDIR 'System32/WindowsPowerShell/v1.0/powershell.exe'
+    $process=Start-Process -FilePath $powershell -ArgumentList @('-NoProfile','-NonInteractive','-EncodedCommand',$encoded) -WindowStyle Hidden -PassThru -Wait -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+    foreach ($log in @($stdout,$stderr)) {
+        Copy-Item -LiteralPath $log -Destination (Join-Path $root ("dist/tsf-e2e-"+(Split-Path -Leaf $log))) -Force
+    }
+    if ($process.ExitCode -ne 0) { throw "Cannot $Action isolated language profile; see language logs." }
+}
+try {
+    Invoke-FixtureLanguage 'enable'
     New-Item -Path $registry | Out-Null
     Set-ItemProperty -LiteralPath $registry -Name InstallDir -Value $bin
     $process=Start-Process -FilePath "$env:WINDIR\System32\regsvr32.exe" -ArgumentList @('/s',('"'+$dll+'"')) -PassThru -WindowStyle Hidden -Wait
@@ -65,5 +93,5 @@ try {
         $source=Join-Path $reports $name
         Copy-Item -LiteralPath $source -Destination (Join-Path $root "dist/tsf-e2e-$name") -Recurse -Force
     }
-    if ($languageChanged) { Set-WinUserLanguageList -LanguageList $originalLanguages -Force }
+    Invoke-FixtureLanguage 'restore'
 }

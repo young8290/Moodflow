@@ -231,6 +231,7 @@ jobs:
           name: Moodflow-TSF-E2E
           path: |
             Moodflow/dist/tsf-e2e.log
+            Moodflow/dist/tsf-e2e-language-*.log
             Moodflow/dist/tsf-e2e-ordinary/
             Moodflow/dist/tsf-e2e-appcontainer/
             Moodflow/dist/tsf-e2e-lpac/

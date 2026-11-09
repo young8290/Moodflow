@@ -18,6 +18,19 @@ try {
     if ($built.Count -ne 1) { throw 'The source package build must have passed all gates.' }
     & git fetch --no-tags origin $run.head_sha
     if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect the source commit.' }
+    # PR checkout builds its synthetic merge. Prove its base adds no file changes
+    # beyond the head: ancestor, or an equivalent tree since their common base.
+    $pullRequests=@($run.pull_requests)
+    if ($pullRequests.Count -ne 1 -or $pullRequests[0].base.sha -notmatch '^[0-9a-f]{40}$') { throw 'Missing source PR base.' }
+    & git fetch --no-tags origin $pullRequests[0].base.sha
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect source PR base.' }
+    & git merge-base --is-ancestor $pullRequests[0].base.sha $run.head_sha
+    if ($LASTEXITCODE -ne 0) {
+        $common=(& git merge-base $pullRequests[0].base.sha $run.head_sha)
+        if ($LASTEXITCODE -ne 0) { throw 'Cannot establish source ancestry.' }
+        & git diff --quiet $common $pullRequests[0].base.sha
+        if ($LASTEXITCODE -ne 0) { throw 'PR merge differs from its head; rebuild from current sources.' }
+    }
     # The complete production build job must also match, including all external
     # source pins, flags and integrity gates. Manual source builds are excluded
     # above because their installer_ref input is not recorded by this proof.
@@ -41,6 +54,8 @@ try {
         if ($path -notmatch '^(docs/(design|test)/|moodflow_tsf/tests/)' -and
             $path -cne '.github/workflows/moodflow-package.yml' -and
             $path -notmatch '^scripts/moodflow/ci-[a-z0-9-]+\.ps1$' -and
+            $path -cne 'moodflow_input/crates/moodflow-engine/tests/engine_manager.rs' -and
+            $path -cne 'moodflow_input/crates/moodflow-engine/tests/pinyin_completion.rs' -and
             $path -cne 'moodflow_input/crates/moodflow-coordinator/src/buffer_tsf_e2e.rs') {
             throw "Production file changed; rebuild the package: $path"
         }
