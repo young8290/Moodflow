@@ -116,6 +116,27 @@ public static class MoodflowWindowProbe {
 '@
     if ($null -ne $hub -and -not $hub.HasExited -and [MoodflowWindowProbe]::IsHungAppWindow($hub.MainWindowHandle)) {
         [MoodflowWindowProbe]::Waits($hub) | Set-Content -LiteralPath (Join-Path $root 'dist/hub-ui-waits.txt') -Encoding utf8
+        try {
+            $diagnostics=Join-Path $fixture 'diagnostics'
+            New-Item -ItemType Directory -Path $diagnostics | Out-Null
+            Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'ci-hub-stack.cpp') -Destination $diagnostics
+            @'
+cmake_minimum_required(VERSION 3.20)
+project(HubDiagnostics LANGUAGES CXX)
+add_executable(hub_stack ci-hub-stack.cpp)
+target_compile_features(hub_stack PRIVATE cxx_std_17)
+target_compile_options(hub_stack PRIVATE /W4 /WX /utf-8)
+target_link_libraries(hub_stack PRIVATE dbghelp psapi)
+'@ | Set-Content -LiteralPath (Join-Path $diagnostics 'CMakeLists.txt') -Encoding utf8
+            & cmake -S $diagnostics -B (Join-Path $diagnostics 'build') -G 'Visual Studio 17 2022' -A x64
+            if ($LASTEXITCODE -ne 0) { throw 'Configure diagnostics failed.' }
+            & cmake --build (Join-Path $diagnostics 'build') --config Release --parallel 1
+            if ($LASTEXITCODE -ne 0) { throw 'Compile diagnostics failed.' }
+            $probe=Start-Process -FilePath (Join-Path $diagnostics 'build/Release/hub_stack.exe') -ArgumentList $hub.Id -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $root 'dist/hub-ui-stack.txt')
+            try {
+                if (-not $probe.WaitForExit(15000)) { $probe.Kill(); $probe.WaitForExit(5000) | Out-Null }
+            } finally { $probe.Dispose() }
+        } catch { Write-Warning 'Unable to collect bounded native stack diagnostics.' }
     }
     [pscustomobject]@{
         coreExited=($null -eq $core -or $core.HasExited)

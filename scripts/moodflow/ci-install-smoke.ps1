@@ -89,6 +89,10 @@ function Assert-Payload {
                 appPackagesReadExecute = @($allowed | Where-Object { $_.IdentityReference.Value -eq 'S-1-15-2-1' }).Count -gt 0
                 restrictedPackagesReadExecute = @($allowed | Where-Object { $_.IdentityReference.Value -eq 'S-1-15-2-2' }).Count -gt 0
             })
+            $registration=$dllRegistrations[$dllRegistrations.Count-1]
+            if (-not $registration.appPackagesReadExecute -or -not $registration.restrictedPackagesReadExecute) {
+                throw "Installed $architecture COM server is not readable and executable by sandbox hosts."
+            }
         }
     }
 }

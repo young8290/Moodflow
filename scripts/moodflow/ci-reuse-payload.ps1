@@ -81,6 +81,7 @@ try {
             $path -cne 'scripts/moodflow/ci-tsf-e2e.ps1' -and
             $path -cne 'scripts/moodflow/ci-install-smoke.ps1' -and
             $path -cne 'scripts/moodflow/ci-hub-smoke.ps1' -and
+            $path -cne 'scripts/moodflow/ci-hub-stack.cpp' -and
             $path -cne 'scripts/moodflow/ci-hub-ui.mjs' -and
             $path -cne 'moodflow_input/crates/moodflow-engine/tests/engine_manager.rs' -and
             $path -cne 'moodflow_input/crates/moodflow-engine/tests/pinyin_completion.rs' -and
