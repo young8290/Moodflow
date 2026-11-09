@@ -20,7 +20,11 @@ retain the Buffer and leave the second control empty. Duplicate insertion fails.
 
 The ordinary, AppContainer and LPAC clients run sequentially. Sandboxed clients
 use newly created profiles and actual process attributes; the host checks both
-token flags. Only `lpacCom` and `registryRead` capabilities are requested for TSF.
+AppContainer token flag and actual resource access: a protected synthetic file
+grants AAP read access and no restricted-package grant. AC must read it; LPAC
+must receive ACCESS_DENIED. This verifies the documented LPAC resource boundary
+without relying on the unsupported class-specific Win32 LPAC query contract.
+Only `lpacCom` and `registryRead` capabilities are requested for TSF.
 Public fixture binaries receive read/execute grants; synthetic reports receive
 low-integrity write access. Repository files, credentials, dictionary and broker
 user data are outside that grant. Child processes are job-bound and profiles are

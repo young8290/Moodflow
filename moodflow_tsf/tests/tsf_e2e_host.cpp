@@ -49,8 +49,9 @@ static LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPA
 }
 static DWORD TokenFlag(TOKEN_INFORMATION_CLASS type) {
     HANDLE token = nullptr; Check(OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token) != FALSE, "open own token");
-    DWORD flag = 0, bytes = 0; const BOOL ok = GetTokenInformation(token, type, &flag, sizeof(flag), &bytes); CloseHandle(token);
-    Check(ok != FALSE, "query actual token"); return flag;
+    DWORD flag = 0, bytes = 0; const BOOL ok = GetTokenInformation(token, type, &flag, sizeof(flag), &bytes);
+    const auto error = ok ? ERROR_SUCCESS : GetLastError(); CloseHandle(token);
+    Check(ok != FALSE, ("query token class=" + std::to_string(type) + " error=" + std::to_string(error)).c_str()); return flag;
 }
 static std::wstring Env(const wchar_t* key) {
     const auto size=GetEnvironmentVariableW(key,nullptr,0); if (!size) return {};
@@ -71,6 +72,17 @@ static void CheckPrivateRpc(const std::wstring& kind,const fs::path& report) {
     }
     Mark(report,"private-rpc",kind==L"ordinary"?"owner allowed":"sandbox denied");
 }
+static bool CheckAppPackageAccess(const std::wstring& kind) {
+    const auto path=Env(L"MOODFLOW_TSF_E2E_AAP_PROBE"); Check(!path.empty(),"missing AAP access probe");
+    const auto file=CreateFileW(path.c_str(),GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,0,nullptr);
+    const auto error=file==INVALID_HANDLE_VALUE?GetLastError():ERROR_SUCCESS;
+    const bool readable=file!=INVALID_HANDLE_VALUE; if (readable) CloseHandle(file);
+    // LPAC disregards ALL APPLICATION PACKAGES. The AC positive control must
+    // read the same synthetic protected file; LPAC must get ACCESS_DENIED.
+    Check(readable==(kind!=L"lpac") && (readable || error==ERROR_ACCESS_DENIED),
+        ("AAP resource access mismatch error="+std::to_string(error)).c_str());
+    return readable;
+}
 static void Key(ITfKeystrokeMgr* keys, UINT key) {
     const LPARAM scan = static_cast<LPARAM>(MapVirtualKeyW(key, MAPVK_VK_TO_VSC)) << 16;
     BOOL eaten = FALSE;
@@ -82,7 +94,9 @@ static void Key(ITfKeystrokeMgr* keys, UINT key) {
     Pump(30);
 }
 static int Client(const std::wstring& kind, const fs::path& report) {
-    const auto app = TokenFlag(TokenIsAppContainer), lpac = TokenFlag(TokenIsLessPrivilegedAppContainer);
+    const auto app = TokenFlag(TokenIsAppContainer);
+    const auto aap = CheckAppPackageAccess(kind);
+    const auto lpac = app != 0 && !aap ? 1u : 0u;
     Check(app == (kind == L"ordinary" ? 0u : 1u), "wrong AppContainer token");
     Check(lpac == (kind == L"lpac" ? 1u : 0u), "wrong LPAC token");
     Mark(report, "token", std::to_string(app) + ":" + std::to_string(lpac));
@@ -167,7 +181,7 @@ static std::vector<wchar_t> ChildEnvironment(PSID package,const fs::path& bin) {
     Check(CreateDirectoryW(temp.c_str(),nullptr)!=FALSE || GetLastError()==ERROR_ALREADY_EXISTS,"package temp directory");
     std::vector<std::wstring> entries={L"GITHUB_ACTIONS=true",L"SystemRoot="+std::wstring(windows),L"WINDIR="+std::wstring(windows),
         L"PATH="+std::wstring(system)+L";"+windows+L";"+bin.wstring(),L"LOCALAPPDATA="+local,L"TEMP="+temp,L"TMP="+temp};
-    for (const auto name : {L"MOODFLOW_TSF_E2E_RPC_CTRL",L"MOODFLOW_TSF_E2E_RPC_EVENTS"}) entries.push_back(std::wstring(name)+L"="+Env(name));
+    for (const auto name : {L"MOODFLOW_TSF_E2E_RPC_CTRL",L"MOODFLOW_TSF_E2E_RPC_EVENTS",L"MOODFLOW_TSF_E2E_AAP_PROBE"}) entries.push_back(std::wstring(name)+L"="+Env(name));
     std::sort(entries.begin(),entries.end()); std::vector<wchar_t> block;
     for (const auto& entry:entries) { block.insert(block.end(),entry.begin(),entry.end());block.push_back(L'\0'); }
     block.push_back(L'\0'); return block;

@@ -443,11 +443,18 @@ fn test_partial_completion_preserves_completed_syllables() {
     };
     let mgr = manager(&dir);
 
-    for (input, prefix) in [
-        ("buzhidaok", "不知道"),
-        ("nihaom", "你好"),
-        ("qingfengs", "轻风"),
+    for (input, completed) in [
+        ("buzhidaok", "buzhidao"),
+        ("nihaom", "nihao"),
+        ("qingfengs", "qingfeng"),
     ] {
+        // Homophone weights may change with dictionary snapshots. Compare with
+        // complete, non-abbreviation matches from the same data, not one glyph.
+        let prefixes = mgr.convert_with("pinyin", completed, 300).candidates
+            .into_iter()
+            .filter(|c| !c.is_prefix && !c.is_abbrev && (c.consumed_length == 0 || c.consumed_length == completed.len()))
+            .map(|c| c.text).collect::<Vec<_>>();
+        assert!(!prefixes.is_empty(), "前置：完整音节 {completed} 必须有非简拼候选");
         let cands = mgr.convert_with("pinyin", input, 300).candidates;
         let sentences: Vec<_> = cands
             .iter()
@@ -461,8 +468,8 @@ fn test_partial_completion_preserves_completed_syllables() {
         );
         for c in sentences {
             assert!(
-                c.text.starts_with(prefix),
-                "{input} 的残码整句「{}」没有保住已完成音节「{prefix}」——\
+                prefixes.iter().any(|prefix| c.text.starts_with(prefix)),
+                "{input} 的残码整句「{}」没有保住已完成音节 {completed}——\
                  已完成部分被重新切分了（简拼通道的特征）",
                 c.text
             );

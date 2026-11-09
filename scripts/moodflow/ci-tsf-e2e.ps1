@@ -29,6 +29,12 @@ if ($LASTEXITCODE -ne 0) { throw 'Cannot grant public fixture access.' }
 if ($LASTEXITCODE -ne 0) { throw 'Cannot grant synthetic report access.' }
 & icacls $reports /setintegritylevel '(OI)(CI)L' /T /C | Out-Host
 if ($LASTEXITCODE -ne 0) { throw 'Cannot label synthetic reports for low integrity.' }
+$probe=Join-Path $bin 'aap-probe.txt'
+[IO.File]::WriteAllText($probe,'public token access fixture')
+$owner=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+& icacls $probe /inheritance:r /grant:r "*${owner}:(R)" '*S-1-5-18:(F)' '*S-1-5-32-544:(F)' '*S-1-15-2-1:(R)' | Out-Host
+if ($LASTEXITCODE -ne 0) { throw 'Cannot create protected AAP-only test resource.' }
+$env:MOODFLOW_TSF_E2E_AAP_PROBE=$probe
 $dll=Join-Path $bin 'moodflow_tsf.dll'
 $registered=$false
 $env:MOODFLOW_TSF_E2E_LANGUAGE_DIR=$fixture

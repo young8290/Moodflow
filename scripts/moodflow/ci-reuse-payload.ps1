@@ -50,12 +50,38 @@ try {
     if ((Build-Definition $run.head_sha) -cne (Build-Definition 'HEAD')) { throw 'Build inputs changed; rebuild the package.' }
     $changed=@(& git diff --name-only $run.head_sha HEAD)
     if ($LASTEXITCODE -ne 0) { throw 'Cannot compare source files.' }
+    function Source-Text([string]$Commit,[string]$Path) {
+        $lines=@(& git show ($Commit+':'+$Path))
+        if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect changed test source.' }
+        return ($lines -join "`n").TrimEnd()
+    }
     foreach ($path in $changed) {
+        if ($path -ceq '.gitattributes') {
+            $before=Source-Text $run.head_sha $path
+            $after=Source-Text 'HEAD' $path
+            $rule="`n`n# Generated theme contract fixtures use LF on every host.`nmoodflow_input/crates/moodflow-theme/testdata/themes/**/expected.json text eol=lf"
+            if ($after -cne ($before+$rule)) { throw 'Checkout rules changed beyond test fixtures; rebuild.' }
+            continue
+        }
+        if ($path -ceq 'moodflow_input/crates/moodflow-ui/src/tooltip.rs') {
+            # This file also contains production code. Only the single, known
+            # cursor-dependent unit test may change; its entire surroundings match.
+            $pattern='(?ms)(?:^    ///[^\n]*\n)*^    #\[test\]\n    fn grace_expiry_on_anchor_keeps_tip\(\) \{.*?^    \}\n'
+            $before=Source-Text $run.head_sha $path
+            $after=Source-Text 'HEAD' $path
+            if ([regex]::Matches($before,$pattern).Count -ne 1 -or [regex]::Matches($after,$pattern).Count -ne 1 -or
+                [regex]::Replace($before,$pattern,'') -cne [regex]::Replace($after,$pattern,'')) {
+                throw 'Tooltip production code changed; rebuild the package.'
+            }
+            continue
+        }
         if ($path -notmatch '^(docs/(design|test)/|moodflow_tsf/tests/)' -and
             $path -cne '.github/workflows/moodflow-package.yml' -and
-            $path -notmatch '^scripts/moodflow/ci-[a-z0-9-]+\.ps1$' -and
+            $path -cne 'scripts/moodflow/ci-reuse-payload.ps1' -and
+            $path -cne 'scripts/moodflow/ci-tsf-e2e.ps1' -and
             $path -cne 'moodflow_input/crates/moodflow-engine/tests/engine_manager.rs' -and
             $path -cne 'moodflow_input/crates/moodflow-engine/tests/pinyin_completion.rs' -and
+            $path -cne 'moodflow_input/crates/moodflow-engine/tests/pinyin_multipath.rs' -and
             $path -cne 'moodflow_input/crates/moodflow-coordinator/src/buffer_tsf_e2e.rs') {
             throw "Production file changed; rebuild the package: $path"
         }

@@ -12,3 +12,6 @@
 # 行尾规则牵一发动全身（见 memory 里那一串 CRLF 教训）。要给别的路径加规则时，先确认
 # 那批文件在仓库里存的就是 LF，否则会给所有人制造一次全文件 diff。
 .githooks/** text eol=lf
+
+# Generated theme contract fixtures use LF on every host.
+moodflow_input/crates/moodflow-theme/testdata/themes/**/expected.json text eol=lf

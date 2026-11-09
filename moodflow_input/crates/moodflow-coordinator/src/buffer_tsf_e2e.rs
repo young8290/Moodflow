@@ -110,6 +110,7 @@ fn actual_tsf_buffer_engine_desktop_appcontainer_and_lpac() {
         }
         command
             .env("GITHUB_ACTIONS", "true")
+            .env("MOODFLOW_TSF_E2E_AAP_PROBE",std::env::var_os("MOODFLOW_TSF_E2E_AAP_PROBE").expect("explicit AAP-only resource"))
             .env(
                 "MOODFLOW_TSF_E2E_RPC_CTRL",
                 moodflow_rpc::ctrl_endpoint(&suffix),
