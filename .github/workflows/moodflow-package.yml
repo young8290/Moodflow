@@ -21,7 +21,8 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # 安装与 TSF 注册后的 finally 清理须跑完；同一分支排队，不在系统操作中途取消。
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -115,4 +116,22 @@ jobs:
           name: Moodflow-Install-Smoke
           path: Moodflow/dist/install-smoke.json
           if-no-files-found: error
+          retention-days: 14
+
+      - name: 隔离 Windows 验证真实 TSF、引擎与三种令牌
+        shell: pwsh
+        working-directory: Moodflow
+        run: .\scripts\moodflow\ci-tsf-e2e.ps1 -Payload (Join-Path $PWD 'build')
+
+      - name: 上传 TSF 验收记录
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Moodflow-TSF-E2E
+          path: |
+            Moodflow/dist/tsf-e2e.log
+            Moodflow/dist/tsf-e2e-ordinary/
+            Moodflow/dist/tsf-e2e-appcontainer/
+            Moodflow/dist/tsf-e2e-lpac/
+          if-no-files-found: ignore
           retention-days: 14

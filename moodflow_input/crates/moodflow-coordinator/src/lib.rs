@@ -46,6 +46,8 @@ pub mod handle_menu;
 pub mod handle_mode;
 pub(crate) mod handle_plugins;
 pub use handle_plugins::PLUGIN_HOST_VERSION;
+#[cfg(all(test, windows))]
+mod buffer_tsf_e2e;
 pub mod handle_punct;
 pub mod handle_quick_format;
 mod handle_reverse;

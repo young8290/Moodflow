@@ -1,0 +1,189 @@
+// Isolated Windows acceptance host. All text is synthetic; no SendInput, clipboard or
+// user application is used. The actual registered DLL edits two real Rich Edit stores.
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#define _RICHEDIT_VER 0x0800
+#include <windows.h>
+#include <msctf.h>
+#include <richedit.h>
+#include <userenv.h>
+#include <wrl/client.h>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+using Microsoft::WRL::ComPtr;
+namespace fs = std::filesystem;
+static const std::wstring kBuffer = L" buffered";
+static void Check(bool good, const char* stage) { if (!good) throw std::runtime_error(stage); }
+static void Hr(HRESULT result, const char* stage) {
+    if (FAILED(result)) { std::ostringstream message; message << stage << " HRESULT=" << std::hex << static_cast<unsigned long>(result); throw std::runtime_error(message.str()); }
+}
+static void Pump(DWORD milliseconds) {
+    const auto start = GetTickCount64();
+    do {
+        MSG message{};
+        while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) { TranslateMessage(&message); DispatchMessageW(&message); }
+        Sleep(5);
+    } while (GetTickCount64() - start < milliseconds);
+}
+template<class F> static void Until(F predicate, const char* stage, DWORD timeout = 20000) {
+    const auto start = GetTickCount64();
+    while (!predicate()) { Check(GetTickCount64() - start < timeout, stage); Pump(10); }
+}
+static void Mark(const fs::path& report, const char* name, const std::string& text = "ok") {
+    std::ofstream file(report / name, std::ios::binary | std::ios::trunc); file << text; file.close(); Check(!file.fail(), "write report");
+}
+static std::wstring Text(HWND window) {
+    std::wstring text(static_cast<size_t>(GetWindowTextLengthW(window)) + 1, L'\0');
+    const auto length = GetWindowTextW(window, text.data(), static_cast<int>(text.size()));
+    text.resize(static_cast<size_t>(length)); return text;
+}
+static LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
+    return DefWindowProcW(window, message, wparam, lparam);
+}
+static DWORD TokenFlag(TOKEN_INFORMATION_CLASS type) {
+    HANDLE token = nullptr; Check(OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token) != FALSE, "open own token");
+    DWORD flag = 0, bytes = 0; const BOOL ok = GetTokenInformation(token, type, &flag, sizeof(flag), &bytes); CloseHandle(token);
+    Check(ok != FALSE, "query actual token"); return flag;
+}
+static void Key(ITfKeystrokeMgr* keys, UINT key) {
+    const LPARAM scan = static_cast<LPARAM>(MapVirtualKeyW(key, MAPVK_VK_TO_VSC)) << 16;
+    BOOL eaten = FALSE;
+    Hr(keys->TestKeyDown(key, scan | 1, &eaten), "test key down"); Check(eaten != FALSE, "TSF did not claim fixture key");
+    Hr(keys->KeyDown(key, scan | 1, &eaten), "real key down"); Check(eaten != FALSE, "TSF did not consume fixture key");
+    Pump(50);
+    BOOL up = FALSE; Hr(keys->TestKeyUp(key, scan | 1, &up), "test key up");
+    if (up) Hr(keys->KeyUp(key, scan | static_cast<LPARAM>(0xc0000001u), &up), "real key up");
+    Pump(30);
+}
+static int Client(const std::wstring& kind, const fs::path& report) {
+    const auto app = TokenFlag(TokenIsAppContainer), lpac = TokenFlag(TokenIsLessPrivilegedAppContainer);
+    Check(app == (kind == L"ordinary" ? 0u : 1u), "wrong AppContainer token");
+    Check(lpac == (kind == L"lpac" ? 1u : 0u), "wrong LPAC token");
+    Mark(report, "token", std::to_string(app) + ":" + std::to_string(lpac));
+    Hr(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED), "COM STA");
+    Check(LoadLibraryW(L"Msftedit.dll") != nullptr, "load system Rich Edit");
+    {
+        ComPtr<ITfThreadMgr> manager;
+        Hr(CoCreateInstance(CLSID_TF_ThreadMgr, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&manager)), "create real TSF manager");
+        TfClientId client = TF_CLIENTID_NULL; Hr(manager->Activate(&client), "activate TSF manager");
+        WNDCLASSW cls{}; cls.lpfnWndProc = WindowProc; cls.hInstance = GetModuleHandleW(nullptr); cls.lpszClassName = L"Moodflow.TsfE2E";
+        Check(RegisterClassW(&cls) != 0, "register fixture window");
+        HWND window = CreateWindowExW(0, cls.lpszClassName, L"Moodflow isolated TSF acceptance", WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+            80, 80, 560, 260, nullptr, nullptr, cls.hInstance, nullptr);
+        Check(window != nullptr, "create fixture window");
+        HWND first = CreateWindowExW(0, MSFTEDIT_CLASS, L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_MULTILINE,
+            10, 10, 500, 70, window, nullptr, cls.hInstance, nullptr);
+        HWND second = CreateWindowExW(0, MSFTEDIT_CLASS, L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_MULTILINE,
+            10, 100, 500, 70, window, nullptr, cls.hInstance, nullptr);
+        Check(first && second, "create two real text stores");
+        SendMessageW(first, EM_SETEDITSTYLE, SES_USECTF, SES_USECTF);
+        SendMessageW(second, EM_SETEDITSTYLE, SES_USECTF, SES_USECTF);
+        SetForegroundWindow(window); SetActiveWindow(window); SetFocus(first); Pump(500);
+        ComPtr<ITfInputProcessorProfiles> profiles;
+        Hr(CoCreateInstance(CLSID_TF_InputProcessorProfiles, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&profiles)), "create TSF profiles");
+        Hr(profiles->ChangeCurrentLanguage(0x0804), "select fixture language");
+        ComPtr<ITfInputProcessorProfileMgr> profileManager; Hr(profiles.As(&profileManager), "profile manager");
+        CLSID clsid{}; GUID profile{};
+        Hr(CLSIDFromString(L"{EF62EE30-5ECF-413A-A476-48D1F29E827C}", &clsid), "CLSID");
+        Hr(CLSIDFromString(L"{EF62EE31-5ECF-413A-A476-48D1F29E827C}", &profile), "profile GUID");
+        const auto active = profileManager->ActivateProfile(TF_PROFILETYPE_INPUTPROCESSOR, 0x0804, clsid, profile, nullptr, 0);
+        Hr(active, "activate actual registered Moodflow DLL"); Check(active == S_OK, "profile not enabled");
+        SendMessageW(first, EM_SETCTFOPENSTATUS, TRUE, 0); Pump(1200);
+        ComPtr<ITfDocumentMgr> document; Hr(manager->GetFocus(&document), "get focused document"); Check(document != nullptr, "Rich Edit has no TSF document");
+        ComPtr<ITfContext> context; Hr(document->GetTop(&context), "get actual text context"); Check(context != nullptr, "Rich Edit has no text context");
+        ComPtr<ITfKeystrokeMgr> keys; Hr(manager.As(&keys), "keystroke manager");
+        // This goes through TSF -> the packaged DLL -> the real bridge and table engine.
+        for (int index = 0; index < 4; ++index) Key(keys.Get(), L'G');
+        if (Text(first) != L"王") Key(keys.Get(), VK_SPACE);
+        Until([&] { return Text(first) == L"王"; }, "table engine did not commit expected fixture");
+        Mark(report, "ready");
+        Until([&] { return Text(first) == L"王" + kBuffer; }, "Buffer delivery did not reach real text store");
+        Mark(report, "delivered");
+        SetFocus(second); Pump(500); Mark(report, "switched");
+        Until([&] { return fs::exists(report / "finish"); }, "coordinator did not finish stale-target check");
+        Pump(300); Check(Text(second).empty(), "old Buffer text leaked to the new field");
+        Check(Text(first) == L"王" + kBuffer, "first field changed or delivery duplicated");
+        context.Reset(); document.Reset(); keys.Reset();
+        DestroyWindow(window);
+        Hr(profileManager->DeactivateProfile(TF_PROFILETYPE_INPUTPROCESSOR, 0x0804, clsid, profile, nullptr, 0), "deactivate fixture profile");
+        Hr(manager->Deactivate(), "deactivate fixture manager");
+    }
+    CoUninitialize(); Mark(report, "passed"); return 0;
+}
+
+struct CapabilityMemory {
+    std::vector<PSID> allocations;
+    std::vector<SID_AND_ATTRIBUTES> capabilities;
+    ~CapabilityMemory() { for (auto value : allocations) LocalFree(value); }
+    void Add(const wchar_t* name) {
+        using Derive = BOOL (WINAPI*)(LPCWSTR, PSID**, DWORD*, PSID**, DWORD*);
+        const auto derive = reinterpret_cast<Derive>(GetProcAddress(GetModuleHandleW(L"kernelbase.dll"), "DeriveCapabilitySidsFromName"));
+        Check(derive != nullptr, "derive capability API");
+        PSID* groups = nullptr; PSID* sids = nullptr; DWORD groupCount = 0, count = 0;
+        Check(derive(name, &groups, &groupCount, &sids, &count) != FALSE, "derive required TSF capability");
+        for (DWORD index = 0; index < groupCount; ++index) allocations.push_back(groups[index]);
+        allocations.push_back(groups);
+        for (DWORD index = 0; index < count; ++index) { allocations.push_back(sids[index]); capabilities.push_back({ sids[index], SE_GROUP_ENABLED }); }
+        allocations.push_back(sids);
+    }
+};
+static std::wstring Quote(const std::wstring& value) {
+    Check(value.find(L'"') == std::wstring::npos, "unexpected quote in fixture path"); return L"\"" + value + L"\"";
+}
+static int Launch(const std::wstring& kind, const fs::path& report) {
+    wchar_t exe[32768]{}; Check(GetModuleFileNameW(nullptr, exe, 32768) != 0, "own executable path");
+    const auto moniker = L"Moodflow.TsfE2E." + std::to_wstring(GetCurrentProcessId()) + L"." + std::to_wstring(GetTickCount64());
+    PSID package = nullptr;
+    Hr(CreateAppContainerProfile(moniker.c_str(), L"Moodflow TSF acceptance", L"Isolated synthetic text test", nullptr, 0, &package), "create isolated profile");
+    int exitCode = 1;
+    try {
+        CapabilityMemory memory; memory.Add(L"lpacCom"); memory.Add(L"registryRead");
+        SECURITY_CAPABILITIES security{}; security.AppContainerSid = package;
+        security.Capabilities = memory.capabilities.data(); security.CapabilityCount = static_cast<DWORD>(memory.capabilities.size());
+        SIZE_T bytes = 0; const DWORD count = kind == L"lpac" ? 2u : 1u;
+        InitializeProcThreadAttributeList(nullptr, count, 0, &bytes);
+        std::vector<unsigned char> storage(bytes);
+        auto attributes = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(storage.data());
+        Check(InitializeProcThreadAttributeList(attributes, count, 0, &bytes) != FALSE, "initialize sandbox attributes");
+        Check(UpdateProcThreadAttribute(attributes, 0, PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES, &security, sizeof(security), nullptr, nullptr) != FALSE, "set AppContainer identity");
+        DWORD policy = PROCESS_CREATION_ALL_APPLICATION_PACKAGES_OPT_OUT;
+        if (kind == L"lpac") Check(UpdateProcThreadAttribute(attributes, 0, PROC_THREAD_ATTRIBUTE_ALL_APPLICATION_PACKAGES_POLICY, &policy, sizeof(policy), nullptr, nullptr) != FALSE, "set LPAC policy");
+        STARTUPINFOEXW startup{}; startup.StartupInfo.cb = sizeof(startup); startup.lpAttributeList = attributes;
+        PROCESS_INFORMATION process{};
+        std::wstring command = Quote(exe) + L" --child " + kind + L" " + Quote(report.wstring());
+        HANDLE job = CreateJobObjectW(nullptr, nullptr); Check(job != nullptr, "create fixture child job");
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{}; limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        Check(SetInformationJobObject(job, JobObjectExtendedLimitInformation, &limits, sizeof(limits)) != FALSE, "bound fixture lifetime");
+        const BOOL created = CreateProcessW(exe, command.data(), nullptr, nullptr, FALSE,
+            EXTENDED_STARTUPINFO_PRESENT | CREATE_SUSPENDED, nullptr, fs::path(exe).parent_path().c_str(), &startup.StartupInfo, &process);
+        DeleteProcThreadAttributeList(attributes); Check(created != FALSE, "launch actual sandbox token");
+        if (!AssignProcessToJobObject(job, process.hProcess)) { TerminateProcess(process.hProcess, 1); CloseHandle(process.hThread); CloseHandle(process.hProcess); CloseHandle(job); throw std::runtime_error("assign sandbox job"); }
+        ResumeThread(process.hThread); CloseHandle(process.hThread);
+        if (WaitForSingleObject(process.hProcess, 90000) != WAIT_OBJECT_0) {
+            TerminateJobObject(job, 1); WaitForSingleObject(process.hProcess, 5000);
+        }
+        DWORD code = 1; GetExitCodeProcess(process.hProcess, &code); CloseHandle(process.hProcess); CloseHandle(job);
+        exitCode = static_cast<int>(code);
+        if (exitCode != 0 && !fs::exists(report / "failure")) Mark(report, "failure", "sandbox host exit=" + std::to_string(exitCode));
+    } catch (...) { FreeSid(package); DeleteAppContainerProfile(moniker.c_str()); throw; }
+    FreeSid(package); Hr(DeleteAppContainerProfile(moniker.c_str()), "delete own isolated profile"); return exitCode;
+}
+int wmain(int argc, wchar_t** argv) {
+    wchar_t ci[16]{}; GetEnvironmentVariableW(L"GITHUB_ACTIONS", ci, 16);
+    if (std::wstring(ci) != L"true") return 90;
+    if (argc < 3) return 91;
+    const bool child = std::wstring(argv[1]) == L"--child";
+    if (child && argc != 4) return 91;
+    const std::wstring kind = argv[child ? 2 : 1]; const fs::path report = argv[child ? 3 : 2];
+    if (kind != L"ordinary" && kind != L"appcontainer" && kind != L"lpac") return 91;
+    try { return child || kind == L"ordinary" ? Client(kind, report) : Launch(kind, report); }
+    catch (const std::exception& error) {
+        try { Mark(report, "failure", error.what()); } catch (...) { }
+        return 1;
+    }
+}

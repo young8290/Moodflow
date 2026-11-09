@@ -13,6 +13,15 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 # Debug variant option: builds with separate CLSID/pipe names for coexistence
 option(MOODFLOW_DEV_VARIANT "Build debug variant with separate CLSID/pipe names" OFF)
 option(MOODFLOW_TSF_TESTS "Build moodflow_tsf unit tests" OFF)
+option(MOODFLOW_TSF_E2E "Build the isolated Windows TSF acceptance host" OFF)
+
+if(MOODFLOW_TSF_E2E AND WIN32 AND MSVC)
+    add_executable(tsf_e2e_host tests/tsf_e2e_host.cpp)
+    target_compile_definitions(tsf_e2e_host PRIVATE UNICODE _UNICODE)
+    target_compile_options(tsf_e2e_host PRIVATE /utf-8 /W4)
+    target_link_libraries(tsf_e2e_host PRIVATE ole32 oleaut32 uuid user32 advapi32 userenv)
+    set_target_properties(tsf_e2e_host PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/e2e")
+endif()
 
 if(MOODFLOW_DEV_VARIANT)
     add_definitions(-DMOODFLOW_DEV_VARIANT)
