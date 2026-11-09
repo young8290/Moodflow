@@ -22,6 +22,16 @@ $outside = Join-Path $smokeRoot '外部备份.txt'
 $localRoot = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Moodflow'
 $ownedTools = @('hub', 'capsule', 'vault', 'capture', 'workspace', 'sync')
 $completed = [Collections.Generic.List[string]]::new()
+$reboots = [Collections.Generic.List[string]]::new()
+$phase = 'initializing'
+$failure = $null
+$record = Join-Path $workspace 'Moodflow\dist\install-smoke.json'
+New-Item -ItemType Directory -Force -Path (Split-Path -Parent $record) | Out-Null
+
+function Complete-Phase([string]$Name) {
+    $completed.Add($Name)
+    Write-Host "PASS $Name"
+}
 
 function Invoke-Package([string]$File, [string[]]$Arguments) {
     $process = Start-Process -FilePath $File -ArgumentList $Arguments -PassThru -WindowStyle Hidden
@@ -29,7 +39,8 @@ function Invoke-Package([string]$File, [string[]]$Arguments) {
         $process.Kill()
         throw 'Isolated installer did not finish within four minutes.'
     }
-    if ($process.ExitCode -ne 0) { throw "Installer operation returned $($process.ExitCode)." }
+    if ($process.ExitCode -eq 3010) { $reboots.Add($phase) }
+    elseif ($process.ExitCode -ne 0) { throw "Installer operation in $phase returned $($process.ExitCode)." }
 }
 function Stop-OwnedProcesses {
     $prefix = $installDir.TrimEnd('\') + '\'
@@ -66,32 +77,55 @@ function Seed-Markers {
 function Assert-Markers([bool]$Present) {
     $paths = @((Join-Path $dataDir 'ci-user-marker.txt')) + @($ownedTools | ForEach-Object { Join-Path (Join-Path $localRoot $_) 'ci-user-marker.txt' })
     foreach ($path in $paths) {
-        if ((Test-Path -LiteralPath $path) -ne $Present) { throw "User-data retention differs from the selected option: $path" }
+        if ((Test-Path -LiteralPath $path) -ne $Present) { throw "Phase $phase expected marker present=$Present : $path" }
     }
     if ([IO.File]::ReadAllText($outside) -cne 'external backup must remain') { throw 'An external backup was modified.' }
 }
 try {
+    $phase = 'fresh-install-unicode-path-all-components'
     Invoke-Package $setupPath @('--silent', '--dir', ('"' + $installDir + '"'), '--datadir', ('"' + $dataDir + '"'))
     Assert-Payload
     Stop-OwnedProcesses
-    $completed.Add('fresh-install-unicode-path-all-components')
+    Complete-Phase $phase
     Seed-Markers
+    $phase = 'reinstall-keeps-core-and-hub-tool-data'
     Invoke-Package $setupPath @('--silent', '--dir', ('"' + $installDir + '"'), '--datadir', ('"' + $dataDir + '"'))
     Assert-Payload
     Stop-OwnedProcesses
     Assert-Markers $true
-    $completed.Add('reinstall-keeps-core-and-hub-tool-data')
+    Complete-Phase $phase
+    $phase = 'default-silent-uninstall-keeps-all-user-data'
+    Invoke-Package (Join-Path $installDir 'uninstall.exe') @('--silent')
+    Assert-Markers $true
+    Complete-Phase $phase
+    Invoke-Package $setupPath @('--silent', '--dir', ('"' + $installDir + '"'), '--datadir', ('"' + $dataDir + '"'))
+    Assert-Payload
+    Stop-OwnedProcesses
+    $phase = 'uninstall-explicitly-keeps-all-user-data'
     Invoke-Package (Join-Path $installDir 'uninstall.exe') @('--silent', '--keep-user-data')
     Assert-Markers $true
-    $completed.Add('uninstall-explicitly-keeps-all-user-data')
+    Complete-Phase $phase
+    Invoke-Package $setupPath @('--silent', '--dir', ('"' + $installDir + '"'), '--datadir', ('"' + $dataDir + '"'))
+    Assert-Payload
+    Stop-OwnedProcesses
+    $phase = 'conflicting-data-flags-preserve-user-data'
+    Invoke-Package (Join-Path $installDir 'uninstall.exe') @('--silent', '--delete-user-data', '--keep-user-data')
+    Assert-Markers $true
+    Complete-Phase $phase
+    $phase = 'uninstall-delete-choice-clears-owned-tools-keeps-external-backup'
     Invoke-Package $setupPath @('--silent', '--dir', ('"' + $installDir + '"'), '--datadir', ('"' + $dataDir + '"'))
     Assert-Payload
     Stop-OwnedProcesses
     Assert-Markers $true
-    Invoke-Package (Join-Path $installDir 'uninstall.exe') @('--silent')
+    Invoke-Package (Join-Path $installDir 'uninstall.exe') @('--silent', '--delete-user-data')
     Assert-Markers $false
-    $completed.Add('uninstall-delete-choice-clears-owned-tools-keeps-external-backup')
-    @{ tests = @($completed); setupSha256 = (Get-FileHash -LiteralPath $setupPath -Algorithm SHA256).Hash.ToLowerInvariant() } |
-        ConvertTo-Json -Depth 3 | Set-Content -LiteralPath (Join-Path $workspace 'Moodflow\dist\install-smoke.json') -Encoding utf8
-    $completed | ForEach-Object { Write-Host "PASS $_" }
-} finally { Stop-OwnedProcesses }
+    Complete-Phase $phase
+} catch {
+    $failure = $_.Exception.Message
+    throw
+} finally {
+    Stop-OwnedProcesses
+    @{ tests = @($completed); phase = $phase; failure = $failure; rebootRequired = @($reboots);
+       setupSha256 = (Get-FileHash -LiteralPath $setupPath -Algorithm SHA256).Hash.ToLowerInvariant() } |
+        ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $record -Encoding utf8
+}

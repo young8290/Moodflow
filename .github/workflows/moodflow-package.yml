@@ -11,7 +11,7 @@ on:
       installer_ref:
         description: "moodflow-installer（young8290 的 fork）的分支或提交，用来试还没合进 main 的安装器改动"
         required: false
-        default: d252345ae058e3bbc262224d39c4bbc56dd0ce3a
+        default: c7d0d0cd50c036f2405e3fb457e9863d1300e87e
   pull_request:
     branches: [main]
     paths:
@@ -49,13 +49,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: young8290/wind-installer
-          ref: ${{ inputs.installer_ref || 'd252345ae058e3bbc262224d39c4bbc56dd0ce3a' }}
+          ref: ${{ inputs.installer_ref || 'c7d0d0cd50c036f2405e3fb457e9863d1300e87e' }}
           path: moodflow-installer
       - name: 检出 moodflow-setting
         uses: actions/checkout@v4
         with:
           repository: young8290/moodflow-setting
-          ref: befefb141aff1989ce7d185a584a21cce75929aa
+          ref: eefaad72a39d95ecd2f31e9c9538c94ce3ccf191
           path: moodflow-setting
       - name: 检出 moodflow-portable
         uses: actions/checkout@v4
@@ -67,6 +67,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
+          cache-on-failure: true
           workspaces: |
             Moodflow/moodflow_input
             Moodflow
@@ -102,6 +103,27 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: 上传已验证构建文件
+        uses: actions/upload-artifact@v4
+        with:
+          name: Moodflow-Payload
+          path: Moodflow/build/
+          if-no-files-found: error
+          retention-days: 7
+
+  install:
+    name: Windows 安装与卸载验收
+    needs: windows
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: Moodflow
+      - uses: actions/download-artifact@v4
+        with:
+          name: Moodflow-Setup
+          path: Moodflow/dist
       - name: 隔离 Windows 安装、保留数据及卸载验收
         shell: pwsh
         working-directory: Moodflow
@@ -111,6 +133,7 @@ jobs:
           .\scripts\moodflow\ci-install-smoke.ps1 -Setup $setup.FullName
 
       - name: 上传安装验收记录
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Moodflow-Install-Smoke
@@ -118,6 +141,24 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  tsf:
+    name: Windows 真实 TSF 与权限隔离验收
+    needs: windows
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: Moodflow
+      - uses: actions/download-artifact@v4
+        with:
+          name: Moodflow-Payload
+          path: Moodflow/build
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: Moodflow/moodflow_input
+          cache-on-failure: true
       - name: 隔离 Windows 验证真实 TSF、引擎与三种令牌
         shell: pwsh
         working-directory: Moodflow

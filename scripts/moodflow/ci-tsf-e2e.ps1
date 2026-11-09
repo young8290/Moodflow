@@ -8,7 +8,8 @@ $root=(Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
 $payloadDir=(Resolve-Path -LiteralPath $Payload).Path
 if ($payloadDir.TrimEnd('\') -ine (Join-Path $root 'build').TrimEnd('\')) { throw 'Use the verified release payload.' }
 $registry='HKLM:\Software\Moodflow'
-if (Test-Path -LiteralPath $registry) { throw 'Isolated install smoke must finish uninstalling first.' }
+if (Test-Path -LiteralPath $registry) { throw 'TSF acceptance requires a fresh isolated runner.' }
+New-Item -ItemType Directory -Force -Path (Join-Path $root 'dist') | Out-Null
 cmake -S (Join-Path $root 'moodflow_tsf') -B (Join-Path $root '.cache/tsf-e2e') -G 'Visual Studio 17 2022' -A x64 -DMOODFLOW_TSF_E2E=ON
 if ($LASTEXITCODE -ne 0) { throw 'Cannot configure the real TSF acceptance host.' }
 cmake --build (Join-Path $root '.cache/tsf-e2e') --target tsf_e2e_host --config Release --parallel 2

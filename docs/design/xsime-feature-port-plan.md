@@ -7,6 +7,9 @@
 >
 > **一句话现状（2026-10-18）**：P0、P1 完成；P2 Windows 接入的代码已合入 `main`（PR #96、#97、#98），**未真机验证**；
 > P3 Android 的 XSIME 界面移植已随 PR #100 合入（**未真机验证**）；P4 二批只做了打字测速。
+>
+> **Windows 续期（2026-11-10）**：用户要求一期、二期完整 Windows 版本，Android 暂停。
+> 本文原进度表保留历史基线；当前实现、打包与实际验收证据统一见 [Windows 完整版交付清单](xsime-windows-delivery.md)。
 
 ## 0. 结论先行
 
@@ -523,4 +526,5 @@ JNI 契约测试。AGP 构建与 APK 由 CI 验证；手势、连删、上滑、
 ### 10.5 二期（ADR 0057）
 
 工作区（Mailbox）、Capsule 捕获与资料库、密码库、同步、LaTeX、文献引用、Android AI 与翻译、插件商店页与社区页、键盘宠物：
-全部未开工，计划、契约与工作量（约 1,410 小时）见 [xsime-extended-plan.md](xsime-extended-plan.md)。
+Windows 各项已进入实现与验收，当前证据见 [Windows 完整版交付清单](xsime-windows-delivery.md)；Android 暂停。
+计划、契约与原工作量估算见 [xsime-extended-plan.md](xsime-extended-plan.md)。
