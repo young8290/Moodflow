@@ -2,7 +2,7 @@
 //! 与输入法核心的变体目录一致（`moodflow-config::variant::app_dir_name`）。
 
 use moodflow_hub_core::infra::templates::TemplateDirs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// 测试与演示时可用环境变量把数据目录指到别处，避免碰到真实用户数据。
 pub const DATA_DIR_ENV: &str = "MF_HUB_DATA_DIR";
@@ -18,6 +18,9 @@ pub fn app_dir_name() -> &'static str {
 pub fn hub_data_dir() -> anyhow::Result<PathBuf> {
     if let Some(dir) = std::env::var_os(DATA_DIR_ENV) {
         return Ok(PathBuf::from(dir));
+    }
+    if let Some(root) = portable_data_root(&std::env::current_exe()?)? {
+        return Ok(root.join("hub"));
     }
     let base = dirs::data_local_dir().ok_or_else(|| anyhow::anyhow!("找不到本地应用数据目录"))?;
     Ok(base.join(app_dir_name()).join("hub"))
@@ -44,8 +47,31 @@ pub fn log_dir() -> anyhow::Result<PathBuf> {
     if let Some(dir) = std::env::var_os(DATA_DIR_ENV) {
         return Ok(PathBuf::from(dir).join("logs"));
     }
+    if let Some(root) = portable_data_root(&std::env::current_exe()?)? {
+        return Ok(root.join("logs"));
+    }
     let base = dirs::data_local_dir().ok_or_else(|| anyhow::anyhow!("找不到本地应用数据目录"))?;
     Ok(base.join(app_dir_name()).join("logs"))
+}
+fn portable_data_root(executable: &Path) -> anyhow::Result<Option<PathBuf>> {
+    let Some(parent) = executable.parent() else {
+        return Ok(None);
+    };
+    let marked = ["portable_mode", "wind_portable_mode"].iter().any(|name| {
+        std::fs::symlink_metadata(parent.join(name))
+            .is_ok_and(|m| m.is_file() && !m.file_type().is_symlink())
+    });
+    if !marked {
+        return Ok(None);
+    }
+    let root = parent.join("localdata");
+    if root.try_exists()? {
+        anyhow::ensure!(
+            root.is_dir() && root.canonicalize()?.starts_with(parent.canonicalize()?),
+            "portable data escaped its directory"
+        );
+    }
+    Ok(Some(root))
 }
 
 /// 可用环境变量指定出厂模板目录（演示、测试时用）。
@@ -83,6 +109,24 @@ fn template_dirs_for(factory: PathBuf, data_dir: PathBuf) -> TemplateDirs {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn portable_marker_keeps_hub_and_tools_beside_the_executable() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path();
+        let executable = root.join("moodflow_hub.exe");
+        assert!(portable_data_root(&executable).unwrap().is_none());
+        std::fs::write(root.join("portable_mode"), b"").unwrap();
+        assert_eq!(
+            portable_data_root(&executable).unwrap(),
+            Some(root.join("localdata"))
+        );
+        std::fs::remove_file(root.join("portable_mode")).unwrap();
+        std::fs::write(root.join("wind_portable_mode"), b"").unwrap();
+        assert_eq!(
+            portable_data_root(&executable).unwrap(),
+            Some(root.join("localdata"))
+        );
+    }
 
     #[test]
     fn overrides_follow_the_selected_data_directory() {

@@ -17,12 +17,14 @@ tokio.workspace = true
 async-trait = "0.1"
 futures = "0.3"
 zeroize = "1"
+base64 = "0.22"
 bytes = "1"
 # rustls 用 ring 作加密后端：reqwest 默认的 aws-lc-rs 在 Windows 上编译要 CMake 和 NASM
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "charset", "http2", "system-proxy", "json", "stream"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 
 [dev-dependencies]
+axum = "0.7"
 chrono.workspace = true
 mock-ai = { path = "../../tools/mock-ai" }
 mfp = { path = "../../crates/mfp" }

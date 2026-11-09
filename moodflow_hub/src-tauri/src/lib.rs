@@ -64,6 +64,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::get_status,
             commands::workspace::workspace_request,
             commands::sync::sync_request,
+            commands::tools::tools_request,
             commands::data_export,
             commands::state_explain,
             commands::submit_feedback,

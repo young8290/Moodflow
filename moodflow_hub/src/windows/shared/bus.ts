@@ -28,6 +28,7 @@ export type DashboardPage =
   | 'capture'
   | 'workspace'
   | 'sync'
+  | 'ai_tools'
 
 /** 打开看板时要定位到的东西 */
 export interface DashboardNav {

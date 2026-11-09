@@ -10,6 +10,7 @@ members = [
     "crates/moodflow-vault",
     "crates/moodflow-mailbox",
     "crates/moodflow-sync",
+    "crates/moodflow-latex",
     "moodflow_hub/core",
     "moodflow_hub/gateway",
     "moodflow_hub/src-tauri",
@@ -36,3 +37,8 @@ clap = { version = "4", features = ["derive"] }
 toml = "0.8"
 regex = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+
+# Keep the packaged dev Hub on the same namespace as the dev input core.
+[profile.dev-variant]
+inherits = "release"
+debug-assertions = true

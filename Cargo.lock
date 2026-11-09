@@ -3049,6 +3049,7 @@ dependencies = [
  "moodflow-cite",
  "moodflow-hub-core",
  "moodflow-hub-gateway",
+ "moodflow-latex",
  "moodflow-mailbox",
  "moodflow-sync",
  "moodflow-typing-practice",
@@ -3108,6 +3109,8 @@ name = "moodflow-hub-gateway"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "axum",
+ "base64 0.22.1",
  "bytes",
  "chrono",
  "futures",
@@ -3123,6 +3126,14 @@ dependencies = [
  "tokio",
  "toml 0.8.23",
  "zeroize",
+]
+
+[[package]]
+name = "moodflow-latex"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
 ]
 
 [[package]]

@@ -40,6 +40,12 @@
 
 ## 当前证据
 
+### Windows AI 工具与完整打包输入（2026-11-09）
+
+- 新增文字与公式页、离线 LaTeX 转换、受限 KaTeX 预览、图片规范化／本地 OCR、有来源的引用段落；在线生成、改写、问答、翻译等均复用防护和明确同意。细节见 [Windows AI 工具](windows-ai-tools.md)。新增出厂提示词仍待两人评审，其中一人为 E。
+- 设置端与便携启动器已完成 Moodflow 适配并经用户明确授权公开推送；草稿 PR 分别为 [设置端 #1](https://github.com/young8290/moodflow-setting/pull/1)、[便携启动器 #1](https://github.com/young8290/moodflow-portable/pull/1)。设置端 1,464 项测试、便携启动器 29 项测试及各自严格 Clippy 通过；原始许可证与来源说明保留，设置端为 GPL-3.0。
+- 打包固定这两个仓库提交及安装器 `d252345`，补齐 Hub 版本与便携目录，缺少任一自有组件、来源许可或版本不匹配即失败。尚未完成这组提交的完整安装包和安装升级验证；下文旧包仅为历史证据。
+
 ### Windows 同步（2026-11-09）
 
 - 新增 `moodflow-sync` 和 Hub 同步页：用户自选文件夹或 HTTPS WebDAV，默认端到端加密，固定 Argon2id／XChaCha20-Poly1305、数据集身份绑定、三方 revision、永久墓碑、远端胜出与本机冲突另存。缺失和 OneDrive 未下载属性仅延后，不作为删除。详细边界见 [Windows 同步](windows-sync.md)。

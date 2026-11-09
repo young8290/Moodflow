@@ -94,6 +94,7 @@ impl Request {
                 "record",
                 "scroll",
                 "ocr",
+                "normalize",
                 "qr",
                 "inspect",
                 "dib",

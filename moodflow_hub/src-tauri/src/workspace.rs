@@ -1,6 +1,7 @@
 //! Explicit workspace UI, inert inbox and native terminal ownership.
 pub mod gateway;
 mod terminal;
+pub mod tools;
 use anyhow::{Result, ensure};
 use base64::Engine;
 use moodflow_hub_core::{
@@ -646,10 +647,14 @@ impl Runtime {
     {
         tokio::pin!(future);
         let started = Instant::now();
+        #[cfg(windows)]
+        let mut awake = moodflow_capsule::capture::SleepGuard::default();
         loop {
             tokio::select! {
                 result=&mut future=>return result,
                 _=tokio::time::sleep(std::time::Duration::from_millis(250))=>{
+                    #[cfg(windows)]
+                    if !crate::capture::awake(&mut awake) { return Err(AiError::BadRequest); }
                     if cancel.load(Ordering::Acquire) || started.elapsed()>std::time::Duration::from_secs(60) || self.epoch.load(Ordering::Acquire)!=epoch || !allowed_async(app.clone()).await { return Err(AiError::BadRequest); }
                 }
             }

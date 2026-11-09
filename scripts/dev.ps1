@@ -126,8 +126,8 @@ function Resolve-SiblingRoot ([string]$start) {
 }
 $SiblingRoot   = Resolve-SiblingRoot $ProductRoot
 if (-not $SiblingRoot) { $SiblingRoot = [System.IO.Path]::GetFullPath("$ProductRoot\..") }
-$SettingDir    = Join-Path $SiblingRoot "moodflow-setting"   # 设置程序 (独立仓库)
-$PortableDir   = Join-Path $SiblingRoot "moodflow-portable"  # 绿色版启动器 (独立仓库)
+$SettingDir    = if ($env:MOODFLOW_SETTING_DIR) { [IO.Path]::GetFullPath($env:MOODFLOW_SETTING_DIR) } else { Join-Path $SiblingRoot "moodflow-setting" }
+$PortableDir   = if ($env:MOODFLOW_PORTABLE_DIR) { [IO.Path]::GetFullPath($env:MOODFLOW_PORTABLE_DIR) } else { Join-Path $SiblingRoot "moodflow-portable" }
 $Version       = (Get-Content "$ProductRoot\docs\VERSION" -Raw).Trim()
 $BuildDir      = "$ProductRoot\build"
 $BuildDevDir = "$ProductRoot\build_dev"
@@ -371,7 +371,7 @@ function Build-Portable ([string]$profile = "release", [string]$outdir = $null) 
 # 不用 Tauri 自己的安装包 (产品书 03 第 7 节), 由本仓安装器一起打包 (A-10)。出厂模板放在 exe
 # 旁边的 hub_templates\, Hub 从那里读 (moodflow_hub\src-tauri\src\paths.rs 的 templates_dir)。
 # 没装 pnpm 时跳过并警告; 设了 MF_REQUIRE_HUB=1 (发版流水线) 则直接失败, 不出缺 Hub 的安装包。
-# Hub 还没有 dev 变体, 两个 profile 都放 release 构建。
+# Hub 与输入核心使用同一变体命名空间；dev 仍使用优化构建。
 function Build-Hub ([string]$profile = "release", [string]$outdir = $null) {
     if (-not $outdir) { $outdir = Out-For $profile }
     if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
@@ -382,6 +382,14 @@ function Build-Hub ([string]$profile = "release", [string]$outdir = $null) {
     Say "`n[hub] 构建 Moodflow Hub (release)..."
     # The generated Windows API crate is large; avoid exhausting commit/pagefile on high-core hosts.
     $previousBuildJobs = $env:CARGO_BUILD_JOBS
+    $previousHubVersion = $env:MOODFLOW_APP_VERSION
+    $env:MOODFLOW_APP_VERSION = $Version
+    $hubProfile = if ($profile -eq 'dev') { 'dev-variant' } else { 'release' }
+    $hubConfig = Join-Path $CacheDir ("hub-build-" + [guid]::NewGuid().ToString('N') + '.json')
+    New-Item -ItemType Directory -Path $CacheDir -Force | Out-Null
+    $hubOverride = @{ version = $Version }
+    if ($profile -eq 'dev') { $hubOverride.identifier = 'com.moodflow.hub.dev' }
+    [System.IO.File]::WriteAllText($hubConfig, ($hubOverride | ConvertTo-Json -Compress), [System.Text.UTF8Encoding]::new($false))
     if (-not $previousBuildJobs) { $env:CARGO_BUILD_JOBS = '2' }
     Push-Location (Join-Path $ProductRoot "moodflow_hub")
     try {
@@ -389,16 +397,21 @@ function Build-Hub ([string]$profile = "release", [string]$outdir = $null) {
         # @(输出..., $false), 非空数组为真, 构建失败被吞掉, 报错原文也看不到。
         pnpm install --frozen-lockfile | Out-Host
         if ($LASTEXITCODE -ne 0) { ErrMsg "Hub 前端依赖安装失败!"; return $false }
-        pnpm tauri build --no-bundle | Out-Host
+        pnpm tauri build --no-bundle --profile $hubProfile --config $hubConfig | Out-Host
         if ($LASTEXITCODE -ne 0) { ErrMsg "Moodflow Hub 构建失败!"; return $false }
         # Use the same native MSVC/static-CRT workspace policy as the Hub.
-        cargo build --locked --release -p moodflow-capture --manifest-path (Join-Path $ProductRoot 'Cargo.toml') | Out-Host
+        cargo build --locked --profile $hubProfile -p moodflow-capture --manifest-path (Join-Path $ProductRoot 'Cargo.toml') | Out-Host
         if ($LASTEXITCODE -ne 0) { ErrMsg 'Moodflow 捕获辅助程序构建失败!'; return $false }
-    } finally { Pop-Location; $env:CARGO_BUILD_JOBS = $previousBuildJobs }
-    $exe = Join-Path (Get-CargoTargetDir $ProductRoot) "release\moodflow_hub.exe"
+    } finally {
+        Pop-Location
+        $env:CARGO_BUILD_JOBS = $previousBuildJobs
+        $env:MOODFLOW_APP_VERSION = $previousHubVersion
+        Remove-Item -LiteralPath $hubConfig -ErrorAction SilentlyContinue
+    }
+    $exe = Join-Path (Get-CargoTargetDir $ProductRoot) "$hubProfile\moodflow_hub.exe"
     if (-not (Test-Path $exe)) { ErrMsg "未找到产物: $exe"; return $false }
     Copy-Item $exe "$outdir\moodflow_hub.exe" -Force
-    $captureExe = Join-Path (Get-CargoTargetDir $ProductRoot) 'release\moodflow-capture.exe'
+    $captureExe = Join-Path (Get-CargoTargetDir $ProductRoot) "$hubProfile\moodflow-capture.exe"
     if (-not (Test-Path -LiteralPath $captureExe)) { ErrMsg '缺少 Moodflow 捕获辅助程序'; return $false }
     Copy-Item -LiteralPath $captureExe -Destination (Join-Path $outdir 'moodflow-capture.exe') -Force
     $tpl = "$outdir\hub_templates"
@@ -952,9 +965,19 @@ function Invoke-SignArtifacts ([string[]]$targets, [string]$what) {
 
 function Do-Full ([string]$profile = "release") {
     $outdir = Out-For $profile
+    # A full Windows build must include every application. Check before cleaning old outputs.
+    foreach ($component in @($SettingDir, $PortableDir)) {
+        if (-not (Test-Path -LiteralPath (Join-Path $component 'Cargo.toml'))) {
+            ErrMsg "完整 Windows 构建缺少配套仓库: $component"
+            return $false
+        }
+    }
     Sync-VersionStamp   # 版本号变化则强制重建关键产物 (确定性保险)
     Say "`n========== 全构建 ($profile) → $outdir =========="
-    if (Test-Path $outdir) { Remove-Item -Recurse -Force $outdir }
+    $resolvedOut = [IO.Path]::GetFullPath($outdir)
+    $allowedOut = @([IO.Path]::GetFullPath($BuildDir), [IO.Path]::GetFullPath($BuildDevDir))
+    if ($resolvedOut -notin $allowedOut) { throw "拒绝清理非构建目录: $resolvedOut" }
+    if (Test-Path $resolvedOut) { Remove-Item -LiteralPath $resolvedOut -Recurse -Force }
     New-Item -ItemType Directory -Path $outdir -Force | Out-Null
     # Sync-VersionStamp 必须已经跑完再分叉: 版本变化时它会 cargo clean + 删 tsf-cmake 缓存,
     # 几个进程同时干这件事必然打架。跑完之后它对子进程是幂等的 (版本已匹配, 直接 return)。
@@ -973,8 +996,18 @@ function Do-Full ([string]$profile = "release") {
     Copy-Item (Join-Path $ProductRoot "LICENSE")   "$outdir\LICENSE"   -Force
     Copy-Item (Join-Path $ProductRoot "NOTICE.md") "$outdir\NOTICE.md" -Force
     Copy-Item (Join-Path $ProductRoot "licenses") "$outdir\licenses" -Recurse -Force
+    Copy-Item -LiteralPath (Join-Path $SettingDir 'LICENSE') -Destination "$outdir\licenses\moodflow-setting-GPL-3.0.txt" -Force
+    Copy-Item -LiteralPath (Join-Path $SettingDir 'MOODFLOW-SOURCE.md') -Destination "$outdir\licenses\moodflow-setting-source.md" -Force
+    Copy-Item -LiteralPath (Join-Path $PortableDir 'LICENSE') -Destination "$outdir\licenses\moodflow-portable-MIT.txt" -Force
+    Copy-Item -LiteralPath (Join-Path $PortableDir 'MOODFLOW-SOURCE.md') -Destination "$outdir\licenses\moodflow-portable-source.md" -Force
+    foreach ($entry in @(@($SettingDir, 'moodflow-setting'), @($PortableDir, 'moodflow-portable'))) {
+        $sourceCommit = & git -C $entry[0] rev-parse HEAD
+        if ($LASTEXITCODE -ne 0 -or $sourceCommit -notmatch '^[0-9a-f]{40}$') { throw '无法确认配套程序源码提交' }
+        Add-Content -LiteralPath "$outdir\licenses\$($entry[1])-source.md" -Encoding utf8 -Value "`n本次构建源码提交: $sourceCommit"
+    }
     if (-not (Do-GenData     $outdir))          { return $false }   # data/
     if (-not (Verify-DistData $outdir))         { return $false }   # 硬门禁
+    if (-not (Test-WindowsPayload $profile $outdir)) { return $false }
     # 签 outdir 根层的 exe/dll。放在这里而不是各 Build-* 里: 并行构建时四路各签各的会
     # 同时去抢同一张虚拟智能卡, 而 signtool 对卡的访问不是并发安全的。收口到一处串行签。
     if (-not (Invoke-SignArtifacts @($outdir) "$profile 产物")) { return $false }
@@ -1837,6 +1870,10 @@ function New-InstallerConfig ([string]$profile, [string]$outdir, [string]$cfgPat
     $baseCfg = Join-Path $ProductRoot "config\app.toml"
     if (-not (Test-Path $baseCfg)) { ErrMsg "未找到清单基底: $baseCfg"; throw "缺少 config\app.toml" }
     $base = Get-Content $baseCfg -Raw
+    if ($profile -eq 'dev') {
+        $base = $base.Replace('"com.moodflow.hub"', '"com.moodflow.hub.dev"')
+        $base = $base.Replace('value_names = ["MoodflowHub", "Moodflow"]', 'value_names = ["MoodflowHubDev", "MoodflowDev"]')
+    }
     if ($hubMissing) {
         $base = [regex]::Replace($base, '(?ms)^\[\[shortcut\]\]\r?\ntarget\s*=\s*"moodflow_hub\.exe".*?(?=^\[)', '')
         # Moodflow：WebView2 只有 Hub 用, 没 Hub 就不检测、不代装
@@ -1955,6 +1992,25 @@ function New-UpdateManifest ([string]$profile, [string]$setupPath) {
 # 内容依据 Deploy-Portable (便携部署的权威定义): 程序文件 + data\ + 便携标记。
 # 【不含 userdata\】—— 那是便携版的用户数据目录 (配置/词频/用户词库), 打进包等于把
 # 打包机的个人数据分发给所有人; 同时排除部署残留的 *.old*。
+function Test-WindowsPayload ([string]$profile, [string]$outdir) {
+    $suffix = if ($profile -eq 'dev') { '_dev' } else { '' }
+    $required = @("moodflow_core$suffix.exe", "moodflow_tsf$suffix.dll", "moodflow_tsf_x86$suffix.dll", "wind_setting$suffix.exe", 'wind_portable.exe', 'moodflow_hub.exe', 'moodflow-capture.exe', 'hub_templates\prompts\tools.md', 'data\manifest.json', 'licenses\moodflow-setting-GPL-3.0.txt', 'licenses\moodflow-setting-source.md', 'licenses\moodflow-portable-MIT.txt', 'licenses\moodflow-portable-source.md')
+    foreach ($relative in $required) {
+        $path = Join-Path $outdir $relative
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { ErrMsg "完整 Windows 产物缺少: $relative"; return $false }
+        if ([IO.Path]::GetExtension($relative) -in '.exe', '.dll') {
+            $metadata = (Get-Item -LiteralPath $path).VersionInfo
+            if ($metadata.ProductName -notlike '*Moodflow*' -or $metadata.ProductVersion -ne $Version) {
+                ErrMsg "产品身份或版本不一致: $relative ($($metadata.ProductName), $($metadata.ProductVersion))"
+                return $false
+            }
+        }
+    }
+    foreach ($private in @('userdata','localdata','secrets.toml','secrets.bin')) {
+        if (Test-Path -LiteralPath (Join-Path $outdir $private)) { ErrMsg "构建目录存在本机私有数据，请重新全构建后打包: $private"; return $false }
+    }
+    return $true
+}
 function Do-PortableZip ([string]$profile = "release", [bool]$skipBuild = $false) {
     $outdir = Out-For $profile
     $suffix = if ($profile -eq "dev") { "_dev" } else { "" }
@@ -1965,15 +2021,19 @@ function Do-PortableZip ([string]$profile = "release", [bool]$skipBuild = $false
         return $false
     }
 
+    if (-not (Test-WindowsPayload $profile $outdir)) { return $false }
     $base  = if ($profile -eq "dev") { "MoodflowDev" } else { "Moodflow" }
     $name  = "$base-$Version"                       # zip 内顶层目录, 避免解压散落
     $zip   = Join-Path $DistDir "$base-Portable-$Version.zip"
     $stage = Join-Path $DistDir ".portable-stage"
 
     Say "`n========== 打包便携版 ($profile) → $zip =========="
-    if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+    if ([IO.Path]::GetFullPath($stage) -ne [IO.Path]::GetFullPath((Join-Path $DistDir '.portable-stage'))) { throw '便携暂存目录越界' }
+    if (Test-Path $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
     New-Item -ItemType Directory -Path "$stage\$name" -Force | Out-Null
-    Copy-Item "$outdir\*" -Destination "$stage\$name" -Recurse -Force
+    Get-ChildItem -LiteralPath $outdir | Where-Object { $_.Name -notin @('userdata','localdata','secrets.toml','secrets.bin') } | ForEach-Object {
+        Copy-Item -LiteralPath $_.FullName -Destination "$stage\$name" -Recurse -Force
+    }
 
     $ud = Join-Path "$stage\$name" $PortableDataDir
     if (Test-Path $ud) { Remove-Item $ud -Recurse -Force }   # 用户数据, 绝不入包
@@ -2065,6 +2125,7 @@ function Do-Installer ([string]$profile = "release", [bool]$skipBuild = $false) 
         ErrMsg "无 $outdir 产物; 去掉 skip 先全构建, 或运行 '$(if($profile -eq 'dev'){'d1'}else{'1'})'。"; return $false
     }
 
+    if (-not (Test-WindowsPayload $profile $outdir)) { return $false }
     # CMake unit tests belong in the build tree, never in a distributable payload.
     $testArtifacts = @(Get-ChildItem -LiteralPath $outdir -File -Filter '*_test.exe')
     if ($testArtifacts.Count -gt 0) {

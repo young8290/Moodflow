@@ -275,6 +275,12 @@ Apache-2.0（极点五笔码表）与 Unicode-3.0（Unicode CLDR，当前仅研�
 
 ## 本项目的来源
 
+### Windows 配套程序与公式预览
+
+独立设置程序 [moodflow-setting](https://github.com/young8290/moodflow-setting) 源自 huanfeng/wind-setting 的 GPL-3.0-or-later 发布版本；完整对应源码与许可继续按该许可提供。便携启动器 [moodflow-portable](https://github.com/young8290/moodflow-portable) 源自其原项目仍采用 MIT 的提交 `1e0b047d805440e2fce52cb8bffcc5d9f0755e2c`，不包含后续更换许可后的代码。原作者和贡献者署名保留，随包 `licenses/` 包含两个程序的许可与确切构建提交说明。
+
+本地公式预览使用 [KaTeX 0.19.1](https://github.com/KaTeX/KaTeX)（MIT）。代码、样式与字体由构建时依赖打包，不访问远程渲染服务；许可全文见 `licenses/katex-MIT.txt`。
+
 ### Windows 捕获工具
 
 `moodflow-capture` 使用 [windows-capture 2.0.1](https://github.com/NiiightmareXD/windows-capture)（MIT）实现 WGC、DXGI 和 Media Foundation 编码；

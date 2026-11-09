@@ -168,6 +168,23 @@ fn execute(request: &Request, stop: &Arc<AtomicBool>) -> Result<Value> {
         }
         "record" => record(request, stop),
         "scroll" => scroll(request, stop),
+        "normalize" => {
+            let image = open_image(
+                request
+                    .input
+                    .as_deref()
+                    .ok_or_else(|| anyhow::anyhow!("capture.invalid_input"))?,
+            )?;
+            check(stop)?;
+            std::fs::write(
+                request
+                    .output
+                    .as_deref()
+                    .ok_or_else(|| anyhow::anyhow!("capture.invalid_output"))?,
+                clean_png(&image)?,
+            )?;
+            Ok(json!({"width":image.width(),"height":image.height()}))
+        }
         "ocr" => ocr(
             request
                 .input
@@ -184,6 +201,16 @@ fn execute(request: &Request, stop: &Arc<AtomicBool>) -> Result<Value> {
         ),
         _ => anyhow::bail!("capture.invalid_operation"),
     }
+}
+fn clean_png(image: &image::DynamicImage) -> Result<Vec<u8>> {
+    moodflow_capsule::capture::validate_size(image.width(), image.height())?;
+    let mut bytes = std::io::Cursor::new(Vec::new());
+    image.write_to(&mut bytes, image::ImageFormat::Png)?;
+    ensure!(
+        bytes.get_ref().len() <= 4 * 1024 * 1024,
+        "capture.image_limit"
+    );
+    Ok(bytes.into_inner())
 }
 fn check(stop: &AtomicBool) -> Result<()> {
     ensure!(!stop.load(Ordering::Acquire), "capture.cancelled");

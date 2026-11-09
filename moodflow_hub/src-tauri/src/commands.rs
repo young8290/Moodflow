@@ -14,6 +14,7 @@ pub mod library;
 pub mod practice;
 pub mod schedule;
 pub mod sync;
+pub mod tools;
 pub mod vault;
 pub mod workspace;
 

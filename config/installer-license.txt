@@ -6,7 +6,9 @@ Moodflow 输入法（下称“本软件”）基于开源项目 WindInput（MIT 
 
 二、开源许可
 
-WindInput 以 MIT 许可证发布，本软件沿用该许可证，原文附在本文末尾。
+Moodflow 核心与 Hub 的代码沿用 MIT 许可证，原文附在本文末尾。独立设置程序 moodflow-setting 按 GPL-3.0-or-later 分发，便携启动器 moodflow-portable 基于原项目的 MIT 许可版本独立维护；各组件保留其原始版权与许可证。
+
+设置程序与便携启动器的许可全文、对应源码地址和本次构建提交见安装目录 licenses/moodflow-setting-source.md 与 licenses/moodflow-portable-source.md。
 
 词库、字体等第三方资源的来源与许可，见安装目录中的 NOTICE.md；MIT 许可证原文另见安装目录中的 LICENSE。
 

@@ -182,7 +182,7 @@ fn scenario_name(s: Scenario) -> &'static str {
 #[derive(Debug, Serialize)]
 struct WireMessage {
     role: String,
-    content: String,
+    content: Value,
 }
 
 #[derive(Debug, Serialize)]
@@ -235,7 +235,7 @@ fn redact_messages(req: &CompleteRequest) -> Vec<WireMessage> {
         .iter()
         .map(|m| WireMessage {
             role: m.role.clone(),
-            content: redact(&m.content),
+            content: Value::String(redact(&m.content)),
         })
         .collect()
 }
@@ -307,7 +307,7 @@ impl LlmClient {
 
     pub async fn complete(&self, req: &CompleteRequest) -> Result<CompleteResponse, AiError> {
         let candidates = self.book.candidates(req.scenario, self.shared.now_ms())?;
-        self.complete_candidates(req, candidates, false).await
+        self.complete_candidates(req, candidates, false, &[]).await
     }
 
     pub async fn complete_pinned(
@@ -323,7 +323,26 @@ impl LlmClient {
         {
             return Err(AiError::ModelUnavailable);
         }
-        self.complete_candidates(req, vec![model.into()], true)
+        self.complete_candidates(req, vec![model.into()], true, &[])
+            .await
+    }
+
+    pub async fn complete_tool(
+        &self,
+        req: &CompleteRequest,
+        model: &str,
+        images: &[crate::InlineImage],
+    ) -> Result<CompleteResponse, AiError> {
+        if !self
+            .book
+            .status(self.shared.now_ms())
+            .iter()
+            .any(|m| m.model == model && m.available)
+            || images.len() > 3
+        {
+            return Err(AiError::ModelUnavailable);
+        }
+        self.complete_candidates(req, vec![model.into()], true, images)
             .await
     }
 
@@ -332,9 +351,23 @@ impl LlmClient {
         req: &CompleteRequest,
         candidates: Vec<String>,
         pinned: bool,
+        images: &[crate::InlineImage],
     ) -> Result<CompleteResponse, AiError> {
-        let params = self.cfg.params(req.scenario);
-        let messages = redact_messages(req);
+        let mut params = self.cfg.params(req.scenario);
+        if pinned {
+            params.max_tokens = params.max_tokens.min(2048);
+            params.timeout = params.timeout.min(Duration::from_secs(60));
+        }
+        let mut messages = redact_messages(req);
+        if !images.is_empty() {
+            let last = messages
+                .last_mut()
+                .filter(|m| m.role == "user")
+                .ok_or(AiError::BadRequest)?;
+            let mut content = vec![serde_json::json!({"type":"text","text":last.content})];
+            content.extend(images.iter().map(|image| serde_json::json!({"type":"image_url","image_url":{"url":image.data_url(),"detail":"high"}})));
+            last.content = Value::Array(content);
+        }
         let api = format!("llm/{}", scenario_name(req.scenario));
 
         let mut last = None;

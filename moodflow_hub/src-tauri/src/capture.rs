@@ -17,6 +17,43 @@ use std::{
 };
 use tauri::{AppHandle, Manager};
 pub use worker::reviewed as worker_allowed;
+/// Decode/OCR only explicitly selected, immutable image snapshots for AI safety screening.
+pub(crate) fn tool_ocr(
+    app: &AppHandle,
+    path: &std::path::Path,
+    stop: Arc<std::sync::atomic::AtomicBool>,
+) -> Result<String> {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let cancel = Arc::new(worker::Cancel::default());
+    let done = Arc::new(AtomicBool::new(false));
+    struct Finish(Arc<AtomicBool>);
+    impl Drop for Finish {
+        fn drop(&mut self) {
+            self.0.store(true, Ordering::Release);
+        }
+    }
+    let _finish = Finish(done.clone());
+    let worker_cancel = cancel.clone();
+    std::thread::spawn(move || {
+        while !done.load(Ordering::Acquire) {
+            if stop.load(Ordering::Acquire) {
+                worker_cancel.abort.store(true, Ordering::Release);
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    });
+    let normalized = path.with_extension("png");
+    let request: Request =
+        serde_json::from_value(json!({"operation":"normalize","input":path,"output":normalized}))?;
+    worker::run(app, &request, cancel.clone())?;
+    let request: Request = serde_json::from_value(json!({"operation":"ocr","input":normalized}))?;
+    let result = worker::run(app, &request, cancel)?;
+    result["text"]
+        .as_str()
+        .map(str::to_owned)
+        .ok_or_else(|| anyhow::anyhow!("ai_tools.image_failed"))
+}
 pub struct Runtime {
     epoch: std::sync::atomic::AtomicU64,
     running: Mutex<Option<(String, Arc<worker::Cancel>)>>,

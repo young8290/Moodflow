@@ -2,6 +2,35 @@
 use super::*;
 
 #[test]
+fn normalized_formula_image_does_not_retain_jpeg_app_metadata() {
+    let original = image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(
+        32,
+        24,
+        image::Rgb([210, 230, 240]),
+    ));
+    let mut encoded = std::io::Cursor::new(Vec::new());
+    original
+        .write_to(&mut encoded, image::ImageFormat::Jpeg)
+        .unwrap();
+    let mut jpeg = encoded.into_inner();
+    let private = b"synthetic-private-camera-metadata";
+    let mut marker = vec![0xff, 0xe1];
+    marker.extend_from_slice(&((private.len() + 2) as u16).to_be_bytes());
+    marker.extend_from_slice(private);
+    jpeg.splice(2..2, marker);
+    let decoded = image::load_from_memory(&jpeg).unwrap();
+    let normalized = clean_png(&decoded).unwrap();
+    assert!(normalized.starts_with(b"\x89PNG\r\n\x1a\n"));
+    assert!(
+        !normalized
+            .windows(private.len())
+            .any(|part| part == private)
+    );
+    let reread = image::load_from_memory(&normalized).unwrap();
+    assert_eq!((reread.width(), reread.height()), (32, 24));
+}
+
+#[test]
 fn synthetic_h264_encoding_never_reads_a_screen_or_audio_device() {
     let (sender, receiver) = std::sync::mpsc::sync_channel(1);
     std::thread::spawn(move || {
