@@ -4,12 +4,15 @@ use std::time::Duration;
 use std::time::Instant;
 
 pub struct ClipboardLease {
+    #[cfg(windows)]
     pub sequence: u32,
     pub expires: Instant,
 }
 pub enum Clear {
     Done,
+    #[cfg(windows)]
     Changed,
+    #[cfg(windows)]
     Busy,
 }
 pub fn supported() -> bool {
@@ -207,7 +210,7 @@ pub fn copy_sensitive(_owner: usize, _text: &str) -> Result<ClipboardLease, ()> 
 }
 #[cfg(not(windows))]
 pub fn clear_sensitive(_lease: &ClipboardLease) -> Clear {
-    Clear::Busy
+    Clear::Done
 }
 
 #[cfg(all(test, windows))]

@@ -24,7 +24,8 @@ function* strings(table, prefix) {
   }
 }
 
-const load = (name) => parse(readFileSync(`${templates}/${name}`, 'utf8'))
+// TOML multiline strings must have stable newlines after Windows autocrlf checkout.
+const load = (name) => parse(readFileSync(`${templates}/${name}`, 'utf8').replace(/\r\n/g, '\n'))
 const entries = [...strings(load('ui_copy.toml'), ''), ...strings(load('explain.toml'), 'explain')]
 const copy = Object.fromEntries(entries)
 if (Object.keys(copy).length !== entries.length) throw new Error('文案键重复')
@@ -49,7 +50,7 @@ export type CopyKey = keyof typeof zhCN
 if (process.argv.includes('--check')) {
   let current = ''
   try {
-    current = readFileSync(out, 'utf8')
+    current = readFileSync(out, 'utf8').replace(/\r\n/g, '\n')
   } catch {
     // 文件不存在按不一致处理
   }

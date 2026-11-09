@@ -79,7 +79,10 @@ fn clear(inner: &mut Inner, force: bool) {
         return;
     }
     match vault_platform::clear_sensitive(lease) {
-        vault_platform::Clear::Done | vault_platform::Clear::Changed => inner.clipboard = None,
+        vault_platform::Clear::Done => inner.clipboard = None,
+        #[cfg(windows)]
+        vault_platform::Clear::Changed => inner.clipboard = None,
+        #[cfg(windows)]
         vault_platform::Clear::Busy => {}
     }
 }
@@ -387,7 +390,9 @@ mod tests {
         entry["title"] = json!("fixture title");
         entry["account"] = json!("fixture account");
         entry["password"] = json!("fixture password");
-        entry["totp"] = json!({"secret":"GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ","algorithm":"SHA256","digits":8,"period":60});
+        // Public RFC test input, never a real account credential.
+        let fixture_seed = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+        entry["totp"] = json!({"secret":fixture_seed,"algorithm":"SHA256","digits":8,"period":60});
         let saved = runtime
             .execute(
                 "save",
