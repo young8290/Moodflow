@@ -103,11 +103,20 @@ pub async fn ime_tools(
         "buffer.read",
         "tools.allowed",
         "translate.lookup",
+        "clipboard.list",
+        "clipboard.action",
     ];
     if !ALLOWED.contains(&method.as_str()) || payload.len() > 2 * 1024 * 1024 {
         return Err(UiError::new("ime.tools_input", "tools.invalid"));
     }
-    if ["buffer.read", "buffer.stage", "translate.lookup"].contains(&method.as_str())
+    if [
+        "buffer.read",
+        "buffer.stage",
+        "translate.lookup",
+        "clipboard.list",
+        "clipboard.action",
+    ]
+    .contains(&method.as_str())
         && state
             .status
             .read()

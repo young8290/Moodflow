@@ -30,15 +30,18 @@ pub enum HotkeyAction {
     Widget,
     /// 打开看板
     Dashboard,
+    /// Clipboard history, independent of the active input method.
+    Clipboard,
     /// 开始 / 结束专注（FR-RST-10）：没在专注时按第一个预设（25 分钟）开始，专注中按下结束
     Focus,
 }
 
 impl HotkeyAction {
-    pub const ALL: [HotkeyAction; 4] = [
+    pub const ALL: [HotkeyAction; 5] = [
         HotkeyAction::Chat,
         HotkeyAction::Widget,
         HotkeyAction::Dashboard,
+        HotkeyAction::Clipboard,
         HotkeyAction::Focus,
     ];
 
@@ -48,6 +51,7 @@ impl HotkeyAction {
             HotkeyAction::Chat => "hotkey.chat",
             HotkeyAction::Widget => "hotkey.widget",
             HotkeyAction::Dashboard => "hotkey.dashboard",
+            HotkeyAction::Clipboard => "hotkey.clipboard",
             HotkeyAction::Focus => "hotkey.focus",
         }
     }
@@ -111,6 +115,7 @@ fn run<R: Runtime>(app: &AppHandle<R>, action: HotkeyAction) -> Result<(), crate
     match action {
         HotkeyAction::Chat => windows::open(app, WindowTarget::Chat),
         HotkeyAction::Dashboard => windows::open(app, WindowTarget::Dashboard),
+        HotkeyAction::Clipboard => windows::open_clipboard(app),
         HotkeyAction::Focus => {
             if let Some(focus) = app.try_state::<moodflow_hub_core::focus::FocusHandle>() {
                 if focus.status().active {

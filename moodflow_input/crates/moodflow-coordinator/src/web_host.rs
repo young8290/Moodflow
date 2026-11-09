@@ -28,6 +28,12 @@ pub trait WebDataHost {
     fn chord_settings(&self) -> (bool, String);
     fn reload_chord_profile(&self);
     fn stage_buffer_text(&self, text: &str) -> Result<(), String>;
+    fn clipboard_history(&self) -> Vec<moodflow_clipboard::Entry> {
+        Vec::new()
+    }
+    fn clipboard_action(&self, _action: &str, _id: u64, _pinned: bool) -> Result<bool, String> {
+        Err("clipboard_unavailable".into())
+    }
     fn engine_mgr(&self) -> &EngineManager;
     fn user_store(&self) -> Option<&Arc<Store>>;
     fn stat_collector(&self) -> Option<&StatCollector>;
@@ -251,6 +257,12 @@ pub trait WebDataHost {
 }
 
 impl WebDataHost for Coordinator {
+    fn clipboard_history(&self) -> Vec<moodflow_clipboard::Entry> {
+        Coordinator::clipboard_entries(self)
+    }
+    fn clipboard_action(&self, action: &str, id: u64, pinned: bool) -> Result<bool, String> {
+        self.reviewed_clipboard_action(action, id, pinned)
+    }
     fn tools_allowed(&self) -> bool {
         crate::moodflow::reviewed_tools_allowed()
     }

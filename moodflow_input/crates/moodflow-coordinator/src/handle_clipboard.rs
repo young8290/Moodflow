@@ -158,6 +158,38 @@ pub(crate) fn panel_label(text: &str) -> String {
 }
 
 impl Coordinator {
+    /// Explicit Hub actions work with any active IME. They never synthesize a paste.
+    pub(crate) fn reviewed_clipboard_action(
+        &self,
+        action: &str,
+        id: u64,
+        pinned: bool,
+    ) -> Result<bool, String> {
+        if !crate::moodflow::reviewed_tools_allowed() {
+            return Err("privacy_blocked".into());
+        }
+        match action {
+            "pin" => Ok(self.clipboard_set_pinned(id, pinned)),
+            "remove" => Ok(self.clipboard_remove(id)),
+            "clear" => {
+                self.clipboard_clear_unpinned();
+                Ok(true)
+            }
+            "copy" | "stage" => {
+                let text = self.clipboard.text_of(id).ok_or("clipboard_not_found")?;
+                if action == "stage" {
+                    self.stage_buffer_text(&text)?;
+                } else {
+                    self.host_services()
+                        .clipboard_set_text(&text)
+                        .map_err(|_| "clipboard_copy_failed")?;
+                }
+                Ok(true)
+            }
+            _ => Err("clipboard_invalid_action".into()),
+        }
+    }
+
     /// 扩展类功能随配置同步：剪贴板监听、插件注册表。构造后与每次配置重载后调用。
     pub(crate) fn sync_extensions(&self) {
         self.sync_clipboard_monitor();
@@ -373,6 +405,44 @@ mod tests {
         let l = panel_label(&long);
         assert_eq!(l.chars().count(), LABEL_MAX + 1);
         assert!(l.ends_with('…'));
+    }
+
+    #[test]
+    fn reviewed_hub_actions_use_stable_ids_and_never_authorize_delivery() {
+        use std::sync::Arc;
+        struct Clipboard(Mutex<String>);
+        impl crate::host_services::HostServices for Clipboard {
+            fn clipboard_set_text(&self, text: &str) -> anyhow::Result<()> {
+                *self.0.lock().unwrap() = text.to_string();
+                Ok(())
+            }
+        }
+        crate::moodflow::TEST_PRIVACY.with(|p| p.set(Some(Default::default())));
+        let (c, _) = Coordinator::new_headless_with_ui(moodflow_config::Config::default(), None);
+        let host = Arc::new(Clipboard(Mutex::new(String::new())));
+        c.set_host_services(host.clone());
+        c.clipboard.record("用户选择的历史", false);
+        let id = c.clipboard_entries()[0].id;
+        c.clipboard.record("后来复制的文字", false);
+        assert!(c.reviewed_clipboard_action("copy", id, false).unwrap());
+        assert_eq!(*host.0.lock().unwrap(), "用户选择的历史");
+        assert!(c.reviewed_clipboard_action("stage", id, false).unwrap());
+        assert_eq!(c.read_buffer_text().unwrap(), "用户选择的历史");
+        assert!(!c.buffer.is_capturing());
+        let _ = c.buffer_send_keyed();
+        assert_eq!(c.read_buffer_text().unwrap(), "用户选择的历史");
+        assert!(c.reviewed_clipboard_action("pin", id, true).unwrap());
+        c.reviewed_clipboard_action("clear", 0, false).unwrap();
+        assert_eq!(c.clipboard_entries().len(), 1);
+        crate::moodflow::TEST_PRIVACY.with(|p| {
+            p.set(Some(crate::moodflow::InputPrivacy {
+                private_field: true,
+                ..Default::default()
+            }))
+        });
+        assert!(c.reviewed_clipboard_action("remove", id, false).is_err());
+        assert_eq!(c.clipboard_entries().len(), 1);
+        crate::moodflow::TEST_PRIVACY.with(|p| p.set(Some(Default::default())));
     }
 
     #[test]

@@ -13,6 +13,7 @@ import PracticePage from './PracticePage.vue'
 import LibraryPage from './LibraryPage.vue'
 import TranslationPage from './TranslationPage.vue'
 import VaultPage from './VaultPage.vue'
+import ClipboardPage from './ClipboardPage.vue'
 import SchedulePage from './SchedulePage.vue'
 import TodayPage from './TodayPage.vue'
 import WeeklyPage from './WeeklyPage.vue'
@@ -30,6 +31,7 @@ const PAGES: { id: DashboardPage; title: CopyKey; component: Component }[] = [
   { id: 'library', title: 'library.title', component: LibraryPage },
   { id: 'translation', title: 'translate.title', component: TranslationPage },
   { id: 'vault', title: 'vault.title', component: VaultPage },
+  { id: 'clipboard', title: 'clipboard.title', component: ClipboardPage },
 ]
 
 const fromHash = PAGES.find((p) => `#${p.id}` === location.hash)?.id

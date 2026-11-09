@@ -551,6 +551,20 @@ pub trait WebDataRpc: WebDataHost {
             }
             "storage.health" => Ok(json!({ "available": self.user_store().is_some() })),
             "tools.allowed" => Ok(json!({ "allowed": self.tools_allowed() })),
+            "clipboard.list" => {
+                anyhow::ensure!(self.tools_allowed(), "privacy_blocked");
+                Ok(json!({ "entries": self.clipboard_history() }))
+            }
+            "clipboard.action" => {
+                anyhow::ensure!(self.tools_allowed(), "privacy_blocked");
+                let action = str_param(params, "action")?;
+                let id = params["id"].as_u64().unwrap_or(0);
+                let pinned = params["pinned"].as_bool().unwrap_or(false);
+                let changed = self
+                    .clipboard_action(action, id, pinned)
+                    .map_err(anyhow::Error::msg)?;
+                Ok(json!({ "changed": changed }))
+            }
             "translate.lookup" => {
                 anyhow::ensure!(self.tools_allowed(), "privacy_blocked");
                 translate::lookup(str_param(params, "query")?)

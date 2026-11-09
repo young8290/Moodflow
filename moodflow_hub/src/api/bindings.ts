@@ -772,6 +772,8 @@ export type HotkeyAction =
 "widget" | 
 /**  打开看板 */
 "dashboard" | 
+/**  Clipboard history, independent of the active input method. */
+"clipboard" | 
 /**  开始 / 结束专注（FR-RST-10）：没在专注时按第一个预设（25 分钟）开始，专注中按下结束 */
 "focus";
 

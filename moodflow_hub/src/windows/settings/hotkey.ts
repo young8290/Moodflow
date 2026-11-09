@@ -241,8 +241,9 @@ export function hubHotkeyOk(combo: string): boolean {
   )
 }
 
-/** Hub 的三个全局快捷键（设置“常规”） */
+/** Hub 全局快捷键（设置“常规”，各标量字段均可清空）。 */
 export const HUB_HOTKEYS = [
+  { key: 'hotkey.clipboard', action: 'clipboard', label: 'clipboard.title' },
   { action: 'chat', key: 'hotkey.chat', label: 'settings.general.hotkey_chat' },
   { action: 'widget', key: 'hotkey.widget', label: 'settings.general.hotkey_widget' },
   { action: 'dashboard', key: 'hotkey.dashboard', label: 'settings.general.hotkey_dashboard' },
