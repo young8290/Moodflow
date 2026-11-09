@@ -85,6 +85,42 @@ fn chat(scenario: Scenario, text: &str) -> CompleteRequest {
     }
 }
 
+#[tokio::test]
+async fn pinned_workspace_model_never_falls_back_and_does_not_expose_content_in_logs() {
+    let mut normal = rig(Mock::Normal).await;
+    let response = normal
+        .gw
+        .complete_pinned(chat(Scenario::Chat, "workspace fixture"), DEFAULT_MODEL)
+        .await
+        .unwrap();
+    assert_eq!(response.model, DEFAULT_MODEL);
+    assert_eq!(normal.mock.chat(), 1);
+    assert_eq!(normal.mock.last_body().unwrap()["model"], DEFAULT_MODEL);
+    assert!(
+        !serde_json::to_string(&normal.drain())
+            .unwrap()
+            .contains("workspace fixture")
+    );
+    let absent = rig(Mock::ModelNotFound).await;
+    assert!(
+        absent
+            .gw
+            .complete_pinned(chat(Scenario::Chat, "preserve original"), DEFAULT_MODEL)
+            .await
+            .is_err()
+    );
+    assert_eq!(absent.mock.chat(), 1);
+    let failed = rig(Mock::E500).await;
+    assert!(
+        failed
+            .gw
+            .complete_pinned(chat(Scenario::Chat, "preserve original"), DEFAULT_MODEL)
+            .await
+            .is_err()
+    );
+    assert_eq!(failed.mock.chat(), 1);
+}
+
 /// TC-AIG-03（Jev 一侧）：只发白名单字段，出网日志不记内容。
 #[tokio::test]
 async fn judge_sends_whitelisted_fields_only() {

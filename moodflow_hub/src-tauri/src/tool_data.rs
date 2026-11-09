@@ -10,7 +10,7 @@ pub fn apply_pending(hub: &Path, tools: &Path) -> io::Result<Option<WipeReport>>
         }
         let mut remaining = 100_000_usize;
         // Fixed owned directories only. Never infer deletion paths from a manifest or imported data.
-        for name in ["capsule", "vault", "capture"] {
+        for name in ["capsule", "vault", "capture", "workspace"] {
             let path = root.join(name);
             if fs::symlink_metadata(&path).is_ok() {
                 remove_owned(&root, &path, &mut remaining, 0)?;
@@ -59,7 +59,15 @@ mod tests {
         let temporary = tempfile::tempdir().unwrap();
         let root = temporary.path();
         let hub = root.join("hub");
-        for name in ["capsule", "vault", "data", "templates", "external-backups"] {
+        for name in [
+            "capsule",
+            "vault",
+            "capture",
+            "workspace",
+            "data",
+            "templates",
+            "external-backups",
+        ] {
             fs::create_dir_all(root.join(name)).unwrap();
             fs::write(root.join(name).join("fixture"), b"fixture").unwrap();
         }
@@ -84,7 +92,7 @@ mod tests {
         )
         .unwrap();
         apply_pending(&hub, root).unwrap();
-        for name in ["capsule", "vault"] {
+        for name in ["capsule", "vault", "capture", "workspace"] {
             assert!(!root.join(name).exists());
         }
         for name in ["data", "templates", "external-backups"] {

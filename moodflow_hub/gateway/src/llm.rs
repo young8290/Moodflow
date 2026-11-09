@@ -205,6 +205,7 @@ struct ChatResponse {
 #[derive(Deserialize)]
 struct ChatChoice {
     message: ChatMessage,
+    finish_reason: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -305,8 +306,34 @@ impl LlmClient {
     }
 
     pub async fn complete(&self, req: &CompleteRequest) -> Result<CompleteResponse, AiError> {
-        let params = self.cfg.params(req.scenario);
         let candidates = self.book.candidates(req.scenario, self.shared.now_ms())?;
+        self.complete_candidates(req, candidates, false).await
+    }
+
+    pub async fn complete_pinned(
+        &self,
+        req: &CompleteRequest,
+        model: &str,
+    ) -> Result<CompleteResponse, AiError> {
+        if !self
+            .book
+            .status(self.shared.now_ms())
+            .iter()
+            .any(|m| m.model == model && m.available)
+        {
+            return Err(AiError::ModelUnavailable);
+        }
+        self.complete_candidates(req, vec![model.into()], true)
+            .await
+    }
+
+    async fn complete_candidates(
+        &self,
+        req: &CompleteRequest,
+        candidates: Vec<String>,
+        pinned: bool,
+    ) -> Result<CompleteResponse, AiError> {
+        let params = self.cfg.params(req.scenario);
         let messages = redact_messages(req);
         let api = format!("llm/{}", scenario_name(req.scenario));
 
@@ -342,13 +369,25 @@ impl LlmClient {
                 .and_then(|r| r.usage.as_ref())
                 .map(|u| (u.prompt_tokens, u.completion_tokens));
             let out = out.and_then(|r| {
+                if pinned && r.model.as_deref() != Some(model.as_str()) {
+                    return Err(AiError::InvalidOutput);
+                }
                 let text = r
                     .choices
                     .into_iter()
                     .next()
-                    .and_then(|c| c.message.content)
+                    .and_then(|c| {
+                        if pinned && c.finish_reason.as_deref() != Some("stop") {
+                            None
+                        } else {
+                            c.message.content
+                        }
+                    })
                     .filter(|t| !t.trim().is_empty())
                     .ok_or(AiError::InvalidOutput)?;
+                if pinned && text.encode_utf16().count() > 16384 {
+                    return Err(AiError::InvalidOutput);
+                }
                 Ok((r.model.unwrap_or_else(|| model.clone()), text))
             });
 

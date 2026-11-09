@@ -3,7 +3,7 @@
 // 看板不展示用户在别的程序里打的字（FR-DSH-01，库里本来也没有）；日记与对话是用户在 Moodflow 里写的，按 FR-DIA-03 查看。
 // 别的窗口要看板打开某一页（底栏、卡片层、一句话区）时经 shared/bus.ts 传 `{ page, edit?, letter? }`；
 // 地址栏 #weekly 等也能直接打开对应页。
-import { onBeforeUnmount, onMounted, ref, type Component } from 'vue'
+import { defineAsyncComponent, onBeforeUnmount, onMounted, ref, type Component } from 'vue'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { t, type CopyKey } from '@/i18n'
 import CalendarPage from './CalendarPage.vue'
@@ -21,6 +21,8 @@ import WeeklyPage from './WeeklyPage.vue'
 import { onDashboardNav, takeDashboardNav, type DashboardNav, type DashboardPage } from '../shared/bus'
 import './dashboard.css'
 
+const WorkspacePage = defineAsyncComponent(() => import('./WorkspacePage.vue'))
+
 const PAGES: { id: DashboardPage; title: CopyKey; component: Component }[] = [
   { id: 'today', title: 'dashboard.nav.today', component: TodayPage },
   { id: 'calendar', title: 'dashboard.nav.calendar', component: CalendarPage },
@@ -34,6 +36,7 @@ const PAGES: { id: DashboardPage; title: CopyKey; component: Component }[] = [
   { id: 'vault', title: 'vault.title', component: VaultPage },
   { id: 'clipboard', title: 'clipboard.title', component: ClipboardPage },
   { id: 'capture', title: 'capture.title', component: CapturePage },
+  { id: 'workspace', title: 'workspace.title', component: WorkspacePage },
 ]
 
 const fromHash = PAGES.find((p) => `#${p.id}` === location.hash)?.id

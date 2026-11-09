@@ -281,6 +281,10 @@ Apache-2.0（极点五笔码表）与 Unicode-3.0（Unicode CLDR，当前仅研�
 使用 image 0.25、gif 0.14（MIT / Apache-2.0）处理本机图像与 GIF，rqrr 0.10（MIT / Apache-2.0，部分 ISC）识别二维码，g2gen / g2poly（MIT / Apache-2.0）为其依赖。
 许可全文已放入 `licenses/`，随安装数据分发。OCR 使用 Windows 自带离线 OCR，无随包云识别服务或远程端点。测试使用 qrcodegen（MIT）生成合成二维码，不随运行时分发。
 
+### Windows 工作区终端
+
+工作区以 Windows ConPTY 托管本机终端，VT 渲染使用 [xterm.js 6.0.0 及官方 Fit 扩展](https://github.com/xtermjs/xterm.js)（MIT）。许可分别随包保存在 `licenses/xterm-6.0.0-MIT.txt` 与 `licenses/xterm-addon-fit-0.11.0-MIT.txt`。不加载外部链接或剪贴板扩展，OSC 52 由工作台显式拦截。
+
 Moodflow 的输入法部分基于开源输入法项目 WindInput（https://github.com/huanfeng/WindInput，MIT 许可证），
 原项目的版权声明与许可全文保留在 [LICENSE](LICENSE) 中。Moodflow 的 logo 与应用图标是本项目自己的，
 未使用原项目的 logo。

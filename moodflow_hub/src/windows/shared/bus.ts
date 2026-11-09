@@ -26,6 +26,7 @@ export type DashboardPage =
   | 'vault'
   | 'clipboard'
   | 'capture'
+  | 'workspace'
 
 /** 打开看板时要定位到的东西 */
 export interface DashboardNav {

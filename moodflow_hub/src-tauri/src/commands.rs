@@ -14,6 +14,7 @@ pub mod library;
 pub mod practice;
 pub mod schedule;
 pub mod vault;
+pub mod workspace;
 
 use std::sync::Arc;
 
@@ -50,6 +51,11 @@ pub(crate) fn emit_status(app: &AppHandle, snap: StatusSnapshot) {
         && let Some(capture) = app.try_state::<Arc<crate::capture::Runtime>>()
     {
         capture.cancel(true);
+    }
+    if snap.paused
+        && let Some(workspace) = app.try_state::<Arc<crate::workspace::Runtime>>()
+    {
+        workspace.pause();
     }
     if let Err(e) = StatusChanged(snap).emit(app) {
         crate::hlog!("推送 status:changed 失败：{e}");

@@ -186,6 +186,19 @@ impl HttpGateway {
         self.take_budget(budget_kind(s))?;
         Ok(llm)
     }
+    /// Workspace sessions keep the exact chosen model; a failure never switches models.
+    pub async fn complete_pinned(
+        &self,
+        req: CompleteRequest,
+        model: &str,
+    ) -> Result<CompleteResponse, AiError> {
+        let result = self
+            .llm_for(req.scenario)?
+            .complete_pinned(&req, model)
+            .await;
+        self.publish_health();
+        result
+    }
 }
 
 #[async_trait]

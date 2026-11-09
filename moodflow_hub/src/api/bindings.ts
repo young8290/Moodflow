@@ -7,6 +7,7 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 /** Commands */
 export const commands = {
 	getStatus: () => typedError<StatusSnapshot, UiError>(__TAURI_INVOKE("get_status")),
+	workspaceRequest: (method: string, payload: string) => typedError<string, UiError>(__TAURI_INVOKE("workspace_request", { method, payload })),
 	/**
 	 *  导出用户数据（FR-DAT-03），写到前端文件选择器给的 `path`（已存在则覆盖）。
 	 *  1 年数据量要几秒，放进 `spawn_blocking`，不占主线程。先提交排队中的数据（ADR 0020 第 3 条最多晚 5 秒），

@@ -40,6 +40,7 @@ mod tool_data;
 mod vault;
 mod vault_platform;
 mod windows;
+mod workspace;
 
 use std::path::Path;
 
@@ -60,6 +61,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new()
         .commands(collect_commands![
             commands::get_status,
+            commands::workspace::workspace_request,
             commands::data_export,
             commands::state_explain,
             commands::submit_feedback,
@@ -293,6 +295,7 @@ pub fn run() {
             research::start(app.handle());
             // 对话与对话里的危机安全（C-07、C-08）
             chat::start(app.handle());
+            workspace::start(app.handle());
             diary::start(app.handle());
             rewrite::start(app.handle());
             evening::start(app.handle());
@@ -327,6 +330,9 @@ pub fn run() {
             } => api.prevent_exit(),
             // 托管状态在退出时不一定会被析构，这里把排队中的写入提交掉（ADR 0020）
             tauri::RunEvent::Exit => {
+                if let Some(workspace) = app.try_state::<std::sync::Arc<workspace::Runtime>>() {
+                    workspace.stop_all();
+                }
                 if let Some(capture) = app.try_state::<std::sync::Arc<capture::Runtime>>() {
                     capture.cancel(true);
                     capture.sweep_clipboard(false);
