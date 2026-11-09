@@ -2,6 +2,48 @@
 use super::*;
 
 #[test]
+fn synthetic_h264_encoding_never_reads_a_screen_or_audio_device() {
+    let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+    std::thread::spawn(move || {
+        let result = (|| -> Result<()> {
+            unsafe {
+                windows::Win32::System::WinRT::RoInitialize(
+                    windows::Win32::System::WinRT::RO_INIT_MULTITHREADED,
+                )?;
+            }
+            let directory = tempfile::tempdir()?;
+            let path = directory.path().join("synthetic.mp4");
+            fs::File::create_new(&path)?;
+            let mut encoder = VideoEncoder::new(
+                VideoSettingsBuilder::new(320, 240)
+                    .frame_rate(15)
+                    .bitrate(1_000_000),
+                AudioSettingsBuilder::default().disabled(true),
+                ContainerSettingsBuilder::default(),
+                &path,
+            )?;
+            let frame = RgbaImage::from_pixel(320, 240, image::Rgba([240, 40, 70, 255]));
+            let bytes = video_pixels(&frame, 320, 240);
+            encoder.send_frame_buffer(&bytes, 0)?;
+            encoder.send_frame_buffer(&bytes, 10_000_000)?;
+            encoder.finish()?;
+            let video = fs::read(&path)?;
+            ensure!(
+                video.len() > 1000 && &video[4..8] == b"ftyp",
+                "synthetic video missing"
+            );
+            Ok(())
+        })()
+        .map_err(|error| format!("{error:?}"));
+        let _ = sender.send(result);
+    });
+    receiver
+        .recv_timeout(Duration::from_secs(25))
+        .expect("synthetic encoder timed out")
+        .unwrap();
+}
+
+#[test]
 fn synthetic_pixels_roundtrip_png_qr_video_layout_and_gif_timing() {
     let dir = tempfile::tempdir().unwrap();
     let qr =
@@ -84,6 +126,10 @@ fn isolated_window_capture_ocr_and_h264() {
     ) -> isize {
         unsafe {
             match message {
+                WM_TIMER => {
+                    InvalidateRect(window, std::ptr::null(), 0);
+                    0
+                }
                 WM_PAINT => {
                     let mut paint: PAINTSTRUCT = std::mem::zeroed();
                     let dc = BeginPaint(window, &mut paint);
@@ -111,6 +157,22 @@ fn isolated_window_capture_ocr_and_h264() {
                     TextOutW(dc, 30, 55, text.as_ptr(), text.len() as i32);
                     SelectObject(dc, old);
                     DeleteObject(font);
+                    static FRAME: std::sync::atomic::AtomicU32 =
+                        std::sync::atomic::AtomicU32::new(0);
+                    let frame = FRAME.fetch_add(1, Ordering::Relaxed);
+                    let rectangle = windows_sys::Win32::Foundation::RECT {
+                        left: 600,
+                        top: 200,
+                        right: 630,
+                        bottom: 230,
+                    };
+                    let brush = CreateSolidBrush(if frame.is_multiple_of(2) {
+                        0x00AA5500
+                    } else {
+                        0x000055AA
+                    });
+                    FillRect(dc, &rectangle, brush);
+                    DeleteObject(brush);
                     EndPaint(window, &paint);
                     0
                 }
@@ -147,6 +209,7 @@ fn isolated_window_capture_ocr_and_h264() {
         );
         assert!(!handle.is_null());
         UpdateWindow(handle);
+        SetTimer(handle, 1, 100, None);
         sender.send(handle as usize).unwrap();
         let mut message = std::mem::zeroed();
         while GetMessageW(&mut message, std::ptr::null_mut(), 0, 0) > 0 {

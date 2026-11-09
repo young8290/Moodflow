@@ -585,10 +585,9 @@ fn record(request: &Request, stop: &Arc<AtomicBool>) -> Result<Value> {
             {
                 break;
             }
-            ensure!(
-                handler.frames > 0 || start.elapsed() < Duration::from_secs(8),
-                "capture.no_frames"
-            );
+            if handler.frames == 0 && start.elapsed() >= Duration::from_secs(8) {
+                break;
+            }
         }
         if check(stop).is_err() {
             cancelled = true;
