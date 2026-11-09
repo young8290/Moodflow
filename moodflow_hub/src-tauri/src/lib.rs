@@ -237,14 +237,22 @@ pub fn run() {
     let demo_key = paths::hub_data_dir().is_ok_and(|d| sim::demo_setting(&d));
     sim::set_demo(launch.demo || demo_key);
     let builder = specta_builder();
+    let (window_requests, window_rx) = std::sync::mpsc::sync_channel::<WindowTarget>(32);
 
     tauri::Builder::default()
+        .manage(window_requests)
         // 单实例（17 第 2.2 节第 1 步）：第二个实例把参数转交给已运行的实例后退出
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             let again = LaunchArgs::parse(argv.into_iter().skip(1));
-            let target = again.open.unwrap_or(WindowTarget::Widget);
-            if let Err(e) = windows::open(app, target) {
-                crate::hlog!("打开窗口失败：{e}");
+            let Some(target) = again.reopen_target() else { return };
+            // Windows delivers this callback inside WM_COPYDATA, including while
+            // WebView2 pumps COM messages for the first window. Do not construct
+            // another WebView inline on that reentrant window procedure.
+            if let Err(error) = app
+                .state::<std::sync::mpsc::SyncSender<WindowTarget>>()
+                .try_send(target)
+            {
+                crate::hlog!("窗口请求未排队：{error}");
             }
         }))
         // 系统“另存为”对话框：设置页“导出我的数据”选保存位置（FR-DAT-03）；权限只给设置窗口，见 capabilities/settings.json
@@ -332,14 +340,21 @@ pub fn run() {
                     } else {
                         None
                     };
-                    for target in initial.into_iter().chain(launch.open) {
-                        crate::hlog!("打开启动窗口：{}", target.label());
+                    // Second-instance requests wait behind the initial windows;
+                    // they cannot reenter a first WebView still being constructed.
+                    let initial = initial.into_iter().chain(launch.open).map(|t| (t, true));
+                    let requests = window_rx.into_iter().map(|t| (t, false));
+                    for (target, startup) in initial.chain(requests) {
+                        crate::hlog!("打开窗口：{}", target.label());
                         if let Err(error) = windows::open(&handle, target) {
-                            crate::hlog!("启动窗口失败：{error}");
-                            handle.exit(1);
-                            return;
+                            crate::hlog!("打开窗口失败：{error}");
+                            if startup {
+                                handle.exit(1);
+                                return;
+                            }
+                            continue;
                         }
-                        crate::hlog!("启动窗口已就绪：{}", target.label());
+                        crate::hlog!("窗口已就绪：{}", target.label());
                     }
                 })?;
             Ok(())
