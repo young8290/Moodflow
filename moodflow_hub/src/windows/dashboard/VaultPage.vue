@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { confirm } from '@tauri-apps/plugin-dialog'
+import { confirm, open, save } from '@tauri-apps/plugin-dialog'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { commands, unwrap } from '@/api'
@@ -42,6 +42,9 @@ const ready = ref(false)
 const busy = ref(false)
 const master = ref('')
 const masterConfirm = ref('')
+const recovery = ref('')
+const recoveryConfirm = ref('')
+const backupOpen = ref(false)
 const changingMaster = ref(false)
 const items = ref<{ id: string; title: string }[]>([])
 const revision = ref('')
@@ -99,6 +102,9 @@ function scrub(): void {
   revision.value = ''
   master.value = ''
   masterConfirm.value = ''
+  recovery.value = ''
+  recoveryConfirm.value = ''
+  backupOpen.value = false
   changingMaster.value = false
   leaseUntil = 0
 }
@@ -276,6 +282,66 @@ async function generate(): Promise<void> {
     notice.value = t('vault.generated')
   })
 }
+async function exportBackup(): Promise<void> {
+  if (recovery.value !== recoveryConfirm.value) {
+    error.value = t('vault.recovery_mismatch')
+    return
+  }
+  if ([...recovery.value].length < 24) {
+    error.value = t('vault.weak_recovery')
+    return
+  }
+  const path = await save({ defaultPath: 'Moodflow-vault.mfvbackup' })
+  if (!path || paused.value || !status.value.unlocked) return
+  await action(async () => {
+    try {
+      await call('export_backup', { path, recovery: recovery.value, revision: revision.value })
+      notice.value = t('vault.backup_saved')
+      backupOpen.value = false
+    } finally {
+      recovery.value = ''
+      recoveryConfirm.value = ''
+    }
+  })
+}
+async function restoreBackup(): Promise<void> {
+  if (master.value !== masterConfirm.value) {
+    error.value = t('vault.mismatch')
+    return
+  }
+  const path = await open({ multiple: false, directory: false })
+  if (typeof path !== 'string' || paused.value || status.value.exists) return
+  const current = generation
+  await action(async () => {
+    try {
+      const preview = await call<{ fingerprint: string; count: number }>('preview_restore', {
+        path,
+        recovery: recovery.value,
+      })
+      if (current !== generation || paused.value || disposed) return
+      if (
+        !(await confirm(t('vault.restore_preview', { n: preview.count }), {
+          title: 'Moodflow',
+          kind: 'warning',
+        }))
+      )
+        return
+      if (current !== generation || paused.value || disposed) return
+      await call('restore', {
+        path,
+        recovery: recovery.value,
+        fingerprint: preview.fingerprint,
+        master: master.value,
+      })
+      notice.value = t('vault.restored')
+      await refresh()
+    } finally {
+      master.value = ''
+      masterConfirm.value = ''
+      recovery.value = ''
+    }
+  })
+}
 async function copySelection(event: ClipboardEvent, cut = false): Promise<void> {
   event.preventDefault()
   if (!status.value.unlocked || paused.value) return
@@ -383,6 +449,17 @@ defineExpose({ canLeave })
       <button class="primary" type="submit" :disabled="busy || !master">
         {{ t(status.exists ? 'vault.unlock' : 'vault.create') }}
       </button>
+      <details v-if="!status.exists">
+        <summary>{{ t('vault.restore') }}</summary>
+        <p>{{ t('vault.backup_notice') }}</p>
+        <label
+          >{{ t('vault.recovery')
+          }}<input v-model="recovery" type="password" autocomplete="off" maxlength="1024" :disabled="busy"
+        /></label>
+        <button type="button" :disabled="busy || !recovery || !master" @click="restoreBackup">
+          {{ t('vault.restore') }}
+        </button>
+      </details>
     </form>
     <template v-else>
       <div class="toolbar">
@@ -390,7 +467,25 @@ defineExpose({ canLeave })
         ><button :disabled="busy || dirty" @click="changingMaster = !changingMaster">
           {{ t('vault.change_master') }}</button
         ><span>{{ t('vault.lease') }}</span>
+        <button :disabled="busy || dirty" @click="backupOpen = !backupOpen">{{ t('vault.backup') }}</button>
       </div>
+      <form v-if="backupOpen" class="master-change" @submit.prevent="exportBackup">
+        <p>{{ t('vault.backup_notice') }}</p>
+        <label
+          >{{ t('vault.recovery')
+          }}<input v-model="recovery" type="password" autocomplete="off" maxlength="1024" :disabled="busy"
+        /></label>
+        <label
+          >{{ t('vault.recovery_confirm')
+          }}<input
+            v-model="recoveryConfirm"
+            type="password"
+            autocomplete="off"
+            maxlength="1024"
+            :disabled="busy"
+        /></label>
+        <button type="submit" :disabled="busy || !recovery">{{ t('vault.backup') }}</button>
+      </form>
       <form v-if="changingMaster" class="master-change" @submit.prevent="changeMaster">
         <label
           >{{ t('vault.new_master')

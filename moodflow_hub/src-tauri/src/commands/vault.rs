@@ -48,6 +48,7 @@ pub async fn vault_request(
     let runtime = runtime.inner().clone();
     let policy = crate::vault::allowed(&app);
     let sensitive_result = ["reveal", "get", "list", "new", "generate"].contains(&method.as_str());
+    let recheck_policy = !["status", "lock"].contains(&method.as_str());
     let current = runtime.clone();
     let mut result = tauri::async_runtime::spawn_blocking(move || {
         current
@@ -56,7 +57,7 @@ pub async fn vault_request(
     })
     .await
     .map_err(|_| UiError::new("vault.failed", "vault.failed"))??;
-    if sensitive_result && !crate::vault::allowed(&app) {
+    if recheck_policy && !crate::vault::allowed(&app) {
         drop(result);
         let current = runtime.clone();
         tauri::async_runtime::spawn_blocking(move || current.lock())

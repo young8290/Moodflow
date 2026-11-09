@@ -44,6 +44,7 @@ fn vault_error(error: moodflow_vault::Error) -> UiError {
     err(match error {
         Error::Conflict => "vault.conflict",
         Error::WeakPassword => "vault.weak_password",
+        Error::WeakRecovery => "vault.weak_recovery",
         Error::Locked => "vault.locked",
         Error::Limit => "vault.limit",
         _ => "vault.failed",
@@ -171,6 +172,36 @@ impl Runtime {
             inner.session.unlock(id, key);
             return Ok(json!({"revision":revision}));
         }
+        if ["preview_restore", "restore"].contains(&method) {
+            if store.exists().map_err(vault_error)? {
+                return Err(err("vault.conflict"));
+            }
+            let bytes = read_backup(string(p, "path")?)?;
+            let fingerprint = moodflow_vault::backup::fingerprint(&bytes);
+            if method == "restore" && p["fingerprint"].as_str() != Some(&fingerprint) {
+                return Err(err("vault.conflict"));
+            }
+            let snapshot = moodflow_vault::backup::decrypt(&bytes, string(p, "recovery")?)
+                .map_err(|_| err("vault.recovery_failed"))?;
+            if method == "preview_restore" {
+                return Ok(json!({"fingerprint":fingerprint,"count":snapshot.entries.len()}));
+            }
+            let id = moodflow_vault::new_id();
+            let key = Key::generate().map_err(vault_error)?;
+            let wrap = KeyWrap::create(&key, string(p, "master")?, &id).map_err(vault_error)?;
+            let wrapped =
+                Zeroizing::new(serde_json::to_vec(&wrap).map_err(|_| err("vault.failed"))?);
+            let protected = crate::secrets::protect(&wrapped).map_err(|_| err("vault.failed"))?;
+            let file = FileRecord::create(id.clone(), protected, &key).map_err(vault_error)?;
+            if !vault_platform::desktop_available() {
+                return Err(err("library.privacy"));
+            }
+            let revision = store
+                .write(file, &key, &snapshot, None)
+                .map_err(vault_error)?;
+            inner.session.unlock(id, key);
+            return Ok(json!({"revision":revision,"count":snapshot.entries.len()}));
+        }
         let (mut file, revision) = store.read().map_err(vault_error)?;
         if method == "unlock" {
             if Instant::now() < inner.next_attempt {
@@ -223,6 +254,32 @@ impl Runtime {
         }
         let mut snapshot = file.decrypt(key).map_err(vault_error)?;
         match method {
+            "export_backup" => {
+                use std::io::Write;
+                let bytes = moodflow_vault::backup::encrypt(&snapshot, string(p, "recovery")?)
+                    .map_err(vault_error)?;
+                if !inner.session.check(allowed) || !vault_platform::desktop_available() {
+                    return Err(err("vault.locked"));
+                }
+                let path = PathBuf::from(string(p, "path")?);
+                let parent = path
+                    .parent()
+                    .filter(|p| p.is_dir())
+                    .ok_or_else(|| err("vault.invalid"))?;
+                let mut temporary =
+                    tempfile::NamedTempFile::new_in(parent).map_err(|_| err("vault.failed"))?;
+                temporary
+                    .write_all(&bytes)
+                    .map_err(|_| err("vault.failed"))?;
+                temporary
+                    .as_file()
+                    .sync_all()
+                    .map_err(|_| err("vault.failed"))?;
+                temporary
+                    .persist_noclobber(path)
+                    .map_err(|_| err("vault.backup_exists"))?;
+                Ok(json!({"exported":true,"count":snapshot.entries.len()}))
+            }
             "list" => Ok(
                 json!({"revision":revision,"items":snapshot.entries.iter().map(|e|json!({"id":e.id,"title":e.title})).collect::<Vec<_>>()}),
             ),
@@ -342,6 +399,27 @@ impl Runtime {
             _ => Err(err("vault.invalid")),
         }
     }
+}
+
+fn read_backup(path: &str) -> Result<Vec<u8>, UiError> {
+    use std::io::Read;
+    let metadata = std::fs::symlink_metadata(path).map_err(|_| err("vault.recovery_failed"))?;
+    if !metadata.is_file()
+        || metadata.file_type().is_symlink()
+        || metadata.len() > moodflow_vault::MAX_FILE_BYTES as u64
+    {
+        return Err(err("vault.recovery_failed"));
+    }
+    let mut bytes = Vec::new();
+    std::fs::File::open(path)
+        .map_err(|_| err("vault.recovery_failed"))?
+        .take(moodflow_vault::MAX_FILE_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| err("vault.recovery_failed"))?;
+    if bytes.len() > moodflow_vault::MAX_FILE_BYTES {
+        return Err(err("vault.recovery_failed"));
+    }
+    Ok(bytes)
 }
 
 pub fn start(app: &AppHandle) {
@@ -467,4 +545,77 @@ mod tests {
         let restored = crate::secrets::unprotect(&record.protected_key).unwrap();
         assert!(serde_json::from_slice::<KeyWrap>(&restored).is_ok());
     }
+}
+#[cfg(windows)]
+#[test]
+fn portable_recovery_previews_and_creates_a_fresh_profile_bound_vault_without_overwrite() {
+    let source = tempfile::tempdir().unwrap();
+    let current = Runtime::new(Some(source.path().join("source")));
+    current
+        .execute(
+            "create",
+            &json!({"master":"source master phrase fixture"}),
+            0,
+            true,
+        )
+        .unwrap();
+    let fresh = current.execute("new", &json!({}), 0, true).unwrap();
+    let mut entry = fresh["entry"].clone();
+    entry["title"] = json!("recovery fixture title");
+    entry["password"] = json!("recovery fixture credential");
+    let saved = current
+        .execute(
+            "save",
+            &json!({"entry":entry,"revision":fresh["revision"]}),
+            0,
+            true,
+        )
+        .unwrap();
+    let path = source.path().join("portable.mfvbackup");
+    let recovery = "independent offline recovery phrase fixture";
+    let export = json!({"path":path,"recovery":recovery,"revision":saved["revision"]});
+    current.execute("export_backup", &export, 0, true).unwrap();
+    assert!(current.execute("export_backup", &export, 0, true).is_err());
+    let bytes = std::fs::read(&path).unwrap();
+    assert!(!String::from_utf8_lossy(&bytes).contains("recovery fixture"));
+    let target_dir = source.path().join("target");
+    let target = Runtime::new(Some(target_dir.clone()));
+    let preview = target
+        .execute(
+            "preview_restore",
+            &json!({"path":path,"recovery":recovery}),
+            0,
+            true,
+        )
+        .unwrap();
+    assert_eq!(preview["count"], 1);
+    assert!(!target_dir.join("vault.mfv").exists());
+    let mut restore = json!({"path":path,"recovery":recovery,"master":"new profile master phrase fixture","fingerprint":preview["fingerprint"]});
+    restore["fingerprint"] = json!("stale");
+    assert!(target.execute("restore", &restore, 0, true).is_err());
+    assert!(!target_dir.join("vault.mfv").exists());
+    restore["fingerprint"] = preview["fingerprint"].clone();
+    target.execute("restore", &restore, 0, true).unwrap();
+    assert!(target.execute("restore", &restore, 0, true).is_err());
+    let listing = target.execute("list", &json!({}), 0, true).unwrap();
+    let view = target
+        .execute(
+            "get",
+            &json!({"id":entry["id"],"revision":listing["revision"]}),
+            0,
+            true,
+        )
+        .unwrap();
+    assert_eq!(view["entry"]["title"], "recovery fixture title");
+    assert_eq!(view["has_password"], true);
+    assert_eq!(view["entry"]["password"], "");
+    target.lock();
+    target
+        .execute(
+            "unlock",
+            &json!({"master":"new profile master phrase fixture"}),
+            0,
+            true,
+        )
+        .unwrap();
 }

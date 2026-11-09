@@ -1,4 +1,5 @@
 //! Encrypted vault snapshots. OS key protection, session gates and clipboard are host concerns.
+pub mod backup;
 pub mod crypto;
 mod store;
 pub mod totp;
@@ -26,6 +27,8 @@ pub enum Error {
     NotFound,
     #[error("vault_weak_password")]
     WeakPassword,
+    #[error("vault_weak_recovery")]
+    WeakRecovery,
     #[error("vault_locked")]
     Locked,
     #[error("vault_io")]

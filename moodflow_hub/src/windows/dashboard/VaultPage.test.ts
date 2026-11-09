@@ -9,13 +9,15 @@ const mocks = vi.hoisted(() => ({
   close: vi.fn(),
   confirm: vi.fn(),
   closeListener: vi.fn(),
+  open: vi.fn(),
+  save: vi.fn(),
 }))
 vi.mock('@/api', () => ({
   commands: { vaultRequest: mocks.call, getStatus: async () => ({ paused: false }) },
   events: { statusChanged: { listen: mocks.listen } },
   unwrap: async (p: Promise<unknown>) => p,
 }))
-vi.mock('@tauri-apps/plugin-dialog', () => ({ confirm: mocks.confirm }))
+vi.mock('@tauri-apps/plugin-dialog', () => ({ confirm: mocks.confirm, open: mocks.open, save: mocks.save }))
 vi.mock('@tauri-apps/api/window', () => ({
   getCurrentWindow: () => ({ onCloseRequested: mocks.closeListener, close: mocks.close }),
 }))
@@ -42,6 +44,8 @@ beforeEach(() => {
   mocks.listen.mockResolvedValue(vi.fn())
   mocks.closeListener.mockResolvedValue(vi.fn())
   mocks.confirm.mockResolvedValue(false)
+  mocks.open.mockResolvedValue(null)
+  mocks.save.mockResolvedValue(null)
   mocks.call.mockImplementation(async (method: string) => {
     if (method === 'unlock') {
       unlocked = true
@@ -97,6 +101,76 @@ async function openEntry() {
 }
 
 describe('加密密码库界面', () => {
+  it('加密备份必须设置独立短语并选择文件，取消对话框不导出', async () => {
+    const w = await openEntry()
+    await click(w, t('vault.backup'))
+    const inputs = w.findAll('.master-change input')
+    await inputs[0]!.setValue('separate recovery phrase fixture')
+    await inputs[1]!.setValue('separate recovery phrase fixture')
+    await w.find('.master-change').trigger('submit')
+    await flushPromises()
+    expect(mocks.call.mock.calls.some(([method]) => method === 'export_backup')).toBe(false)
+    mocks.save.mockResolvedValue('C:/fixture/vault.mfvbackup')
+    await w.find('.master-change').trigger('submit')
+    await flushPromises()
+    expect(mocks.call).toHaveBeenCalledWith(
+      'export_backup',
+      JSON.stringify({
+        path: 'C:/fixture/vault.mfvbackup',
+        recovery: 'separate recovery phrase fixture',
+        revision: 'disk-1',
+      }),
+    )
+    expect(w.find('.master-change').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('恢复先预览，取消不创建库；确认后携带同一文件的哈希并清空口令', async () => {
+    const original = mocks.call.getMockImplementation()!
+    mocks.call.mockImplementation(async (method: string) => {
+      if (method === 'status')
+        return JSON.stringify({
+          supported: true,
+          exists: false,
+          unlocked: false,
+          blocked: false,
+          remaining_ms: 0,
+        })
+      if (method === 'preview_restore')
+        return JSON.stringify({ count: 2, fingerprint: 'verified-preview-hash' })
+      return original(method)
+    })
+    mocks.open.mockResolvedValue('C:/fixture/backup.mfvbackup')
+    const w = mount(VaultPage)
+    await flushPromises()
+    const fill = async () => {
+      await w.findAll('input[type=password]')[0]!.setValue('new local master phrase')
+      await w.findAll('input[type=password]')[1]!.setValue('new local master phrase')
+      await w.findAll('input[type=password]')[2]!.setValue('separate recovery phrase fixture')
+    }
+    await fill()
+    await click(w, t('vault.restore'))
+    expect(mocks.call).toHaveBeenCalledWith(
+      'preview_restore',
+      JSON.stringify({ path: 'C:/fixture/backup.mfvbackup', recovery: 'separate recovery phrase fixture' }),
+    )
+    expect(mocks.call.mock.calls.some(([method]) => method === 'restore')).toBe(false)
+    expect(w.find('input[type=password]').element).toHaveProperty('value', '')
+    mocks.confirm.mockResolvedValue(true)
+    await fill()
+    await click(w, t('vault.restore'))
+    expect(mocks.call).toHaveBeenCalledWith(
+      'restore',
+      JSON.stringify({
+        path: 'C:/fixture/backup.mfvbackup',
+        recovery: 'separate recovery phrase fixture',
+        fingerprint: 'verified-preview-hash',
+        master: 'new local master phrase',
+      }),
+    )
+    expect(w.find('input[type=password]').element).toHaveProperty('value', '')
+    w.unmount()
+  })
   it('详情不主动索取密码；明确显示 15 秒后移除，复制只发条目标识', async () => {
     const w = await openEntry()
     expect(w.find('output').exists()).toBe(false)
