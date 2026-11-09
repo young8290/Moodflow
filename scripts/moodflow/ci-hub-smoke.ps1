@@ -18,7 +18,7 @@ Get-ChildItem -LiteralPath $payloadDir | Copy-Item -Destination $bin -Recurse
 $user=Join-Path $bin 'localdata'
 New-Item -ItemType Directory -Path $user | Out-Null
 [IO.File]::WriteAllText((Join-Path $user 'config.toml'),"[moodflow]`nenabled = false`n")
-foreach ($name in @('profile','profile/local','profile/roaming','temp','webview')) {
+foreach ($name in @('temp','webview')) {
     New-Item -ItemType Directory -Path (Join-Path $fixture $name) | Out-Null
 }
 $listener=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0)
@@ -32,12 +32,11 @@ function Start-Owned([string]$Name,[string[]]$Arguments) {
     $info.WindowStyle=[Diagnostics.ProcessWindowStyle]::Hidden
     $info.WorkingDirectory=$bin
     $info.Environment.Clear()
-    foreach ($key in @('SystemRoot','WINDIR','PATH','ProgramFiles','ProgramFiles(x86)','ProgramData','CommonProgramFiles','CommonProgramFiles(x86)')) {
+    foreach ($key in @('SystemRoot','WINDIR','PATH','ProgramFiles','ProgramFiles(x86)','ProgramData','CommonProgramFiles','CommonProgramFiles(x86)','USERPROFILE','LOCALAPPDATA','APPDATA')) {
         if ([Environment]::GetEnvironmentVariable($key)) { $info.Environment[$key]=[Environment]::GetEnvironmentVariable($key) }
     }
-    $info.Environment['USERPROFILE']=Join-Path $fixture 'profile'
-    $info.Environment['LOCALAPPDATA']=Join-Path $fixture 'profile/local'
-    $info.Environment['APPDATA']=Join-Path $fixture 'profile/roaming'
+    # WebView2 uses the real Windows profile/known-folder identity. Business data,
+    # browser data and temporary files are still explicitly isolated below.
     $info.Environment['TEMP']=Join-Path $fixture 'temp'
     $info.Environment['TMP']=Join-Path $fixture 'temp'
     $info.Environment['MF_HUB_DATA_DIR']=Join-Path $user 'hub'
