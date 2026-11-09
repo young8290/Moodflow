@@ -391,10 +391,16 @@ function Build-Hub ([string]$profile = "release", [string]$outdir = $null) {
         if ($LASTEXITCODE -ne 0) { ErrMsg "Hub 前端依赖安装失败!"; return $false }
         pnpm tauri build --no-bundle | Out-Host
         if ($LASTEXITCODE -ne 0) { ErrMsg "Moodflow Hub 构建失败!"; return $false }
+        # Use the same native MSVC/static-CRT workspace policy as the Hub.
+        cargo build --locked --release -p moodflow-capture --manifest-path (Join-Path $ProductRoot 'Cargo.toml') | Out-Host
+        if ($LASTEXITCODE -ne 0) { ErrMsg 'Moodflow 捕获辅助程序构建失败!'; return $false }
     } finally { Pop-Location; $env:CARGO_BUILD_JOBS = $previousBuildJobs }
     $exe = Join-Path (Get-CargoTargetDir $ProductRoot) "release\moodflow_hub.exe"
     if (-not (Test-Path $exe)) { ErrMsg "未找到产物: $exe"; return $false }
     Copy-Item $exe "$outdir\moodflow_hub.exe" -Force
+    $captureExe = Join-Path (Get-CargoTargetDir $ProductRoot) 'release\moodflow-capture.exe'
+    if (-not (Test-Path -LiteralPath $captureExe)) { ErrMsg '缺少 Moodflow 捕获辅助程序'; return $false }
+    Copy-Item -LiteralPath $captureExe -Destination (Join-Path $outdir 'moodflow-capture.exe') -Force
     $tpl = "$outdir\hub_templates"
     if (Test-Path $tpl) { Remove-Item -Recurse -Force $tpl }
     Copy-Item (Join-Path $ProductRoot "hub_templates") $tpl -Recurse -Force
@@ -2067,6 +2073,10 @@ function Do-Installer ([string]$profile = "release", [bool]$skipBuild = $false) 
     }
 
     # Inspect actual PE imports before signing or archiving the payload.
+    if ((Test-Path -LiteralPath (Join-Path $outdir 'moodflow_hub.exe')) -and -not (Test-Path -LiteralPath (Join-Path $outdir 'moodflow-capture.exe'))) {
+        ErrMsg 'Hub 缺少捕获辅助程序，请重新全构建后打包。'
+        return $false
+    }
     $crtCheck = Join-Path $instDir 'scripts\verify-static-crt.ps1'
     if (-not (Test-Path $crtCheck)) { ErrMsg "缺少 CRT 发布检查: $crtCheck"; return $false }
     $payloadPe = @(Get-ChildItem -LiteralPath $outdir -File | Where-Object { $_.Extension -in '.exe', '.dll' } | ForEach-Object { $_.FullName })

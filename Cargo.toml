@@ -15,6 +15,7 @@ members = [
     "tools/mock-ai",
     "tools/typer",
     "tools/db-grep",
+    "tools/moodflow-capture",
 ]
 
 [workspace.package]

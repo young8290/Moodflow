@@ -355,6 +355,7 @@ describe('情绪看板', () => {
       '离线查词',
       '密码库',
       '剪贴板历史',
+      '捕获工作台',
     ])
     expect(w.find('h1').text()).toBe('今日')
     await w.findAll('nav button')[1]!.trigger('click')

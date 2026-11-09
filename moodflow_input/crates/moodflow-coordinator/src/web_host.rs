@@ -24,6 +24,9 @@ use crate::coordinator::Coordinator;
 /// `Coordinator::xxx(self)` 消歧，否则就是自调递归。
 pub trait WebDataHost {
     fn tools_allowed(&self) -> bool;
+    fn capture_allowed(&self, _apps: &[String]) -> bool {
+        false
+    }
     fn read_buffer_text(&self) -> Result<String, String>;
     fn chord_settings(&self) -> (bool, String);
     fn reload_chord_profile(&self);
@@ -257,6 +260,12 @@ pub trait WebDataHost {
 }
 
 impl WebDataHost for Coordinator {
+    fn capture_allowed(&self, apps: &[String]) -> bool {
+        let rt = self.rt();
+        let config = &rt.config.moodflow;
+        let filter = moodflow_tap::AppFilter::new(&config.app_blocklist, &config.app_allowlist);
+        crate::moodflow::reviewed_capture_apps_allowed(apps, &filter)
+    }
     fn clipboard_history(&self) -> Vec<moodflow_clipboard::Entry> {
         Coordinator::clipboard_entries(self)
     }

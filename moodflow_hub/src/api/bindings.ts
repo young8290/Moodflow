@@ -307,6 +307,7 @@ export const commands = {
 	imeTools: (method: string, payload: string) => typedError<string, UiError>(__TAURI_INVOKE("ime_tools", { method, payload })),
 	libraryRequest: (method: string, payload: string) => typedError<string, UiError>(__TAURI_INVOKE("library_request", { method, payload })),
 	citationRequest: (method: string, payload: string) => typedError<string, UiError>(__TAURI_INVOKE("citation_request", { method, payload })),
+	captureRequest: (method: string, payload: string) => typedError<string, UiError>(__TAURI_INVOKE("capture_request", { method, payload })),
 	vaultRequest: (method: string, payload: string) => typedError<string, UiError>(__TAURI_INVOKE("vault_request", { method, payload })),
 	/**  已装插件、启用与运行状态。 */
 	pluginsList: () => typedError<PluginList, UiError>(__TAURI_INVOKE("plugins_list")),
@@ -774,6 +775,8 @@ export type HotkeyAction =
 "dashboard" | 
 /**  Clipboard history, independent of the active input method. */
 "clipboard" | 
+/**  Open the capture workbench; never starts recording without an explicit action. */
+"capture" | 
 /**  开始 / 结束专注（FR-RST-10）：没在专注时按第一个预设（25 分钟）开始，专注中按下结束 */
 "focus";
 

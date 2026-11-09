@@ -51,6 +51,12 @@ impl WindowTarget {
 
 /// 显示一个窗口；还没创建就按配置创建。小组件不抢焦点（FR-WGT-07 的“不抢焦点”不变量）。
 pub fn open_clipboard<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), UiError> {
+    open_tool(app, "clipboard")
+}
+pub fn open_capture<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), UiError> {
+    open_tool(app, "capture")
+}
+fn open_tool<R: Runtime>(app: &tauri::AppHandle<R>, page: &str) -> Result<(), UiError> {
     if app.get_webview_window("dashboard").is_none() {
         let mut config = app
             .config()
@@ -61,14 +67,14 @@ pub fn open_clipboard<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), UiErr
             .cloned()
             .ok_or_else(|| UiError::new("window.not_configured", "error.generic"))?;
         // A first window cannot receive navigation events before its Vue listener mounts.
-        config.url = WebviewUrl::App("dashboard/index.html#clipboard".into());
+        config.url = WebviewUrl::App(format!("dashboard/index.html#{page}").into());
         WebviewWindowBuilder::from_config(app, &config)?.build()?;
     }
     open(app, WindowTarget::Dashboard)?;
     app.emit_to(
         "dashboard",
         "mf:dashboard-nav",
-        serde_json::json!({"page":"clipboard"}),
+        serde_json::json!({"page":page}),
     )?;
     Ok(())
 }

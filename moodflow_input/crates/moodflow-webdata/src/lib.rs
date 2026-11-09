@@ -551,6 +551,22 @@ pub trait WebDataRpc: WebDataHost {
             }
             "storage.health" => Ok(json!({ "available": self.user_store().is_some() })),
             "tools.allowed" => Ok(json!({ "allowed": self.tools_allowed() })),
+            "tools.captureAllowed" => {
+                let apps = params["apps"]
+                    .as_array()
+                    .ok_or_else(|| anyhow::anyhow!("invalid_capture_apps"))?;
+                anyhow::ensure!(apps.len() <= 1024, "invalid_capture_apps");
+                let apps = apps
+                    .iter()
+                    .map(|app| {
+                        app.as_str()
+                            .filter(|app| !app.is_empty() && app.len() <= 1024)
+                            .map(String::from)
+                            .ok_or_else(|| anyhow::anyhow!("invalid_capture_apps"))
+                    })
+                    .collect::<anyhow::Result<Vec<_>>>()?;
+                Ok(json!({"allowed":self.capture_allowed(&apps)}))
+            }
             "clipboard.list" => {
                 anyhow::ensure!(self.tools_allowed(), "privacy_blocked");
                 Ok(json!({ "entries": self.clipboard_history() }))
@@ -5186,6 +5202,25 @@ outside: rare
         let store = Arc::new(Store::open(&path).unwrap());
         let data = charsets_data_dir(tag);
         Coordinator::new_headless_with_store(Config::default(), Some(&data), store)
+    }
+
+    #[test]
+    fn capture_policy_validates_every_source_against_the_shared_user_rules() {
+        let path = std::env::temp_dir().join("moodflow_capture_policy.redb");
+        let _ = std::fs::remove_file(&path);
+        let store = Arc::new(Store::open(&path).unwrap());
+        let mut config = Config::default();
+        config.moodflow.app_blocklist = vec!["secret*.exe".into()];
+        let c = Coordinator::new_headless_with_store(config, None, store);
+        let check = |apps: Value| c.web_data_rpc("tools.captureAllowed", &json!({"apps": apps}));
+        assert_eq!(check(json!(["notepad.exe"])).unwrap()["allowed"], true);
+        assert_eq!(
+            check(json!(["notepad.exe", "secret-viewer.exe"])).unwrap()["allowed"],
+            false
+        );
+        assert!(check(json!([""])).is_err());
+        assert!(check(json!([17])).is_err());
+        assert!(check(json!(vec!["a.exe"; 1025])).is_err());
     }
 
     /// 在 `{sections:[{key,...}]}` 响应里按 key 取某段（无则 Null）。

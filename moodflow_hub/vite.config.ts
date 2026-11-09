@@ -24,7 +24,9 @@ export default defineConfig({
     // 看板窗口带 ECharts（折线、条形、热力图），单包约 600 kB；都是安装目录里的本地文件，不走网络，只在看板窗口加载
     chunkSizeWarningLimit: 700,
     rollupOptions: {
-      input: Object.fromEntries(WINDOWS.map((w) => [w, `${src}/windows/${w}/index.html`])),
+      input: Object.fromEntries(
+        [...WINDOWS, 'capture-pin'].map((w) => [w, `${src}/windows/${w}/index.html`]),
+      ),
     },
   },
   test: {

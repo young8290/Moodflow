@@ -32,16 +32,19 @@ pub enum HotkeyAction {
     Dashboard,
     /// Clipboard history, independent of the active input method.
     Clipboard,
+    /// Open the capture workbench; never starts recording without an explicit action.
+    Capture,
     /// 开始 / 结束专注（FR-RST-10）：没在专注时按第一个预设（25 分钟）开始，专注中按下结束
     Focus,
 }
 
 impl HotkeyAction {
-    pub const ALL: [HotkeyAction; 5] = [
+    pub const ALL: [HotkeyAction; 6] = [
         HotkeyAction::Chat,
         HotkeyAction::Widget,
         HotkeyAction::Dashboard,
         HotkeyAction::Clipboard,
+        HotkeyAction::Capture,
         HotkeyAction::Focus,
     ];
 
@@ -52,6 +55,7 @@ impl HotkeyAction {
             HotkeyAction::Widget => "hotkey.widget",
             HotkeyAction::Dashboard => "hotkey.dashboard",
             HotkeyAction::Clipboard => "hotkey.clipboard",
+            HotkeyAction::Capture => "hotkey.capture",
             HotkeyAction::Focus => "hotkey.focus",
         }
     }
@@ -116,6 +120,7 @@ fn run<R: Runtime>(app: &AppHandle<R>, action: HotkeyAction) -> Result<(), crate
         HotkeyAction::Chat => windows::open(app, WindowTarget::Chat),
         HotkeyAction::Dashboard => windows::open(app, WindowTarget::Dashboard),
         HotkeyAction::Clipboard => windows::open_clipboard(app),
+        HotkeyAction::Capture => windows::open_capture(app),
         HotkeyAction::Focus => {
             if let Some(focus) = app.try_state::<moodflow_hub_core::focus::FocusHandle>() {
                 if focus.status().active {

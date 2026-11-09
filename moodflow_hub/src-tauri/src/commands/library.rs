@@ -12,6 +12,36 @@ use tauri::State;
 
 static LIBRARIES: OnceLock<Mutex<BTreeMap<PathBuf, Library>>> = OnceLock::new();
 
+pub(crate) fn save_capture(
+    asset: &moodflow_capsule::capture::Asset,
+    path: &std::path::Path,
+    title: &str,
+) -> anyhow::Result<Document> {
+    let root = root()?;
+    crate::private_fs::ensure(&root)?;
+    let mut document = Document::new("capture", title, "", &chrono::Utc::now().to_rfc3339());
+    document
+        .metadata
+        .properties
+        .insert("path".into(), serde_yaml_value(&path.to_string_lossy()));
+    document
+        .metadata
+        .properties
+        .insert("asset_id".into(), serde_yaml_value(&asset.id));
+    // Use the same cache/lock as the library editor; there is one authoritative store.
+    let mut libraries = LIBRARIES
+        .get_or_init(Default::default)
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    let library = libraries
+        .entry(root.clone())
+        .or_insert_with(|| Library::new(root));
+    library.put(&document, None)
+}
+fn serde_yaml_value(value: &str) -> moodflow_capsule::PropertyValue {
+    moodflow_capsule::PropertyValue::String(value.to_owned())
+}
+
 fn root() -> anyhow::Result<PathBuf> {
     Ok(crate::paths::tool_data_dir()?.join("capsule"))
 }

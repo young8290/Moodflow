@@ -2,6 +2,7 @@
 //! 这里只做取参 → 调领域服务 → 推送事件，不写业务规则。
 
 pub mod ai;
+pub mod capture;
 pub mod chat;
 pub mod citation;
 pub mod comfort;
@@ -45,6 +46,11 @@ use crate::state::AppState;
 use crate::windows::{self, WindowTarget};
 
 pub(crate) fn emit_status(app: &AppHandle, snap: StatusSnapshot) {
+    if snap.paused
+        && let Some(capture) = app.try_state::<Arc<crate::capture::Runtime>>()
+    {
+        capture.cancel(true);
+    }
     if let Err(e) = StatusChanged(snap).emit(app) {
         crate::hlog!("推送 status:changed 失败：{e}");
     }

@@ -153,6 +153,13 @@ impl AppFilter {
         if BUILTIN_EXCLUDED.iter().any(|b| fold(b) == name) {
             return true;
         }
+        self.blocked_explicit(app)
+    }
+
+    /// Explicit local tools skip the passive self-sensing exclusion, while keeping
+    /// every user block/allow rule. This never changes `blocked` or MFP sensing.
+    pub fn blocked_explicit(&self, app: &str) -> bool {
+        let name = fold(app);
         if self.block.iter().any(|p| glob(p, &name)) {
             return true;
         }
@@ -315,4 +322,13 @@ mod tests {
         assert!(m("**a**", "bab"));
         assert!(m("银行*", "银行助手.exe"));
     }
+}
+#[test]
+fn explicit_app_filter_keeps_user_rules_without_enabling_self_sensing() {
+    let empty = AppFilter::new::<&str>(&[], &[]);
+    assert!(empty.blocked(Some("moodflow_hub.exe")));
+    assert!(!empty.blocked_explicit("moodflow_hub.exe"));
+    assert!(AppFilter::new(&["KeePass*.exe"], &[]).blocked_explicit("keepassxc.exe"));
+    assert!(AppFilter::new(&["moodflow_hub.exe"], &[]).blocked_explicit("moodflow_hub.exe"));
+    assert!(AppFilter::new(&[], &["notepad.exe"]).blocked_explicit("other.exe"));
 }

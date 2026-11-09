@@ -1,6 +1,8 @@
 //! Local Markdown library. Platform ACLs and network consent belong to the host.
+pub mod capture;
 use anyhow::{Context, ensure};
 use serde::{Deserialize, Serialize};
+pub use serde_yaml::Value as PropertyValue;
 use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,

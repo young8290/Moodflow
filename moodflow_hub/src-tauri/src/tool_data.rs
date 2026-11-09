@@ -10,7 +10,7 @@ pub fn apply_pending(hub: &Path, tools: &Path) -> io::Result<Option<WipeReport>>
         }
         let mut remaining = 100_000_usize;
         // Fixed owned directories only. Never infer deletion paths from a manifest or imported data.
-        for name in ["capsule", "vault"] {
+        for name in ["capsule", "vault", "capture"] {
             let path = root.join(name);
             if fs::symlink_metadata(&path).is_ok() {
                 remove_owned(&root, &path, &mut remaining, 0)?;

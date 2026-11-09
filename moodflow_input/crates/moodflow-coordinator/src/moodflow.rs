@@ -283,6 +283,16 @@ pub fn shutdown() {
 fn tap() -> Option<&'static Arc<Tap>> {
     TAP.get()
 }
+pub(crate) fn reviewed_capture_apps_allowed(
+    apps: &[String],
+    fallback: &moodflow_tap::AppFilter,
+) -> bool {
+    reviewed_tools_allowed()
+        && tap().map_or_else(
+            || apps.iter().all(|app| !fallback.blocked_explicit(app)),
+            |tap| tap.explicit_apps_allowed(apps),
+        )
+}
 
 impl Coordinator {
     /// state.toml 里记着的无痕状态（`moodflow.remember_pause` 打开时启动恢复用）。

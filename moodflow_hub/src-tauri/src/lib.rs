@@ -3,6 +3,7 @@
 //! 领域逻辑都在 `moodflow-hub-core`，这里只做参数校验 → 调用领域服务 → 转成 `UiError`（ADR 0007）。
 
 mod args;
+mod capture;
 mod chat;
 mod cleanup;
 mod comfort;
@@ -156,6 +157,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::ime::ime_tools,
             commands::library::library_request,
             commands::citation::citation_request,
+            commands::capture::capture_request,
             commands::vault::vault_request,
             commands::ime::plugins_list,
             commands::ime::plugins_inspect,
@@ -272,6 +274,7 @@ pub fn run() {
             let cfg = consent::mfp_cfg(&ConsentState::load(&state.db())?);
             app.manage(state);
             vault::start(app.handle());
+            capture::start(app.handle());
             // 第 4 步：AI 网关（无配置时为离线模式）
             app.manage(gateway::start(app.handle(), &data_dir));
             // 第 5 步：MFP 客户端与实时感知。Hub 是同意状态的唯一真相源，握手后立即下发 cfg
@@ -324,6 +327,10 @@ pub fn run() {
             } => api.prevent_exit(),
             // 托管状态在退出时不一定会被析构，这里把排队中的写入提交掉（ADR 0020）
             tauri::RunEvent::Exit => {
+                if let Some(capture) = app.try_state::<std::sync::Arc<capture::Runtime>>() {
+                    capture.cancel(true);
+                    capture.sweep_clipboard(false);
+                }
                 if let Some(vault) = app.try_state::<std::sync::Arc<vault::Runtime>>() {
                     vault.lock();
                 }

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "capture-pin",
+  "description": "用户显式创建的贴图：仅操作自身窗口及用户选定的导出文件。",
+  "windows": ["capture-pin-*"],
+  "permissions": ["core:default", "core:window:allow-start-dragging", "core:window:allow-close", "dialog:allow-save"]
+}
