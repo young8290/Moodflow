@@ -55,6 +55,12 @@ try {
     & node (Join-Path $PSScriptRoot 'ci-hub-ui.mjs') $port (Join-Path $root 'dist/hub-ui-smoke.json')
     if ($LASTEXITCODE -ne 0) { throw 'Packaged Hub UI/native acceptance failed; see bounded synthetic report.' }
 } finally {
+    [pscustomobject]@{
+        coreExited=($null -eq $core -or $core.HasExited)
+        hubExited=($null -eq $hub -or $hub.HasExited)
+        hubWindowTitle=$(if ($null -ne $hub -and -not $hub.HasExited) { $hub.MainWindowTitle } else { '' })
+        hubExitCode=$(if ($null -ne $hub -and $hub.HasExited) { $hub.ExitCode } else { $null })
+    } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $root 'dist/hub-ui-processes.json') -Encoding utf8
     foreach ($process in @($hub,$core)) {
         if ($null -ne $process) {
             try {

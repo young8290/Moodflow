@@ -233,6 +233,7 @@ jobs:
           name: Moodflow-Hub-UI
           path: |
             Moodflow/dist/hub-ui-smoke.json
+            Moodflow/dist/hub-ui-processes.json
             Moodflow/dist/hub-ui-*.png
             Moodflow/dist/hub-ui-core-logs/
             Moodflow/dist/hub-ui-hub-logs/

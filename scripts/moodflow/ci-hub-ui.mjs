@@ -21,16 +21,19 @@ async function target() {
   const start = Date.now()
   while (Date.now() - start < 60000) {
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/json/list`, { signal: AbortSignal.timeout(2000) })
+      const response = await fetch(`http://127.0.0.1:${port}/json`, { signal: AbortSignal.timeout(2000) })
+      assert(response.ok, `CDP discovery returned HTTP ${response.status}`)
       const targets = await response.json()
-      const found = targets.find((item) => item.type === 'page' && item.url.includes('/dashboard/'))
+      report.targets = targets.slice(0, 12).map((item) => ({ type: item.type, url: item.url?.split(/[?#]/)[0] }))
+      const found = targets.find((item) => ['page', 'webview'].includes(item.type) && item.url.includes('/dashboard/'))
       if (found) {
         const url = new URL(found.webSocketDebuggerUrl)
-        assert.equal(url.hostname, '127.0.0.1')
+        assert(['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname), 'CDP must remain on loopback')
         assert.equal(Number(url.port), port)
+        url.hostname = '127.0.0.1'
         return url.href
       }
-    } catch { /* The actual application is still starting. */ }
+    } catch (error) { report.connectionError = String(error.message).slice(0, 300) }
     await sleep(250)
   }
   throw new Error('Packaged Hub did not expose its dashboard WebView')
@@ -176,6 +179,11 @@ try {
   await passed('sync-entry')
 } catch (error) {
   report.failure = String(error.message ?? error).slice(0, 1500)
+  if (socket?.readyState === WebSocket.OPEN) {
+    try {
+      report.alerts = await evaluate(`Array.from(document.querySelectorAll('main.page [role=alert]')).map(e=>e.textContent.trim().slice(0,300))`)
+    } catch { /* Preserve the original error if the WebView has gone away. */ }
+  }
   process.exitCode = 1
 } finally {
   await writeFile(reportPath, JSON.stringify(report, null, 2))

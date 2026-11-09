@@ -129,6 +129,20 @@ static int Client(const std::wstring& kind, const fs::path& report) {
         if (kind == L"ordinary") Hr(profiles->EnableLanguageProfile(clsid, 0x0804, profile, TRUE), "enable isolated user profile");
         Hr(profiles->ChangeCurrentLanguage(0x0804), "select fixture language");
         const auto active = profileManager->ActivateProfile(TF_PROFILETYPE_INPUTPROCESSOR, 0x0804, clsid, profile, nullptr, 0);
+        if (FAILED(active)) {
+            // Diagnose the real failure; never substitute a directly activated TIP.
+            wchar_t exe[32768]{}; GetModuleFileNameW(nullptr,exe,32768);
+            const auto dll=fs::path(exe).parent_path()/L"moodflow_tsf.dll";
+            const auto module=LoadLibraryW(dll.c_str()); const auto loadError=module?ERROR_SUCCESS:GetLastError();
+            ComPtr<IUnknown> direct; const auto com=CoCreateInstance(clsid,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&direct));
+            HKEY key=nullptr;
+            const auto registry=RegOpenKeyExW(HKEY_LOCAL_MACHINE,L"Software\\Classes\\CLSID\\{EF62EE30-5ECF-413A-A476-48D1F29E827C}\\InprocServer32",0,KEY_READ,&key);
+            if (key) RegCloseKey(key);
+            std::ostringstream diagnostic; diagnostic<<"load_error="<<loadError<<" registry_error="<<registry<<" direct_com="<<std::hex<<static_cast<unsigned long>(com);
+            Mark(report,"activation-diagnostic",diagnostic.str());
+            direct.Reset(); if (module) FreeLibrary(module);
+            Hr(active,("activate actual registered Moodflow DLL "+diagnostic.str()).c_str());
+        }
         Hr(active, "activate actual registered Moodflow DLL"); Check(active == S_OK, "profile not enabled");
         // The profile must be active before the editor gains focus. Activation
         // alone only reports IME state; an actual focus transition establishes
