@@ -29,7 +29,8 @@ function Start-Owned([string]$Name,[string[]]$Arguments) {
     $info=[Diagnostics.ProcessStartInfo]::new((Join-Path $bin $Name))
     $info.UseShellExecute=$false
     $info.CreateNoWindow=$true
-    $info.WindowStyle=[Diagnostics.ProcessWindowStyle]::Hidden
+    # The core is a background helper; Hub is the interactive UI under test.
+    $info.WindowStyle=$(if ($Name -ceq 'moodflow_hub.exe') { [Diagnostics.ProcessWindowStyle]::Normal } else { [Diagnostics.ProcessWindowStyle]::Hidden })
     $info.WorkingDirectory=$bin
     $info.Environment.Clear()
     foreach ($key in @('SystemRoot','WINDIR','PATH','ProgramFiles','ProgramFiles(x86)','ProgramData','CommonProgramFiles','CommonProgramFiles(x86)','USERPROFILE','LOCALAPPDATA','APPDATA')) {
@@ -54,10 +55,19 @@ try {
     & node (Join-Path $PSScriptRoot 'ci-hub-ui.mjs') $port (Join-Path $root 'dist/hub-ui-smoke.json')
     if ($LASTEXITCODE -ne 0) { throw 'Packaged Hub UI/native acceptance failed; see bounded synthetic report.' }
 } finally {
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class MoodflowWindowProbe {
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsHungAppWindow(IntPtr window);
+}
+'@
     [pscustomobject]@{
         coreExited=($null -eq $core -or $core.HasExited)
         hubExited=($null -eq $hub -or $hub.HasExited)
         hubWindowTitle=$(if ($null -ne $hub -and -not $hub.HasExited) { $hub.MainWindowTitle } else { '' })
+        hubWindowHung=$(if ($null -ne $hub -and -not $hub.HasExited) { [MoodflowWindowProbe]::IsHungAppWindow($hub.MainWindowHandle) } else { $null })
         hubExitCode=$(if ($null -ne $hub -and $hub.HasExited) { $hub.ExitCode } else { $null })
     } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $root 'dist/hub-ui-processes.json') -Encoding utf8
     foreach ($process in @($hub,$core)) {

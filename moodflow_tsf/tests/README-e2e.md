@@ -24,7 +24,10 @@ AppContainer token flag and actual resource access: a protected synthetic file
 grants AAP read access and no restricted-package grant. AC must read it; LPAC
 must receive ACCESS_DENIED. This verifies the documented LPAC resource boundary
 without relying on the unsupported class-specific Win32 LPAC query contract.
-Only `lpacCom` and `registryRead` capabilities are requested for TSF.
+Clients request `lpacCom` and `registryRead`; LPAC additionally requests the
+system `lpacAppExperience` capability for the interactive application profile.
+These names are listed in the [Chromium system capability constants](https://chromium.googlesource.com/chromium/src/+/refs/heads/main/sandbox/policy/win/lpac_capability.h).
+The AAP resource denial and private settings-pipe denial remain mandatory.
 Public fixture binaries receive read/execute grants; synthetic reports receive
 low-integrity write access. Repository files, credentials, dictionary and broker
 user data are outside that grant. Child processes are job-bound and profiles are

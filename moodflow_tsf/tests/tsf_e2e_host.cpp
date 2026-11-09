@@ -131,6 +131,8 @@ static int Client(const std::wstring& kind, const fs::path& report) {
         const auto active = profileManager->ActivateProfile(TF_PROFILETYPE_INPUTPROCESSOR, 0x0804, clsid, profile, nullptr, 0);
         if (FAILED(active)) {
             // Diagnose the real failure; never substitute a directly activated TIP.
+            const auto previouslyLoaded=GetModuleHandleW(L"moodflow_tsf.dll")?1:0;
+            BOOL enabled=FALSE; const auto enabledResult=profiles->IsEnabledLanguageProfile(clsid,0x0804,profile,&enabled);
             wchar_t exe[32768]{}; GetModuleFileNameW(nullptr,exe,32768);
             const auto dll=fs::path(exe).parent_path()/L"moodflow_tsf.dll";
             const auto module=LoadLibraryW(dll.c_str()); const auto loadError=module?ERROR_SUCCESS:GetLastError();
@@ -138,7 +140,7 @@ static int Client(const std::wstring& kind, const fs::path& report) {
             HKEY key=nullptr;
             const auto registry=RegOpenKeyExW(HKEY_LOCAL_MACHINE,L"Software\\Classes\\CLSID\\{EF62EE30-5ECF-413A-A476-48D1F29E827C}\\InprocServer32",0,KEY_READ,&key);
             if (key) RegCloseKey(key);
-            std::ostringstream diagnostic; diagnostic<<"load_error="<<loadError<<" registry_error="<<registry<<" direct_com="<<std::hex<<static_cast<unsigned long>(com);
+            std::ostringstream diagnostic; diagnostic<<"loaded_before="<<previouslyLoaded<<" load_error="<<loadError<<" registry_error="<<registry<<" enabled="<<enabled<<" enabled_hr="<<std::hex<<static_cast<unsigned long>(enabledResult)<<" direct_com="<<static_cast<unsigned long>(com);
             Mark(report,"activation-diagnostic",diagnostic.str());
             direct.Reset(); if (module) FreeLibrary(module);
             Hr(active,("activate actual registered Moodflow DLL "+diagnostic.str()).c_str());
@@ -211,6 +213,7 @@ static int Launch(const std::wstring& kind, const fs::path& report) {
     int exitCode = 1;
     try {
         CapabilityMemory memory; memory.Add(L"lpacCom"); memory.Add(L"registryRead");
+        if (kind == L"lpac") memory.Add(L"lpacAppExperience");
         SECURITY_CAPABILITIES security{}; security.AppContainerSid = package;
         security.Capabilities = memory.capabilities.data(); security.CapabilityCount = static_cast<DWORD>(memory.capabilities.size());
         SIZE_T bytes = 0; const DWORD count = kind == L"lpac" ? 2u : 1u;
