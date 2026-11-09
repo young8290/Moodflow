@@ -996,7 +996,7 @@ fn user_long_word_promotion_end_to_end() {
     }
     let cfg = make_config(&["pinyin"]);
     // Pin the exact-match baseline from this data snapshot. Homophone frequency
-    // changes (清风/轻风) must not turn a promotion-order test into a data assertion.
+    // changes must not turn a promotion-order test into a data assertion.
     let exact = EngineManager::new(&cfg, Some(&dir))
         .convert("qingfeng", 400)
         .candidates
