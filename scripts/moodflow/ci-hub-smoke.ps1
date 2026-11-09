@@ -57,12 +57,66 @@ try {
 } finally {
     Add-Type -TypeDefinition @'
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 public static class MoodflowWindowProbe {
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool IsHungAppWindow(IntPtr window);
+    [DllImport("user32.dll")]
+    public static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
+    [DllImport("advapi32.dll", SetLastError=true)]
+    static extern IntPtr OpenThreadWaitChainSession(uint flags, IntPtr callback);
+    [DllImport("advapi32.dll")]
+    static extern void CloseThreadWaitChainSession(IntPtr session);
+    [DllImport("advapi32.dll", SetLastError=true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    static extern bool GetThreadWaitChain(IntPtr session, UIntPtr context, uint flags, uint thread, ref uint count, IntPtr nodes, out int cycle);
+    [DllImport("advapi32.dll")]
+    static extern void RegisterWaitChainCOMCallback(IntPtr call, IntPtr activation);
+    [DllImport("kernel32.dll", CharSet=CharSet.Unicode)]
+    static extern IntPtr LoadLibraryEx(string name, IntPtr file, uint flags);
+    [DllImport("kernel32.dll", CharSet=CharSet.Ansi, ExactSpelling=true)]
+    static extern IntPtr GetProcAddress(IntPtr module, string name);
+    public static string[] Waits(Process process) {
+        // Read only the owned synthetic process. Never collect lock names or memory.
+        var lines = new List<string>();
+        uint owner;
+        uint ui = GetWindowThreadProcessId(process.MainWindowHandle, out owner);
+        lines.Add("uiThread=" + ui);
+        IntPtr ole = LoadLibraryEx("ole32.dll", IntPtr.Zero, 0x800);
+        if (ole != IntPtr.Zero) RegisterWaitChainCOMCallback(GetProcAddress(ole,"CoGetCallState"), GetProcAddress(ole,"CoGetActivationState"));
+        IntPtr session = OpenThreadWaitChainSession(0,IntPtr.Zero);
+        if (session == IntPtr.Zero) return new [] { "wctError=" + Marshal.GetLastWin32Error() };
+        // WAITCHAIN_NODE_INFO is 280 bytes on x64 (wct.h). Only fixed metadata is read.
+        IntPtr nodes = Marshal.AllocHGlobal(280*16);
+        try {
+            int inspected = 0;
+            foreach (ProcessThread thread in process.Threads) {
+                if (++inspected > 96) break;
+                uint count=16;
+                int cycle;
+                if (!GetThreadWaitChain(session,UIntPtr.Zero,0,(uint)thread.Id,ref count,nodes,out cycle)) {
+                    lines.Add("thread="+thread.Id+" error="+Marshal.GetLastWin32Error());
+                    continue;
+                }
+                string line="thread="+thread.Id+" cycle="+cycle;
+                for (int i=0;i<Math.Min(count,16);i++) {
+                    IntPtr node=IntPtr.Add(nodes,i*280);
+                    int type=Marshal.ReadInt32(node,0);
+                    line += " type="+type+" status="+Marshal.ReadInt32(node,4);
+                    if (type==8) line += " pid="+Marshal.ReadInt32(node,8)+" tid="+Marshal.ReadInt32(node,12);
+                }
+                lines.Add(line);
+            }
+        } finally { Marshal.FreeHGlobal(nodes); CloseThreadWaitChainSession(session); }
+        return lines.ToArray();
+    }
 }
 '@
+    if ($null -ne $hub -and -not $hub.HasExited -and [MoodflowWindowProbe]::IsHungAppWindow($hub.MainWindowHandle)) {
+        [MoodflowWindowProbe]::Waits($hub) | Set-Content -LiteralPath (Join-Path $root 'dist/hub-ui-waits.txt') -Encoding utf8
+    }
     [pscustomobject]@{
         coreExited=($null -eq $core -or $core.HasExited)
         hubExited=($null -eq $hub -or $hub.HasExited)

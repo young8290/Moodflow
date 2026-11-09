@@ -17,9 +17,9 @@ on:
         required: false
         default: ""
       acceptance:
-        description: "验收范围；界面夹具迭代可仅验证 Hub，默认执行全部"
+        description: "验收范围；夹具迭代可单独验证 Hub 或安装，默认执行全部"
         type: choice
-        options: [all, hub]
+        options: [all, hub, install]
         default: all
   pull_request:
     branches: [main]
@@ -29,7 +29,7 @@ on:
       - ".github/workflows/moodflow-package.yml"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}${{ inputs.acceptance == 'hub' && '-hub' || '' }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.acceptance || 'all' }}
   # 安装与 TSF 注册后的 finally 清理须跑完；同一分支排队，不在系统操作中途取消。
   cancel-in-progress: false
 
@@ -208,7 +208,7 @@ jobs:
   hub:
     name: Windows 完整包界面与原生调用验收
     needs: [windows, reuse]
-    if: ${{ always() && (needs.windows.result == 'success' || needs.reuse.result == 'success') }}
+    if: ${{ always() && inputs.acceptance != 'install' && (needs.windows.result == 'success' || needs.reuse.result == 'success') }}
     runs-on: windows-2022
     timeout-minutes: 12
     steps:
@@ -234,6 +234,7 @@ jobs:
           path: |
             Moodflow/dist/hub-ui-smoke.json
             Moodflow/dist/hub-ui-processes.json
+            Moodflow/dist/hub-ui-waits.txt
             Moodflow/dist/hub-ui-*.png
             Moodflow/dist/hub-ui-core-logs/
             Moodflow/dist/hub-ui-hub-logs/
@@ -243,7 +244,7 @@ jobs:
   tsf:
     name: Windows 真实 TSF 与权限隔离验收
     needs: [windows, reuse]
-    if: ${{ always() && inputs.acceptance != 'hub' && (needs.windows.result == 'success' || needs.reuse.result == 'success') }}
+    if: ${{ always() && !contains(fromJSON('["hub", "install"]'), inputs.acceptance) && (needs.windows.result == 'success' || needs.reuse.result == 'success') }}
     runs-on: windows-2022
     timeout-minutes: 35
     steps:
