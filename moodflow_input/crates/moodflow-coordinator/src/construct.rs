@@ -261,6 +261,16 @@ impl Coordinator {
         // 统一应用外观项（幂等）：补齐上面手动块未含的翻页栏 / 页码等外观项，
         // 使首次启动即按 config 应用（与 reload_user_config 同一路径）。
         coordinator.apply_ui_config();
+        if !coordinator.user_store_available() && coordinator.compat_dirs.1.is_some() {
+            let _ = coordinator.ui_tx.send(UiCommand::ShowToast {
+                text: "用户词库无法打开，本次学习不能保存。请先备份用户目录，查看随包恢复说明。"
+                    .into(),
+                position: moodflow_ui_types::ToastPosition::BottomCenter,
+                kind: moodflow_ui_types::ToastKind::Error,
+                duration_ms: 10000,
+                accent: None,
+            });
+        }
         coordinator
     }
 
@@ -354,6 +364,12 @@ impl Coordinator {
     pub(crate) fn open_user_store(dir: &Path) -> Option<Arc<Store>> {
         let _ = std::fs::create_dir_all(dir);
         let p = dir.join("userdata.redb");
+        // An existing empty file may be a truncated user database. Never silently
+        // initialize it as a fresh database; keep the original for recovery.
+        if p.metadata().is_ok_and(|m| m.len() == 0) {
+            warn!("User store is empty; persistence disabled until explicit recovery");
+            return None;
+        }
         match Store::open(&p) {
             Ok(s) => {
                 info!("Opened redb store: {}", p.display());
@@ -416,5 +432,30 @@ impl Coordinator {
             Some(store),
             override_dir,
         )
+    }
+}
+
+#[cfg(test)]
+mod recovery_tests {
+    use super::*;
+
+    #[test]
+    fn existing_empty_user_store_is_preserved_and_not_initialized() {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!(
+            "moodflow-empty-store-{}-{unique}",
+            std::process::id()
+        ));
+        std::fs::create_dir(&dir).unwrap();
+        let original = dir.join("userdata.redb");
+        std::fs::write(&original, []).unwrap();
+        assert!(Coordinator::open_user_store(&dir).is_none());
+        assert_eq!(std::fs::read(&original).unwrap(), Vec::<u8>::new());
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
+        std::fs::remove_file(original).unwrap();
+        std::fs::remove_dir(dir).unwrap();
     }
 }

@@ -73,6 +73,14 @@ fn vk_of(c: char) -> Option<u32> {
 }
 
 impl Coordinator {
+    pub(crate) fn invalidate_chord_profile(&self) {
+        *self
+            .chord
+            .loaded_with
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = None;
+        self.sync_chord();
+    }
     /// 按 `[chord]` 配置加载或卸下方案，并把并击键集合推给 TSF。
     pub(crate) fn sync_chord(&self) {
         let cfg = self.rt().config.chord.clone();
@@ -286,6 +294,39 @@ mod tests {
         let off = Coordinator::new_headless_with_ui(moodflow_config::Config::default(), None).0;
         off.sync_chord();
         assert!(off.chord_vks().is_empty(), "未启用时集合为空，TSF 行为不变");
+    }
+
+    #[test]
+    fn editor_apply_reloads_a_changed_profile_at_the_same_path() {
+        use moodflow_keys::keymap::{VK_A, key_name_to_vk_with_letters};
+        let vk_q = key_name_to_vk_with_letters("q").unwrap();
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir =
+            std::env::temp_dir().join(format!("mf-chord-editor-{}-{nonce}", std::process::id()));
+        std::fs::create_dir(&dir).unwrap();
+        let path = dir.join("profile.json");
+        std::fs::write(&path, KEYMAP).unwrap();
+        let mut cfg = moodflow_config::Config::default();
+        cfg.chord.enabled = true;
+        cfg.chord.keymap = path.to_string_lossy().into_owned();
+        let c = Coordinator::new_headless(cfg, None);
+        c.sync_chord();
+        assert!(c.chord_vks().contains(&VK_A));
+        std::fs::write(&path, KEYMAP.replace("\"a\"", "\"q\"")).unwrap();
+        c.sync_chord();
+        assert!(
+            c.chord_vks().contains(&VK_A),
+            "ordinary config refresh keeps its cache"
+        );
+        c.invalidate_chord_profile();
+        assert!(!c.chord_vks().contains(&VK_A));
+        assert!(c.chord_vks().contains(&vk_q));
+        drop(c);
+        std::fs::remove_file(path).unwrap();
+        std::fs::remove_dir(dir).unwrap();
     }
 
     #[test]

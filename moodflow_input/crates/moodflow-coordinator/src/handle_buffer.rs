@@ -330,6 +330,26 @@ fn deliver_error_tip(e: DeliverError) -> &'static str {
 }
 
 impl Coordinator {
+    /// Hub 中经用户审核的文本只暂存，不绑定或投递到任何输入框。
+    pub fn stage_buffer_text(&self, text: &str) -> Result<(), String> {
+        if text.is_empty() || text.contains('\0') {
+            return Err("请选择非空文本，且不能包含空字符".into());
+        }
+        if !crate::moodflow::input_privacy().input_allowed() {
+            return Err("当前隐私状态不允许加入 Buffer".into());
+        }
+        {
+            let mut g = self.buffer.lock();
+            g.buf
+                .push_phrase(text)
+                .map_err(|_| "Buffer 容量不足，原有内容已保留".to_owned())?;
+            g.revoke();
+            g.open = true;
+            g.notice = Some("已加入 Buffer · 回到输入框后按绑定键，再明确发送");
+        }
+        self.push_buffer_panel();
+        Ok(())
+    }
     pub(crate) fn buffer_mode_action(&self) -> KeyAction {
         KeyAction::BufferMode(self.buffer.mode().0)
     }
@@ -848,6 +868,21 @@ mod tests {
         c.buffer_focus_gained(1, 1);
         assert_eq!(text_of(&c.route_commit_to_buffer(insert("你好"))), "你好");
         assert!(c.buffer_send_keyed().is_none(), "没打开时发送键不吞");
+    }
+
+    #[test]
+    fn reviewed_external_text_is_staged_without_authorizing_a_host() {
+        let c = coord();
+        c.buffer_focus_gained(1, 1);
+        c.stage_buffer_text("来自资料库").unwrap();
+        assert!(c.buffer.is_open());
+        assert!(!c.buffer.is_capturing());
+        assert!(matches!(
+            c.buffer.begin_all(),
+            Err(DeliverError::Suspended | DeliverError::NotBound)
+        ));
+        assert_eq!(c.buffer.lock().buf.text(), "来自资料库");
+        assert!(c.buffer.lock().pending.is_none());
     }
 
     #[test]

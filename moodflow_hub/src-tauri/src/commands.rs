@@ -8,6 +8,7 @@ pub mod dashboard;
 pub mod diary;
 pub mod ime;
 pub mod letter;
+pub mod library;
 pub mod practice;
 pub mod schedule;
 

@@ -2069,6 +2069,9 @@ impl Coordinator {
             M::submenu("检索范围", filter_children),
             M::separator(),
         ];
+        if !self.user_store_available() && self.compat_dirs.1.is_some() {
+            items.insert(0, M::label("用户数据无法保存 · 请先备份并查看恢复说明"));
+        }
         // Moodflow：“Moodflow”分组（FR-ENT-01，自带结尾分隔线），Moodflow 没启动时为空。
         items.extend(self.moodflow_menu_group());
         items.extend(display_toggles);

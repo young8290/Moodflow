@@ -80,6 +80,36 @@ pub async fn ime_config_set(items: Vec<ImeItemInput>) -> Result<ImeSetResult, Ui
     blocking(move |r| r.set_items(&items)).await
 }
 
+/// Windows 工具只允许指定的数据操作；前端不能调用任意核心 RPC。
+#[tauri::command]
+#[specta::specta]
+pub async fn ime_tools(method: String, payload: String) -> Result<String, UiError> {
+    const ALLOWED: &[&str] = &[
+        "storage.health",
+        "chord.get",
+        "chord.save",
+        "chord.builtin",
+        "chord.readFile",
+        "chord.exportFile",
+        "scheme.rimePreview",
+        "scheme.rimeImport",
+        "buffer.stage",
+    ];
+    if !ALLOWED.contains(&method.as_str()) || payload.len() > 2 * 1024 * 1024 {
+        return Err(UiError::new("ime.tools_input", "tools.invalid"));
+    }
+    let params: Value = serde_json::from_str(&payload)
+        .map_err(|_| UiError::new("ime.tools_input", "tools.invalid"))?;
+    // Do not log input or remote text: profile mappings and staged content are private.
+    tauri::async_runtime::spawn_blocking(move || rpc().call(&method, params).map(|v| v.to_string()))
+        .await
+        .map_err(|_| UiError::new("ime.tools_join", "error.generic"))?
+        .map_err(|error| match error {
+            ImeRpcError::Unavailable(_) => UiError::new("ime.unavailable", "error.ime_unavailable"),
+            _ => UiError::new("ime.tools_failed", "tools.failed"),
+        })
+}
+
 // ── 插件管理（07 FR-SET-12，plugin-system.md §11 P5）──────────────────────────
 // 装、卸、列表都在输入法核心里做（只有它知道用户目录在哪）；启用列表与安全模式是普通配置项
 // （`plugins.enabled` / `plugins.safe_mode`），界面用 `ime_config_set` 改。

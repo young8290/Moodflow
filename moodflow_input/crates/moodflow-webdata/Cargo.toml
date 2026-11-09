@@ -17,6 +17,7 @@ moodflow-reverse = { path = "../moodflow-reverse" }
 moodflow-theme = { path = "../moodflow-theme" }
 moodflow-candidate = { path = "../moodflow-candidate" }
 moodflow-keys = { path = "../moodflow-keys" }
+moodflow-chord = { path = "../moodflow-chord" }
 moodflow-transfer = { path = "../moodflow-transfer" }
 # 插件管理页（plugins.*）：本地包检查与安装、清单与能力。
 moodflow-market = { path = "../moodflow-market" }
@@ -24,6 +25,8 @@ moodflow-plugin-api = { path = "../moodflow-plugin-api" }
 moodflow-plugin-registry = { path = "../moodflow-plugin-registry" }
 anyhow = { workspace = true }
 serde_json = { workspace = true }
+sha2 = { workspace = true }
+tempfile = "3"
 toml = { workspace = true }
 tracing = { workspace = true }
 chrono = "0.4"

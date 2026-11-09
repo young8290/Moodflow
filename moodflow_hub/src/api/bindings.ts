@@ -303,6 +303,9 @@ export const commands = {
 	imeConfigDefaults: () => typedError<ImeConfig, UiError>(__TAURI_INVOKE("ime_config_defaults")),
 	/**  写入若干项：失败项不让整批失败，`skipped` 里带原因，界面显示在对应控件旁（17 第 3.4 节）。 */
 	imeConfigSet: (items: ImeItemInput[]) => typedError<ImeSetResult, UiError>(__TAURI_INVOKE("ime_config_set", { items })),
+	/**  Windows 工具只允许指定的数据操作；前端不能调用任意核心 RPC。 */
+	imeTools: (method: string, payload: string) => typedError<string, UiError>(__TAURI_INVOKE("ime_tools", { method, payload })),
+	libraryRequest: (method: string, payload: string) => typedError<string, UiError>(__TAURI_INVOKE("library_request", { method, payload })),
 	/**  已装插件、启用与运行状态。 */
 	pluginsList: () => typedError<PluginList, UiError>(__TAURI_INVOKE("plugins_list")),
 	/**  安装前检查一个本地插件包（`path` 来自文件对话框），返回说明与要同意的能力；不写任何东西。 */

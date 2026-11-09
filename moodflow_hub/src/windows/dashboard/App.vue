@@ -10,6 +10,7 @@ import CalendarPage from './CalendarPage.vue'
 import ChatDiaryPage from './ChatDiaryPage.vue'
 import MailboxPage from './MailboxPage.vue'
 import PracticePage from './PracticePage.vue'
+import LibraryPage from './LibraryPage.vue'
 import SchedulePage from './SchedulePage.vue'
 import TodayPage from './TodayPage.vue'
 import WeeklyPage from './WeeklyPage.vue'
@@ -24,11 +25,13 @@ const PAGES: { id: DashboardPage; title: CopyKey; component: Component }[] = [
   { id: 'mailbox', title: 'dashboard.nav.mailbox', component: MailboxPage },
   { id: 'chat_diary', title: 'dashboard.nav.chat_diary', component: ChatDiaryPage },
   { id: 'practice', title: 'dashboard.nav.practice', component: PracticePage },
+  { id: 'library', title: 'library.title', component: LibraryPage },
 ]
 
 const fromHash = PAGES.find((p) => `#${p.id}` === location.hash)?.id
 const initial = takeDashboardNav()
 const current = ref<DashboardPage>(initial?.page ?? fromHash ?? 'today')
+const activePage = ref<{ canLeave?: () => Promise<boolean> } | null>(null)
 /** 跳页时带来的定位（打开哪条日程的编辑框、哪封信）；只给对应的页 */
 const nav = ref<DashboardNav | null>(initial)
 let unlisten: UnlistenFn | null = null
@@ -43,14 +46,16 @@ function pageProps(): Record<string, unknown> {
   return {}
 }
 
-function go(id: DashboardPage): void {
+async function go(id: DashboardPage): Promise<void> {
+  if (activePage.value?.canLeave && !(await activePage.value.canLeave())) return
   current.value = id
   nav.value = null
 }
 
 onMounted(async () => {
   try {
-    unlisten = await onDashboardNav((n) => {
+    unlisten = await onDashboardNav(async (n) => {
+      if (activePage.value?.canLeave && !(await activePage.value.canLeave())) return
       current.value = n.page
       nav.value = n
     })
@@ -77,7 +82,7 @@ onBeforeUnmount(() => unlisten?.())
       </button>
     </nav>
     <main class="page">
-      <component :is="page().component" :key="current" v-bind="pageProps()" />
+      <component :is="page().component" :key="current" ref="activePage" v-bind="pageProps()" />
     </main>
   </div>
 </template>
