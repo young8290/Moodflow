@@ -29,6 +29,9 @@ moodflow-capsule = { path = "../../crates/moodflow-capsule" }
 moodflow-cite = { path = "../../crates/moodflow-cite" }
 moodflow-vault = { path = "../../crates/moodflow-vault" }
 moodflow-mailbox = { path = "../../crates/moodflow-mailbox" }
+moodflow-sync = { path = "../../crates/moodflow-sync" }
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 axum = "0.7"
 getrandom = "0.4"
 subtle = "2.6"

@@ -19,6 +19,18 @@ fn context(id: &str) -> String {
 pub fn fingerprint(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
+/// Inspect only the encrypted envelope identity. This does not authenticate or decrypt its contents.
+pub fn inspect(bytes: &[u8]) -> Result<String> {
+    if bytes.len() > MAX_FILE_BYTES {
+        return Err(Error::Limit);
+    }
+    let backup: Backup = serde_json::from_slice(bytes).map_err(|_| Error::Invalid)?;
+    if backup.version != 1 || backup.format != "moodflow-vault-backup" {
+        return Err(Error::Invalid);
+    }
+    canonical_id(&backup.id)?;
+    Ok(backup.id)
+}
 pub fn encrypt(snapshot: &Snapshot, recovery: &str) -> Result<Vec<u8>> {
     if recovery.chars().count() < 24 {
         return Err(Error::WeakRecovery);

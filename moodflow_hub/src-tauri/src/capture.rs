@@ -6,6 +6,7 @@ mod worker;
 use anyhow::{Result, ensure};
 use moodflow_capsule::capture::{Asset, Request};
 use serde_json::{Value, json};
+pub(crate) use source::awake;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,

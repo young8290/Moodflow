@@ -9,6 +9,7 @@ members = [
     "crates/moodflow-cite",
     "crates/moodflow-vault",
     "crates/moodflow-mailbox",
+    "crates/moodflow-sync",
     "moodflow_hub/core",
     "moodflow_hub/gateway",
     "moodflow_hub/src-tauri",

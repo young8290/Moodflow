@@ -36,6 +36,7 @@ mod secrets;
 mod sensing;
 mod sim;
 mod state;
+mod sync;
 mod tool_data;
 mod vault;
 mod vault_platform;
@@ -62,6 +63,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
         .commands(collect_commands![
             commands::get_status,
             commands::workspace::workspace_request,
+            commands::sync::sync_request,
             commands::data_export,
             commands::state_explain,
             commands::submit_feedback,

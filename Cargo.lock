@@ -3050,9 +3050,12 @@ dependencies = [
  "moodflow-hub-core",
  "moodflow-hub-gateway",
  "moodflow-mailbox",
+ "moodflow-sync",
  "moodflow-typing-practice",
  "moodflow-vault",
  "os_info",
+ "reqwest",
+ "rustls",
  "serde",
  "serde_json",
  "sha2",
@@ -3132,6 +3135,21 @@ dependencies = [
  "sha2",
  "tempfile",
  "uuid",
+]
+
+[[package]]
+name = "moodflow-sync"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "argon2",
+ "chacha20poly1305",
+ "getrandom 0.4.3",
+ "serde",
+ "serde_json",
+ "sha2",
+ "uuid",
+ "zeroize",
 ]
 
 [[package]]
@@ -4036,6 +4054,7 @@ dependencies = [
  "base64 0.23.1",
  "bytes",
  "encoding_rs",
+ "futures-channel",
  "futures-core",
  "futures-util",
  "h2",

@@ -343,6 +343,36 @@ impl Library {
             .insert(doc.metadata.id.clone(), (doc.summary(), haystack));
     }
 
+    /// Sync may receive a permanent deletion for an ID this device has never stored.
+    /// Absence alone does not authorize this operation; the host must verify a remote tombstone.
+    pub fn record_remote_deletion(&mut self, id: &str, now: &str) -> anyhow::Result<()> {
+        canonical_id(id)?;
+        ensure!(now.len() <= 64, "无效删除时间");
+        let _lock = self.lock()?;
+        ensure!(self.read(id)?.is_none(), "revision_conflict");
+        let directory = self.root.join("tombstones");
+        fs::create_dir_all(&directory)?;
+        ensure!(
+            !fs::symlink_metadata(&directory)?.file_type().is_symlink(),
+            "删除标记目录不能是链接"
+        );
+        let target = directory.join(format!("{id}.json"));
+        if target.exists() {
+            ensure!(fs::symlink_metadata(target)?.is_file(), "无效删除标记");
+            return Ok(());
+        }
+        let mut staged = tempfile::NamedTempFile::new_in(&directory)?;
+        serde_json::to_writer(
+            staged.as_file_mut(),
+            &serde_json::json!({"id":id,"deleted_at":now,"source":"sync"}),
+        )?;
+        staged.as_file().sync_all()?;
+        staged.persist_noclobber(target).map_err(|e| e.error)?;
+        self.cache.remove(id);
+        self.loaded = false;
+        Ok(())
+    }
+
     pub fn refresh(&mut self) -> anyhow::Result<()> {
         self.loaded = false;
         self.cache.clear();

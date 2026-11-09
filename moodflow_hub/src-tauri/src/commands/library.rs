@@ -143,10 +143,15 @@ fn execute(method: &str, p: &Value) -> anyhow::Result<Value> {
 #[tauri::command]
 #[specta::specta]
 pub async fn library_request(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
     state: State<'_, AppState>,
     method: String,
     payload: String,
 ) -> Result<String, UiError> {
+    if window.label() != "dashboard" || !crate::workspace::allowed_async(app.clone()).await {
+        return Err(UiError::new("library.privacy", "library.privacy"));
+    }
     if state
         .status
         .read()
@@ -160,14 +165,24 @@ pub async fn library_request(
     }
     let params: Value = serde_json::from_str(&payload)
         .map_err(|_| UiError::new("library.invalid", "library.invalid"))?;
-    tauri::async_runtime::spawn_blocking(move || execute(&method, &params).map(|v| v.to_string()))
-        .await
-        .map_err(|_| UiError::new("library.join", "library.failed"))?
-        .map_err(|e| {
-            if e.to_string() == "revision_conflict" {
-                UiError::new("library.conflict", "library.conflict")
-            } else {
-                UiError::new("library.operation", "library.failed")
-            }
-        })
+    let worker = app.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        anyhow::ensure!(crate::workspace::allowed(&worker), "library.privacy");
+        execute(&method, &params).map(|v| v.to_string())
+    })
+    .await
+    .map_err(|_| UiError::new("library.join", "library.failed"))?
+    .map_err(|e| {
+        if e.to_string() == "library.privacy" {
+            UiError::new("library.privacy", "library.privacy")
+        } else if e.to_string() == "revision_conflict" {
+            UiError::new("library.conflict", "library.conflict")
+        } else {
+            UiError::new("library.operation", "library.failed")
+        }
+    })?;
+    if !crate::workspace::allowed_async(app).await {
+        return Err(UiError::new("library.privacy", "library.privacy"));
+    }
+    Ok(result)
 }

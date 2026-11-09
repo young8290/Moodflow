@@ -13,6 +13,7 @@ pub mod letter;
 pub mod library;
 pub mod practice;
 pub mod schedule;
+pub mod sync;
 pub mod vault;
 pub mod workspace;
 
@@ -47,6 +48,9 @@ use crate::state::AppState;
 use crate::windows::{self, WindowTarget};
 
 pub(crate) fn emit_status(app: &AppHandle, snap: StatusSnapshot) {
+    if snap.paused {
+        crate::sync::cancel();
+    }
     if snap.paused
         && let Some(capture) = app.try_state::<Arc<crate::capture::Runtime>>()
     {

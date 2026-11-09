@@ -22,6 +22,7 @@ import { onDashboardNav, takeDashboardNav, type DashboardNav, type DashboardPage
 import './dashboard.css'
 
 const WorkspacePage = defineAsyncComponent(() => import('./WorkspacePage.vue'))
+const SyncPage = defineAsyncComponent(() => import('./SyncPage.vue'))
 
 const PAGES: { id: DashboardPage; title: CopyKey; component: Component }[] = [
   { id: 'today', title: 'dashboard.nav.today', component: TodayPage },
@@ -37,6 +38,7 @@ const PAGES: { id: DashboardPage; title: CopyKey; component: Component }[] = [
   { id: 'clipboard', title: 'clipboard.title', component: ClipboardPage },
   { id: 'capture', title: 'capture.title', component: CapturePage },
   { id: 'workspace', title: 'workspace.title', component: WorkspacePage },
+  { id: 'sync', title: 'sync.title', component: SyncPage },
 ]
 
 const fromHash = PAGES.find((p) => `#${p.id}` === location.hash)?.id
