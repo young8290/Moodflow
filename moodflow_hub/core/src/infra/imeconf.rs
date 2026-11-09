@@ -190,7 +190,9 @@ impl ImeRpc {
         let req =
             json!({ "version": PROTOCOL_VERSION, "id": id, "method": method, "params": params });
         let mut stream = connect(&self.endpoint).map_err(ImeRpcError::Unavailable)?;
-        if let Some(check) = self.connection_check { check(&stream)?; }
+        if let Some(check) = self.connection_check {
+            check(&stream)?;
+        }
         exchange(&mut stream, &req)
     }
 
@@ -458,10 +460,15 @@ impl ImeEvents {
         Self::connect_with_check(endpoint, None)
     }
 
-    pub fn connect_with_check(endpoint: &str, check: Option<ConnectionCheck>) -> Result<Self, ImeRpcError> {
-        let stream=connect_events(endpoint).map_err(ImeRpcError::Unavailable)?;
-        if let Some(check)=check { check(&stream)?; }
-        Ok(Self{stream})
+    pub fn connect_with_check(
+        endpoint: &str,
+        check: Option<ConnectionCheck>,
+    ) -> Result<Self, ImeRpcError> {
+        let stream = connect_events(endpoint).map_err(ImeRpcError::Unavailable)?;
+        if let Some(check) = check {
+            check(&stream)?;
+        }
+        Ok(Self { stream })
     }
 
     /// `MF_IME_RPC_EVENTS` 优先，否则用默认地址。
@@ -636,9 +643,13 @@ mod tests {
         let result = ImeRpc::new(endpoint.as_ref())
             .with_connection_check(reject)
             .call("buffer.read", json!({"text":"must not leave client"}));
-        assert!(matches!(result, Err(ImeRpcError::Io(e)) if e.kind() == io::ErrorKind::PermissionDenied));
-        assert!(matches!(ImeEvents::connect_with_check(&endpoint, Some(reject)),
-            Err(ImeRpcError::Io(e)) if e.kind() == io::ErrorKind::PermissionDenied));
+        assert!(
+            matches!(result, Err(ImeRpcError::Io(e)) if e.kind() == io::ErrorKind::PermissionDenied)
+        );
+        assert!(
+            matches!(ImeEvents::connect_with_check(&endpoint, Some(reject)),
+            Err(ImeRpcError::Io(e)) if e.kind() == io::ErrorKind::PermissionDenied)
+        );
         assert_eq!(std::fs::read(&path).unwrap(), sentinel);
         std::fs::remove_file(path).unwrap();
     }
