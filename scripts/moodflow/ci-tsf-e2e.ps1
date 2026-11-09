@@ -31,7 +31,15 @@ if ($LASTEXITCODE -ne 0) { throw 'Cannot grant synthetic report access.' }
 if ($LASTEXITCODE -ne 0) { throw 'Cannot label synthetic reports for low integrity.' }
 $dll=Join-Path $bin 'moodflow_tsf.dll'
 $registered=$false
+$languageChanged=$false
+$originalLanguages=Get-WinUserLanguageList
 try {
+    $languages=Get-WinUserLanguageList
+    if (-not ($languages | Where-Object { $_.LanguageTag -like 'zh-Hans*' -or $_.LanguageTag -like 'zh-CN*' })) {
+        $languages.Add('zh-Hans-CN')
+        $languageChanged=$true
+        Set-WinUserLanguageList -LanguageList $languages -Force
+    }
     New-Item -Path $registry | Out-Null
     Set-ItemProperty -LiteralPath $registry -Name InstallDir -Value $bin
     $process=Start-Process -FilePath "$env:WINDIR\System32\regsvr32.exe" -ArgumentList @('/s',('"'+$dll+'"')) -PassThru -WindowStyle Hidden -Wait
@@ -57,4 +65,5 @@ try {
         $source=Join-Path $reports $name
         Copy-Item -LiteralPath $source -Destination (Join-Path $root "dist/tsf-e2e-$name") -Recurse -Force
     }
+    if ($languageChanged) { Set-WinUserLanguageList -LanguageList $originalLanguages -Force }
 }

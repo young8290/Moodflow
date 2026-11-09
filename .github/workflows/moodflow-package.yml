@@ -12,6 +12,10 @@ on:
         description: "moodflow-installer（young8290 的 fork）的分支或提交，用来试还没合进 main 的安装器改动"
         required: false
         default: c7d0d0cd50c036f2405e3fb457e9863d1300e87e
+      reuse_run:
+        description: "仅重验未改动的产物：填写本仓已通过构建的 run id；生产文件有差异则拒绝复用"
+        required: false
+        default: ""
   pull_request:
     branches: [main]
     paths:
@@ -26,10 +30,12 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   windows:
     name: Windows 安装包
+    if: ${{ !inputs.reuse_run }}
     # 同 release.yml：dev.ps1 的 CMake 生成器写死 "Visual Studio 17 2022"，windows-latest 已换成 VS2026
     runs-on: windows-2022
     timeout-minutes: 90
@@ -111,9 +117,62 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  reuse:
+    name: 复用相同生产源码的已验证产物
+    if: ${{ inputs.reuse_run != '' }}
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: Moodflow
+      - name: 核对原构建与生产源码
+        shell: pwsh
+        working-directory: Moodflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MF_REUSE_RUN: ${{ inputs.reuse_run }}
+        run: ./scripts/moodflow/ci-reuse-payload.ps1 -RunId $env:MF_REUSE_RUN
+      - uses: actions/download-artifact@v4
+        with:
+          name: Moodflow-Setup
+          path: Moodflow/dist
+          run-id: ${{ inputs.reuse_run }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: Moodflow-Payload
+          path: Moodflow/build
+          run-id: ${{ inputs.reuse_run }}
+          github-token: ${{ github.token }}
+      - name: 复核安装包哈希
+        shell: pwsh
+        working-directory: Moodflow
+        run: |
+          $setup = @(Get-ChildItem dist/Moodflow-Setup-*.exe)
+          if ($setup.Count -ne 1) { throw 'Expected exactly one verified setup.' }
+          $expected = ([IO.File]::ReadAllText($setup[0].FullName+'.sha256').Trim() -split '\s+')[0]
+          if ($expected -notmatch '^[0-9a-fA-F]{64}$' -or (Get-FileHash -LiteralPath $setup[0].FullName -Algorithm SHA256).Hash -ine $expected) { throw 'Setup hash mismatch.' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Moodflow-Setup
+          path: |
+            Moodflow/dist/Moodflow-Setup-*.exe
+            Moodflow/dist/Moodflow-Setup-*.exe.sha256
+            Moodflow/dist/reused-payload.json
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Moodflow-Payload
+          path: Moodflow/build/
+          if-no-files-found: error
+          retention-days: 7
+
   install:
     name: Windows 安装与卸载验收
-    needs: windows
+    needs: [windows, reuse]
+    if: ${{ always() && (needs.windows.result == 'success' || needs.reuse.result == 'success') }}
     runs-on: windows-2022
     timeout-minutes: 25
     steps:
@@ -143,7 +202,8 @@ jobs:
 
   tsf:
     name: Windows 真实 TSF 与权限隔离验收
-    needs: windows
+    needs: [windows, reuse]
+    if: ${{ always() && (needs.windows.result == 'success' || needs.reuse.result == 'success') }}
     runs-on: windows-2022
     timeout-minutes: 35
     steps:

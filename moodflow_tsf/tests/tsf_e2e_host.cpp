@@ -108,11 +108,12 @@ static int Client(const std::wstring& kind, const fs::path& report) {
         SetForegroundWindow(window); SetActiveWindow(window); SetFocus(first); Pump(500);
         ComPtr<ITfInputProcessorProfiles> profiles;
         Hr(CoCreateInstance(CLSID_TF_InputProcessorProfiles, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&profiles)), "create TSF profiles");
-        Hr(profiles->ChangeCurrentLanguage(0x0804), "select fixture language");
         ComPtr<ITfInputProcessorProfileMgr> profileManager; Hr(profiles.As(&profileManager), "profile manager");
         CLSID clsid{}; GUID profile{};
         Hr(CLSIDFromString(L"{EF62EE30-5ECF-413A-A476-48D1F29E827C}", &clsid), "CLSID");
         Hr(CLSIDFromString(L"{EF62EE31-5ECF-413A-A476-48D1F29E827C}", &profile), "profile GUID");
+        if (kind == L"ordinary") Hr(profiles->EnableLanguageProfile(clsid, 0x0804, profile, TRUE), "enable isolated user profile");
+        Hr(profiles->ChangeCurrentLanguage(0x0804), "select fixture language");
         const auto active = profileManager->ActivateProfile(TF_PROFILETYPE_INPUTPROCESSOR, 0x0804, clsid, profile, nullptr, 0);
         Hr(active, "activate actual registered Moodflow DLL"); Check(active == S_OK, "profile not enabled");
         SendMessageW(first, EM_SETCTFOPENSTATUS, TRUE, 0); Pump(1200);
