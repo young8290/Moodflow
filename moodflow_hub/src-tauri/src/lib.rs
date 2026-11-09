@@ -309,7 +309,8 @@ pub fn run() {
             // 日程与待办识别、提醒调度（C-05、C-06）
             schedule::start(app.handle());
 
-            let show_widget = !needs_onboarding && app.state::<state::AppState>().widget_visible()?;
+            let show_widget =
+                !needs_onboarding && app.state::<state::AppState>().widget_visible()?;
             app.manage(hotkeys::Hotkeys::default());
             hotkeys::apply(app.handle());
             // 前台全屏时自动隐藏小组件（FR-WGT-01）
@@ -321,18 +322,26 @@ pub fn run() {
             // WebView inline can re-enter a partially initialized application.
             // A separate thread queues construction onto the running event loop.
             let handle = app.handle().clone();
-            std::thread::Builder::new().name("hub-startup-windows".into()).spawn(move || {
-                let initial = if needs_onboarding { Some(WindowTarget::Onboarding) } else if show_widget { Some(WindowTarget::Widget) } else { None };
-                for target in initial.into_iter().chain(launch.open) {
-                    crate::hlog!("打开启动窗口：{}",target.label());
-                    if let Err(error) = windows::open(&handle,target) {
-                        crate::hlog!("启动窗口失败：{error}");
-                        handle.exit(1);
-                        return;
+            std::thread::Builder::new()
+                .name("hub-startup-windows".into())
+                .spawn(move || {
+                    let initial = if needs_onboarding {
+                        Some(WindowTarget::Onboarding)
+                    } else if show_widget {
+                        Some(WindowTarget::Widget)
+                    } else {
+                        None
+                    };
+                    for target in initial.into_iter().chain(launch.open) {
+                        crate::hlog!("打开启动窗口：{}", target.label());
+                        if let Err(error) = windows::open(&handle, target) {
+                            crate::hlog!("启动窗口失败：{error}");
+                            handle.exit(1);
+                            return;
+                        }
+                        crate::hlog!("启动窗口已就绪：{}", target.label());
                     }
-                    crate::hlog!("启动窗口已就绪：{}",target.label());
-                }
-            })?;
+                })?;
             Ok(())
         })
         .build(tauri::generate_context!())
