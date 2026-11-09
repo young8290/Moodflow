@@ -420,6 +420,53 @@ impl Library {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[ignore = "manual 10k-entry search measurement; creates only temporary fixture files"]
+    fn ten_thousand_document_search_measurement() {
+        let dir = tempfile::tempdir().unwrap();
+        for index in 0..MAX_ENTRIES {
+            let document = Document::new(
+                "note",
+                &format!("研究笔记 {index}"),
+                &format!(
+                    "{} 独立索引{index}",
+                    "普通资料库正文 performance example ".repeat(20)
+                ),
+                "2026-11-09T00:00:00Z",
+            );
+            fs::write(
+                dir.path().join(format!("{}.md", document.metadata.id)),
+                document.to_markdown().unwrap(),
+            )
+            .unwrap();
+        }
+        let mut library = Library::new(dir.path().to_owned());
+        let start = std::time::Instant::now();
+        library.refresh().unwrap();
+        let refresh = start.elapsed();
+        let mut maximum = std::time::Duration::ZERO;
+        for query in [
+            "研究笔记",
+            "performance example",
+            "独立索引9999",
+            "缺失词项",
+        ] {
+            for _ in 0..10 {
+                let start = std::time::Instant::now();
+                let result = library.search(query, None, 50).unwrap();
+                maximum = maximum.max(start.elapsed());
+                if query == "独立索引9999" {
+                    assert_eq!(result.items.len(), 1);
+                }
+            }
+        }
+        eprintln!("10,000 entries; cold refresh {refresh:?}; maximum cached query {maximum:?}");
+        assert!(
+            maximum < std::time::Duration::from_millis(100),
+            "10k cached search exceeds acceptance threshold"
+        );
+    }
     #[test]
     fn xsime_format_preserves_reference_and_unknown_metadata() {
         let raw = "---\ncapsule: pdf\nversion: 1\nid: \"12345678-1234-4234-8234-123456789abc\"\ntitle: \"无附件文献\"\nupdated_at: \"2026-11-09T00:00:00Z\"\nreference_authors: \"甲;乙\"\nreference_year: \"2026\"\ncustom_key: [one, two]\n---\n\n";
