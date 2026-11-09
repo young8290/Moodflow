@@ -23,6 +23,7 @@ $localRoot = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'M
 $ownedTools = @('hub', 'capsule', 'vault', 'capture', 'workspace', 'sync')
 $completed = [Collections.Generic.List[string]]::new()
 $reboots = [Collections.Generic.List[string]]::new()
+$dllRegistrations = [Collections.Generic.List[object]]::new()
 $phase = 'initializing'
 $failure = $null
 $record = Join-Path $workspace 'Moodflow\dist\install-smoke.json'
@@ -62,6 +63,33 @@ function Assert-Payload {
     $registered = (Get-ItemProperty -LiteralPath 'HKLM:\Software\Moodflow' -Name InstallDir).InstallDir
     if ([IO.Path]::GetFullPath($registered).TrimEnd('\') -ine $installDir.TrimEnd('\')) {
         throw 'TSF install-directory registration points elsewhere.'
+    }
+    if ($dllRegistrations.Count -eq 0) {
+        foreach ($architecture in @('x64','x86')) {
+            $view = if ($architecture -eq 'x64') { [Microsoft.Win32.RegistryView]::Registry64 } else { [Microsoft.Win32.RegistryView]::Registry32 }
+            $hive = [Microsoft.Win32.RegistryKey]::OpenBaseKey([Microsoft.Win32.RegistryHive]::LocalMachine,$view)
+            $key = $hive.OpenSubKey('Software\Classes\CLSID\{EF62EE30-5ECF-413A-A476-48D1F29E827C}\InprocServer32')
+            try {
+                if ($null -eq $key) { throw "Missing installed $architecture COM registration." }
+                $dll = [string]$key.GetValue('')
+            } finally {
+                if ($null -ne $key) { $key.Dispose() }
+                $hive.Dispose()
+            }
+            $source = Join-Path $installDir $(if ($architecture -eq 'x64') { 'moodflow_tsf.dll' } else { 'moodflow_tsf_x86.dll' })
+            if ((Get-FileHash -LiteralPath $dll -Algorithm SHA256).Hash -ine (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash) {
+                throw "Installed $architecture COM server differs from the verified payload."
+            }
+            $rules = (Get-Acl -LiteralPath $dll).GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])
+            $readExecute = [int][Security.AccessControl.FileSystemRights]::ReadAndExecute
+            $allowed = @($rules | Where-Object { $_.AccessControlType -eq 'Allow' -and ([int]$_.FileSystemRights -band $readExecute) -eq $readExecute })
+            $dllRegistrations.Add([pscustomobject]@{
+                architecture = $architecture
+                copyMatches = $true
+                appPackagesReadExecute = @($allowed | Where-Object { $_.IdentityReference.Value -eq 'S-1-15-2-1' }).Count -gt 0
+                restrictedPackagesReadExecute = @($allowed | Where-Object { $_.IdentityReference.Value -eq 'S-1-15-2-2' }).Count -gt 0
+            })
+        }
     }
 }
 function Seed-Markers {
@@ -126,6 +154,7 @@ try {
 } finally {
     Stop-OwnedProcesses
     @{ tests = @($completed); phase = $phase; failure = $failure; rebootRequired = @($reboots);
+       dllRegistrations = @($dllRegistrations);
        setupSha256 = (Get-FileHash -LiteralPath $setupPath -Algorithm SHA256).Hash.ToLowerInvariant() } |
         ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $record -Encoding utf8
 }
