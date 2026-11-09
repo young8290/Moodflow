@@ -218,6 +218,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: Moodflow/moodflow_input
+          # The old key was saved before Cargo ran, so exact hits retained an
+          # empty target forever. Seed a new cache after compilation, including
+          # the large coordinator test binary used by this isolated fixture.
+          prefix-key: tsf-e2e-v2
+          cache-workspace-crates: true
           cache-on-failure: true
       - name: 隔离 Windows 验证真实 TSF、引擎与三种令牌
         shell: pwsh

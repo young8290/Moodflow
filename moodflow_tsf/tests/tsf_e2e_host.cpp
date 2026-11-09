@@ -119,7 +119,7 @@ static int Client(const std::wstring& kind, const fs::path& report) {
         Check(first && second, "create two real text stores");
         SendMessageW(first, EM_SETEDITSTYLE, SES_USECTF, SES_USECTF);
         SendMessageW(second, EM_SETEDITSTYLE, SES_USECTF, SES_USECTF);
-        SetForegroundWindow(window); SetActiveWindow(window); SetFocus(first); Pump(500);
+        SetForegroundWindow(window); SetActiveWindow(window); SetFocus(window); Pump(100);
         ComPtr<ITfInputProcessorProfiles> profiles;
         Hr(CoCreateInstance(CLSID_TF_InputProcessorProfiles, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&profiles)), "create TSF profiles");
         ComPtr<ITfInputProcessorProfileMgr> profileManager; Hr(profiles.As(&profileManager), "profile manager");
@@ -130,7 +130,10 @@ static int Client(const std::wstring& kind, const fs::path& report) {
         Hr(profiles->ChangeCurrentLanguage(0x0804), "select fixture language");
         const auto active = profileManager->ActivateProfile(TF_PROFILETYPE_INPUTPROCESSOR, 0x0804, clsid, profile, nullptr, 0);
         Hr(active, "activate actual registered Moodflow DLL"); Check(active == S_OK, "profile not enabled");
-        SendMessageW(first, EM_SETCTFOPENSTATUS, TRUE, 0); Pump(1200);
+        // The profile must be active before the editor gains focus. Activation
+        // alone only reports IME state; an actual focus transition establishes
+        // the document revision used by the production Buffer authorization.
+        SetFocus(first); SendMessageW(first, EM_SETCTFOPENSTATUS, TRUE, 0); Pump(1200);
         ComPtr<ITfDocumentMgr> document; Hr(manager->GetFocus(&document), "get focused document"); Check(document != nullptr, "Rich Edit has no TSF document");
         ComPtr<ITfContext> context; Hr(document->GetTop(&context), "get actual text context"); Check(context != nullptr, "Rich Edit has no text context");
         ComPtr<ITfKeystrokeMgr> keys; Hr(manager.As(&keys), "keystroke manager");
