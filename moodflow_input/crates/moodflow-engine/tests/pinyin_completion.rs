@@ -450,11 +450,21 @@ fn test_partial_completion_preserves_completed_syllables() {
     ] {
         // Homophone weights may change with dictionary snapshots. Compare with
         // complete, non-abbreviation matches from the same data, not one glyph.
-        let prefixes = mgr.convert_with("pinyin", completed, 300).candidates
+        let prefixes = mgr
+            .convert_with("pinyin", completed, 300)
+            .candidates
             .into_iter()
-            .filter(|c| !c.is_prefix && !c.is_abbrev && (c.consumed_length == 0 || c.consumed_length == completed.len()))
-            .map(|c| c.text).collect::<Vec<_>>();
-        assert!(!prefixes.is_empty(), "前置：完整音节 {completed} 必须有非简拼候选");
+            .filter(|c| {
+                !c.is_prefix
+                    && !c.is_abbrev
+                    && (c.consumed_length == 0 || c.consumed_length == completed.len())
+            })
+            .map(|c| c.text)
+            .collect::<Vec<_>>();
+        assert!(
+            !prefixes.is_empty(),
+            "前置：完整音节 {completed} 必须有非简拼候选"
+        );
         let cands = mgr.convert_with("pinyin", input, 300).candidates;
         let sentences: Vec<_> = cands
             .iter()

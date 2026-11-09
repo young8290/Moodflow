@@ -999,7 +999,10 @@ fn user_long_word_promotion_end_to_end() {
     // changes (清风/轻风) must not turn a promotion-order test into a data assertion.
     let exact = EngineManager::new(&cfg, Some(&dir))
         .convert("qingfeng", 400)
-        .candidates.into_iter().next().expect("qingfeng has a complete match");
+        .candidates
+        .into_iter()
+        .next()
+        .expect("qingfeng has a complete match");
     assert!(!exact.is_prefix && !exact.is_promoted_completion);
     let sp = std::env::temp_dir().join("moodflow_e2e_longword.redb");
     let _ = std::fs::remove_file(&sp);
