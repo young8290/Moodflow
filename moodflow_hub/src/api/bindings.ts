@@ -781,6 +781,10 @@ export type HotkeyAction =
 "clipboard" | 
 /**  Open the capture workbench; never starts recording without an explicit action. */
 "capture" | 
+/**  Open local library; staging and delivery still require explicit actions. */
+"library" | 
+/**  Open text/math tools; never sends a model request automatically. */
+"ai_tools" | 
 /**  开始 / 结束专注（FR-RST-10）：没在专注时按第一个预设（25 分钟）开始，专注中按下结束 */
 "focus";
 

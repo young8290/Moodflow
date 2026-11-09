@@ -56,6 +56,12 @@ pub fn open_clipboard<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), UiErr
 pub fn open_capture<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), UiError> {
     open_tool(app, "capture")
 }
+pub fn open_library<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), UiError> {
+    open_tool(app, "library")
+}
+pub fn open_ai_tools<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), UiError> {
+    open_tool(app, "ai_tools")
+}
 fn open_tool<R: Runtime>(app: &tauri::AppHandle<R>, page: &str) -> Result<(), UiError> {
     if app.get_webview_window("dashboard").is_none() {
         let mut config = app

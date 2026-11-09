@@ -245,6 +245,8 @@ export function hubHotkeyOk(combo: string): boolean {
 export const HUB_HOTKEYS = [
   { key: 'hotkey.clipboard', action: 'clipboard', label: 'clipboard.title' },
   { key: 'hotkey.capture', action: 'capture', label: 'capture.title' },
+  { key: 'hotkey.library', action: 'library', label: 'library.title' },
+  { key: 'hotkey.ai_tools', action: 'ai_tools', label: 'ai_tools.title' },
   { action: 'chat', key: 'hotkey.chat', label: 'settings.general.hotkey_chat' },
   { action: 'widget', key: 'hotkey.widget', label: 'settings.general.hotkey_widget' },
   { action: 'dashboard', key: 'hotkey.dashboard', label: 'settings.general.hotkey_dashboard' },
