@@ -244,7 +244,9 @@ pub fn run() {
         // 单实例（17 第 2.2 节第 1 步）：第二个实例把参数转交给已运行的实例后退出
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             let again = LaunchArgs::parse(argv.into_iter().skip(1));
-            let Some(target) = again.reopen_target() else { return };
+            let Some(target) = again.reopen_target() else {
+                return;
+            };
             // Windows delivers this callback inside WM_COPYDATA, including while
             // WebView2 pumps COM messages for the first window. Do not construct
             // another WebView inline on that reentrant window procedure.

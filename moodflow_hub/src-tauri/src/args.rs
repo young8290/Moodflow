@@ -14,7 +14,8 @@ impl LaunchArgs {
     /// A core/watchdog background wake must not reopen an existing Hub window.
     /// Explicit destinations still apply, including when combined with background.
     pub fn reopen_target(&self) -> Option<WindowTarget> {
-        self.open.or_else(|| (!self.background).then_some(WindowTarget::Widget))
+        self.open
+            .or_else(|| (!self.background).then_some(WindowTarget::Widget))
     }
 
     /// 不认识的参数忽略：第二个实例转交参数时，旧版本核心可能带上新版本不再使用的参数。
