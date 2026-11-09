@@ -12,8 +12,8 @@
 | 剪贴板 | 全局入口、搜索、收藏、删除、复制、显式暂存；采集默认关闭 | 核心和前端回归通过；全局快捷键冲突与清空待桌面验收 |
 | 导入与恢复 W7／W9／W10 | Rime ZIP 预览确认与源哈希复验、安装逐文件数据清单、用户库异常提示、只读恢复导出 | 数据层、界面和完整包清单通过；实际文件对话框往返待验 |
 | 资料库与文献 | Markdown 未知字段保留、笔记和资源、全文搜索、revision、CSL JSON／BibTeX、七种引用格式、明确同意后的 Crossref DOI 查询 | 原生打包页保存与重载通过；10,000 文件搜索指标及公开 DOI 冒烟通过；完整导入导出桌面往返待验 |
-| 离线词典 | CC-CEDICT 125,394 条、繁简中英文反查、缺词提示、有界查询、明确暂存 Buffer | 本机真实包返回 China；索引、源哈希、署名和 CC BY-SA 4.0 随包验证 |
-| 密码库 | Argon2id／XChaCha20-Poly1305／DPAPI、自动锁定、限时显露、TOTP、敏感剪贴板、独立新密钥加密备份 | 本机真实包创建／保存／锁定／解锁通过；密码和备份协议、18 组 TOTP、隔离系统剪贴板测试通过；E 安全评审与新用户恢复待验 |
+| 离线词典 | CC-CEDICT 125,394 条、繁简中英文反查、缺词提示、有界查询、明确暂存 Buffer | 完整包 Windows CI 返回 China；索引、源哈希、署名和 CC BY-SA 4.0 随包验证 |
+| 密码库 | Argon2id／XChaCha20-Poly1305／DPAPI、自动锁定、限时显露、TOTP、敏感剪贴板、独立新密钥加密备份 | 完整包 Windows CI 创建／保存／锁定／解锁通过；密码和备份协议、18 组 TOTP、隔离系统剪贴板测试通过；E 安全评审与新用户恢复待验 |
 | 捕获 | WGC／DXGI、区域／延时／滚动、标注、钉图、OCR／二维码、H.264／GIF、可选系统声音回环 | 隔离 Windows 合成窗口 WGC、OCR、H.264 通过；真实包入口通过；多屏 DPI、声音、RDP、锁屏睡眠待验 |
 | 工作区 | AI 聊天、本地备注、只写外部收件、只写 MCP 接口、DPAPI、ConPTY 与 Job 限制、OSC52 拒收 | 原生真实包备注保存通过；网关、会话与权限回归通过；第三方 MCP 客户端和终端桌面往返待验 |
 | 同步 | 文件夹／HTTPS WebDAV、强 ETag 与 CAS、端到端加密、冲突副本、删除标记；独立加密密码备份每次另选 | 协议、恢复与界面回归通过；真实包入口通过；两台独立设备与自选账号待验 |
@@ -25,12 +25,17 @@
 
 ## 当前生产包与启动修复
 
-最近完整构建：[42688945866](https://github.com/young8290/Moodflow/actions/runs/42688945866)，源码 `54d6df4`，PR 合并树 `4c659044`。
-Setup：`Moodflow-Setup-0.124.1-beta-dev.4c659044.exe`，49,445,755 字节，SHA-256 `37a671d6b7757345f92722a1a4058ffbe90648eb9348d3bc1df4db5b1650326e`。只读验证 145 个文件及数据清单；本机未运行安装器或注册 TSF。
+完整构建：[42696793910](https://github.com/young8290/Moodflow/actions/runs/42696793910)，源码 `8d80978`，PR 合并树 `40941197`。构建、安装卸载、界面和三类真实 TSF 作业全部通过。
+本机交付目录：`dist/Windows-Full-0.124.1-beta-dev.40941197/`。
 
-**该包仍是诊断包。** 本机隔离真实页面八项通过，但 Windows CI 冷启动首个 WebView 挂起，不能据本机结果判整个交付已完成。旧 `b39e846e` 包也标记为故障复现用途。
+| 开发产物 | 字节 | SHA-256 |
+|---|---:|---|
+| `Moodflow-Setup-0.124.1-beta-dev.40941197.exe` | 49,451,481 | `75f6892f78ceb057b6156fc5dfc7c9a5b68c106ec165a3653c5a8e3a4d34682e` |
+| `Moodflow-Portable-0.124.1-beta-dev.40941197.zip` | 57,943,171 | `aa7aad035c17e7306098ad3caea8c69351e90d93e71b6e63e180d05262e28c86` |
 
-原生调用栈已确认同一 UI 线程出现两层嵌套窗口创建；源码显示单实例 WM_COPYDATA 回调直接创建 WebView，且把核心 `--background` 唤起错误地转成打开小组件。`e59048b`／`8d80978` 已修正后台请求策略，并用有界窗口队列将显式二次请求排在首次创建之后；正由 [完整构建 42696793910](https://github.com/young8290/Moodflow/actions/runs/42696793910) 重新打包验证。逻辑与 rustfmt 分开提交。
+两者附标准 `.sha256`。安装包只读验证 145 个文件、全部自有组件和逐文件数据清单；便携包使用同一验证产物及现有打包函数生成，144 个文件逐字节比对一致，不含 userdata、localdata 或私有凭据。设置、便携启动器、核心、Hub、捕获助手和双架构 DLL 的产品身份与版本统一。本机未运行安装器或注册 TSF。
+
+冷启动故障已修复：单实例 WM_COPYDATA 回调曾在首次 WebView 的 COM 消息泵中嵌套创建窗口，且把核心 `--background` 唤起错误地转成打开小组件。`e59048b`／`8d80978` 修正后台请求策略，并用有界队列将显式二次请求排在首次创建之后；同一 CI 环境原先稳定失败，修复后基本八项和补强十项均通过。逻辑与 rustfmt 分开提交。旧 `b39e846e`／`4c659044` 包仅用于故障复现。
 
 ## 已核对的运行证据
 
@@ -40,10 +45,10 @@ Setup：`Moodflow-Setup-0.124.1-beta-dev.4c659044.exe`，49,445,755 字节，SHA
 | Hub 根工作区 | 后台唤起策略新增回归后 649 通过、0 失败、7 明确忽略；最终队列版本完整回归和严格 Clippy 通过 |
 | 前端 | 405 项、静态检查、生产构建和原生绑定核对通过 |
 | 设置端／便携端／安装器 | 分别 1,464／29／385 项；设置端 5 项明确忽略；相应严格 Clippy、Windows 构建和安装器 Linux 构建通过；16 项签名策略通过 |
-| 最新完整包三种 TSF 身份 | `42688945866` 的真实 TSF 作业通过，原始报告 ZIP SHA-256 `108ec89fe3cd606e9e190340d18d4bc72079cd037e6e9ba778f4fb9041dd1f28`；逐项核对 token、private-rpc、ready、delivered、switched、finish、passed |
-| 安装与实际 COM 副本 | [42694536279](https://github.com/young8290/Moodflow/actions/runs/42694536279) 六阶段通过，无失败和重启要求；x64／x86 实际注册 DLL 哈希匹配，AAP 与 ARP 均有读执行权限；原始报告 ZIP SHA-256 `402f97494d220c749e28b0d76fb1846497614b9535d4f9cdfd8de55f2dc30427` |
-| DLL 权限回归门 | [42695518574](https://github.com/young8290/Moodflow/actions/runs/42695518574) 将两项权限设为强制断言后，安装与卸载作业再次通过 |
-| 实际包本机页面 | 同一 `4c659044` 包，独立便携目录、独立 Hub／WebView 数据：资料保存、真实重载、词典、DPAPI 密码库、工作区备注、离线公式、捕获和同步入口八项通过；不是 CI 成功证据 |
+| 最新完整包三种 TSF 身份 | `42696793910` 真实 TSF 作业通过，原始报告 ZIP SHA-256 `12cac9fe68ecfd9b21058d505dbc23d76f40a4714db93f2fd9f1b6b90f5fe7d2`；逐项核对 token、private-rpc、ready、delivered、switched、finish、passed |
+| 安装与实际 COM 副本 | 同一 run 六阶段通过，无失败和重启要求；x64／x86 实际注册 DLL 哈希匹配，AAP 与 ARP 读执行权限设为强制断言并通过；原始报告 ZIP SHA-256 `0cac39bd571fbe578c73ac58a8bdb6d6e9dc957fc43a4c1761713caebb68d7a2` |
+| 完整包实际页面与原生调用 | [42699191085](https://github.com/young8290/Moodflow/actions/runs/42699191085) 比较生产源码和构建定义后复验同一包，十项全通过：资料保存／重载、词典、DPAPI 密码库、工作区备注、离线公式、明确暂存 Buffer 往返、捕获／同步入口、后台二次唤起；原始 ZIP SHA-256 `f1d5c68390c06acd1fb58d45ad5d09daa82f5975f80534904501379fc633fe2c` |
+| 设置与便携原生窗口 | 本机隔离副本的设置窗口标题为 Moodflow 输入法设置；新包便携启动器标题为 Moodflow 输入法便携启动器，均响应正常；打开启动器未自行启动或注册核心 |
 | 捕获与剪贴板 | Windows CI `42665122214` 验证专用合成窗口 WGC、离线 OCR、H.264、敏感剪贴板及较新复制保留 |
 
 三种 TSF 身份分别为普通 `0:0`、AppContainer `1:0`、LPAC `1:1`，使用真实注册 DLL、码表引擎和系统 Rich Edit。LPAC 声明 `lpacCom`、`registryRead`、`lpacAppExperience`；AAP-only 文件仍拒收，私有设置 RPC 只允许普通身份。结果不覆盖任意无能力 LPAC 或所有第三方应用。详情见 [宿主说明](../../moodflow_tsf/tests/README-e2e.md)。
