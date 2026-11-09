@@ -572,7 +572,7 @@ fn record(request: &Request, stop: &Arc<AtomicBool>) -> Result<Value> {
         audio,
     };
     let control = Capture::start_free_threaded(settings(request, flags, item))
-        .map_err(|_| anyhow::anyhow!("capture.record_failed"))?;
+        .map_err(|error| anyhow::anyhow!("{error:?}").context("capture.record_failed"))?;
     let callback = control.callback();
     let start = Instant::now();
     let mut cancelled = false;
@@ -609,7 +609,7 @@ fn record(request: &Request, stop: &Arc<AtomicBool>) -> Result<Value> {
     let user_stop = stop.load(Ordering::Acquire);
     control
         .stop()
-        .map_err(|_| anyhow::anyhow!("capture.record_failed"))?;
+        .map_err(|error| anyhow::anyhow!("{error:?}").context("capture.record_failed"))?;
     ensure!(
         privacy::allowed() && (!cancelled || user_stop),
         "capture.privacy"
