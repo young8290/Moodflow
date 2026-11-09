@@ -79,6 +79,8 @@ try {
             $path -cne '.github/workflows/moodflow-package.yml' -and
             $path -cne 'scripts/moodflow/ci-reuse-payload.ps1' -and
             $path -cne 'scripts/moodflow/ci-tsf-e2e.ps1' -and
+            $path -cne 'scripts/moodflow/ci-hub-smoke.ps1' -and
+            $path -cne 'scripts/moodflow/ci-hub-ui.mjs' -and
             $path -cne 'moodflow_input/crates/moodflow-engine/tests/engine_manager.rs' -and
             $path -cne 'moodflow_input/crates/moodflow-engine/tests/pinyin_completion.rs' -and
             $path -cne 'moodflow_input/crates/moodflow-engine/tests/pinyin_multipath.rs' -and

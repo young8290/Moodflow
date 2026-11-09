@@ -16,6 +16,11 @@ on:
         description: "仅重验未改动的产物：填写本仓已通过构建的 run id；生产文件有差异则拒绝复用"
         required: false
         default: ""
+      acceptance:
+        description: "验收范围；界面夹具迭代可仅验证 Hub，默认执行全部"
+        type: choice
+        options: [all, hub]
+        default: all
   pull_request:
     branches: [main]
     paths:
@@ -24,7 +29,7 @@ on:
       - ".github/workflows/moodflow-package.yml"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}${{ inputs.acceptance == 'hub' && '-hub' || '' }}
   # 安装与 TSF 注册后的 finally 清理须跑完；同一分支排队，不在系统操作中途取消。
   cancel-in-progress: false
 
@@ -172,7 +177,7 @@ jobs:
   install:
     name: Windows 安装与卸载验收
     needs: [windows, reuse]
-    if: ${{ always() && (needs.windows.result == 'success' || needs.reuse.result == 'success') }}
+    if: ${{ always() && inputs.acceptance != 'hub' && (needs.windows.result == 'success' || needs.reuse.result == 'success') }}
     runs-on: windows-2022
     timeout-minutes: 25
     steps:
@@ -200,10 +205,44 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  hub:
+    name: Windows 完整包界面与原生调用验收
+    needs: [windows, reuse]
+    if: ${{ always() && (needs.windows.result == 'success' || needs.reuse.result == 'success') }}
+    runs-on: windows-2022
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: Moodflow
+      - uses: actions/download-artifact@v4
+        with:
+          name: Moodflow-Payload
+          path: Moodflow/build
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 隔离 Windows 验证打包界面与真实原生调用
+        shell: pwsh
+        working-directory: Moodflow
+        run: ./scripts/moodflow/ci-hub-smoke.ps1 -Payload (Join-Path $PWD 'build')
+      - name: 上传界面验收记录
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Moodflow-Hub-UI
+          path: |
+            Moodflow/dist/hub-ui-smoke.json
+            Moodflow/dist/hub-ui-*.png
+            Moodflow/dist/hub-ui-core-logs/
+            Moodflow/dist/hub-ui-hub-logs/
+          if-no-files-found: error
+          retention-days: 14
+
   tsf:
     name: Windows 真实 TSF 与权限隔离验收
     needs: [windows, reuse]
-    if: ${{ always() && (needs.windows.result == 'success' || needs.reuse.result == 'success') }}
+    if: ${{ always() && inputs.acceptance != 'hub' && (needs.windows.result == 'success' || needs.reuse.result == 'success') }}
     runs-on: windows-2022
     timeout-minutes: 35
     steps:
