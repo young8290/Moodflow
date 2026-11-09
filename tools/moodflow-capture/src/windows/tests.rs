@@ -16,6 +16,7 @@ fn synthetic_h264_encoding_never_reads_a_screen_or_audio_device() {
             fs::File::create_new(&path)?;
             let mut encoder = VideoEncoder::new(
                 VideoSettingsBuilder::new(320, 240)
+                    .sub_type(VideoSettingsSubType::H264)
                     .frame_rate(15)
                     .bitrate(1_000_000),
                 AudioSettingsBuilder::default().disabled(true),
@@ -31,6 +32,14 @@ fn synthetic_h264_encoding_never_reads_a_screen_or_audio_device() {
             ensure!(
                 video.len() > 1000 && &video[4..8] == b"ftyp",
                 "synthetic video missing"
+            );
+            ensure!(
+                video.windows(4).any(|v| v == b"avc1"),
+                "H.264 track missing"
+            );
+            ensure!(
+                !video.windows(4).any(|v| v == b"hvc1" || v == b"hev1"),
+                "unexpected HEVC track"
             );
             Ok(())
         })()
@@ -260,6 +269,7 @@ fn isolated_window_capture_ocr_and_h264() {
     let video = fs::read(video_path).unwrap();
     assert!(video.len() > 1000 && &video[4..8] == b"ftyp");
     assert!(video.windows(4).any(|v| v == b"moov") && video.windows(4).any(|v| v == b"mdat"));
+    assert!(video.windows(4).any(|v| v == b"avc1"));
     drop(close);
     ui.join().unwrap();
 }

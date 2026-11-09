@@ -15,7 +15,10 @@ use std::{
 };
 use windows_capture::{
     capture::{Context, GraphicsCaptureApiHandler},
-    encoder::{AudioSettingsBuilder, ContainerSettingsBuilder, VideoEncoder, VideoSettingsBuilder},
+    encoder::{
+        AudioSettingsBuilder, ContainerSettingsBuilder, VideoEncoder, VideoSettingsBuilder,
+        VideoSettingsSubType,
+    },
     frame::Frame,
     graphics_capture_api::InternalCaptureControl,
     monitor::Monitor,
@@ -381,6 +384,7 @@ impl Capture {
             } else {
                 self.encoder = Some(VideoEncoder::new(
                     VideoSettingsBuilder::new(self.flags.width, self.flags.height)
+                        .sub_type(VideoSettingsSubType::H264)
                         .frame_rate(15)
                         .bitrate(8_000_000),
                     if let Some(audio) = &self.flags.audio {
