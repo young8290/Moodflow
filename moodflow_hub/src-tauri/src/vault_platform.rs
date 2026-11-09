@@ -5,7 +5,9 @@ use std::time::Instant;
 
 pub struct ClipboardLease {
     #[cfg(windows)]
-    pub sequence: u32,
+    pub owner: usize,
+    #[cfg(windows)]
+    pub token: [u8; 16],
     pub expires: Instant,
 }
 pub enum Clear {
@@ -60,8 +62,8 @@ mod clipboard {
         Foundation::{GlobalFree, HGLOBAL, HWND},
         System::{
             DataExchange::{
-                CloseClipboard, EmptyClipboard, GetClipboardData, GetClipboardSequenceNumber,
-                OpenClipboard, RegisterClipboardFormatW, SetClipboardData,
+                CloseClipboard, EmptyClipboard, GetClipboardData, GetClipboardOwner, OpenClipboard,
+                RegisterClipboardFormatW, SetClipboardData,
             },
             Memory::{
                 GMEM_MOVEABLE, GMEM_ZEROINIT, GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock,
@@ -71,6 +73,36 @@ mod clipboard {
     };
     use zeroize::{Zeroize, Zeroizing};
     static CLIPBOARD: Mutex<()> = Mutex::new(());
+    fn ownership_format() -> u32 {
+        let name: Vec<u16> = "Moodflow.Vault.ClipboardOwner.v1"
+            .encode_utf16()
+            .chain([0])
+            .collect();
+        unsafe { RegisterClipboardFormatW(name.as_ptr()) }
+    }
+    fn still_owned(lease: &ClipboardLease) -> bool {
+        unsafe {
+            if GetClipboardOwner() != lease.owner as HWND {
+                return false;
+            }
+            let format = ownership_format();
+            if format == 0 {
+                return false;
+            }
+            let memory = GetClipboardData(format);
+            if memory.is_null() || GlobalSize(memory) < lease.token.len() {
+                return false;
+            }
+            let data = GlobalLock(memory);
+            if data.is_null() {
+                return false;
+            }
+            let matches =
+                std::slice::from_raw_parts(data.cast::<u8>(), lease.token.len()) == lease.token;
+            GlobalUnlock(memory);
+            matches
+        }
+    }
     struct Open;
     impl Drop for Open {
         fn drop(&mut self) {
@@ -123,7 +155,7 @@ mod clipboard {
                 if length <= 1024 * 1024 {
                     let data = GlobalLock(memory);
                     if !data.is_null() {
-                        // Only called while our sequence is still current and the clipboard is open.
+                        // Only called while our ownership is verified and the clipboard is open.
                         std::slice::from_raw_parts_mut(data.cast::<u8>(), length).zeroize();
                         GlobalUnlock(memory);
                     }
@@ -134,6 +166,21 @@ mod clipboard {
     }
     pub fn copy(owner: usize, text: &str) -> Result<ClipboardLease, ()> {
         if owner == 0 || text.len() > 65536 || text.contains('\0') {
+            return Err(());
+        }
+        use windows_sys::Win32::Security::Cryptography::{
+            BCRYPT_USE_SYSTEM_PREFERRED_RNG, BCryptGenRandom,
+        };
+        let mut token = [0; 16];
+        if unsafe {
+            BCryptGenRandom(
+                ptr::null_mut(),
+                token.as_mut_ptr(),
+                token.len() as u32,
+                BCRYPT_USE_SYSTEM_PREFERRED_RNG,
+            )
+        } < 0
+        {
             return Err(());
         }
         let _lock = CLIPBOARD.lock().unwrap_or_else(|e| e.into_inner());
@@ -148,6 +195,11 @@ mod clipboard {
             return Err(());
         }
         let publish = (|| {
+            let format = ownership_format();
+            if format == 0 {
+                return Err(());
+            }
+            set(format, &token)?;
             for (name, value) in [
                 ("ExcludeClipboardContentFromMonitorProcessing", 1_u32),
                 ("CanIncludeInClipboardHistory", 0),
@@ -169,30 +221,25 @@ mod clipboard {
             scrub_and_empty();
             return Err(());
         }
-        // Capture under the OS lock: a copy arriving immediately after CloseClipboard
-        // must never become the sequence that our expiry timer is allowed to clear.
-        let sequence = unsafe { GetClipboardSequenceNumber() };
-        if sequence == 0 {
-            scrub_and_empty();
-            return Err(());
-        }
+        // CloseClipboard / synthesized formats can advance the sequence even though
+        // the secret is unchanged. HWND + a per-copy nonce remain stable. All reads
+        // and the eventual clear occur under OpenClipboard, never after a racy probe.
         drop(_open);
         Ok(ClipboardLease {
-            sequence,
+            owner,
+            token,
             expires: Instant::now() + Duration::from_secs(60),
         })
     }
     pub fn clear(lease: &ClipboardLease) -> Clear {
         let _lock = CLIPBOARD.lock().unwrap_or_else(|e| e.into_inner());
-        if unsafe { GetClipboardSequenceNumber() } != lease.sequence {
-            return Clear::Changed;
-        }
         if unsafe { OpenClipboard(ptr::null_mut()) } == 0 {
             return Clear::Busy;
         }
         let _open = Open;
-        // Compare again under the OS clipboard lock; never clear a newer copy.
-        if unsafe { GetClipboardSequenceNumber() } != lease.sequence {
+        // A newer copy in the same window has a different nonce; other apps also
+        // have a different clipboard owner. Either case must retain their content.
+        if !still_owned(lease) {
             return Clear::Changed;
         }
         if scrub_and_empty() {

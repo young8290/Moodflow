@@ -14,7 +14,7 @@
 
 原生层持有不续期的 60 秒解锁租约，后台每 500 ms 清扫；暂停、非交互桌面、切换页面及退出均锁定。字段显示最多 15 秒，返回明文前再次检查隐私和租约。密码、口令和 TOTP 密钥不实现 Debug；Rust 临时缓冲和 Argon2 内存清零。WebView、IPC 和系统的复制不能承诺取证层面的彻底清零，安全评审须覆盖这一边界。
 
-复制只由原生层执行，先发布 ExcludeClipboardContentFromMonitorProcessing、CanIncludeInClipboardHistory=0 和 CanUploadToCloudClipboard=0，再发布文本。剪贴板锁内记录 sequence；到期或锁定后先后两次核对 sequence，只清除仍属于本次操作的内容。打开失败则重试，不清除用户后来复制的内容。不自动填充或模拟粘贴。
+复制只由原生层执行，先发布 ExcludeClipboardContentFromMonitorProcessing、CanIncludeInClipboardHistory=0 和 CanUploadToCloudClipboard=0，再发布文本。每次复制生成随机 128 位归属标记；到期或锁定后在剪贴板锁内核对系统所有者 HWND 与标记，只清除仍属于本次操作的内容。单用 sequence 会被 Windows 在关闭或合成格式时的变化误导，已由真实 CI 用例检出。打开失败则重试，不清除用户后来复制的内容。不自动填充或模拟粘贴。
 
 ## 验证与待办
 

@@ -1670,6 +1670,7 @@ dependencies = [
 name = "moodflow-translate"
 version = "0.1.0"
 dependencies = [
+ "moodflow-utils",
  "serde",
  "sha2",
  "thiserror",

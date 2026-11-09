@@ -80,6 +80,8 @@ impl Dictionary {
         if source.len() > MAX_SOURCE_BYTES {
             return Err(Error::Limit);
         }
+        let normalized = moodflow_utils::text::normalize_input(source);
+        let source = normalized.as_ref();
         let mut entries = Vec::new();
         let mut map = BTreeMap::new();
         for line in source.lines() {
@@ -425,6 +427,18 @@ mod tests {
             dictionary.lookup("magazines").unwrap().entries[0].simplified,
             "图书"
         );
+    }
+
+    #[test]
+    fn cedict_import_normalizes_bom_and_all_line_endings() {
+        let expected = Dictionary::compile(SOURCE).unwrap().to_bytes().unwrap();
+        for ending in ["\r", "\r\n", "\n"] {
+            let source = format!("\u{feff}{}", SOURCE.replace('\n', ending));
+            assert_eq!(
+                Dictionary::compile(&source).unwrap().to_bytes().unwrap(),
+                expected
+            );
+        }
     }
 
     #[test]

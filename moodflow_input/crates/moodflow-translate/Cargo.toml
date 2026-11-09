@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+moodflow-utils = { path = "../moodflow-utils" }
 serde = { workspace = true, features = ["derive"] }
 sha2 = "0.10"
 thiserror = "2"
