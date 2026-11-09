@@ -35,6 +35,8 @@ mod secrets;
 mod sensing;
 mod sim;
 mod state;
+mod vault;
+mod vault_platform;
 mod windows;
 
 use std::path::Path;
@@ -153,6 +155,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::ime::ime_tools,
             commands::library::library_request,
             commands::citation::citation_request,
+            commands::vault::vault_request,
             commands::ime::plugins_list,
             commands::ime::plugins_inspect,
             commands::ime::plugins_install,
@@ -261,6 +264,7 @@ pub fn run() {
             let needs_onboarding = state.needs_onboarding()?;
             let cfg = consent::mfp_cfg(&ConsentState::load(&state.db())?);
             app.manage(state);
+            vault::start(app.handle());
             // 第 4 步：AI 网关（无配置时为离线模式）
             app.manage(gateway::start(app.handle(), &data_dir));
             // 第 5 步：MFP 客户端与实时感知。Hub 是同意状态的唯一真相源，握手后立即下发 cfg
@@ -313,6 +317,9 @@ pub fn run() {
             } => api.prevent_exit(),
             // 托管状态在退出时不一定会被析构，这里把排队中的写入提交掉（ADR 0020）
             tauri::RunEvent::Exit => {
+                if let Some(vault) = app.try_state::<std::sync::Arc<vault::Runtime>>() {
+                    vault.lock();
+                }
                 if let Some(state) = app.try_state::<state::AppState>() {
                     state.writer().flush();
                 }

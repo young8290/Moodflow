@@ -95,24 +95,24 @@ pub fn load_dev_file() -> Option<(PathBuf, Result<AiSecrets, SecretsStoreError>)
 }
 
 #[cfg(windows)]
-fn protect(plain: &[u8]) -> Result<Vec<u8>, SecretsStoreError> {
+pub(crate) fn protect(plain: &[u8]) -> Result<Vec<u8>, SecretsStoreError> {
     dpapi::call(plain, true).map_err(|_| SecretsStoreError::Crypt("DPAPI 加密失败"))
 }
 
 #[cfg(windows)]
-fn unprotect(sealed: &[u8]) -> Result<Zeroizing<Vec<u8>>, SecretsStoreError> {
+pub(crate) fn unprotect(sealed: &[u8]) -> Result<Zeroizing<Vec<u8>>, SecretsStoreError> {
     dpapi::call(sealed, false)
         .map(Zeroizing::new)
         .map_err(|_| SecretsStoreError::Crypt("DPAPI 解密失败（文件可能来自别的电脑或用户）"))
 }
 
 #[cfg(not(windows))]
-fn protect(_plain: &[u8]) -> Result<Vec<u8>, SecretsStoreError> {
+pub(crate) fn protect(_plain: &[u8]) -> Result<Vec<u8>, SecretsStoreError> {
     Err(SecretsStoreError::Unsupported)
 }
 
 #[cfg(not(windows))]
-fn unprotect(_sealed: &[u8]) -> Result<Zeroizing<Vec<u8>>, SecretsStoreError> {
+pub(crate) fn unprotect(_sealed: &[u8]) -> Result<Zeroizing<Vec<u8>>, SecretsStoreError> {
     Err(SecretsStoreError::Unsupported)
 }
 

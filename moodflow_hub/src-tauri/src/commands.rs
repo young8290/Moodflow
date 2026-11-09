@@ -12,6 +12,7 @@ pub mod letter;
 pub mod library;
 pub mod practice;
 pub mod schedule;
+pub mod vault;
 
 use std::sync::Arc;
 

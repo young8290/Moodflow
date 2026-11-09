@@ -307,6 +307,7 @@ export const commands = {
 	imeTools: (method: string, payload: string) => typedError<string, UiError>(__TAURI_INVOKE("ime_tools", { method, payload })),
 	libraryRequest: (method: string, payload: string) => typedError<string, UiError>(__TAURI_INVOKE("library_request", { method, payload })),
 	citationRequest: (method: string, payload: string) => typedError<string, UiError>(__TAURI_INVOKE("citation_request", { method, payload })),
+	vaultRequest: (method: string, payload: string) => typedError<string, UiError>(__TAURI_INVOKE("vault_request", { method, payload })),
 	/**  已装插件、启用与运行状态。 */
 	pluginsList: () => typedError<PluginList, UiError>(__TAURI_INVOKE("plugins_list")),
 	/**  安装前检查一个本地插件包（`path` 来自文件对话框），返回说明与要同意的能力；不写任何东西。 */
