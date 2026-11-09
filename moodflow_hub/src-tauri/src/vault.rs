@@ -54,12 +54,7 @@ fn string<'a>(p: &'a Value, key: &str) -> Result<&'a str, UiError> {
     p[key].as_str().ok_or_else(|| err("vault.invalid"))
 }
 fn root() -> Option<PathBuf> {
-    let hub = crate::paths::hub_data_dir().ok()?;
-    Some(if std::env::var_os(crate::paths::DATA_DIR_ENV).is_some() {
-        hub.join("vault")
-    } else {
-        hub.parent()?.join("vault")
-    })
+    Some(crate::paths::tool_data_dir().ok()?.join("vault"))
 }
 pub fn allowed(app: &AppHandle) -> bool {
     vault_platform::desktop_available()

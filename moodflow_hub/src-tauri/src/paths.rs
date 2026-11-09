@@ -23,6 +23,21 @@ pub fn hub_data_dir() -> anyhow::Result<PathBuf> {
     Ok(base.join(app_dir_name()).join("hub"))
 }
 
+/// Root for explicit Windows tools; all tools share this location and wipe boundary.
+pub fn tool_data_dir() -> anyhow::Result<PathBuf> {
+    let hub = hub_data_dir()?;
+    tool_dir_for(&hub, std::env::var_os(DATA_DIR_ENV).is_some())
+}
+fn tool_dir_for(hub: &std::path::Path, overridden: bool) -> anyhow::Result<PathBuf> {
+    if overridden {
+        Ok(hub.to_owned())
+    } else {
+        hub.parent()
+            .map(std::path::Path::to_owned)
+            .ok_or_else(|| anyhow::anyhow!("no application directory"))
+    }
+}
+
 /// 日志目录（NFR-LOG-03）：`%LOCALAPPDATA%\Moodflow\logs\`，与输入法核心的日志放在一起；
 /// 用 `MF_HUB_DATA_DIR` 指到别处时放在那个目录的 `logs\` 下，不碰真实目录。
 pub fn log_dir() -> anyhow::Result<PathBuf> {
@@ -71,6 +86,12 @@ mod tests {
 
     #[test]
     fn overrides_follow_the_selected_data_directory() {
+        let hub = PathBuf::from("application/hub");
+        assert_eq!(
+            tool_dir_for(&hub, false).unwrap(),
+            PathBuf::from("application")
+        );
+        assert_eq!(tool_dir_for(&hub, true).unwrap(), hub);
         for data_dir in ["Moodflow/hub", "MoodflowDev/hub", "isolated-demo/hub"] {
             let factory = PathBuf::from("factory");
             let data = PathBuf::from(data_dir);

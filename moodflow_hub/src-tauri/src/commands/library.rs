@@ -13,14 +13,7 @@ use tauri::State;
 static LIBRARIES: OnceLock<Mutex<BTreeMap<PathBuf, Library>>> = OnceLock::new();
 
 fn root() -> anyhow::Result<PathBuf> {
-    let hub = crate::paths::hub_data_dir()?;
-    Ok(if std::env::var_os(crate::paths::DATA_DIR_ENV).is_some() {
-        hub.join("capsule")
-    } else {
-        hub.parent()
-            .ok_or_else(|| anyhow::anyhow!("no application directory"))?
-            .join("capsule")
-    })
+    Ok(crate::paths::tool_data_dir()?.join("capsule"))
 }
 
 fn string<'a>(value: &'a Value, key: &str) -> anyhow::Result<&'a str> {

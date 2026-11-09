@@ -35,6 +35,7 @@ mod secrets;
 mod sensing;
 mod sim;
 mod state;
+mod tool_data;
 mod vault;
 mod vault_platform;
 mod windows;
@@ -204,7 +205,10 @@ pub fn run() {
     let launch = LaunchArgs::parse(std::env::args().skip(1));
     // 删除全部数据（FR-DAT-04，ADR 0037）：上次确认删除后重启到这里，任何东西打开数据库之前先删
     if let Ok(dir) = paths::hub_data_dir() {
-        match moodflow_hub_core::infra::wipe::apply_pending(&dir, secrets::SECRETS_FILE) {
+        let result = paths::tool_data_dir()
+            .map_err(std::io::Error::other)
+            .and_then(|tools| tool_data::apply_pending(&dir, &tools));
+        match result {
             Ok(Some(r)) => {
                 // Hub 的日志文件也一并删掉（FR-DAT-04）；输入法核心的日志归核心管
                 if let Ok(logs) = paths::log_dir() {
@@ -214,7 +218,10 @@ pub fn run() {
             }
             Ok(None) => {}
             // 删不掉（文件被占用）时标记留着，下次启动接着删
-            Err(e) => crate::hlog!("删除全部数据未完成，下次启动重试：{e}"),
+            Err(e) => {
+                crate::hlog!("删除全部数据未完成，下次启动重试：{e}");
+                return;
+            }
         }
     }
     // 演示模式要在任何服务取时钟之前定下来：`--demo` 或真实库里的 `dev.demo`（ADR 0023、0025）

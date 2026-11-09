@@ -87,6 +87,7 @@ pub fn data_delete_all(app: AppHandle, include_secrets: bool) -> Result<(), UiEr
     let dir = crate::paths::hub_data_dir().map_err(|e| UiError::internal("data.delete.dir", e))?;
     let req = wipe::WipeRequest {
         include_secrets,
+        include_tools: true,
         requested_at: chrono::Utc::now().timestamp_millis(),
     };
     wipe::request(&dir, &req).map_err(|e| UiError::internal("data.delete", e))?;
