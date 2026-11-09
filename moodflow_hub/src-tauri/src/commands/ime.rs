@@ -151,6 +151,15 @@ pub async fn ime_tools(
 
 /// 插件命令的错误：核心给的 `plugins.*` 错误码映射成文案键 `error.plugin_*`，其余照常。
 fn plugin_error(e: ImeRpcError) -> UiError {
+    if let ImeRpcError::Remote(msg) = &e {
+        let code = msg
+            .split(|c: char| c == ':' || c.is_whitespace())
+            .next()
+            .unwrap_or("");
+        if super::market::CODES.contains(&code) {
+            return UiError::new(code, code);
+        }
+    }
     if let ImeRpcError::Remote(msg) = &e
         && let Some(code) = plugin_error_code(msg)
     {

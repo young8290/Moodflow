@@ -99,6 +99,7 @@ fn dispose_contract_rows(
 }
 use moodflow_coordinator::web_host::WebDataHost;
 
+mod plugin_market;
 mod plugins;
 mod translate;
 mod windows_tools;
@@ -388,6 +389,13 @@ pub trait WebDataRpc: WebDataHost {
             &plugins_dir,
             moodflow_coordinator::PLUGIN_HOST_VERSION,
         )?;
+        if let Some(policy) = moodflow_market::catalog::load(&plugins_dir)?
+            && policy
+                .verified(0, false)?
+                .is_some_and(|i| i.is_revoked(&plan.manifest.id, &plan.manifest.version))
+        {
+            anyhow::bail!("market.withdrawn");
+        }
         Ok((plan, from, plugins_dir))
     }
 
@@ -399,6 +407,10 @@ pub trait WebDataRpc: WebDataHost {
 
     /// `plugins.install`：重新检查，新增能力都在 `accept` 里才装，装完重载。
     fn web_plugins_install(&self, params: &Value) -> anyhow::Result<Value> {
+        let (root, _) = self
+            .plugin_dirs()
+            .ok_or_else(|| anyhow::anyhow!("market.io"))?;
+        let _policy_lock = moodflow_market::catalog::acquire(&root)?;
         let (plan, _, plugins_dir) = self.web_plugins_plan(params)?;
         let accept: Vec<String> = params
             .get("accept")
@@ -430,6 +442,7 @@ pub trait WebDataRpc: WebDataHost {
         let (plugins_dir, data_dir) = self
             .plugin_dirs()
             .ok_or_else(|| anyhow::anyhow!("plugins.no_user_dir: 取不到输入法用户目录"))?;
+        let _policy_lock = moodflow_market::catalog::acquire(&plugins_dir)?;
         moodflow_market::uninstall(&plugins_dir, id)
             .map_err(|e| anyhow::anyhow!("plugins.io: {e}"))?;
         let delete_data = params
@@ -524,6 +537,17 @@ pub trait WebDataRpc: WebDataHost {
             }
             // ── plugins.*（插件管理页，见 plugins.rs）────────────
             "plugins.list" => Ok(self.web_plugins_list()),
+            method if method.starts_with("plugins.market.") => {
+                let (root, _) = self
+                    .plugin_dirs()
+                    .ok_or_else(|| anyhow::anyhow!("market.io"))?;
+                let (value, changed) =
+                    plugin_market::rpc(method, params, &root, chrono::Utc::now().timestamp())?;
+                if changed {
+                    self.reload_plugins();
+                }
+                Ok(value)
+            }
             "plugins.inspect" => self.web_plugins_inspect(params),
             "plugins.install" => self.web_plugins_install(params),
             "plugins.uninstall" => self.web_plugins_uninstall(params),

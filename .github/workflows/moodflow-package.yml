@@ -54,7 +54,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: young8290/moodflow-setting
-          ref: 8404f327cf27787c2a8d3fb65e381a88f080a5db
+          ref: befefb141aff1989ce7d185a584a21cce75929aa
           path: moodflow-setting
       - name: 检出 moodflow-portable
         uses: actions/checkout@v4
@@ -98,5 +98,21 @@ jobs:
           path: |
             Moodflow/dist/Moodflow-Setup-*.exe
             Moodflow/dist/Moodflow-Setup-*.exe.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: 隔离 Windows 安装、保留数据及卸载验收
+        shell: pwsh
+        working-directory: Moodflow
+        run: |
+          $setup = Get-ChildItem dist/Moodflow-Setup-*.exe | Select-Object -First 1
+          if (-not $setup) { throw 'Missing complete setup package.' }
+          .\scripts\moodflow\ci-install-smoke.ps1 -Setup $setup.FullName
+
+      - name: 上传安装验收记录
+        uses: actions/upload-artifact@v4
+        with:
+          name: Moodflow-Install-Smoke
+          path: Moodflow/dist/install-smoke.json
           if-no-files-found: error
           retention-days: 14

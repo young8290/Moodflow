@@ -143,10 +143,28 @@ impl Registry {
         if opts.safe_mode {
             return (Self { plugins }, report);
         }
+        // Offline revocations remain effective on every reload, including manual enable and restart.
+        // A broken trust file must not silently remove the policy.
+        let catalog = moodflow_market::catalog::load(opts.plugins_dir).and_then(|p| {
+            p.map(|p| p.verified(0, false))
+                .transpose()
+                .map(Option::flatten)
+        });
         for (id, version) in moodflow_market::installed(opts.plugins_dir) {
             if !opts.enabled.contains(&id) {
                 report.not_enabled.push(id);
                 continue;
+            }
+            match &catalog {
+                Err(_) => {
+                    report.failed.push((id, "market.invalid".into()));
+                    continue;
+                }
+                Ok(Some(index)) if index.is_revoked(&id, &version) => {
+                    report.failed.push((id, "market.withdrawn".into()));
+                    continue;
+                }
+                _ => {}
             }
             let dir = opts.plugins_dir.join(&id).join(&version);
             match load_one(&dir, &id, opts) {

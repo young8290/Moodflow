@@ -10,6 +10,7 @@ export const commands = {
 	workspaceRequest: (method: string, payload: string) => typedError<string, UiError>(__TAURI_INVOKE("workspace_request", { method, payload })),
 	syncRequest: (method: string, payload: string) => typedError<string, UiError>(__TAURI_INVOKE("sync_request", { method, payload })),
 	toolsRequest: (method: string, payload: string) => typedError<string, UiError>(__TAURI_INVOKE("tools_request", { method, payload })),
+	marketRequest: (method: string, payload: string) => typedError<string, UiError>(__TAURI_INVOKE("market_request", { method, payload })),
 	/**
 	 *  导出用户数据（FR-DAT-03），写到前端文件选择器给的 `path`（已存在则覆盖）。
 	 *  1 年数据量要几秒，放进 `spawn_blocking`，不占主线程。先提交排队中的数据（ADR 0020 第 3 条最多晚 5 秒），
@@ -1106,7 +1107,11 @@ export type PluginState =
 /**  连续出错被自动停用，可以重新启用 */
 "auto_disabled" | 
 /**  启用了却没加载上（不兼容、平台不支持、包坏了） */
-"load_failed";
+"load_failed" | 
+/**  Signed catalog withdrew this version; cannot be reenabled locally. */
+"revoked" | 
+/**  Trust policy is unreadable; third-party loading stays disabled. */
+"market_error";
 
 /**  练习过程中的一次输入框内容变化。`t_ms` 是从练习开始算起的毫秒数。 */
 export type PracticeEvent = {

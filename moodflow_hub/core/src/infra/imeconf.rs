@@ -231,6 +231,11 @@ impl ImeRpc {
         ))
     }
 
+    /// Signed-catalog preview uses the same permission representation as local packages.
+    pub fn market_inspect(&self, params: Value) -> Result<PluginPreview, ImeRpcError> {
+        parse(snake_keys(self.call("plugins.market.inspect", params)?))
+    }
+
     /// `plugins.install`：`accept` 是用户在预览里同意的能力；核心重新检查，新增能力没被同意就拒绝。
     pub fn plugin_install(&self, path: &str, accept: &[String]) -> Result<(), ImeRpcError> {
         self.call("plugins.install", json!({ "path": path, "accept": accept }))
@@ -331,6 +336,10 @@ pub enum PluginState {
     AutoDisabled,
     /// 启用了却没加载上（不兼容、平台不支持、包坏了）
     LoadFailed,
+    /// Signed catalog withdrew this version; cannot be reenabled locally.
+    Revoked,
+    /// Trust policy is unreadable; third-party loading stays disabled.
+    MarketError,
 }
 
 /// 插件类型：`wasm`（沙箱插件）或 `content`（内容包，`content` 是哪一类）。

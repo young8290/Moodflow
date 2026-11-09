@@ -86,17 +86,24 @@ pub(crate) fn list_json(
     let Some(dir) = plugins_dir else {
         return json!({ "available": false, "safeMode": safe_mode, "plugins": [] });
     };
+    let policy = moodflow_market::catalog::load(dir).and_then(|p| {
+        p.map(|p| p.verified(0, false))
+            .transpose()
+            .map(Option::flatten)
+    });
     let plugins: Vec<Value> = moodflow_market::installed(dir)
         .into_iter()
         .map(|(id, version)| {
             let loaded = status.iter().find(|s| s.id == id);
             let on = enabled.contains(&id);
-            let state = match (on, safe_mode, loaded) {
-                (false, _, _) => "disabled",
-                (true, true, _) => "safe_mode",
-                (true, false, Some(s)) if s.disabled => "auto_disabled",
-                (true, false, Some(_)) => "loaded",
-                (true, false, None) => "load_failed",
+            let state = match (&policy, on, safe_mode, loaded) {
+                (Err(_), _, _, _) => "market_error",
+                (Ok(Some(index)), _, _, _) if index.is_revoked(&id, &version) => "revoked",
+                (_, false, _, _) => "disabled",
+                (_, true, true, _) => "safe_mode",
+                (_, true, false, Some(s)) if s.disabled => "auto_disabled",
+                (_, true, false, Some(_)) => "loaded",
+                (_, true, false, None) => "load_failed",
             };
             let mut v = match moodflow_market::installed_manifest(dir, &id, &version) {
                 Some(m) => manifest_json(&m),

@@ -18,6 +18,7 @@ import {
 import { errorText, t } from '@/i18n'
 import PluginSettingsForm from './PluginSettingsForm.vue'
 import SectionHead from './SectionHead.vue'
+import PluginMarketSection from './PluginMarketSection.vue'
 import {
   capabilityText,
   contributesText,
@@ -30,6 +31,7 @@ import {
 } from './plugins'
 
 const list = ref<PluginList | null>(null)
+const tab = ref<'installed' | 'store' | 'community'>('installed')
 /** 输入法没在运行 */
 const offline = ref(false)
 const error = ref<string | null>(null)
@@ -61,6 +63,13 @@ async function load(): Promise<void> {
     if (e instanceof CommandError && e.ui.code === 'ime.unavailable') offline.value = true
     else error.value = errorText(e)
   }
+}
+
+async function marketInstalled(result: { id: string; fresh: boolean }): Promise<void> {
+  await load()
+  if (result.fresh && list.value)
+    await setIme('plugins.enabled', toggledEnabled(enabledIds(list.value.plugins), result.id, true))
+  await load()
 }
 
 onMounted(async () => {
@@ -192,11 +201,28 @@ async function uninstall(p: PluginItem): Promise<void> {
   <section>
     <SectionHead :title="t('settings.plugins_nav')" :restorable="false" />
     <p class="s-hint">{{ t('plugins.intro') }}</p>
+    <nav class="s-row" :aria-label="t('market.tabs')">
+      <button type="button" class="s-compact" :aria-pressed="tab === 'installed'" @click="tab = 'installed'">
+        {{ t('market.installed') }}
+      </button>
+      <button type="button" class="s-compact" :aria-pressed="tab === 'store'" @click="tab = 'store'">
+        {{ t('market.store') }}
+      </button>
+      <button type="button" class="s-compact" :aria-pressed="tab === 'community'" @click="tab = 'community'">
+        {{ t('market.community') }}
+      </button>
+    </nav>
+    <PluginMarketSection
+      v-if="tab !== 'installed'"
+      :community="tab === 'community'"
+      @installed="marketInstalled"
+      @changed="load"
+    />
     <p v-if="error" class="s-error" role="alert">{{ error }}</p>
     <p v-if="offline" class="s-note">{{ t('error.ime_unavailable') }}</p>
     <p v-else-if="list && !list.available" class="s-note">{{ t('plugins.no_user_dir') }}</p>
 
-    <template v-if="list && list.available">
+    <template v-if="tab === 'installed' && list && list.available">
       <fieldset class="s-group" data-group="safe-mode">
         <legend>{{ t('plugins.safe_mode') }}</legend>
         <label class="s-choice">
@@ -247,7 +273,7 @@ async function uninstall(p: PluginItem): Promise<void> {
                   type="checkbox"
                   role="switch"
                   :checked="p.enabled"
-                  :disabled="busy"
+                  :disabled="busy || p.state === 'revoked' || p.state === 'market_error'"
                   @change="setEnabled(p, ($event.target as HTMLInputElement).checked)"
                 />
                 {{ t('plugins.enable') }}

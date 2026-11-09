@@ -11,6 +11,9 @@ pub mod diary;
 pub mod ime;
 pub mod letter;
 pub mod library;
+pub mod market;
+#[cfg(windows)]
+mod market_links;
 pub mod practice;
 pub mod schedule;
 pub mod sync;

@@ -24,6 +24,8 @@ const STATE_LABEL: Record<PluginState, CopyKey> = {
   loaded: 'plugins.state.loaded',
   auto_disabled: 'plugins.state.auto_disabled',
   load_failed: 'plugins.state.load_failed',
+  revoked: 'plugins.state.revoked',
+  market_error: 'plugins.state.market_error',
 }
 
 export function stateText(s: PluginState): string {
@@ -32,7 +34,7 @@ export function stateText(s: PluginState): string {
 
 /** 出了问题、需要用户留意的状态 */
 export function stateIsProblem(s: PluginState): boolean {
-  return s === 'auto_disabled' || s === 'load_failed'
+  return s === 'auto_disabled' || s === 'load_failed' || s === 'revoked' || s === 'market_error'
 }
 
 const CONTENT_LABEL: Record<string, CopyKey> = {

@@ -383,8 +383,12 @@ function Build-Hub ([string]$profile = "release", [string]$outdir = $null) {
     # The generated Windows API crate is large; avoid exhausting commit/pagefile on high-core hosts.
     $previousBuildJobs = $env:CARGO_BUILD_JOBS
     $previousHubVersion = $env:MOODFLOW_APP_VERSION
+    $previousHubAssertions = $env:CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS
     $env:MOODFLOW_APP_VERSION = $Version
-    $hubProfile = if ($profile -eq 'dev') { 'dev-variant' } else { 'release' }
+    # Tauri 2 build has no --profile option. Keep its release asset path and explicitly
+    # select cfg(debug_assertions), which controls Moodflow's dev process/pipe namespace.
+    $hubProfile = 'release'
+    $env:CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS = if ($profile -eq 'dev') { 'true' } else { 'false' }
     $hubConfig = Join-Path $CacheDir ("hub-build-" + [guid]::NewGuid().ToString('N') + '.json')
     New-Item -ItemType Directory -Path $CacheDir -Force | Out-Null
     $hubOverride = @{ version = $Version }
@@ -397,7 +401,7 @@ function Build-Hub ([string]$profile = "release", [string]$outdir = $null) {
         # @(输出..., $false), 非空数组为真, 构建失败被吞掉, 报错原文也看不到。
         pnpm install --frozen-lockfile | Out-Host
         if ($LASTEXITCODE -ne 0) { ErrMsg "Hub 前端依赖安装失败!"; return $false }
-        pnpm tauri build --no-bundle --profile $hubProfile --config $hubConfig | Out-Host
+        pnpm tauri build --no-bundle --config $hubConfig | Out-Host
         if ($LASTEXITCODE -ne 0) { ErrMsg "Moodflow Hub 构建失败!"; return $false }
         # Use the same native MSVC/static-CRT workspace policy as the Hub.
         cargo build --locked --profile $hubProfile -p moodflow-capture --manifest-path (Join-Path $ProductRoot 'Cargo.toml') | Out-Host
@@ -406,6 +410,7 @@ function Build-Hub ([string]$profile = "release", [string]$outdir = $null) {
         Pop-Location
         $env:CARGO_BUILD_JOBS = $previousBuildJobs
         $env:MOODFLOW_APP_VERSION = $previousHubVersion
+        $env:CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS = $previousHubAssertions
         Remove-Item -LiteralPath $hubConfig -ErrorAction SilentlyContinue
     }
     $exe = Join-Path (Get-CargoTargetDir $ProductRoot) "$hubProfile\moodflow_hub.exe"

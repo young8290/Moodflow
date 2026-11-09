@@ -65,6 +65,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::workspace::workspace_request,
             commands::sync::sync_request,
             commands::tools::tools_request,
+            commands::market::market_request,
             commands::data_export,
             commands::state_explain,
             commands::submit_feedback,
@@ -278,6 +279,7 @@ pub fn run() {
             let needs_onboarding = state.needs_onboarding()?;
             let cfg = consent::mfp_cfg(&ConsentState::load(&state.db())?);
             app.manage(state);
+            app.manage(commands::market::Runtime::default());
             vault::start(app.handle());
             capture::start(app.handle());
             // 第 4 步：AI 网关（无配置时为离线模式）
