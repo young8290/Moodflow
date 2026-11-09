@@ -23,6 +23,8 @@ use crate::coordinator::Coordinator;
 /// 方法与 Coordinator 固有方法同名时固有优先；转发 impl 内一律用完全限定路径
 /// `Coordinator::xxx(self)` 消歧，否则就是自调递归。
 pub trait WebDataHost {
+    fn tools_allowed(&self) -> bool;
+    fn read_buffer_text(&self) -> Result<String, String>;
     fn chord_settings(&self) -> (bool, String);
     fn reload_chord_profile(&self);
     fn stage_buffer_text(&self, text: &str) -> Result<(), String>;
@@ -249,6 +251,12 @@ pub trait WebDataHost {
 }
 
 impl WebDataHost for Coordinator {
+    fn tools_allowed(&self) -> bool {
+        crate::moodflow::input_privacy().input_allowed()
+    }
+    fn read_buffer_text(&self) -> Result<String, String> {
+        Coordinator::read_buffer_text(self)
+    }
     fn chord_settings(&self) -> (bool, String) {
         let rt = self.rt();
         (rt.config.chord.enabled, rt.config.chord.keymap.clone())

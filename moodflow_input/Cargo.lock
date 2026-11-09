@@ -1624,14 +1624,17 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "ed25519-dalek",
+ "flate2",
  "moodflow-candidate",
  "moodflow-manifest",
  "moodflow-market",
  "moodflow-plugin-api",
  "moodflow-plugin-host",
+ "moodflow-translate",
  "serde",
  "serde_json",
  "sha2",
+ "tempfile",
  "toml 0.8.23",
  "zip",
 ]
@@ -1661,6 +1664,15 @@ version = "0.1.0"
 dependencies = [
  "moodflow-config",
  "tracing",
+]
+
+[[package]]
+name = "moodflow-translate"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "sha2",
+ "thiserror",
 ]
 
 [[package]]
@@ -1743,6 +1755,7 @@ dependencies = [
  "moodflow-store",
  "moodflow-theme",
  "moodflow-transfer",
+ "moodflow-translate",
  "serde_json",
  "sha2",
  "tempfile",

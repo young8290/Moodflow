@@ -14,6 +14,8 @@ use specta::Type;
 use specta_typescript::Unknown;
 
 use crate::error::UiError;
+use crate::state::AppState;
+use tauri::State;
 
 /// `ime_config_set` 的一项：点分键名与新值。
 #[derive(Debug, Clone, Deserialize, Type)]
@@ -83,7 +85,11 @@ pub async fn ime_config_set(items: Vec<ImeItemInput>) -> Result<ImeSetResult, Ui
 /// Windows 工具只允许指定的数据操作；前端不能调用任意核心 RPC。
 #[tauri::command]
 #[specta::specta]
-pub async fn ime_tools(method: String, payload: String) -> Result<String, UiError> {
+pub async fn ime_tools(
+    state: State<'_, AppState>,
+    method: String,
+    payload: String,
+) -> Result<String, UiError> {
     const ALLOWED: &[&str] = &[
         "storage.health",
         "chord.get",
@@ -94,9 +100,21 @@ pub async fn ime_tools(method: String, payload: String) -> Result<String, UiErro
         "scheme.rimePreview",
         "scheme.rimeImport",
         "buffer.stage",
+        "buffer.read",
+        "tools.allowed",
+        "translate.lookup",
     ];
     if !ALLOWED.contains(&method.as_str()) || payload.len() > 2 * 1024 * 1024 {
         return Err(UiError::new("ime.tools_input", "tools.invalid"));
+    }
+    if ["buffer.read", "buffer.stage", "translate.lookup"].contains(&method.as_str())
+        && state
+            .status
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .paused
+    {
+        return Err(UiError::new("tools.privacy", "library.privacy"));
     }
     let params: Value = serde_json::from_str(&payload)
         .map_err(|_| UiError::new("ime.tools_input", "tools.invalid"))?;
@@ -106,6 +124,14 @@ pub async fn ime_tools(method: String, payload: String) -> Result<String, UiErro
         .map_err(|_| UiError::new("ime.tools_join", "error.generic"))?
         .map_err(|error| match error {
             ImeRpcError::Unavailable(_) => UiError::new("ime.unavailable", "error.ime_unavailable"),
+            ImeRpcError::Remote(ref message)
+                if message.contains("dictionary_") || message.contains("invalid_dictionary") =>
+            {
+                UiError::new("translate.dictionary", "translate.unavailable")
+            }
+            ImeRpcError::Remote(ref message) if message.contains("privacy_blocked") => {
+                UiError::new("tools.privacy", "library.privacy")
+            }
             _ => UiError::new("ime.tools_failed", "tools.failed"),
         })
 }

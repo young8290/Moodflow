@@ -152,6 +152,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::ime::ime_config_set,
             commands::ime::ime_tools,
             commands::library::library_request,
+            commands::citation::citation_request,
             commands::ime::plugins_list,
             commands::ime::plugins_inspect,
             commands::ime::plugins_install,

@@ -14,7 +14,15 @@ export const CHAT_OPEN_EVENT = 'mf:chat-open'
 
 /** 看板的页 */
 export type DashboardPage =
-  'today' | 'calendar' | 'weekly' | 'schedule' | 'mailbox' | 'chat_diary' | 'practice' | 'library'
+  | 'today'
+  | 'calendar'
+  | 'weekly'
+  | 'schedule'
+  | 'mailbox'
+  | 'chat_diary'
+  | 'practice'
+  | 'library'
+  | 'translation'
 
 /** 打开看板时要定位到的东西 */
 export interface DashboardNav {

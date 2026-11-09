@@ -1,0 +1,9 @@
+{
+  "file": "cedict-2026-11-08.txt.gz",
+  "url": "https://www.mdbg.net/chinese/export/cedict/cedict_1_0_ts_utf-8_mdbg.txt.gz",
+  "published": "2026-11-08T08:49:26Z",
+  "sha256": "85a742880b294197546c5c48b716a2811d7790367d98cc3ef814df8095fe991e",
+  "uncompressed_sha256": "535a18c3981c04bb05c389a5217ff38ef259b8d0a1adac2bf8081f3053f6116a",
+  "entries": 125394,
+  "license": "CC-BY-SA-4.0"
+}

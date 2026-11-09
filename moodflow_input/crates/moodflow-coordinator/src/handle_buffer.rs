@@ -330,6 +330,13 @@ fn deliver_error_tip(e: DeliverError) -> &'static str {
 }
 
 impl Coordinator {
+    /// 仅供用户在工具页主动点“读取 Buffer”。不绑定目标，也不修改队列。
+    pub fn read_buffer_text(&self) -> Result<String, String> {
+        if !crate::moodflow::input_privacy().input_allowed() {
+            return Err("当前隐私状态不允许读取 Buffer".into());
+        }
+        Ok(self.buffer.lock().buf.text())
+    }
     /// Hub 中经用户审核的文本只暂存，不绑定或投递到任何输入框。
     pub fn stage_buffer_text(&self, text: &str) -> Result<(), String> {
         if text.is_empty() || text.contains('\0') {
@@ -882,7 +889,16 @@ mod tests {
             Err(DeliverError::Suspended | DeliverError::NotBound)
         ));
         assert_eq!(c.buffer.lock().buf.text(), "来自资料库");
+        assert_eq!(c.read_buffer_text().unwrap(), "来自资料库");
         assert!(c.buffer.lock().pending.is_none());
+        crate::moodflow::TEST_PRIVACY.with(|p| {
+            p.set(Some(crate::moodflow::InputPrivacy {
+                private_field: true,
+                ..Default::default()
+            }))
+        });
+        assert!(c.read_buffer_text().is_err());
+        assert_eq!(c.buffer.lock().buf.text(), "来自资料库");
     }
 
     #[test]

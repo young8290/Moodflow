@@ -352,6 +352,7 @@ describe('情绪看板', () => {
       '对话与日记',
       '打字测速',
       '资料库',
+      '离线查词',
     ])
     expect(w.find('h1').text()).toBe('今日')
     await w.findAll('nav button')[1]!.trigger('click')

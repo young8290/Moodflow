@@ -100,6 +100,7 @@ fn dispose_contract_rows(
 use moodflow_coordinator::web_host::WebDataHost;
 
 mod plugins;
+mod translate;
 mod windows_tools;
 
 /// 解析方案的权威引擎类型（schema.toml 的 engine.type 可能为空，
@@ -549,6 +550,14 @@ pub trait WebDataRpc: WebDataHost {
                 Ok(json!({ "ok": self.plugin_reenable(id) }))
             }
             "storage.health" => Ok(json!({ "available": self.user_store().is_some() })),
+            "tools.allowed" => Ok(json!({ "allowed": self.tools_allowed() })),
+            "translate.lookup" => {
+                anyhow::ensure!(self.tools_allowed(), "privacy_blocked");
+                translate::lookup(str_param(params, "query")?)
+            }
+            "buffer.read" => {
+                Ok(json!({ "text": self.read_buffer_text().map_err(anyhow::Error::msg)? }))
+            }
             "chord.get" | "chord.save" | "chord.builtin" | "chord.readFile"
             | "chord.exportFile" | "scheme.rimePreview" | "scheme.rimeImport" => {
                 windows_tools::dispatch(self, method, params)

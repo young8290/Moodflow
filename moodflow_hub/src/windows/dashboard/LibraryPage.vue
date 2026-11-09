@@ -5,6 +5,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { commands, events, unwrap } from '@/api'
 import { errorText, t, type CopyKey } from '@/i18n'
+import CitationTools from './CitationTools.vue'
 
 interface Metadata {
   capsule: string
@@ -313,6 +314,12 @@ defineExpose({ canLeave })
             }}<input v-model="document.metadata[`reference_${field}`]" :disabled="busy"
           /></label>
         </div>
+        <CitationTools
+          v-if="document.metadata.capsule === 'pdf'"
+          :key="document.metadata.id"
+          :metadata="document.metadata"
+          @apply="Object.assign(document!.metadata, $event)"
+        />
         <label v-if="['note', 'skill'].includes(document.metadata.capsule)" class="body-label"
           >{{ t('library.body') }}<textarea v-model="document.body" spellcheck="false" :disabled="busy" />
         </label>

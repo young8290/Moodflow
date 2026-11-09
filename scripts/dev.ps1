@@ -696,6 +696,13 @@ function Assemble-Data ([string]$outdir = $BuildDevDir) {
         } else { Warn "缺 rime-emoji LICENSE, 该数据不得分发 (重跑 gen-data)" }
     } else { Warn "缺 .cache\rime-emoji\, emoji 扩展不可用 (运行 gen-data 下载)" }
 
+    Gray "生成离线中英词典 (固定 CC-CEDICT 快照) ..."
+    Push-Location $ProjectRoot
+    try {
+        cargo run -q -p moodflow-tools --bin gen_translation -- --src "$ProductRoot\data\translate" --out "$data\translate\cedict.mfcd"
+        if ($LASTEXITCODE -ne 0) { throw "离线词典生成或哈希验证失败" }
+    } finally { Pop-Location }
+
     $cnt = (Get-ChildItem $data -Recurse -File).Count
     Gray "data/ 组装完成 ($cnt 文件)"
     return $true
@@ -743,6 +750,8 @@ function Verify-DistData ([string]$outdir = $BuildDir) {
         @{ Path = "schemas\pinyin\cn_dicts\8105.dict.yaml"; Min = 10000 },
         @{ Path = "schemas\english\en.dict.yaml";           Min = 1000 },
         @{ Path = "pinyin_map.txt";                         Min = 10000 },
+          @{ Path = "translate\cedict.mfcd";                  Min = 1000000 },
+          @{ Path = "translate\CC-BY-SA-4.0.txt";             Min = 10000 },
         # 五笔词库为 gen_dict 生成物, 不入版本库 —— 忘跑 gen-data 时必须在此拦下,
         # 否则打出来的包五笔方案整个不可用
         @{ Path = "schemas\wubi86\wubi86_jidian.dict.yaml";       Min = 1000000 },
@@ -957,6 +966,7 @@ function Do-Full ([string]$profile = "release") {
     #       安装包的协议全文与完成页都指向这两个文件。
     Copy-Item (Join-Path $ProductRoot "LICENSE")   "$outdir\LICENSE"   -Force
     Copy-Item (Join-Path $ProductRoot "NOTICE.md") "$outdir\NOTICE.md" -Force
+    Copy-Item (Join-Path $ProductRoot "licenses") "$outdir\licenses" -Recurse -Force
     if (-not (Do-GenData     $outdir))          { return $false }   # data/
     if (-not (Verify-DistData $outdir))         { return $false }   # 硬门禁
     # 签 outdir 根层的 exe/dll。放在这里而不是各 Build-* 里: 并行构建时四路各签各的会

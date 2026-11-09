@@ -6,6 +6,7 @@ exclude = ["moodflow_input", "moodflow_linux", "moodflow_macos"]
 members = [
     "crates/mfp",
     "crates/moodflow-capsule",
+    "crates/moodflow-cite",
     "moodflow_hub/core",
     "moodflow_hub/gateway",
     "moodflow_hub/src-tauri",

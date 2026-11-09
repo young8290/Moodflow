@@ -669,6 +669,9 @@ assemble_data() {
         warn "缺 .cache/rime-emoji/，emoji 扩展不可用（运行 gen-data 下载）"
     fi
 
+    gray "生成离线中英词典 (固定 CC-CEDICT 快照) ..."
+    ( cd "$RUST_WORKSPACE" && cargo run -q -p moodflow-tools --bin gen_translation -- \
+        --src "$PRODUCT_ROOT/data/translate" --out "$data/translate/cedict.mfcd" ) || return 1
     gray "data/ 组装完成 ($(find "$data" -type f | wc -l) 文件)"
 }
 
@@ -1193,7 +1196,7 @@ do_gen_data() {
         warn "缺 .cache/pinyin-data/，拼音反查表不可用"
     fi
 
-    assemble_data "$outdir"
+    assemble_data "$outdir" || return 1
     say "gen-data 完成 → $outdir/data"
 }
 
@@ -1209,6 +1212,8 @@ verify_dist_data() {
         "schemas/pinyin/cn_dicts/8105.dict.yaml|10000"
         "schemas/english/en.dict.yaml|1000"
         "pinyin_map.txt|10000"
+        "translate/cedict.mfcd|1000000"
+        "translate/CC-BY-SA-4.0.txt|10000"
         # 五笔词库为 gen_dict 生成物、不入版本库 —— 忘跑 gen-data 时必须在此拦下
         "schemas/wubi86/wubi86_jidian.dict.yaml|1000000"
         "schemas/wubi86/wubi86_jidian_extra.dict.yaml|10000"
@@ -1293,6 +1298,8 @@ do_full() {
     build_tsf_all "$profile" "$outdir" || return 1   # moodflow_tsf[_x86][_dev].dll
     build_setting "$profile" "$outdir" || return 1   # wind_setting[_dev].exe (可选)
     build_portable "$profile" "$outdir" || return 1  # wind_portable.exe (可选)
+    cp -f "$PRODUCT_ROOT/LICENSE" "$PRODUCT_ROOT/NOTICE.md" "$outdir/"
+    cp -R "$PRODUCT_ROOT/licenses" "$outdir/licenses"
     do_gen_data   "$outdir"            || return 1   # data/(下载词库 + unigram/pinyin + opencc)
     verify_dist_data "$outdir"         || return 1   # 硬门禁:词库/模型完整
     say "\n========== 全构建完成 ($profile) → $outdir =========="

@@ -1,6 +1,6 @@
 # XSIME 吸收二期：工作区、Capsule、同步、LaTeX 与文献引用
 
-> 状态：**计划稿，全部未开工**（2026-10-18）。决定见 [ADR 0057](../adr/0057-扩大XSIME吸收范围.md)，修订
+> 状态：Windows 实现进行中（2026-11-09）；资料库、离线查词和文献工具的当前证据见 [Windows 交付清单](xsime-windows-delivery.md)。Android 暂停。决定见 [ADR 0057](../adr/0057-扩大XSIME吸收范围.md)，修订
 > [ADR 0056](../adr/0056-吸收XSIME基础功能与Android端.md) 第 9 条。一期（Buffer、矩阵、并击、剪贴板、导入、九宫格、Android）
 > 见 [xsime-feature-port-plan.md](xsime-feature-port-plan.md)。
 > 参考：XSIME `main`（[scholay/xsime](https://github.com/scholay/xsime)，Apache-2.0）的 `MAILBOX-WORKSPACES.md`、`CAPSULE.md`、

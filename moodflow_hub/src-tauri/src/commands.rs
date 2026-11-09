@@ -3,6 +3,7 @@
 
 pub mod ai;
 pub mod chat;
+pub mod citation;
 pub mod comfort;
 pub mod dashboard;
 pub mod diary;

@@ -45,6 +45,9 @@ moodflow-manifest = { path = "../../crates/moodflow-manifest" }
 moodflow-plugin-api = { path = "../../crates/moodflow-plugin-api" }
 moodflow-plugin-host = { path = "../../crates/moodflow-plugin-host" }
 moodflow-market = { path = "../../crates/moodflow-market" }
+moodflow-translate = { path = "../../crates/moodflow-translate" }
+flate2 = "1"
+tempfile = "3"
 ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
 sha2 = { workspace = true }
 serde_json = { workspace = true }

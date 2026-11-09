@@ -18,6 +18,7 @@ moodflow-theme = { path = "../moodflow-theme" }
 moodflow-candidate = { path = "../moodflow-candidate" }
 moodflow-keys = { path = "../moodflow-keys" }
 moodflow-chord = { path = "../moodflow-chord" }
+moodflow-translate = { path = "../moodflow-translate" }
 moodflow-transfer = { path = "../moodflow-transfer" }
 # 插件管理页（plugins.*）：本地包检查与安装、清单与能力。
 moodflow-market = { path = "../moodflow-market" }

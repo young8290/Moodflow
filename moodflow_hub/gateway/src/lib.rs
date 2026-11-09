@@ -280,3 +280,4 @@ mod tests {
         assert_eq!(budget_kind(Scenario::Schedule), BudgetKind::Llm);
     }
 }
+pub mod doi;

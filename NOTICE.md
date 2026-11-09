@@ -179,6 +179,27 @@ gitignore），用于生成词库数据文件，其各自适用原项目的许�
 
 ## 技术参考
 
+### CC-CEDICT 离线查词
+
+- **文件**：`data/translate/cedict-2026-11-08.txt.gz`、构建生成的 `data/translate/cedict.mfcd`
+- **来源**：[MDBG CC-CEDICT](https://www.mdbg.net/chinese/dictionary?page=cc-cedict)，2026-11-08 快照，125,394 条；原始头部完整保留
+- **署名**：Copyright (C) 1997, 1998 Paul Andrew Denisowski，及 CC-CEDICT 后续贡献者；MDBG 分发
+- **许可**：CC BY-SA 4.0，全文在 `data/translate/CC-BY-SA-4.0.txt`，压缩前后哈希在 `source.json`
+- **修改**：Moodflow 编译了繁简中文与英文释义索引，作 UTF-8 前缀压缩；衍生数据继续按原许可独立分发，不嵌进程序代码
+
+### XSIME 单条 GB/T 兼容引用格式
+
+- **文件**：`crates/moodflow-cite/src/lib.rs` 的 `gbt_compatible`
+- **来源**：[XSIME CapsuleReference.swift](https://github.com/scholay-xsime/xsime/blob/main/Sources/RimeBuffer/CapsuleReference.swift)
+- **版权**：XSIME contributors；Apache-2.0，全文在 `licenses/XSIME-Apache-2.0.txt`
+- **修改**：移植为 Rust；增加有界元数据校验和 DOI 规整。其余正式样式使用 CSL 处理器
+
+### Hayagriva 与 CSL 样式、语言文件
+
+- **来源**：[typst/hayagriva 0.10.1](https://github.com/typst/hayagriva)，代码采用其 MIT 许可（`licenses/Hayagriva-MIT.txt`）
+- **CSL 数据**：[Citation Style Language 官方样式库](https://github.com/citation-style-language/styles) 与 locales，CC BY-SA 3.0；全文和作者署名见 `licenses/CSL-CC-BY-SA-3.0.txt`、`licenses/Hayagriva-CSL-credits.md`
+- **修改**：载入样式时为只有标签／替代项的 `cs:names` 补显式默认姓名节点，兼容 Hayagriva 0.10.1 的可见性判定；保留原样式与继承的格式参数
+
 以下项目/文档作为实现参考，本项目未复制其代码：
 
 ### Windows TSF 官方文档
@@ -244,10 +265,9 @@ LGPL-3.0 许可的 emoji 映射表（rime-emoji）同样不入库，但发行版
 rime-emoji 的 LGPL-3.0 全文。该目录为履行「向每一位接收者提供许可证副本」
 （GPL-3.0 §4、LGPL-3.0、Apache-2.0 §4(a)）而设，打包时不得省略。
 
-⚠️ **尚未补全**：除 rime-emoji 外，其余 copyleft 上游（rime-frost 的 GPL-3.0、
-rime-stroke 的 LGPL-3.0）与 Apache-2.0 上游的许可证**全文**目前未随包分发——本文件
-的逐条声明不等于许可证副本。补齐方式是在 `scripts/dev.*` 的 gen-data 里逐个下载上游
-LICENSE 并复制进 `licenses/`。
+`licenses/` 已补充 rime-frost 的 GPL-3.0、rime-stroke 的 LGPL-3.0、pinyin-data 的 MIT、
+极点五笔上游仓库当前的 LICENSE，以及 Apache-2.0 全文（`XSIME-Apache-2.0.txt`）。
+原词库头部与上游声明仍保留；这些许可文件由 Windows／shell 全构建一并复制随包分发。
 
 Apache-2.0（极点五笔码表）与 Unicode-3.0（Unicode CLDR，当前仅研究用）
 均为宽松许可证，允许修改后再分发，其加工产物可直接包含在本仓库中，
