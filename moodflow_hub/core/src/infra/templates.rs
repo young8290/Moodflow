@@ -22,7 +22,7 @@ pub enum TemplateError {
     #[error("解析 {path} 失败：{source}")]
     Toml {
         path: PathBuf,
-        source: toml::de::Error,
+        source: Box<toml::de::Error>,
     },
     #[error("{file} 中的正则无法编译：{pattern}（{source}）")]
     Regex {
@@ -89,7 +89,7 @@ pub fn read_toml<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, Templat
     })?;
     toml::from_str(&text).map_err(|source| TemplateError::Toml {
         path: path.to_path_buf(),
-        source,
+        source: Box::new(source),
     })
 }
 
