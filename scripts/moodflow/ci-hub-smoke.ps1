@@ -17,7 +17,10 @@ Get-ChildItem -LiteralPath $payloadDir | Copy-Item -Destination $bin -Recurse
 [IO.File]::WriteAllText((Join-Path $bin 'portable_mode'),'')
 $user=Join-Path $bin 'localdata'
 New-Item -ItemType Directory -Path $user | Out-Null
-[IO.File]::WriteAllText((Join-Path $user 'config.toml'),"[moodflow]`nenabled = false`n")
+$configDir=Join-Path $bin 'userdata'
+New-Item -ItemType Directory -Path $configDir | Out-Null
+# Exercise the production watchdog race as well as explicit second-instance wakes.
+[IO.File]::WriteAllText((Join-Path $configDir 'config.toml'),"[moodflow]`nenabled = true`nhub_autostart = true`n")
 foreach ($name in @('temp','webview')) {
     New-Item -ItemType Directory -Path (Join-Path $fixture $name) | Out-Null
 }
@@ -48,12 +51,23 @@ function Start-Owned([string]$Name,[string[]]$Arguments) {
 }
 $core=$null
 $hub=$null
+$wake=$null
 New-Item -ItemType Directory -Force -Path (Join-Path $root 'dist') | Out-Null
 try {
     $core=Start-Owned 'moodflow_core.exe' @()
     $hub=Start-Owned 'moodflow_hub.exe' @('--open','dashboard')
+    $deadline=[DateTime]::UtcNow.AddSeconds(10)
+    do {
+        $hub.Refresh()
+        if ($hub.HasExited) { throw 'The owned Hub exited during native window creation.' }
+        if ($hub.MainWindowHandle -ne [IntPtr]::Zero) { break }
+        Start-Sleep -Milliseconds 50
+    } while ([DateTime]::UtcNow -lt $deadline)
+    if ($hub.MainWindowHandle -eq [IntPtr]::Zero) { throw 'The owned Hub did not create its native window.' }
+    $wake=Start-Owned 'moodflow_hub.exe' @('--background')
     & node (Join-Path $PSScriptRoot 'ci-hub-ui.mjs') $port (Join-Path $root 'dist/hub-ui-smoke.json')
     if ($LASTEXITCODE -ne 0) { throw 'Packaged Hub UI/native acceptance failed; see bounded synthetic report.' }
+    if (-not $wake.WaitForExit(10000) -or $wake.ExitCode -ne 0) { throw 'The background wake did not return to the existing instance.' }
 } finally {
     Add-Type -TypeDefinition @'
 using System;
@@ -144,8 +158,10 @@ target_link_libraries(hub_stack PRIVATE dbghelp psapi)
         hubWindowTitle=$(if ($null -ne $hub -and -not $hub.HasExited) { $hub.MainWindowTitle } else { '' })
         hubWindowHung=$(if ($null -ne $hub -and -not $hub.HasExited) { [MoodflowWindowProbe]::IsHungAppWindow($hub.MainWindowHandle) } else { $null })
         hubExitCode=$(if ($null -ne $hub -and $hub.HasExited) { $hub.ExitCode } else { $null })
+        backgroundWakeExited=($null -ne $wake -and $wake.HasExited)
+        backgroundWakeExitCode=$(if ($null -ne $wake -and $wake.HasExited) { $wake.ExitCode } else { $null })
     } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $root 'dist/hub-ui-processes.json') -Encoding utf8
-    foreach ($process in @($hub,$core)) {
+    foreach ($process in @($wake,$hub,$core)) {
         if ($null -ne $process) {
             try {
                 if (-not $process.HasExited) { $process.Kill($true); $process.WaitForExit(10000) | Out-Null }
