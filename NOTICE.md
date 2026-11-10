@@ -179,6 +179,27 @@ gitignore），用于生成词库数据文件，其各自适用原项目的许�
 
 ## 技术参考
 
+### CC-CEDICT 离线查词
+
+- **文件**：`data/translate/cedict-2026-11-08.txt.gz`、构建生成的 `data/translate/cedict.mfcd`
+- **来源**：[MDBG CC-CEDICT](https://www.mdbg.net/chinese/dictionary?page=cc-cedict)，2026-11-08 快照，125,394 条；原始头部完整保留
+- **署名**：Copyright (C) 1997, 1998 Paul Andrew Denisowski，及 CC-CEDICT 后续贡献者；MDBG 分发
+- **许可**：CC BY-SA 4.0，全文在 `data/translate/CC-BY-SA-4.0.txt`，压缩前后哈希在 `source.json`
+- **修改**：Moodflow 编译了繁简中文与英文释义索引，作 UTF-8 前缀压缩；衍生数据继续按原许可独立分发，不嵌进程序代码
+
+### XSIME 单条 GB/T 兼容引用格式
+
+- **文件**：`crates/moodflow-cite/src/lib.rs` 的 `gbt_compatible`
+- **来源**：[XSIME CapsuleReference.swift](https://github.com/scholay-xsime/xsime/blob/main/Sources/RimeBuffer/CapsuleReference.swift)
+- **版权**：XSIME contributors；Apache-2.0，全文在 `licenses/XSIME-Apache-2.0.txt`
+- **修改**：移植为 Rust；增加有界元数据校验和 DOI 规整。其余正式样式使用 CSL 处理器
+
+### Hayagriva 与 CSL 样式、语言文件
+
+- **来源**：[typst/hayagriva 0.10.1](https://github.com/typst/hayagriva)，代码采用其 MIT 许可（`licenses/Hayagriva-MIT.txt`）
+- **CSL 数据**：[Citation Style Language 官方样式库](https://github.com/citation-style-language/styles) 与 locales，CC BY-SA 3.0；全文和作者署名见 `licenses/CSL-CC-BY-SA-3.0.txt`、`licenses/Hayagriva-CSL-credits.md`
+- **修改**：载入样式时为只有标签／替代项的 `cs:names` 补显式默认姓名节点，兼容 Hayagriva 0.10.1 的可见性判定；保留原样式与继承的格式参数
+
 以下项目/文档作为实现参考，本项目未复制其代码：
 
 ### Windows TSF 官方文档
@@ -244,16 +265,31 @@ LGPL-3.0 许可的 emoji 映射表（rime-emoji）同样不入库，但发行版
 rime-emoji 的 LGPL-3.0 全文。该目录为履行「向每一位接收者提供许可证副本」
 （GPL-3.0 §4、LGPL-3.0、Apache-2.0 §4(a)）而设，打包时不得省略。
 
-⚠️ **尚未补全**：除 rime-emoji 外，其余 copyleft 上游（rime-frost 的 GPL-3.0、
-rime-stroke 的 LGPL-3.0）与 Apache-2.0 上游的许可证**全文**目前未随包分发——本文件
-的逐条声明不等于许可证副本。补齐方式是在 `scripts/dev.*` 的 gen-data 里逐个下载上游
-LICENSE 并复制进 `licenses/`。
+`licenses/` 已补充 rime-frost 的 GPL-3.0、rime-stroke 的 LGPL-3.0、pinyin-data 的 MIT、
+极点五笔上游仓库当前的 LICENSE，以及 Apache-2.0 全文（`XSIME-Apache-2.0.txt`）。
+原词库头部与上游声明仍保留；这些许可文件由 Windows／shell 全构建一并复制随包分发。
 
 Apache-2.0（极点五笔码表）与 Unicode-3.0（Unicode CLDR，当前仅研究用）
 均为宽松许可证，允许修改后再分发，其加工产物可直接包含在本仓库中，
 无 copyleft 传染性。
 
 ## 本项目的来源
+
+### Windows 配套程序与公式预览
+
+独立设置程序 [moodflow-setting](https://github.com/young8290/moodflow-setting) 源自 huanfeng/wind-setting 的 GPL-3.0-or-later 发布版本；完整对应源码与许可继续按该许可提供。便携启动器 [moodflow-portable](https://github.com/young8290/moodflow-portable) 源自其原项目仍采用 MIT 的提交 `1e0b047d805440e2fce52cb8bffcc5d9f0755e2c`，不包含后续更换许可后的代码。原作者和贡献者署名保留，随包 `licenses/` 包含两个程序的许可与确切构建提交说明。
+
+本地公式预览使用 [KaTeX 0.19.1](https://github.com/KaTeX/KaTeX)（MIT）。代码、样式与字体由构建时依赖打包，不访问远程渲染服务；许可全文见 `licenses/katex-MIT.txt`。
+
+### Windows 捕获工具
+
+`moodflow-capture` 使用 [windows-capture 2.0.1](https://github.com/NiiightmareXD/windows-capture)（MIT）实现 WGC、DXGI 和 Media Foundation 编码；
+使用 image 0.25、gif 0.14（MIT / Apache-2.0）处理本机图像与 GIF，rqrr 0.10（MIT / Apache-2.0，部分 ISC）识别二维码，g2gen / g2poly（MIT / Apache-2.0）为其依赖。
+许可全文已放入 `licenses/`，随安装数据分发。OCR 使用 Windows 自带离线 OCR，无随包云识别服务或远程端点。测试使用 qrcodegen（MIT）生成合成二维码，不随运行时分发。
+
+### Windows 工作区终端
+
+工作区以 Windows ConPTY 托管本机终端，VT 渲染使用 [xterm.js 6.0.0 及官方 Fit 扩展](https://github.com/xtermjs/xterm.js)（MIT）。许可分别随包保存在 `licenses/xterm-6.0.0-MIT.txt` 与 `licenses/xterm-addon-fit-0.11.0-MIT.txt`。不加载外部链接或剪贴板扩展，OSC 52 由工作台显式拦截。
 
 Moodflow 的输入法部分基于开源输入法项目 WindInput（https://github.com/huanfeng/WindInput，MIT 许可证），
 原项目的版权声明与许可全文保留在 [LICENSE](LICENSE) 中。Moodflow 的 logo 与应用图标是本项目自己的，

@@ -14,6 +14,8 @@ use specta::Type;
 use specta_typescript::Unknown;
 
 use crate::error::UiError;
+use crate::state::AppState;
+use tauri::State;
 
 /// `ime_config_set` 的一项：点分键名与新值。
 #[derive(Debug, Clone, Deserialize, Type)]
@@ -32,7 +34,7 @@ pub struct ImeConfig {
 
 fn rpc() -> ImeRpc {
     // 开发版 Hub 连开发版核心（管道名带 `_dev`），与 MFP 管道的规则一致
-    ImeRpc::from_env(cfg!(debug_assertions))
+    crate::ime_client::rpc()
 }
 
 async fn blocking<T: Send + 'static>(
@@ -80,12 +82,84 @@ pub async fn ime_config_set(items: Vec<ImeItemInput>) -> Result<ImeSetResult, Ui
     blocking(move |r| r.set_items(&items)).await
 }
 
+/// Windows 工具只允许指定的数据操作；前端不能调用任意核心 RPC。
+#[tauri::command]
+#[specta::specta]
+pub async fn ime_tools(
+    state: State<'_, AppState>,
+    method: String,
+    payload: String,
+) -> Result<String, UiError> {
+    const ALLOWED: &[&str] = &[
+        "storage.health",
+        "chord.get",
+        "chord.save",
+        "chord.builtin",
+        "chord.readFile",
+        "chord.exportFile",
+        "scheme.rimePreview",
+        "scheme.rimeImport",
+        "buffer.stage",
+        "buffer.read",
+        "tools.allowed",
+        "translate.lookup",
+        "clipboard.list",
+        "clipboard.action",
+    ];
+    if !ALLOWED.contains(&method.as_str()) || payload.len() > 2 * 1024 * 1024 {
+        return Err(UiError::new("ime.tools_input", "tools.invalid"));
+    }
+    if [
+        "buffer.read",
+        "buffer.stage",
+        "translate.lookup",
+        "clipboard.list",
+        "clipboard.action",
+    ]
+    .contains(&method.as_str())
+        && state
+            .status
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .paused
+    {
+        return Err(UiError::new("tools.privacy", "library.privacy"));
+    }
+    let params: Value = serde_json::from_str(&payload)
+        .map_err(|_| UiError::new("ime.tools_input", "tools.invalid"))?;
+    // Do not log input or remote text: profile mappings and staged content are private.
+    tauri::async_runtime::spawn_blocking(move || rpc().call(&method, params).map(|v| v.to_string()))
+        .await
+        .map_err(|_| UiError::new("ime.tools_join", "error.generic"))?
+        .map_err(|error| match error {
+            ImeRpcError::Unavailable(_) => UiError::new("ime.unavailable", "error.ime_unavailable"),
+            ImeRpcError::Remote(ref message)
+                if message.contains("dictionary_") || message.contains("invalid_dictionary") =>
+            {
+                UiError::new("translate.dictionary", "translate.unavailable")
+            }
+            ImeRpcError::Remote(ref message) if message.contains("privacy_blocked") => {
+                UiError::new("tools.privacy", "library.privacy")
+            }
+            _ => UiError::new("ime.tools_failed", "tools.failed"),
+        })
+}
+
 // ── 插件管理（07 FR-SET-12，plugin-system.md §11 P5）──────────────────────────
 // 装、卸、列表都在输入法核心里做（只有它知道用户目录在哪）；启用列表与安全模式是普通配置项
 // （`plugins.enabled` / `plugins.safe_mode`），界面用 `ime_config_set` 改。
 
 /// 插件命令的错误：核心给的 `plugins.*` 错误码映射成文案键 `error.plugin_*`，其余照常。
 fn plugin_error(e: ImeRpcError) -> UiError {
+    if let ImeRpcError::Remote(msg) = &e {
+        let code = msg
+            .split(|c: char| c == ':' || c.is_whitespace())
+            .next()
+            .unwrap_or("");
+        if super::market::CODES.contains(&code) {
+            return UiError::new(code, code);
+        }
+    }
     if let ImeRpcError::Remote(msg) = &e
         && let Some(code) = plugin_error_code(msg)
     {

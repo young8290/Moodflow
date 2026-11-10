@@ -995,6 +995,15 @@ fn user_long_word_promotion_end_to_end() {
         return;
     }
     let cfg = make_config(&["pinyin"]);
+    // Pin the exact-match baseline from this data snapshot. Homophone frequency
+    // changes must not turn a promotion-order test into a data assertion.
+    let exact = EngineManager::new(&cfg, Some(&dir))
+        .convert("qingfeng", 400)
+        .candidates
+        .into_iter()
+        .next()
+        .expect("qingfeng has a complete match");
+    assert!(!exact.is_prefix && !exact.is_promoted_completion);
     let sp = std::env::temp_dir().join("moodflow_e2e_longword.redb");
     let _ = std::fs::remove_file(&sp);
     let store = std::sync::Arc::new(moodflow_store::Store::open(&sp).unwrap());
@@ -1043,7 +1052,7 @@ fn user_long_word_promotion_end_to_end() {
         "qingfengshu 下轻风输入法应上浮"
     );
 
-    // ③ 仅 2 音节无残码（qingfeng）：精确整句「轻风」必须居首。
+    // ③ 仅 2 音节无残码（qingfeng）：原本的精确匹配必须居首。
     //
     // ⚠️ 这里**不再**断言「不上浮」。本用例的 `max_extra = 3`，而「轻风输入法」5 音节、
     // started 2 ⇒ 剩 3 ≤ 3 ⇒ 判据说该上浮，这是配置想要的行为。
@@ -1056,9 +1065,10 @@ fn user_long_word_promotion_end_to_end() {
     let r = mgr.convert("qingfeng", 400);
     assert_eq!(
         r.candidates.first().map(|c| c.text.as_str()),
-        Some("轻风"),
-        "qingfeng 首选应是精确整句「轻风」（上浮受 promotion_cap 封顶）"
+        Some(exact.text.as_str()),
+        "用户长词上浮不能挤掉原本的精确匹配（promotion_cap 封顶）"
     );
+    assert!(!r.candidates[0].is_promoted_completion);
 
     // ⚠️ **不要在这里补一段「收紧 max_extra ⇒ 不该上浮」的对照**。试过，它恒空过：
     // step 6.3 的 `retain` 用 `syllable_cap = started + max_extra` 裁 `is_prefix` 候选，

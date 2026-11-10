@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "dashboard-library",
+  "description": "资料库的显式导入、导出与删除/未保存确认。",
+  "windows": ["dashboard"],
+  "permissions": ["dialog:allow-open", "dialog:allow-save", "dialog:allow-confirm"]
+}

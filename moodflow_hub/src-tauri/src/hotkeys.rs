@@ -30,15 +30,27 @@ pub enum HotkeyAction {
     Widget,
     /// 打开看板
     Dashboard,
+    /// Clipboard history, independent of the active input method.
+    Clipboard,
+    /// Open the capture workbench; never starts recording without an explicit action.
+    Capture,
+    /// Open local library; staging and delivery still require explicit actions.
+    Library,
+    /// Open text/math tools; never sends a model request automatically.
+    AiTools,
     /// 开始 / 结束专注（FR-RST-10）：没在专注时按第一个预设（25 分钟）开始，专注中按下结束
     Focus,
 }
 
 impl HotkeyAction {
-    pub const ALL: [HotkeyAction; 4] = [
+    pub const ALL: [HotkeyAction; 8] = [
         HotkeyAction::Chat,
         HotkeyAction::Widget,
         HotkeyAction::Dashboard,
+        HotkeyAction::Clipboard,
+        HotkeyAction::Capture,
+        HotkeyAction::Library,
+        HotkeyAction::AiTools,
         HotkeyAction::Focus,
     ];
 
@@ -48,6 +60,10 @@ impl HotkeyAction {
             HotkeyAction::Chat => "hotkey.chat",
             HotkeyAction::Widget => "hotkey.widget",
             HotkeyAction::Dashboard => "hotkey.dashboard",
+            HotkeyAction::Clipboard => "hotkey.clipboard",
+            HotkeyAction::Capture => "hotkey.capture",
+            HotkeyAction::Library => "hotkey.library",
+            HotkeyAction::AiTools => "hotkey.ai_tools",
             HotkeyAction::Focus => "hotkey.focus",
         }
     }
@@ -111,6 +127,10 @@ fn run<R: Runtime>(app: &AppHandle<R>, action: HotkeyAction) -> Result<(), crate
     match action {
         HotkeyAction::Chat => windows::open(app, WindowTarget::Chat),
         HotkeyAction::Dashboard => windows::open(app, WindowTarget::Dashboard),
+        HotkeyAction::Clipboard => windows::open_clipboard(app),
+        HotkeyAction::Capture => windows::open_capture(app),
+        HotkeyAction::Library => windows::open_library(app),
+        HotkeyAction::AiTools => windows::open_ai_tools(app),
         HotkeyAction::Focus => {
             if let Some(focus) = app.try_state::<moodflow_hub_core::focus::FocusHandle>() {
                 if focus.status().active {

@@ -26,7 +26,7 @@ fn run(app: &AppHandle) -> ! {
     let mut backoff = Backoff::default();
     loop {
         // 连不上就是核心没运行，静默重试，不刷日志
-        if let Ok(mut events) = ImeEvents::connect(&endpoint) {
+        if let Ok(mut events) = crate::ime_client::events(&endpoint) {
             backoff.reset();
             emit(app, ImeConfigChange::connected());
             loop {

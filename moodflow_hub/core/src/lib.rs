@@ -21,4 +21,4 @@ pub mod schedule;
 pub mod sense;
 
 /// Hub 版本（MFP 下行 hello 的 `hub_ver`）。
-pub const HUB_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const HUB_VERSION: &str = env!("MOODFLOW_HUB_VERSION");

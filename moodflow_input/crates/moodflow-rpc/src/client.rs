@@ -30,6 +30,7 @@ pub fn call(suffix: &str, method: &str, params: Value) -> anyhow::Result<Value> 
     {
         use std::fs::OpenOptions;
         let mut stream = OpenOptions::new().read(true).write(true).open(&endpoint)?;
+        crate::security::verify_server(&stream)?;
         stream.write_all(&frame)?;
         finish(read_response(&mut stream)?)
     }

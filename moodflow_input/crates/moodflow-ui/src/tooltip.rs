@@ -1717,12 +1717,12 @@ mod tests {
     }
 
     /// 从气泡移回它所属的候选行（穿过空隙）：宽限到期时光标在候选行上 → 气泡留下，不挂
-    /// 跟踪（此后去留跟着候选悬停走）。mock 光标恒在 (0,0)。
+    /// 跟踪（此后去留跟着候选悬停走）。锚点覆盖真实或 mock 光标，不移动用户鼠标。
     #[test]
     fn grace_expiry_on_anchor_keeps_tip() {
         let (mut t, _rx) = tooltip_with_rx(false);
         t.visible.set(true);
-        t.set_anchor((-5, -5, 5, 5));
+        t.set_anchor((i32::MIN, i32::MIN, i32::MAX, i32::MAX));
         t.mouse_over.set(true);
         mouse_leave(&t);
         recheck_fires(&t);

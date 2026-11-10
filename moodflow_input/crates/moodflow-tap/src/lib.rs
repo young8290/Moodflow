@@ -455,6 +455,11 @@ impl Tap {
     pub fn set_app_lists(&self, blocklist: &[String], allowlist: &[String]) {
         self.shared.set_lists(Some(blocklist), Some(allowlist));
     }
+    /// Explicit capture uses the same live user rules as sensing, including Hub cfg updates.
+    pub fn explicit_apps_allowed(&self, apps: &[String]) -> bool {
+        let filter = self.shared.filter.read().unwrap_or_else(|e| e.into_inner());
+        apps.iter().all(|app| !filter.blocked_explicit(app))
+    }
 
     /// `moodflow.enabled` 变化：关闭时发 `bye{disabled}`、断开并停止监听。
     pub fn set_enabled(&self, on: bool) {

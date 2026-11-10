@@ -3,6 +3,7 @@
 //! 领域逻辑都在 `moodflow-hub-core`，这里只做参数校验 → 调用领域服务 → 转成 `UiError`（ADR 0007）。
 
 mod args;
+mod capture;
 mod chat;
 mod cleanup;
 mod comfort;
@@ -16,6 +17,7 @@ mod focus;
 mod fullscreen;
 mod gateway;
 mod hotkeys;
+mod ime_client;
 mod ime_events;
 mod letter;
 #[cfg(windows)]
@@ -23,6 +25,7 @@ mod mfp_pipe;
 mod notify;
 mod paths;
 mod pets;
+mod private_fs;
 mod procs;
 mod pulse;
 mod research;
@@ -34,7 +37,12 @@ mod secrets;
 mod sensing;
 mod sim;
 mod state;
+mod sync;
+mod tool_data;
+mod vault;
+mod vault_platform;
 mod windows;
+mod workspace;
 
 use std::path::Path;
 
@@ -55,6 +63,10 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new()
         .commands(collect_commands![
             commands::get_status,
+            commands::workspace::workspace_request,
+            commands::sync::sync_request,
+            commands::tools::tools_request,
+            commands::market::market_request,
             commands::data_export,
             commands::state_explain,
             commands::submit_feedback,
@@ -149,6 +161,11 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::ime::ime_config_get,
             commands::ime::ime_config_defaults,
             commands::ime::ime_config_set,
+            commands::ime::ime_tools,
+            commands::library::library_request,
+            commands::citation::citation_request,
+            commands::capture::capture_request,
+            commands::vault::vault_request,
             commands::ime::plugins_list,
             commands::ime::plugins_inspect,
             commands::ime::plugins_install,
@@ -197,7 +214,10 @@ pub fn run() {
     let launch = LaunchArgs::parse(std::env::args().skip(1));
     // 删除全部数据（FR-DAT-04，ADR 0037）：上次确认删除后重启到这里，任何东西打开数据库之前先删
     if let Ok(dir) = paths::hub_data_dir() {
-        match moodflow_hub_core::infra::wipe::apply_pending(&dir, secrets::SECRETS_FILE) {
+        let result = paths::tool_data_dir()
+            .map_err(std::io::Error::other)
+            .and_then(|tools| tool_data::apply_pending(&dir, &tools));
+        match result {
             Ok(Some(r)) => {
                 // Hub 的日志文件也一并删掉（FR-DAT-04）；输入法核心的日志归核心管
                 if let Ok(logs) = paths::log_dir() {
@@ -207,21 +227,34 @@ pub fn run() {
             }
             Ok(None) => {}
             // 删不掉（文件被占用）时标记留着，下次启动接着删
-            Err(e) => crate::hlog!("删除全部数据未完成，下次启动重试：{e}"),
+            Err(e) => {
+                crate::hlog!("删除全部数据未完成，下次启动重试：{e}");
+                return;
+            }
         }
     }
     // 演示模式要在任何服务取时钟之前定下来：`--demo` 或真实库里的 `dev.demo`（ADR 0023、0025）
     let demo_key = paths::hub_data_dir().is_ok_and(|d| sim::demo_setting(&d));
     sim::set_demo(launch.demo || demo_key);
     let builder = specta_builder();
+    let (window_requests, window_rx) = std::sync::mpsc::sync_channel::<WindowTarget>(32);
 
     tauri::Builder::default()
+        .manage(window_requests)
         // 单实例（17 第 2.2 节第 1 步）：第二个实例把参数转交给已运行的实例后退出
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             let again = LaunchArgs::parse(argv.into_iter().skip(1));
-            let target = again.open.unwrap_or(WindowTarget::Widget);
-            if let Err(e) = windows::open(app, target) {
-                crate::hlog!("打开窗口失败：{e}");
+            let Some(target) = again.reopen_target() else {
+                return;
+            };
+            // Windows delivers this callback inside WM_COPYDATA, including while
+            // WebView2 pumps COM messages for the first window. Do not construct
+            // another WebView inline on that reentrant window procedure.
+            if let Err(error) = app
+                .state::<std::sync::mpsc::SyncSender<WindowTarget>>()
+                .try_send(target)
+            {
+                crate::hlog!("窗口请求未排队：{error}");
             }
         }))
         // 系统“另存为”对话框：设置页“导出我的数据”选保存位置（FR-DAT-03）；权限只给设置窗口，见 capabilities/settings.json
@@ -257,6 +290,9 @@ pub fn run() {
             let needs_onboarding = state.needs_onboarding()?;
             let cfg = consent::mfp_cfg(&ConsentState::load(&state.db())?);
             app.manage(state);
+            app.manage(commands::market::Runtime::default());
+            vault::start(app.handle());
+            capture::start(app.handle());
             // 第 4 步：AI 网关（无配置时为离线模式）
             app.manage(gateway::start(app.handle(), &data_dir));
             // 第 5 步：MFP 客户端与实时感知。Hub 是同意状态的唯一真相源，握手后立即下发 cfg
@@ -275,6 +311,7 @@ pub fn run() {
             research::start(app.handle());
             // 对话与对话里的危机安全（C-07、C-08）
             chat::start(app.handle());
+            workspace::start(app.handle());
             diary::start(app.handle());
             rewrite::start(app.handle());
             evening::start(app.handle());
@@ -282,22 +319,46 @@ pub fn run() {
             // 日程与待办识别、提醒调度（C-05、C-06）
             schedule::start(app.handle());
 
-            // 第 6 步：首次运行或隐私说明升级 → 引导窗口；否则显示小组件（`widget.visible` 关闭时不显示）。
-            // 核心以 `--background` 拉起时同样走这一步（03 第 3.1 节），区别只是不额外打开其他窗口。
-            if needs_onboarding {
-                windows::open(app.handle(), WindowTarget::Onboarding)?;
-            } else if app.state::<state::AppState>().widget_visible()? {
-                windows::open(app.handle(), WindowTarget::Widget)?;
-            }
-            if let Some(target) = launch.open {
-                windows::open(app.handle(), target)?;
-            }
+            let show_widget =
+                !needs_onboarding && app.state::<state::AppState>().widget_visible()?;
             app.manage(hotkeys::Hotkeys::default());
             hotkeys::apply(app.handle());
             // 前台全屏时自动隐藏小组件（FR-WGT-01）
             fullscreen::start(app.handle());
             // 输入法配置变更：设置中心跟着刷新（ADR 0017）
             ime_events::start(app.handle());
+            // Finish setup before WebView2 can call back into native commands.
+            // Window creation pumps COM messages on Windows; creating the first
+            // WebView inline can re-enter a partially initialized application.
+            // A separate thread queues construction onto the running event loop.
+            let handle = app.handle().clone();
+            std::thread::Builder::new()
+                .name("hub-startup-windows".into())
+                .spawn(move || {
+                    let initial = if needs_onboarding {
+                        Some(WindowTarget::Onboarding)
+                    } else if show_widget {
+                        Some(WindowTarget::Widget)
+                    } else {
+                        None
+                    };
+                    // Second-instance requests wait behind the initial windows;
+                    // they cannot reenter a first WebView still being constructed.
+                    let initial = initial.into_iter().chain(launch.open).map(|t| (t, true));
+                    let requests = window_rx.into_iter().map(|t| (t, false));
+                    for (target, startup) in initial.chain(requests) {
+                        crate::hlog!("打开窗口：{}", target.label());
+                        if let Err(error) = windows::open(&handle, target) {
+                            crate::hlog!("打开窗口失败：{error}");
+                            if startup {
+                                handle.exit(1);
+                                return;
+                            }
+                            continue;
+                        }
+                        crate::hlog!("窗口已就绪：{}", target.label());
+                    }
+                })?;
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -309,6 +370,16 @@ pub fn run() {
             } => api.prevent_exit(),
             // 托管状态在退出时不一定会被析构，这里把排队中的写入提交掉（ADR 0020）
             tauri::RunEvent::Exit => {
+                if let Some(workspace) = app.try_state::<std::sync::Arc<workspace::Runtime>>() {
+                    workspace.stop_all();
+                }
+                if let Some(capture) = app.try_state::<std::sync::Arc<capture::Runtime>>() {
+                    capture.cancel(true);
+                    capture.sweep_clipboard(false);
+                }
+                if let Some(vault) = app.try_state::<std::sync::Arc<vault::Runtime>>() {
+                    vault.lock();
+                }
                 if let Some(state) = app.try_state::<state::AppState>() {
                     state.writer().flush();
                 }

@@ -5,6 +5,12 @@ resolver = "2"
 exclude = ["moodflow_input", "moodflow_linux", "moodflow_macos"]
 members = [
     "crates/mfp",
+    "crates/moodflow-capsule",
+    "crates/moodflow-cite",
+    "crates/moodflow-vault",
+    "crates/moodflow-mailbox",
+    "crates/moodflow-sync",
+    "crates/moodflow-latex",
     "moodflow_hub/core",
     "moodflow_hub/gateway",
     "moodflow_hub/src-tauri",
@@ -12,6 +18,7 @@ members = [
     "tools/mock-ai",
     "tools/typer",
     "tools/db-grep",
+    "tools/moodflow-capture",
 ]
 
 [workspace.package]

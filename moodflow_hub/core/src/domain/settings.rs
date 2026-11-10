@@ -399,6 +399,26 @@ pub const KEYS: &[KeySpec] = &[
         kind: Kind::Text(SettingItem::Hotkey),
         default: || "ctrl+alt+d".into(),
     },
+    KeySpec {
+        key: "hotkey.clipboard",
+        kind: Kind::Text(SettingItem::Hotkey),
+        default: || "ctrl+alt+h".into(),
+    },
+    KeySpec {
+        key: "hotkey.capture",
+        kind: Kind::Text(SettingItem::Hotkey),
+        default: || "ctrl+shift+a".into(),
+    },
+    KeySpec {
+        key: "hotkey.library",
+        kind: Kind::Text(SettingItem::Hotkey),
+        default: || "ctrl+alt+l".into(),
+    },
+    KeySpec {
+        key: "hotkey.ai_tools",
+        kind: Kind::Text(SettingItem::Hotkey),
+        default: || "ctrl+alt+t".into(),
+    },
     // 开始 / 结束专注（FR-RST-10）：07 第 2 节写“默认不设置”
     KeySpec {
         key: "hotkey.focus",

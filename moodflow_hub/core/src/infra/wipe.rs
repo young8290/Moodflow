@@ -25,6 +25,9 @@ pub const DB_FILES: &[&str] = &["moodflow.db", "moodflow_demo.db"];
 pub struct WipeRequest {
     /// 连 AI 密钥一起删
     pub include_secrets: bool,
+    /// Explicitly confirmed in the current UI; legacy requests preserve new tool data.
+    #[serde(default)]
+    pub include_tools: bool,
     /// 用户确认的时刻（Unix 毫秒），只记在标记里方便排查
     pub requested_at: i64,
 }
@@ -42,6 +45,7 @@ pub fn pending(data_dir: &Path) -> Option<WipeRequest> {
     let bytes = std::fs::read(data_dir.join(MARKER)).ok()?;
     Some(serde_json::from_slice(&bytes).unwrap_or(WipeRequest {
         include_secrets: false,
+        include_tools: false,
         requested_at: 0,
     }))
 }
@@ -183,6 +187,7 @@ mod tests {
             dir.path(),
             &WipeRequest {
                 include_secrets: false,
+                include_tools: false,
                 requested_at: 1,
             },
         )
@@ -207,6 +212,7 @@ mod tests {
             dir.path(),
             &WipeRequest {
                 include_secrets: true,
+                include_tools: false,
                 requested_at: 1,
             },
         )

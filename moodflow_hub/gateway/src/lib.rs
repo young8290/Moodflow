@@ -10,6 +10,7 @@
 mod config;
 mod error;
 mod http;
+mod image;
 mod jev;
 mod llm;
 mod metrics;
@@ -31,6 +32,7 @@ pub use config::{
     ApiKey, DEFAULT_MODELS, DEV_BASE, GatewayConfig, JevConfig, LlmConfig, ScenarioParams,
 };
 pub use error::BuildError;
+pub use image::InlineImage;
 pub use llm::{ModelProbe, ModelStatus};
 pub use metrics::ApiMetrics;
 pub use secrets::{AiSecrets, JevSecret, LlmSecret, MaskedSecrets, MaskedSide, SecretsError};
@@ -186,6 +188,36 @@ impl HttpGateway {
         self.take_budget(budget_kind(s))?;
         Ok(llm)
     }
+    /// Workspace sessions keep the exact chosen model; a failure never switches models.
+    pub async fn complete_pinned(
+        &self,
+        req: CompleteRequest,
+        model: &str,
+    ) -> Result<CompleteResponse, AiError> {
+        let result = self
+            .llm_for(req.scenario)?
+            .complete_pinned(&req, model)
+            .await;
+        self.publish_health();
+        result
+    }
+    /// User-invoked tools: a single bounded request to the exact selected model.
+    pub async fn complete_tool(
+        &self,
+        req: CompleteRequest,
+        model: &str,
+        images: &[InlineImage],
+    ) -> Result<CompleteResponse, AiError> {
+        if images.len() > 3 {
+            return Err(AiError::BadRequest);
+        }
+        let result = self
+            .llm_for(req.scenario)?
+            .complete_tool(&req, model, images)
+            .await;
+        self.publish_health();
+        result
+    }
 }
 
 #[async_trait]
@@ -280,3 +312,5 @@ mod tests {
         assert_eq!(budget_kind(Scenario::Schedule), BudgetKind::Llm);
     }
 }
+pub mod doi;
+pub mod reference;

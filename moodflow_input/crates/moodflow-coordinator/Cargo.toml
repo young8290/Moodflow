@@ -68,6 +68,7 @@ desktop-ui = ["dep:moodflow-ui"]
 linux-host = ["desktop-ui", "moodflow-ui/linux-host", "moodflow-bridge/linux-host"]
 
 [dev-dependencies]
+moodflow-rpc = { path = "../moodflow-rpc" }
 # tests/ 的数据域 RPC 断言经 moodflow-webdata（dev 环允许）
 moodflow-webdata = { path = "../moodflow-webdata" }
 moodflow-config = { path = "../moodflow-config" }

@@ -5,6 +5,53 @@ use super::*;
 
 const HOST: &str = "0.130.0";
 
+#[test]
+fn signed_withdrawal_blocks_loading_after_restart_and_manual_enable() {
+    use ed25519_dalek::{Signer, SigningKey};
+    let root = tmp("withdrawal");
+    let data = root.join("private");
+    let id = "org.example.revoked";
+    let wasm = module("", &returns("mf_candidates", 1024, "[]"));
+    install(
+        &root,
+        id,
+        &manifest(id, "candidate_provider = {}", "", "\"windows\""),
+        &wasm,
+    );
+    let enabled = vec![id.to_string()];
+    let options = opts(&root, &data, &enabled, Arc::new(|_, _| {}));
+    assert_eq!(Registry::load(&options).1.loaded, enabled);
+    let key = SigningKey::from_bytes(&[19; 32]);
+    let hex = |bytes: &[u8]| bytes.iter().map(|b| format!("{b:02x}")).collect::<String>();
+    let policy = moodflow_market::catalog::configure(
+        &root,
+        "",
+        Some(moodflow_market::catalog::Source {
+            label: "Fixture".into(),
+            url: "https://example.com/index.json".into(),
+            public_key: hex(key.verifying_key().as_bytes()),
+        }),
+    )
+    .unwrap();
+    let text=serde_json::json!({"version":1,"generated_at":"2026-11-09T12:00:00Z","plugins":[],"revoked":[{"id":id,"reason":"withdrawn"}]}).to_string();
+    moodflow_market::catalog::accept(
+        &root,
+        &policy.revision(),
+        text.clone(),
+        hex(&key.sign(text.as_bytes()).to_bytes()),
+        1794225600,
+    )
+    .unwrap();
+    let (mut registry, report) = Registry::load(&options);
+    assert!(registry.is_empty());
+    assert!(!registry.reenable(id));
+    assert_eq!(report.failed, vec![(id.into(), "market.withdrawn".into())]);
+    std::fs::write(root.join(moodflow_market::catalog::POLICY_FILE), b"broken").unwrap();
+    let (registry, report) = Registry::load(&options);
+    assert!(registry.is_empty());
+    assert_eq!(report.failed[0].1, "market.invalid");
+}
+
 fn tmp(name: &str) -> PathBuf {
     let d = std::env::temp_dir().join(format!("mf-registry-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&d);

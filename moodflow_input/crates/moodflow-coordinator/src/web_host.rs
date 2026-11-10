@@ -23,6 +23,20 @@ use crate::coordinator::Coordinator;
 /// 方法与 Coordinator 固有方法同名时固有优先；转发 impl 内一律用完全限定路径
 /// `Coordinator::xxx(self)` 消歧，否则就是自调递归。
 pub trait WebDataHost {
+    fn tools_allowed(&self) -> bool;
+    fn capture_allowed(&self, _apps: &[String]) -> bool {
+        false
+    }
+    fn read_buffer_text(&self) -> Result<String, String>;
+    fn chord_settings(&self) -> (bool, String);
+    fn reload_chord_profile(&self);
+    fn stage_buffer_text(&self, text: &str) -> Result<(), String>;
+    fn clipboard_history(&self) -> Vec<moodflow_clipboard::Entry> {
+        Vec::new()
+    }
+    fn clipboard_action(&self, _action: &str, _id: u64, _pinned: bool) -> Result<bool, String> {
+        Err("clipboard_unavailable".into())
+    }
     fn engine_mgr(&self) -> &EngineManager;
     fn user_store(&self) -> Option<&Arc<Store>>;
     fn stat_collector(&self) -> Option<&StatCollector>;
@@ -246,6 +260,34 @@ pub trait WebDataHost {
 }
 
 impl WebDataHost for Coordinator {
+    fn capture_allowed(&self, apps: &[String]) -> bool {
+        let rt = self.rt();
+        let config = &rt.config.moodflow;
+        let filter = moodflow_tap::AppFilter::new(&config.app_blocklist, &config.app_allowlist);
+        crate::moodflow::reviewed_capture_apps_allowed(apps, &filter)
+    }
+    fn clipboard_history(&self) -> Vec<moodflow_clipboard::Entry> {
+        Coordinator::clipboard_entries(self)
+    }
+    fn clipboard_action(&self, action: &str, id: u64, pinned: bool) -> Result<bool, String> {
+        self.reviewed_clipboard_action(action, id, pinned)
+    }
+    fn tools_allowed(&self) -> bool {
+        crate::moodflow::reviewed_tools_allowed()
+    }
+    fn read_buffer_text(&self) -> Result<String, String> {
+        Coordinator::read_buffer_text(self)
+    }
+    fn chord_settings(&self) -> (bool, String) {
+        let rt = self.rt();
+        (rt.config.chord.enabled, rt.config.chord.keymap.clone())
+    }
+    fn reload_chord_profile(&self) {
+        self.invalidate_chord_profile();
+    }
+    fn stage_buffer_text(&self, text: &str) -> Result<(), String> {
+        Coordinator::stage_buffer_text(self, text)
+    }
     fn template_sample(
         &self,
         template: &str,

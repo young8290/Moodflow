@@ -283,6 +283,16 @@ pub fn shutdown() {
 fn tap() -> Option<&'static Arc<Tap>> {
     TAP.get()
 }
+pub(crate) fn reviewed_capture_apps_allowed(
+    apps: &[String],
+    fallback: &moodflow_tap::AppFilter,
+) -> bool {
+    reviewed_tools_allowed()
+        && tap().map_or_else(
+            || apps.iter().all(|app| !fallback.blocked_explicit(app)),
+            |tap| tap.explicit_apps_allowed(apps),
+        )
+}
 
 impl Coordinator {
     /// state.toml 里记着的无痕状态（`moodflow.remember_pause` 打开时启动恢复用）。
@@ -741,6 +751,52 @@ pub(crate) struct InputPrivacy {
 impl InputPrivacy {
     pub(crate) fn input_allowed(&self) -> bool {
         !(self.private_field || self.secure_desktop || self.incognito || self.app_blocked)
+    }
+}
+
+/// User-invoked Hub tools are distinct from passive input extensions. The Hub is
+/// always excluded from MFP sensing, so that exclusion must not disable its own
+/// reviewed Buffer / dictionary actions. Password, secure desktop and pause gates
+/// still apply; passive clipboard, plugins and sensing keep using input_allowed.
+pub(crate) fn reviewed_tools_allowed() -> bool {
+    reviewed_tool_policy(input_privacy(), focus_in_own_app())
+}
+
+fn reviewed_tool_policy(privacy: InputPrivacy, own_app: bool) -> bool {
+    !privacy.private_field
+        && !privacy.secure_desktop
+        && !privacy.incognito
+        && (!privacy.app_blocked || own_app)
+}
+
+#[cfg(test)]
+mod reviewed_tool_policy_tests {
+    use super::*;
+    #[test]
+    fn own_hub_exclusion_does_not_disable_explicit_tools_or_open_passive_gates() {
+        let own = InputPrivacy {
+            app_blocked: true,
+            ..Default::default()
+        };
+        assert!(!own.input_allowed());
+        assert!(reviewed_tool_policy(own, true));
+        assert!(!reviewed_tool_policy(own, false));
+        for privacy in [
+            InputPrivacy {
+                private_field: true,
+                ..own
+            },
+            InputPrivacy {
+                secure_desktop: true,
+                ..own
+            },
+            InputPrivacy {
+                incognito: true,
+                ..own
+            },
+        ] {
+            assert!(!reviewed_tool_policy(privacy, true));
+        }
     }
 }
 

@@ -82,7 +82,11 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm, cache-dependency-path: moodflow_hub/pnpm-lock.yaml }
       - run: cargo test --workspace
-      - run: cargo build --release -p mf-sim -p mock-ai -p moodflow-hub-core
+      - name: 在隔离 Windows 运行器验证敏感剪贴板
+        run: cargo test --locked -p moodflow-hub --lib vault_platform::tests::private_clipboard_markers_and_newer_copy_preservation -- --ignored --test-threads=1
+      - name: 在隔离桌面验证合成窗口 WGC、离线 OCR 与 H.264
+        run: cargo test --locked -p moodflow-capture isolated_window_capture_ocr_and_h264 -- --ignored --test-threads=1
+      - run: cargo build --release -p mf-sim -p mock-ai -p moodflow-hub-core -p moodflow-capture
       - name: 构建 Hub（只出可执行文件，不打安装包，03 第 7 节）
         working-directory: moodflow_hub
         run: |

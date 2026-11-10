@@ -13,7 +13,7 @@ use std::collections::BTreeSet;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+use ed25519_dalek::{Signature, VerifyingKey};
 use moodflow_plugin_api::{
     Capability, Kind, Manifest, PROTECTED_FILES, Platform, Version, added_capabilities,
 };
@@ -21,6 +21,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 pub const INDEX_FORMAT: u32 = 1;
+pub mod catalog;
 /// 单个插件包的大小上限。
 pub const MAX_PACKAGE_BYTES: u64 = 32 * 1024 * 1024;
 const MAX_ENTRIES: usize = 2000;
@@ -112,7 +113,7 @@ pub fn verify_index(
     let sig_bytes: [u8; 64] = unhex(signature_hex.trim())
         .and_then(|v| v.try_into().ok())
         .ok_or(MarketError::BadSignature)?;
-    key.verify(index_json, &Signature::from_bytes(&sig_bytes))
+    key.verify_strict(index_json, &Signature::from_bytes(&sig_bytes))
         .map_err(|_| MarketError::BadSignature)?;
     let index: Index =
         serde_json::from_slice(index_json).map_err(|e| MarketError::BadIndex(e.to_string()))?;

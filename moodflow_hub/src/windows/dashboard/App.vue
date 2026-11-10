@@ -3,18 +3,27 @@
 // 看板不展示用户在别的程序里打的字（FR-DSH-01，库里本来也没有）；日记与对话是用户在 Moodflow 里写的，按 FR-DIA-03 查看。
 // 别的窗口要看板打开某一页（底栏、卡片层、一句话区）时经 shared/bus.ts 传 `{ page, edit?, letter? }`；
 // 地址栏 #weekly 等也能直接打开对应页。
-import { onBeforeUnmount, onMounted, ref, type Component } from 'vue'
+import { defineAsyncComponent, onBeforeUnmount, onMounted, ref, type Component } from 'vue'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { t, type CopyKey } from '@/i18n'
 import CalendarPage from './CalendarPage.vue'
 import ChatDiaryPage from './ChatDiaryPage.vue'
 import MailboxPage from './MailboxPage.vue'
 import PracticePage from './PracticePage.vue'
+import LibraryPage from './LibraryPage.vue'
+import TranslationPage from './TranslationPage.vue'
+import VaultPage from './VaultPage.vue'
+import ClipboardPage from './ClipboardPage.vue'
+import CapturePage from './CapturePage.vue'
 import SchedulePage from './SchedulePage.vue'
 import TodayPage from './TodayPage.vue'
 import WeeklyPage from './WeeklyPage.vue'
 import { onDashboardNav, takeDashboardNav, type DashboardNav, type DashboardPage } from '../shared/bus'
 import './dashboard.css'
+
+const WorkspacePage = defineAsyncComponent(() => import('./WorkspacePage.vue'))
+const SyncPage = defineAsyncComponent(() => import('./SyncPage.vue'))
+const AiToolsPage = defineAsyncComponent(() => import('./AiToolsPage.vue'))
 
 const PAGES: { id: DashboardPage; title: CopyKey; component: Component }[] = [
   { id: 'today', title: 'dashboard.nav.today', component: TodayPage },
@@ -24,11 +33,20 @@ const PAGES: { id: DashboardPage; title: CopyKey; component: Component }[] = [
   { id: 'mailbox', title: 'dashboard.nav.mailbox', component: MailboxPage },
   { id: 'chat_diary', title: 'dashboard.nav.chat_diary', component: ChatDiaryPage },
   { id: 'practice', title: 'dashboard.nav.practice', component: PracticePage },
+  { id: 'library', title: 'library.title', component: LibraryPage },
+  { id: 'translation', title: 'translate.title', component: TranslationPage },
+  { id: 'vault', title: 'vault.title', component: VaultPage },
+  { id: 'clipboard', title: 'clipboard.title', component: ClipboardPage },
+  { id: 'capture', title: 'capture.title', component: CapturePage },
+  { id: 'workspace', title: 'workspace.title', component: WorkspacePage },
+  { id: 'sync', title: 'sync.title', component: SyncPage },
+  { id: 'ai_tools', title: 'ai_tools.title', component: AiToolsPage },
 ]
 
 const fromHash = PAGES.find((p) => `#${p.id}` === location.hash)?.id
 const initial = takeDashboardNav()
 const current = ref<DashboardPage>(initial?.page ?? fromHash ?? 'today')
+const activePage = ref<{ canLeave?: () => Promise<boolean> } | null>(null)
 /** 跳页时带来的定位（打开哪条日程的编辑框、哪封信）；只给对应的页 */
 const nav = ref<DashboardNav | null>(initial)
 let unlisten: UnlistenFn | null = null
@@ -43,14 +61,16 @@ function pageProps(): Record<string, unknown> {
   return {}
 }
 
-function go(id: DashboardPage): void {
+async function go(id: DashboardPage): Promise<void> {
+  if (activePage.value?.canLeave && !(await activePage.value.canLeave())) return
   current.value = id
   nav.value = null
 }
 
 onMounted(async () => {
   try {
-    unlisten = await onDashboardNav((n) => {
+    unlisten = await onDashboardNav(async (n) => {
+      if (activePage.value?.canLeave && !(await activePage.value.canLeave())) return
       current.value = n.page
       nav.value = n
     })
@@ -77,7 +97,7 @@ onBeforeUnmount(() => unlisten?.())
       </button>
     </nav>
     <main class="page">
-      <component :is="page().component" :key="current" v-bind="pageProps()" />
+      <component :is="page().component" :key="current" ref="activePage" v-bind="pageProps()" />
     </main>
   </div>
 </template>
@@ -89,6 +109,7 @@ onBeforeUnmount(() => unlisten?.())
 }
 
 .nav {
+  overflow-y: auto;
   display: flex;
   flex: none;
   flex-direction: column;

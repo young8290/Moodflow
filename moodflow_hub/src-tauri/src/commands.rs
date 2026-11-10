@@ -2,14 +2,24 @@
 //! 这里只做取参 → 调领域服务 → 推送事件，不写业务规则。
 
 pub mod ai;
+pub mod capture;
 pub mod chat;
+pub mod citation;
 pub mod comfort;
 pub mod dashboard;
 pub mod diary;
 pub mod ime;
 pub mod letter;
+pub mod library;
+pub mod market;
+#[cfg(windows)]
+mod market_links;
 pub mod practice;
 pub mod schedule;
+pub mod sync;
+pub mod tools;
+pub mod vault;
+pub mod workspace;
 
 use std::sync::Arc;
 
@@ -42,6 +52,19 @@ use crate::state::AppState;
 use crate::windows::{self, WindowTarget};
 
 pub(crate) fn emit_status(app: &AppHandle, snap: StatusSnapshot) {
+    if snap.paused {
+        crate::sync::cancel();
+    }
+    if snap.paused
+        && let Some(capture) = app.try_state::<Arc<crate::capture::Runtime>>()
+    {
+        capture.cancel(true);
+    }
+    if snap.paused
+        && let Some(workspace) = app.try_state::<Arc<crate::workspace::Runtime>>()
+    {
+        workspace.pause();
+    }
     if let Err(e) = StatusChanged(snap).emit(app) {
         crate::hlog!("推送 status:changed 失败：{e}");
     }
@@ -84,6 +107,7 @@ pub fn data_delete_all(app: AppHandle, include_secrets: bool) -> Result<(), UiEr
     let dir = crate::paths::hub_data_dir().map_err(|e| UiError::internal("data.delete.dir", e))?;
     let req = wipe::WipeRequest {
         include_secrets,
+        include_tools: true,
         requested_at: chrono::Utc::now().timestamp_millis(),
     };
     wipe::request(&dir, &req).map_err(|e| UiError::internal("data.delete", e))?;

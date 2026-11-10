@@ -2,6 +2,7 @@
 
 use std::time::Duration;
 
+use futures::StreamExt;
 use moodflow_hub_core::infra::gateway::AiError;
 use reqwest::{Client, RequestBuilder, StatusCode};
 use serde::de::DeserializeOwned;
@@ -55,7 +56,10 @@ impl<T> Outcome<T> {
 /// （已经装过时 `install_default` 返回错误，忽略即可）。
 pub(crate) fn client(connect_timeout: Duration) -> Result<Client, reqwest::Error> {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    Client::builder().connect_timeout(connect_timeout).build()
+    Client::builder()
+        .connect_timeout(connect_timeout)
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
 }
 
 /// 有密钥才加 `Authorization: Bearer`（mock-ai 不需要）；reqwest 会把该请求头标为敏感，调试输出里不显示。
@@ -73,16 +77,32 @@ pub(crate) async fn send_json<T: DeserializeOwned>(req: RequestBuilder) -> Outco
         Err(e) => return Outcome::err(from_reqwest(&e)),
     };
     let code = resp.status();
-    if !code.is_success() {
-        let body = resp.text().await.unwrap_or_default();
-        return Outcome::http(code, &body);
+    let limit = if code.is_success() {
+        1024 * 1024
+    } else {
+        64 * 1024
+    };
+    if resp.content_length().is_some_and(|n| n > limit as u64) {
+        return Outcome::err(AiError::InvalidOutput);
     }
-    match resp.bytes().await {
-        Ok(b) => match serde_json::from_slice(&b) {
-            Ok(v) => Outcome::ok(v),
-            Err(_) => Outcome::err(AiError::InvalidOutput),
-        },
-        Err(e) => Outcome::err(from_reqwest(&e)),
+    let mut bytes = Vec::new();
+    let mut stream = resp.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = match chunk {
+            Ok(c) => c,
+            Err(e) => return Outcome::err(from_reqwest(&e)),
+        };
+        if bytes.len() + chunk.len() > limit {
+            return Outcome::err(AiError::InvalidOutput);
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    if !code.is_success() {
+        return Outcome::http(code, &String::from_utf8_lossy(&bytes));
+    }
+    match serde_json::from_slice(&bytes) {
+        Ok(v) => Outcome::ok(v),
+        Err(_) => Outcome::err(AiError::InvalidOutput),
     }
 }
 

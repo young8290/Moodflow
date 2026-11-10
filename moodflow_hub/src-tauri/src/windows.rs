@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use tauri::{Manager, Runtime, WebviewWindowBuilder};
+use tauri::{Emitter, Manager, Runtime, WebviewUrl, WebviewWindowBuilder};
 
 use crate::error::UiError;
 
@@ -50,6 +50,41 @@ impl WindowTarget {
 }
 
 /// 显示一个窗口；还没创建就按配置创建。小组件不抢焦点（FR-WGT-07 的“不抢焦点”不变量）。
+pub fn open_clipboard<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), UiError> {
+    open_tool(app, "clipboard")
+}
+pub fn open_capture<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), UiError> {
+    open_tool(app, "capture")
+}
+pub fn open_library<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), UiError> {
+    open_tool(app, "library")
+}
+pub fn open_ai_tools<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), UiError> {
+    open_tool(app, "ai_tools")
+}
+fn open_tool<R: Runtime>(app: &tauri::AppHandle<R>, page: &str) -> Result<(), UiError> {
+    if app.get_webview_window("dashboard").is_none() {
+        let mut config = app
+            .config()
+            .app
+            .windows
+            .iter()
+            .find(|w| w.label == "dashboard")
+            .cloned()
+            .ok_or_else(|| UiError::new("window.not_configured", "error.generic"))?;
+        // A first window cannot receive navigation events before its Vue listener mounts.
+        config.url = WebviewUrl::App(format!("dashboard/index.html#{page}").into());
+        WebviewWindowBuilder::from_config(app, &config)?.build()?;
+    }
+    open(app, WindowTarget::Dashboard)?;
+    app.emit_to(
+        "dashboard",
+        "mf:dashboard-nav",
+        serde_json::json!({"page":page}),
+    )?;
+    Ok(())
+}
+
 pub fn open<R: Runtime, M: Manager<R>>(app: &M, target: WindowTarget) -> Result<(), UiError> {
     let label = target.label();
     // 打开小组件就看到了暖心话，熄灭工具栏小圆点（FR-CMF-04 第 4 条）

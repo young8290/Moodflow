@@ -182,7 +182,7 @@ fn scenario_name(s: Scenario) -> &'static str {
 #[derive(Debug, Serialize)]
 struct WireMessage {
     role: String,
-    content: String,
+    content: Value,
 }
 
 #[derive(Debug, Serialize)]
@@ -205,6 +205,7 @@ struct ChatResponse {
 #[derive(Deserialize)]
 struct ChatChoice {
     message: ChatMessage,
+    finish_reason: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -234,7 +235,7 @@ fn redact_messages(req: &CompleteRequest) -> Vec<WireMessage> {
         .iter()
         .map(|m| WireMessage {
             role: m.role.clone(),
-            content: redact(&m.content),
+            content: Value::String(redact(&m.content)),
         })
         .collect()
 }
@@ -305,9 +306,68 @@ impl LlmClient {
     }
 
     pub async fn complete(&self, req: &CompleteRequest) -> Result<CompleteResponse, AiError> {
-        let params = self.cfg.params(req.scenario);
         let candidates = self.book.candidates(req.scenario, self.shared.now_ms())?;
-        let messages = redact_messages(req);
+        self.complete_candidates(req, candidates, false, &[]).await
+    }
+
+    pub async fn complete_pinned(
+        &self,
+        req: &CompleteRequest,
+        model: &str,
+    ) -> Result<CompleteResponse, AiError> {
+        if !self
+            .book
+            .status(self.shared.now_ms())
+            .iter()
+            .any(|m| m.model == model && m.available)
+        {
+            return Err(AiError::ModelUnavailable);
+        }
+        self.complete_candidates(req, vec![model.into()], true, &[])
+            .await
+    }
+
+    pub async fn complete_tool(
+        &self,
+        req: &CompleteRequest,
+        model: &str,
+        images: &[crate::InlineImage],
+    ) -> Result<CompleteResponse, AiError> {
+        if !self
+            .book
+            .status(self.shared.now_ms())
+            .iter()
+            .any(|m| m.model == model && m.available)
+            || images.len() > 3
+        {
+            return Err(AiError::ModelUnavailable);
+        }
+        self.complete_candidates(req, vec![model.into()], true, images)
+            .await
+    }
+
+    async fn complete_candidates(
+        &self,
+        req: &CompleteRequest,
+        candidates: Vec<String>,
+        pinned: bool,
+        images: &[crate::InlineImage],
+    ) -> Result<CompleteResponse, AiError> {
+        let mut params = self.cfg.params(req.scenario);
+        if pinned {
+            params.max_tokens = params.max_tokens.min(2048);
+            params.timeout = params.timeout.min(Duration::from_secs(60));
+        }
+        let mut messages = redact_messages(req);
+        if !images.is_empty() {
+            let last = messages
+                .last_mut()
+                .filter(|m| m.role == "user")
+                .ok_or(AiError::BadRequest)?;
+            let mut content = vec![serde_json::json!({"type":"text","text":last.content})];
+            content.extend(images.iter().map(|image| serde_json::json!({"type":"image_url","image_url":{"url":image.data_url(),"detail":"high"}})));
+            last.content = Value::Array(content);
+        }
         let api = format!("llm/{}", scenario_name(req.scenario));
 
         let mut last = None;
@@ -342,13 +402,25 @@ impl LlmClient {
                 .and_then(|r| r.usage.as_ref())
                 .map(|u| (u.prompt_tokens, u.completion_tokens));
             let out = out.and_then(|r| {
+                if pinned && r.model.as_deref() != Some(model.as_str()) {
+                    return Err(AiError::InvalidOutput);
+                }
                 let text = r
                     .choices
                     .into_iter()
                     .next()
-                    .and_then(|c| c.message.content)
+                    .and_then(|c| {
+                        if pinned && c.finish_reason.as_deref() != Some("stop") {
+                            None
+                        } else {
+                            c.message.content
+                        }
+                    })
                     .filter(|t| !t.trim().is_empty())
                     .ok_or(AiError::InvalidOutput)?;
+                if pinned && text.encode_utf16().count() > 16384 {
+                    return Err(AiError::InvalidOutput);
+                }
                 Ok((r.model.unwrap_or_else(|| model.clone()), text))
             });
 

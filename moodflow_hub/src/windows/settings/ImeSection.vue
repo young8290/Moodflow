@@ -10,6 +10,7 @@ import { CommandError, commands, events, unwrap, type ImeConfigChange, type ImeF
 import { errorText, t } from '@/i18n'
 import ImeFieldControl from './ImeFieldControl.vue'
 import SectionHead from './SectionHead.vue'
+import InputTools from './InputTools.vue'
 import { HOTKEY_KEYS, normalizeHotkey } from './hotkey'
 import { advancedGroups, commonFields, effectiveField, fieldLabel, getPath } from './imeForm'
 import { useNotice } from './useHubSettings'
@@ -190,6 +191,7 @@ onUnmounted(() => {
     </p>
 
     <template v-else-if="phase === 'ready'">
+      <InputTools />
       <p v-if="needsRestart" class="banner" role="status">{{ t('error.restart_banner') }}</p>
 
       <h2>{{ t('ime.common') }}</h2>

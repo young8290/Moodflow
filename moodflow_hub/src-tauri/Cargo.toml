@@ -25,9 +25,20 @@ tauri-build = { version = "2", features = [] }
 moodflow-hub-core = { path = "../core", features = ["specta"] }
 moodflow-hub-gateway = { path = "../gateway" }
 mfp = { path = "../../crates/mfp", features = ["specta"] }
+moodflow-capsule = { path = "../../crates/moodflow-capsule" }
+moodflow-cite = { path = "../../crates/moodflow-cite" }
+moodflow-vault = { path = "../../crates/moodflow-vault" }
+moodflow-mailbox = { path = "../../crates/moodflow-mailbox" }
+moodflow-sync = { path = "../../crates/moodflow-sync" }
+moodflow-latex = { path = "../../crates/moodflow-latex" }
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+axum = "0.7"
+getrandom = "0.4"
+subtle = "2.6"
 # 打字测速计分：与输入法核心、Android 端同一份口径（纯逻辑，只依赖 serde）
 moodflow-typing-practice = { path = "../../moodflow_input/crates/moodflow-typing-practice" }
-tauri = { version = "2", features = ["specta"] }
+tauri = { version = "2", features = ["specta", "protocol-asset"] }
 tauri-plugin-single-instance = "2"
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 specta = { version = "=2.0.0-rc.25", features = ["derive"] }
@@ -38,6 +49,9 @@ thiserror.workspace = true
 anyhow.workspace = true
 chrono.workspace = true
 zeroize = "1"
+sha2 = "0.10"
+uuid = { version = "1", features = ["v4"] }
+tempfile = "3"
 tokio.workspace = true
 async-trait = "0.1"
 futures = "0.3"
@@ -56,7 +70,11 @@ os_info = { version = "3", default-features = false }
 mock-ai = { path = "../../tools/mock-ai" }
 
 [target.'cfg(windows)'.dependencies]
+moodflow-rpc = { path = "../../moodflow_input/crates/moodflow-rpc" }
 # 系统通知（FR-NTF-01，src/notify.rs）：带按钮的 toast；官方 notification 插件在桌面端不支持按钮
 tauri-winrt-notification = "0.7"
 # DPAPI 加密保存 AI 密钥（FR-AIG-06）、前台全屏检测（src/fullscreen.rs）、系统空闲时间（src/rest.rs）；与 tauri 依赖树里已有的版本一致
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography", "Win32_System_Diagnostics_ToolHelp", "Win32_System_SystemInformation", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell"] }
+# Private library/vault directories: current-user SID and protected inheritable DACL.
+[target.'cfg(windows)'.dependencies.windows-sys]
+version = "0.61"
+features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Security_Cryptography", "Win32_Security_Authorization", "Win32_System_Threading", "Win32_System_Console", "Win32_System_Pipes", "Win32_System_IO", "Win32_Storage_FileSystem", "Win32_System_JobObjects", "Win32_System_Diagnostics_ToolHelp", "Win32_System_SystemInformation", "Win32_System_WindowsProgramming", "Win32_System_StationsAndDesktops", "Win32_System_RemoteDesktop", "Win32_System_DataExchange", "Win32_System_Memory", "Win32_System_Ole", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_WindowsAndMessaging", "Win32_UI_Shell"]

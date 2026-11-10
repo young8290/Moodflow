@@ -341,7 +341,7 @@ beforeEach(() => {
 })
 
 describe('情绪看板', () => {
-  it('左侧导航七页（FR-DSH-01 + 打字测速），默认“今日”', async () => {
+  it('左侧导航含资料库，默认“今日”', async () => {
     const w = await mountAt()
     expect(w.findAll('nav button').map((b) => b.text())).toEqual([
       '今日',
@@ -351,6 +351,14 @@ describe('情绪看板', () => {
       '信箱',
       '对话与日记',
       '打字测速',
+      '资料库',
+      '离线查词',
+      '密码库',
+      '剪贴板历史',
+      '捕获工作台',
+      '工作区',
+      '同步',
+      '文字与公式',
     ])
     expect(w.find('h1').text()).toBe('今日')
     await w.findAll('nav button')[1]!.trigger('click')

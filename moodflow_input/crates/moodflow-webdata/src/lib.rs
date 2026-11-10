@@ -99,7 +99,10 @@ fn dispose_contract_rows(
 }
 use moodflow_coordinator::web_host::WebDataHost;
 
+mod plugin_market;
 mod plugins;
+mod translate;
+mod windows_tools;
 
 /// 解析方案的权威引擎类型（schema.toml 的 engine.type 可能为空，
 /// 此时按 Schema::is_pinyin/is_mixed 依据默认词库类型推断）。
@@ -386,6 +389,13 @@ pub trait WebDataRpc: WebDataHost {
             &plugins_dir,
             moodflow_coordinator::PLUGIN_HOST_VERSION,
         )?;
+        if let Some(policy) = moodflow_market::catalog::load(&plugins_dir)?
+            && policy
+                .verified(0, false)?
+                .is_some_and(|i| i.is_revoked(&plan.manifest.id, &plan.manifest.version))
+        {
+            anyhow::bail!("market.withdrawn");
+        }
         Ok((plan, from, plugins_dir))
     }
 
@@ -397,6 +407,10 @@ pub trait WebDataRpc: WebDataHost {
 
     /// `plugins.install`：重新检查，新增能力都在 `accept` 里才装，装完重载。
     fn web_plugins_install(&self, params: &Value) -> anyhow::Result<Value> {
+        let (root, _) = self
+            .plugin_dirs()
+            .ok_or_else(|| anyhow::anyhow!("market.io"))?;
+        let _policy_lock = moodflow_market::catalog::acquire(&root)?;
         let (plan, _, plugins_dir) = self.web_plugins_plan(params)?;
         let accept: Vec<String> = params
             .get("accept")
@@ -428,6 +442,7 @@ pub trait WebDataRpc: WebDataHost {
         let (plugins_dir, data_dir) = self
             .plugin_dirs()
             .ok_or_else(|| anyhow::anyhow!("plugins.no_user_dir: 取不到输入法用户目录"))?;
+        let _policy_lock = moodflow_market::catalog::acquire(&plugins_dir)?;
         moodflow_market::uninstall(&plugins_dir, id)
             .map_err(|e| anyhow::anyhow!("plugins.io: {e}"))?;
         let delete_data = params
@@ -522,6 +537,17 @@ pub trait WebDataRpc: WebDataHost {
             }
             // ── plugins.*（插件管理页，见 plugins.rs）────────────
             "plugins.list" => Ok(self.web_plugins_list()),
+            method if method.starts_with("plugins.market.") => {
+                let (root, _) = self
+                    .plugin_dirs()
+                    .ok_or_else(|| anyhow::anyhow!("market.io"))?;
+                let (value, changed) =
+                    plugin_market::rpc(method, params, &root, chrono::Utc::now().timestamp())?;
+                if changed {
+                    self.reload_plugins();
+                }
+                Ok(value)
+            }
             "plugins.inspect" => self.web_plugins_inspect(params),
             "plugins.install" => self.web_plugins_install(params),
             "plugins.uninstall" => self.web_plugins_uninstall(params),
@@ -546,6 +572,54 @@ pub trait WebDataRpc: WebDataHost {
             "plugins.reenable" => {
                 let id = str_param(params, "id")?;
                 Ok(json!({ "ok": self.plugin_reenable(id) }))
+            }
+            "storage.health" => Ok(json!({ "available": self.user_store().is_some() })),
+            "tools.allowed" => Ok(json!({ "allowed": self.tools_allowed() })),
+            "tools.captureAllowed" => {
+                let apps = params["apps"]
+                    .as_array()
+                    .ok_or_else(|| anyhow::anyhow!("invalid_capture_apps"))?;
+                anyhow::ensure!(apps.len() <= 1024, "invalid_capture_apps");
+                let apps = apps
+                    .iter()
+                    .map(|app| {
+                        app.as_str()
+                            .filter(|app| !app.is_empty() && app.len() <= 1024)
+                            .map(String::from)
+                            .ok_or_else(|| anyhow::anyhow!("invalid_capture_apps"))
+                    })
+                    .collect::<anyhow::Result<Vec<_>>>()?;
+                Ok(json!({"allowed":self.capture_allowed(&apps)}))
+            }
+            "clipboard.list" => {
+                anyhow::ensure!(self.tools_allowed(), "privacy_blocked");
+                Ok(json!({ "entries": self.clipboard_history() }))
+            }
+            "clipboard.action" => {
+                anyhow::ensure!(self.tools_allowed(), "privacy_blocked");
+                let action = str_param(params, "action")?;
+                let id = params["id"].as_u64().unwrap_or(0);
+                let pinned = params["pinned"].as_bool().unwrap_or(false);
+                let changed = self
+                    .clipboard_action(action, id, pinned)
+                    .map_err(anyhow::Error::msg)?;
+                Ok(json!({ "changed": changed }))
+            }
+            "translate.lookup" => {
+                anyhow::ensure!(self.tools_allowed(), "privacy_blocked");
+                translate::lookup(str_param(params, "query")?)
+            }
+            "buffer.read" => {
+                Ok(json!({ "text": self.read_buffer_text().map_err(anyhow::Error::msg)? }))
+            }
+            "chord.get" | "chord.save" | "chord.builtin" | "chord.readFile"
+            | "chord.exportFile" | "scheme.rimePreview" | "scheme.rimeImport" => {
+                windows_tools::dispatch(self, method, params)
+            }
+            "buffer.stage" => {
+                self.stage_buffer_text(str_param(params, "text")?)
+                    .map_err(anyhow::Error::msg)?;
+                Ok(json!({ "staged": true }))
             }
             "schema.delete" => self.web_schema_delete(params),
             "schema.references" => Ok(json!({})), // 引用关系（删除安全检查）：暂返空，前端宽松消费
@@ -5152,6 +5226,25 @@ outside: rare
         let store = Arc::new(Store::open(&path).unwrap());
         let data = charsets_data_dir(tag);
         Coordinator::new_headless_with_store(Config::default(), Some(&data), store)
+    }
+
+    #[test]
+    fn capture_policy_validates_every_source_against_the_shared_user_rules() {
+        let path = std::env::temp_dir().join("moodflow_capture_policy.redb");
+        let _ = std::fs::remove_file(&path);
+        let store = Arc::new(Store::open(&path).unwrap());
+        let mut config = Config::default();
+        config.moodflow.app_blocklist = vec!["secret*.exe".into()];
+        let c = Coordinator::new_headless_with_store(config, None, store);
+        let check = |apps: Value| c.web_data_rpc("tools.captureAllowed", &json!({"apps": apps}));
+        assert_eq!(check(json!(["notepad.exe"])).unwrap()["allowed"], true);
+        assert_eq!(
+            check(json!(["notepad.exe", "secret-viewer.exe"])).unwrap()["allowed"],
+            false
+        );
+        assert!(check(json!([""])).is_err());
+        assert!(check(json!([17])).is_err());
+        assert!(check(json!(vec!["a.exe"; 1025])).is_err());
     }
 
     /// 在 `{sections:[{key,...}]}` 响应里按 key 取某段（无则 Null）。

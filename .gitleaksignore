@@ -1,0 +1,3 @@
+# Public Base32 test fixture encoding "12345678901234567890" (RFC 6238 test input).
+# Narrow historical finding only; real credentials remain subject to all rules.
+f0d5a4d043a2f211a5b8d88295d7aedb152c5d57:moodflow_hub/src-tauri/src/vault.rs:generic-api-key:390

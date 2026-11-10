@@ -2,8 +2,8 @@
 # 上传为 Actions 产物，供组员下载到真机上试装。只出 Windows 安装包，不发 Release、不签名、不传 CDN。
 #
 # 上游的 release.yml 仍是 Moodflow 的三平台发版流程（macOS / Linux / R2 上传，产物名 Moodflow-*），Moodflow 不用它。
-# 打包本身复用 scripts/dev.ps1 的 8 号命令：全构建（核心、TSF、Moodflow Hub、词库数据）+ moodflow-installer 打包，
-# 清单是 config/app.toml。设置程序 moodflow-setting 是上游私有仓，这里不检出，安装包里没有设置程序。
+# 打包复用 scripts/dev.ps1 的 8 号命令：核心、双架构 TSF、Hub、捕获助手、设置端、便携启动器和数据。
+# 三个配套仓库固定到已验证提交；缺组件、版本不一致或缺来源许可时中止，不产出残缺安装包。
 name: Moodflow Package
 on:
   workflow_dispatch:
@@ -11,7 +11,16 @@ on:
       installer_ref:
         description: "moodflow-installer（young8290 的 fork）的分支或提交，用来试还没合进 main 的安装器改动"
         required: false
-        default: 0b01471fe75bb520f34c51d28d12cf6e5f127ef9
+        default: c7d0d0cd50c036f2405e3fb457e9863d1300e87e
+      reuse_run:
+        description: "仅重验未改动的产物：填写本仓已通过构建的 run id；生产文件有差异则拒绝复用"
+        required: false
+        default: ""
+      acceptance:
+        description: "验收范围；夹具迭代可单独验证 Hub 或安装，默认执行全部"
+        type: choice
+        options: [all, hub, install]
+        default: all
   pull_request:
     branches: [main]
     paths:
@@ -20,15 +29,18 @@ on:
       - ".github/workflows/moodflow-package.yml"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.acceptance || 'all' }}
+  # 安装与 TSF 注册后的 finally 清理须跑完；同一分支排队，不在系统操作中途取消。
+  cancel-in-progress: false
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   windows:
     name: Windows 安装包
+    if: ${{ !inputs.reuse_run }}
     # 同 release.yml：dev.ps1 的 CMake 生成器写死 "Visual Studio 17 2022"，windows-latest 已换成 VS2026
     runs-on: windows-2022
     timeout-minutes: 90
@@ -36,33 +48,42 @@ jobs:
       # 缺了 pnpm 就让 Build-Hub 失败，不出缺 Hub 的安装包
       MF_REQUIRE_HUB: "1"
     steps:
-      # dev.ps1 按同级目录找 ../moodflow-installer、../moodflow-portable
+      # dev.ps1 按同级目录定位三个配套仓库。
       - name: 检出 Moodflow
         uses: actions/checkout@v4
         with:
           path: Moodflow
       # 用 Moodflow 自己的 fork：上游缺 WebView2 检测、快捷方式通知标识、完成页说明、清应用自启值
       # 这几项，Moodflow 在 fork 里补（A-10，见 docs/moodflow/handover/A-输入法.md）。fork 是公开仓，
-      # 检出不需要令牌。PR 触发时 inputs 为空，回落到 main。
+      # 检出不需要令牌。PR 触发时 inputs 为空，仍固定提交。
       - name: 检出 moodflow-installer
         uses: actions/checkout@v4
         with:
           repository: young8290/wind-installer
-          ref: ${{ inputs.installer_ref || '0b01471fe75bb520f34c51d28d12cf6e5f127ef9' }}
+          ref: ${{ inputs.installer_ref || 'c7d0d0cd50c036f2405e3fb457e9863d1300e87e' }}
           path: moodflow-installer
+      - name: 检出 moodflow-setting
+        uses: actions/checkout@v4
+        with:
+          repository: young8290/moodflow-setting
+          ref: eefaad72a39d95ecd2f31e9c9538c94ce3ccf191
+          path: moodflow-setting
       - name: 检出 moodflow-portable
         uses: actions/checkout@v4
         with:
-          repository: huanfeng/wind-portable
+          repository: young8290/moodflow-portable
+          ref: 28f9600c20bfc943cd46102856082fafc18653c5
           path: moodflow-portable
 
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
+          cache-on-failure: true
           workspaces: |
             Moodflow/moodflow_input
             Moodflow
             moodflow-installer
+            moodflow-setting
             moodflow-portable
       - uses: pnpm/action-setup@v4
         with: { package_json_file: Moodflow/moodflow_hub/package.json }
@@ -91,4 +112,175 @@ jobs:
             Moodflow/dist/Moodflow-Setup-*.exe
             Moodflow/dist/Moodflow-Setup-*.exe.sha256
           if-no-files-found: error
+          retention-days: 14
+
+      - name: 上传已验证构建文件
+        uses: actions/upload-artifact@v4
+        with:
+          name: Moodflow-Payload
+          path: Moodflow/build/
+          if-no-files-found: error
+          retention-days: 7
+
+  reuse:
+    name: 复用相同生产源码的已验证产物
+    if: ${{ inputs.reuse_run != '' }}
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: Moodflow
+      - name: 核对原构建与生产源码
+        shell: pwsh
+        working-directory: Moodflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MF_REUSE_RUN: ${{ inputs.reuse_run }}
+        run: ./scripts/moodflow/ci-reuse-payload.ps1 -RunId $env:MF_REUSE_RUN
+      - uses: actions/download-artifact@v4
+        with:
+          name: Moodflow-Setup
+          path: Moodflow/dist
+          run-id: ${{ inputs.reuse_run }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: Moodflow-Payload
+          path: Moodflow/build
+          run-id: ${{ inputs.reuse_run }}
+          github-token: ${{ github.token }}
+      - name: 复核安装包哈希
+        shell: pwsh
+        working-directory: Moodflow
+        run: |
+          $setup = @(Get-ChildItem dist/Moodflow-Setup-*.exe)
+          if ($setup.Count -ne 1) { throw 'Expected exactly one verified setup.' }
+          $expected = ([IO.File]::ReadAllText($setup[0].FullName+'.sha256').Trim() -split '\s+')[0]
+          if ($expected -notmatch '^[0-9a-fA-F]{64}$' -or (Get-FileHash -LiteralPath $setup[0].FullName -Algorithm SHA256).Hash -ine $expected) { throw 'Setup hash mismatch.' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Moodflow-Setup
+          path: |
+            Moodflow/dist/Moodflow-Setup-*.exe
+            Moodflow/dist/Moodflow-Setup-*.exe.sha256
+            Moodflow/dist/reused-payload.json
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Moodflow-Payload
+          path: Moodflow/build/
+          if-no-files-found: error
+          retention-days: 7
+
+  install:
+    name: Windows 安装与卸载验收
+    needs: [windows, reuse]
+    if: ${{ always() && inputs.acceptance != 'hub' && (needs.windows.result == 'success' || needs.reuse.result == 'success') }}
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: Moodflow
+      - uses: actions/download-artifact@v4
+        with:
+          name: Moodflow-Setup
+          path: Moodflow/dist
+      - name: 隔离 Windows 安装、保留数据及卸载验收
+        shell: pwsh
+        working-directory: Moodflow
+        run: |
+          $setup = Get-ChildItem dist/Moodflow-Setup-*.exe | Select-Object -First 1
+          if (-not $setup) { throw 'Missing complete setup package.' }
+          .\scripts\moodflow\ci-install-smoke.ps1 -Setup $setup.FullName
+
+      - name: 上传安装验收记录
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Moodflow-Install-Smoke
+          path: Moodflow/dist/install-smoke.json
+          if-no-files-found: error
+          retention-days: 14
+
+  hub:
+    name: Windows 完整包界面与原生调用验收
+    needs: [windows, reuse]
+    if: ${{ always() && inputs.acceptance != 'install' && (needs.windows.result == 'success' || needs.reuse.result == 'success') }}
+    runs-on: windows-2022
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: Moodflow
+      - uses: actions/download-artifact@v4
+        with:
+          name: Moodflow-Payload
+          path: Moodflow/build
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 隔离 Windows 验证打包界面与真实原生调用
+        shell: pwsh
+        working-directory: Moodflow
+        run: ./scripts/moodflow/ci-hub-smoke.ps1 -Payload (Join-Path $PWD 'build')
+      - name: 上传界面验收记录
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Moodflow-Hub-UI
+          path: |
+            Moodflow/dist/hub-ui-smoke.json
+            Moodflow/dist/hub-ui-processes.json
+            Moodflow/dist/hub-ui-waits.txt
+            Moodflow/dist/hub-ui-stack.txt
+            Moodflow/dist/hub-ui-*.png
+            Moodflow/dist/hub-ui-core-logs/
+            Moodflow/dist/hub-ui-hub-logs/
+          if-no-files-found: error
+          retention-days: 14
+
+  tsf:
+    name: Windows 真实 TSF 与权限隔离验收
+    needs: [windows, reuse]
+    if: ${{ always() && !contains(fromJSON('["hub", "install"]'), inputs.acceptance) && (needs.windows.result == 'success' || needs.reuse.result == 'success') }}
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: Moodflow
+      - uses: actions/download-artifact@v4
+        with:
+          name: Moodflow-Payload
+          path: Moodflow/build
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: Moodflow/moodflow_input
+          # The old key was saved before Cargo ran, so exact hits retained an
+          # empty target forever. Seed a new cache after compilation, including
+          # the large coordinator test binary used by this isolated fixture.
+          prefix-key: tsf-e2e-v2
+          cache-workspace-crates: true
+          cache-on-failure: true
+      - name: 隔离 Windows 验证真实 TSF、引擎与三种令牌
+        shell: pwsh
+        working-directory: Moodflow
+        run: .\scripts\moodflow\ci-tsf-e2e.ps1 -Payload (Join-Path $PWD 'build')
+
+      - name: 上传 TSF 验收记录
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Moodflow-TSF-E2E
+          path: |
+            Moodflow/dist/tsf-e2e.log
+            Moodflow/dist/tsf-e2e-language-*.log
+            Moodflow/dist/tsf-e2e-ordinary/
+            Moodflow/dist/tsf-e2e-appcontainer/
+            Moodflow/dist/tsf-e2e-lpac/
+          if-no-files-found: ignore
           retention-days: 14

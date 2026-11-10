@@ -7,6 +7,10 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 /** Commands */
 export const commands = {
 	getStatus: () => typedError<StatusSnapshot, UiError>(__TAURI_INVOKE("get_status")),
+	workspaceRequest: (method: string, payload: string) => typedError<string, UiError>(__TAURI_INVOKE("workspace_request", { method, payload })),
+	syncRequest: (method: string, payload: string) => typedError<string, UiError>(__TAURI_INVOKE("sync_request", { method, payload })),
+	toolsRequest: (method: string, payload: string) => typedError<string, UiError>(__TAURI_INVOKE("tools_request", { method, payload })),
+	marketRequest: (method: string, payload: string) => typedError<string, UiError>(__TAURI_INVOKE("market_request", { method, payload })),
 	/**
 	 *  导出用户数据（FR-DAT-03），写到前端文件选择器给的 `path`（已存在则覆盖）。
 	 *  1 年数据量要几秒，放进 `spawn_blocking`，不占主线程。先提交排队中的数据（ADR 0020 第 3 条最多晚 5 秒），
@@ -303,6 +307,12 @@ export const commands = {
 	imeConfigDefaults: () => typedError<ImeConfig, UiError>(__TAURI_INVOKE("ime_config_defaults")),
 	/**  写入若干项：失败项不让整批失败，`skipped` 里带原因，界面显示在对应控件旁（17 第 3.4 节）。 */
 	imeConfigSet: (items: ImeItemInput[]) => typedError<ImeSetResult, UiError>(__TAURI_INVOKE("ime_config_set", { items })),
+	/**  Windows 工具只允许指定的数据操作；前端不能调用任意核心 RPC。 */
+	imeTools: (method: string, payload: string) => typedError<string, UiError>(__TAURI_INVOKE("ime_tools", { method, payload })),
+	libraryRequest: (method: string, payload: string) => typedError<string, UiError>(__TAURI_INVOKE("library_request", { method, payload })),
+	citationRequest: (method: string, payload: string) => typedError<string, UiError>(__TAURI_INVOKE("citation_request", { method, payload })),
+	captureRequest: (method: string, payload: string) => typedError<string, UiError>(__TAURI_INVOKE("capture_request", { method, payload })),
+	vaultRequest: (method: string, payload: string) => typedError<string, UiError>(__TAURI_INVOKE("vault_request", { method, payload })),
 	/**  已装插件、启用与运行状态。 */
 	pluginsList: () => typedError<PluginList, UiError>(__TAURI_INVOKE("plugins_list")),
 	/**  安装前检查一个本地插件包（`path` 来自文件对话框），返回说明与要同意的能力；不写任何东西。 */
@@ -767,6 +777,14 @@ export type HotkeyAction =
 "widget" | 
 /**  打开看板 */
 "dashboard" | 
+/**  Clipboard history, independent of the active input method. */
+"clipboard" | 
+/**  Open the capture workbench; never starts recording without an explicit action. */
+"capture" | 
+/**  Open local library; staging and delivery still require explicit actions. */
+"library" | 
+/**  Open text/math tools; never sends a model request automatically. */
+"ai_tools" | 
 /**  开始 / 结束专注（FR-RST-10）：没在专注时按第一个预设（25 分钟）开始，专注中按下结束 */
 "focus";
 
@@ -1093,7 +1111,11 @@ export type PluginState =
 /**  连续出错被自动停用，可以重新启用 */
 "auto_disabled" | 
 /**  启用了却没加载上（不兼容、平台不支持、包坏了） */
-"load_failed";
+"load_failed" | 
+/**  Signed catalog withdrew this version; cannot be reenabled locally. */
+"revoked" | 
+/**  Trust policy is unreadable; third-party loading stays disabled. */
+"market_error";
 
 /**  练习过程中的一次输入框内容变化。`t_ms` 是从练习开始算起的毫秒数。 */
 export type PracticeEvent = {

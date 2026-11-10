@@ -44,19 +44,28 @@ fn test_contracted_syllable_words_win_top1() {
         return;
     };
     let mgr = manager(&dir);
-    for (input, expect) in [
-        ("xianjiaotongdaxue", "西安交通大学"), // xi|an|jiao|tong|da|xue (mm 给 xian|…)
-        ("qietubiao", "企鹅图表"),             // qi|e|tu|biao       (mm 给 qie|…)
-        ("xinanchu", "心安处"),                // xin|an|chu         (mm 给 xi|nan|chu)
-        ("woqinaide", "我亲爱的"),             // wo|qin|ai|de       (mm 给 wo|qi|nai|de)
+    for (input, prefix, starts) in [
+        (
+            "xianjiaotongdaxue",
+            "西安交通大学",
+            vec![0, 2, 4, 8, 12, 14],
+        ),
+        // 图标/图表 are homophones; their relative frequency is not this contract.
+        ("qietubiao", "企鹅", vec![0, 2, 3, 5]),
+        ("xinanchu", "心安处", vec![0, 3, 5]),
+        ("woqinaide", "我亲爱的", vec![0, 2, 5, 7]),
     ] {
-        let got = mgr
-            .convert_with("pinyin", input, 10)
-            .candidates
-            .first()
-            .map(|c| c.text.clone())
-            .unwrap_or_default();
-        assert_eq!(got, expect, "{input} 首选应为 {expect}");
+        let result = mgr.convert_with("pinyin", input, 10);
+        let got = result.candidates.first().expect("必须有完整候选");
+        assert!(
+            got.text.starts_with(prefix),
+            "{input} 首选必须走正确词条，实际 {}",
+            got.text
+        );
+        let boundary = starts
+            .into_iter()
+            .fold(0u64, |bits, start| bits | (1u64 << start));
+        assert_eq!(got.boundary, boundary, "{input} 必须保留真值音节边界");
     }
 }
 

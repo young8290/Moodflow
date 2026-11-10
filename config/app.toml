@@ -138,7 +138,7 @@ markers = ["config.toml", "compat.toml", "userdata.redb", "wind_setting.toml", "
 #          「删除用户数据」勾选；那个勾选在卸载向导里默认不选中（11 FR-OPS-02）。
 [localdata]
 cache_dirs  = ["cache", "logs"]
-state_files = ["state.toml", "user_config.seen", "userdata.redb", "hub"]
+state_files = ["state.toml", "user_config.seen", "userdata.redb", "hub", "capsule", "vault", "capture", "workspace", "sync"]
 remove_dir_when_empty = true
 
 # ── 系统运行时依赖（02 C-PLT-06、11 NFR-COMP-06）─────────────────────────────

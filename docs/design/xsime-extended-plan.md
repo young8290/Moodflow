@@ -1,6 +1,6 @@
 # XSIME 吸收二期：工作区、Capsule、同步、LaTeX 与文献引用
 
-> 状态：**计划稿，全部未开工**（2026-10-18）。决定见 [ADR 0057](../adr/0057-扩大XSIME吸收范围.md)，修订
+> 状态：Windows 完整版构建与验收中（2026-11-10）；各功能和安装包的当前证据见 [Windows 交付清单](xsime-windows-delivery.md)。Android 暂停。决定见 [ADR 0057](../adr/0057-扩大XSIME吸收范围.md)，修订
 > [ADR 0056](../adr/0056-吸收XSIME基础功能与Android端.md) 第 9 条。一期（Buffer、矩阵、并击、剪贴板、导入、九宫格、Android）
 > 见 [xsime-feature-port-plan.md](xsime-feature-port-plan.md)。
 > 参考：XSIME `main`（[scholay/xsime](https://github.com/scholay/xsime)，Apache-2.0）的 `MAILBOX-WORKSPACES.md`、`CAPSULE.md`、
@@ -244,6 +244,6 @@
 5. 工作区终端第一版做自绘终端还是先「在 Windows Terminal 中打开」？
 6. 文献检索默认用哪家公开 API（OpenAlex 免 key，Semantic Scholar 质量好但要 key）？
 
-## 8. 进度（2026-10-18）
+## 8. 进度（2026-11-10）
 
-全部 ⬜ 未开工。Q0 中的 ADR 0057 与本计划已写；产品书 V1.7 同步。
+Windows 已实现资料库、离线查词、文献、密码库、捕获、工作区、同步、文字与公式、签名插件商店和社区入口；已生成包含全部组件的原生安装包。代码测试、系统验收、真实设备验证与 E 评审分别记录，不能相互替代。最新结果、源码提交、包哈希及仍待验收项见 [Windows 交付清单](xsime-windows-delivery.md)。Android 保持暂停。
