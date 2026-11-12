@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from 'vitest'
-import { ref } from 'vue'
+import { defineComponent, ref } from 'vue'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import SyncPage from './SyncPage.vue'
 import SyncVaultCopies from './SyncVaultCopies.vue'
@@ -33,7 +33,7 @@ const field = (w: VueWrapper, key: Parameters<typeof t>[0]) =>
     .findAll('label')
     .find((l) => l.text().startsWith(t(key)))!
     .get('input')
-const page = () => mount(SyncPage, { global: { stubs: { SyncVaultCopies: true } } })
+const page = () => mount(SyncPage, { global: { stubs: { SyncVaultCopies: true, SyncConflictReview: true } } })
 it('requires explicit consent and excludes vault copies by default, then clears secrets', async () => {
   const w = page()
   await flushPromises()
@@ -128,5 +128,18 @@ it('cannot import a vault backup from a dialog after pausing the copies panel', 
   await flushPromises()
   expect(mocks.call.mock.calls.some(([method]) => method === 'backup_import')).toBe(false)
   expect((field(w, 'sync.backup_recovery').element as HTMLInputElement).value).toBe('')
+  w.unmount()
+})
+
+it('forwards the conflict editor leave guard to dashboard navigation', async () => {
+  const editor = defineComponent({
+    setup(_, { expose }) {
+      expose({ canLeave: async () => false })
+      return () => null
+    },
+  })
+  const w = mount(SyncPage, { global: { stubs: { SyncVaultCopies: true, SyncConflictReview: editor } } })
+  await flushPromises()
+  expect(await (w.vm as unknown as { canLeave: () => Promise<boolean> }).canLeave()).toBe(false)
   w.unmount()
 })

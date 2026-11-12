@@ -1,6 +1,7 @@
 //! Explicit sync jobs. No schedules, cloud account, plaintext recovery secret or automatic vault access.
 mod backend;
 mod local;
+mod review;
 #[cfg(test)]
 mod tests;
 mod vault_backup;
@@ -233,6 +234,9 @@ pub fn execute(app: &AppHandle, method: &str, params: &Value) -> Result<Value> {
             );
         }
         return vault_backup::execute(&root, method, params, &|| crate::workspace::allowed(app));
+    }
+    if ["review_list", "review", "review_resolve", "review_delete"].contains(&method) {
+        return review::execute(&root, method, params, &|| crate::workspace::allowed(app));
     }
     let conflicts = root.join("conflicts");
     crate::private_fs::ensure(&conflicts)?;

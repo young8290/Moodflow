@@ -552,3 +552,4 @@ mod tests {
         assert!(lib.put(&secret, None).is_err());
     }
 }
+pub mod recovery;
