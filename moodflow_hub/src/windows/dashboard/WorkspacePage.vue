@@ -5,6 +5,7 @@ import { commands, unwrap } from '@/api'
 import { errorText, t } from '@/i18n'
 import { useToolPrivacy } from '../shared/useToolPrivacy'
 import WorkspaceTerminal from './WorkspaceTerminal.vue'
+import WorkspaceExplorer from './WorkspaceExplorer.vue'
 import {
   workspaceCall as call,
   type WorkspaceKind,
@@ -129,6 +130,21 @@ async function choose(id: string): Promise<void> {
     title.value = ''
     instructions.value = ''
   })
+}
+async function openSearchResult(hit: { id: string; kind: WorkspaceKind }): Promise<void> {
+  await choose(hit.id)
+  if (current.value?.id === hit.id) kind.value = hit.kind
+}
+async function explorerChanged(): Promise<void> {
+  title.value = ''
+  instructions.value = ''
+  selected.value = null
+  text.value = ''
+  review.value = ''
+  consent.value = false
+  pendingId.value = null
+  creating.value = false
+  await load()
 }
 async function beginCreate(): Promise<void> {
   const mine = generation
@@ -360,6 +376,13 @@ defineExpose({ canLeave })
       <h1>{{ t('workspace.title') }}</h1>
       <p>{{ t('workspace.description') }}</p>
     </header>
+    <WorkspaceExplorer
+      :disabled="busy"
+      :before-change="canLeave"
+      @busy="busy = $event"
+      @open="openSearchResult"
+      @changed="explorerChanged"
+    />
     <div class="tabs" role="tablist" :aria-label="t('workspace.title')">
       <button
         v-for="item in ['chat', 'inbox', 'terminal'] as const"

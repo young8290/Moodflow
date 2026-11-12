@@ -269,8 +269,93 @@ impl Runtime {
         let root = root()?;
         let store = Store::new(root.clone());
         if method == "list" {
-            let sessions=store.list()?.into_iter().map(|s|json!({"id":s.id,"kind":s.kind,"title":s.title,"created_at":s.created_at,"updated_at":s.updated_at,"archived":s.archived,"unread":s.unread,"count":s.messages.len(),"model":s.model,"revision":s.revision})).collect::<Vec<_>>();
-            return Ok(json!({"sessions":sessions}));
+            let (available, unreadable) = store.available_sessions()?;
+            let sessions=available.into_iter().map(|s|json!({"id":s.id,"kind":s.kind,"title":s.title,"created_at":s.created_at,"updated_at":s.updated_at,"archived":s.archived,"unread":s.unread,"count":s.messages.len(),"model":s.model,"revision":s.revision})).collect::<Vec<_>>();
+            return Ok(json!({"sessions":sessions,"unreadable":unreadable}));
+        }
+        if method == "search" {
+            let request: moodflow_mailbox::catalog::SearchRequest =
+                serde_json::from_value(params.clone())?;
+            return Ok(serde_json::to_value(store.search(&request)?)?);
+        }
+        if method == "manage" {
+            use moodflow_mailbox::catalog::{Change, ChangeResult, Selection};
+            let selection: Vec<Selection> = serde_json::from_value(params["selection"].clone())?;
+            let change: Change = serde_json::from_value(params["change"].clone())?;
+            ensure!(
+                !selection.is_empty() && selection.len() <= 50,
+                "workspace.limit"
+            );
+            let mut unique = std::collections::BTreeSet::new();
+            for item in &selection {
+                moodflow_mailbox::valid_id(&item.id)?;
+                ensure!(
+                    unique.insert(&item.id) && item.revision.len() == 64,
+                    "workspace.invalid"
+                );
+            }
+            // Snapshot activity while holding storage. Release these short-lived
+            // guards so cancellation and terminal polling remain responsive.
+            let mut busy_ids = self
+                .running
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .keys()
+                .cloned()
+                .collect::<std::collections::BTreeSet<_>>();
+            busy_ids.extend(
+                self.terminals
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .keys()
+                    .cloned(),
+            );
+            let batch_epoch = self.epoch.load(Ordering::Acquire);
+            let mut outcomes = Vec::new();
+            for item in selection {
+                ensure!(
+                    allowed(app) && self.epoch.load(Ordering::Acquire) == batch_epoch,
+                    "workspace.privacy"
+                );
+                if busy_ids.contains(&item.id) {
+                    outcomes.push(ChangeResult {
+                        id: item.id,
+                        status: "busy".into(),
+                        revision: None,
+                    });
+                } else {
+                    outcomes.extend(store.change_sessions(&[item], &change, now())?);
+                }
+            }
+            return Ok(serde_json::to_value(outcomes)?);
+        }
+        if method == "rename" {
+            let selection: moodflow_mailbox::catalog::Selection =
+                serde_json::from_value(params["selection"].clone())?;
+            let running = self.running.lock().unwrap_or_else(|e| e.into_inner());
+            ensure!(!running.contains_key(&selection.id), "workspace.busy");
+            let session = store.rename_session(&selection, string(params, "title")?, now())?;
+            return Ok(session_reply(&session));
+        }
+        if method == "transcript" {
+            use moodflow_mailbox::catalog::TranscriptFormat;
+            let selection = serde_json::from_value(params["selection"].clone())?;
+            let format: TranscriptFormat = serde_json::from_value(params["format"].clone())?;
+            let bytes = store.transcript(
+                &selection,
+                format,
+                params["include_instructions"].as_bool().unwrap_or(false),
+            )?;
+            let destination = PathBuf::from(string(params, "path")?);
+            let mut temporary = tempfile::NamedTempFile::new_in(
+                destination
+                    .parent()
+                    .ok_or_else(|| anyhow::anyhow!("workspace.invalid"))?,
+            )?;
+            temporary.write_all(&bytes)?;
+            temporary.as_file().sync_all()?;
+            temporary.persist_noclobber(destination)?;
+            return Ok(json!({"exported":true}));
         }
         if method == "create" {
             let kind: Kind = serde_json::from_value(params["kind"].clone())?;
