@@ -7,7 +7,7 @@ use std::{
 };
 
 pub struct Store {
-    root: PathBuf,
+    pub(crate) root: PathBuf,
 }
 fn digest(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
@@ -36,7 +36,7 @@ impl Store {
         valid_id(id)?;
         Ok(self.root.join(format!("{id}.json")))
     }
-    fn lock(&self) -> Result<File> {
+    pub(crate) fn lock(&self) -> Result<File> {
         fs::create_dir_all(&self.root)?;
         let path = self.root.join(".workspace.lock");
         if path.exists() {
@@ -143,15 +143,35 @@ impl Store {
         }
         let bytes = serde_json::to_vec(session)?;
         ensure!(bytes.len() as u64 <= MAX_SESSION_BYTES, "workspace.limit");
-        let current = self.list()?;
+        // Count damaged records against quotas without deserializing unrelated data.
+        let mut count = 0;
+        let mut total = bytes.len() as u64;
+        for (index, entry) in fs::read_dir(&self.root)?.enumerate() {
+            ensure!(index < 20_000, "workspace.limit");
+            let entry = entry?;
+            if entry.path().extension().and_then(|s| s.to_str()) != Some("json") {
+                continue;
+            }
+            let Some(id) = entry
+                .path()
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .map(String::from)
+            else {
+                continue;
+            };
+            if valid_id(&id).is_err() || self.root.join(format!("{id}.deleted")).exists() {
+                continue;
+            }
+            count += 1;
+            if id != session.id {
+                total = total.saturating_add(regular(&entry.path())?.len());
+            }
+        }
         ensure!(
-            previous.is_some() || current.len() < MAX_SESSIONS,
+            previous.is_some() || count < MAX_SESSIONS,
             "workspace.limit"
         );
-        let mut total = bytes.len() as u64;
-        for item in current.iter().filter(|s| s.id != session.id) {
-            total += regular(&self.path(&item.id)?)?.len();
-        }
         ensure!(total <= MAX_TOTAL_BYTES, "workspace.limit");
         let mut temporary = tempfile::NamedTempFile::new_in(&self.root)?;
         temporary.write_all(&bytes)?;

@@ -1,4 +1,8 @@
 //! Independent workspace sessions. External content is inert data, never an input or command.
+pub mod catalog;
+#[cfg(test)]
+#[path = "catalog_tests.rs"]
+mod catalog_tests;
 mod inbox;
 pub mod protocol;
 mod store;
