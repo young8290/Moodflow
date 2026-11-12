@@ -6,6 +6,7 @@ import type { UnlistenFn } from '@tauri-apps/api/event'
 import { commands, events, unwrap } from '@/api'
 import { errorText, t, type CopyKey } from '@/i18n'
 import CitationTools from './CitationTools.vue'
+import LibraryBatchPanel from './LibraryBatchPanel.vue'
 
 interface Metadata {
   capsule: string
@@ -110,6 +111,11 @@ function select(value: Document): void {
 }
 async function canLeave(): Promise<boolean> {
   return !dirty.value || (await confirm(t('library.discard'), { title: 'Moodflow', kind: 'warning' }))
+}
+function batchChanged(): void {
+  document.value = null
+  baseline.value = ''
+  void refresh(true)
 }
 async function choose(id: string): Promise<void> {
   if (!(await canLeave())) return
@@ -256,6 +262,13 @@ defineExpose({ canLeave })
     <p v-if="listing.unreadable.length" class="error" role="status">
       {{ t('library.unreadable', { count: listing.unreadable.length }) }}
     </p>
+    <LibraryBatchPanel
+      :items="listing.items"
+      :disabled="busy"
+      :before-change="canLeave"
+      @busy="busy = $event"
+      @changed="batchChanged"
+    />
     <nav class="filters" :aria-label="t('library.title')">
       <button :aria-pressed="kind === ''" @click="kind = ''">{{ t('library.all') }}</button
       ><button v-for="k in kinds" :key="k" :aria-pressed="kind === k" @click="kind = k">
