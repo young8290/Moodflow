@@ -79,6 +79,36 @@ fn execute(method: &str, p: &Value) -> anyhow::Result<Value> {
                 )?,
             )?)
         }
+        "batch_preview" => {
+            let paths: Vec<String> = serde_json::from_value(p["paths"].clone())?;
+            Ok(serde_json::to_value(library.preview_import(&paths, &now)?)?)
+        }
+        "batch_apply" => {
+            let sources = serde_json::from_value::<Vec<moodflow_capsule::batch::Source>>(
+                p["sources"].clone(),
+            )?;
+            let decisions = serde_json::from_value::<Vec<moodflow_capsule::batch::Decision>>(
+                p["decisions"].clone(),
+            )?;
+            Ok(serde_json::to_value(
+                library.apply_import(&sources, &decisions, &now)?,
+            )?)
+        }
+        "batch_export" => {
+            let selection = serde_json::from_value::<Vec<moodflow_capsule::batch::Selection>>(
+                p["selection"].clone(),
+            )?;
+            let bytes = library.export_bundle(&selection)?;
+            let path = PathBuf::from(string(p, "path")?);
+            let mut staged = tempfile::NamedTempFile::new_in(
+                path.parent()
+                    .ok_or_else(|| anyhow::anyhow!("no output directory"))?,
+            )?;
+            staged.write_all(&bytes)?;
+            staged.as_file().sync_all()?;
+            staged.persist_noclobber(path).map_err(|e| e.error)?;
+            Ok(json!({"exported": selection.len(), "bytes": bytes.len()}))
+        }
         "new" => Ok(serde_json::to_value(Document::new(
             string(p, "kind")?,
             string(p, "title")?,
@@ -175,6 +205,8 @@ pub async fn library_request(
     .map_err(|e| {
         if e.to_string() == "library.privacy" {
             UiError::new("library.privacy", "library.privacy")
+        } else if e.to_string() == "source_changed" {
+            UiError::new("library.source_changed", "library.batch_source_changed")
         } else if e.to_string() == "revision_conflict" {
             UiError::new("library.conflict", "library.conflict")
         } else {
