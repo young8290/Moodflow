@@ -5,6 +5,7 @@ import { commands, unwrap } from '@/api'
 import { errorText, t } from '@/i18n'
 import { useToolPrivacy } from '../shared/useToolPrivacy'
 import SyncVaultCopies from './SyncVaultCopies.vue'
+import SyncConflictReview from './SyncConflictReview.vue'
 type Target = { kind: 'folder'; path: string } | { kind: 'webdav'; url: string; username: string }
 interface Profile {
   target: Target
@@ -15,16 +16,6 @@ interface Status {
   revision: string | null
   busy: boolean
 }
-interface Conflict {
-  name: string
-  title: string
-  kind: string
-  updated_at: string
-}
-interface Preview {
-  document: { metadata: { title: string }; body: string }
-  revision: string
-}
 interface Report {
   uploaded: number
   downloaded: number
@@ -32,6 +23,7 @@ interface Report {
   conflicts: number
   deferred: number
 }
+const conflictReview = ref<InstanceType<typeof SyncConflictReview> | null>(null)
 const paused = useToolPrivacy()
 const kind = ref<'folder' | 'webdav'>('folder')
 const path = ref(''),
@@ -49,9 +41,7 @@ const busy = ref(false),
   nativeBusy = ref(false),
   error = ref(''),
   notice = ref('')
-const conflicts = ref<Conflict[]>([]),
-  selected = ref<string | null>(null),
-  preview = ref<Preview | null>(null)
+const reviewRefresh = ref(0)
 const report = ref<(Report & { skipped: number }) | null>(null)
 let generation = 0,
   disposed = false
@@ -95,13 +85,9 @@ async function load(): Promise<void> {
   const mine = ++generation
   if (paused.value || disposed) return
   try {
-    const [status, list] = await Promise.all([
-      call<Status>('status'),
-      call<{ items: Conflict[] }>('conflicts'),
-    ])
+    const status = await call<Status>('status')
     if (mine !== generation || paused.value || disposed) return
     applyStatus(status)
-    conflicts.value = list.items
   } catch (e) {
     if (mine === generation && !paused.value && !disposed) error.value = errorText(e)
   }
@@ -176,9 +162,8 @@ async function run(method: 'initialize' | 'run' | 'repair'): Promise<void> {
       method === 'initialize' ? 'sync.initialized' : method === 'repair' ? 'sync.repaired' : 'sync.completed',
     )
     if (value.report) report.value = { ...value.report, skipped: value.skipped ?? 0 }
-    const list = await call<{ items: Conflict[] }>('conflicts')
     if (current === generation && !paused.value && !disposed) {
-      conflicts.value = list.items
+      reviewRefresh.value++
       nativeBusy.value = false
     }
   }, true)
@@ -191,42 +176,6 @@ async function stop(): Promise<void> {
     error.value = errorText(e)
   }
 }
-async function inspect(name: string): Promise<void> {
-  await action(async () => {
-    const mine = generation
-    const result = await call<Preview>('conflict', { name })
-    if (mine === generation && !paused.value && !disposed) {
-      selected.value = name
-      preview.value = result
-    }
-  })
-}
-async function resolve(method: 'restore_conflict' | 'delete_conflict'): Promise<void> {
-  if (!preview.value || !selected.value) return
-  const mine = generation,
-    name = selected.value,
-    expected = preview.value.revision
-  if (
-    !(await confirm(t(method === 'restore_conflict' ? 'sync.restore_confirm' : 'sync.delete_confirm'), {
-      title: 'Moodflow',
-      kind: 'warning',
-    })) ||
-    mine !== generation ||
-    paused.value ||
-    disposed
-  )
-    return
-  await action(async () => {
-    const current = generation
-    await call(method, { name, revision: expected, confirm: true })
-    if (current !== generation || paused.value || disposed) return
-    notice.value = t(method === 'restore_conflict' ? 'sync.restored' : 'sync.conflict_deleted')
-    preview.value = null
-    selected.value = null
-    const list = await call<{ items: Conflict[] }>('conflicts')
-    if (current === generation && !paused.value && !disposed) conflicts.value = list.items
-  })
-}
 watch(paused, () => {
   includeVault.value = false
   generation++
@@ -234,10 +183,7 @@ watch(paused, () => {
   recovery.value = ''
   consent.value = false
   plaintext.value = false
-  preview.value = null
-  selected.value = null
   report.value = null
-  conflicts.value = []
   error.value = ''
   notice.value = ''
   busy.value = false
@@ -261,6 +207,7 @@ onBeforeUnmount(() => {
   password.value = ''
   recovery.value = ''
 })
+defineExpose({ canLeave: () => conflictReview.value?.canLeave?.() ?? Promise.resolve(true) })
 </script>
 <template>
   <section class="sync-page">
@@ -370,25 +317,7 @@ onBeforeUnmount(() => {
           })
         }}
       </p>
-      <section class="conflicts">
-        <h3>{{ t('sync.conflicts') }}</h3>
-        <p class="hint">{{ t('sync.conflicts_hint') }}</p>
-        <p v-if="!conflicts.length">{{ t('sync.no_conflicts') }}</p>
-        <ul>
-          <li v-for="item in conflicts" :key="item.name">
-            <button :disabled="busy" @click="inspect(item.name)">{{ item.title }}</button
-            ><small>{{ item.updated_at }}</small>
-          </li>
-        </ul>
-        <article v-if="preview">
-          <h4>{{ preview.document.metadata.title }}</h4>
-          <textarea :value="preview.document.body" readonly :aria-label="t('sync.conflict_body')" />
-          <div class="row">
-            <button :disabled="busy" @click="resolve('restore_conflict')">{{ t('sync.restore') }}</button
-            ><button :disabled="busy" @click="resolve('delete_conflict')">{{ t('sync.delete') }}</button>
-          </div>
-        </article>
-      </section>
+      <SyncConflictReview ref="conflictReview" :disabled="busy || nativeBusy" :refresh-key="reviewRefresh" />
     </template>
   </section>
 </template>

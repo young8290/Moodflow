@@ -10,7 +10,12 @@ pub async fn sync_request(
     payload: String,
 ) -> Result<String, UiError> {
     let payload = Zeroizing::new(payload);
-    if window.label() != "dashboard" || payload.len() > 128 * 1024 {
+    let maximum = if method == "review_resolve" {
+        moodflow_capsule::MAX_DOCUMENT_BYTES * 6 + 32768
+    } else {
+        128 * 1024
+    };
+    if window.label() != "dashboard" || payload.len() > maximum {
         return Err(UiError::new("sync.invalid", "sync.invalid"));
     }
     let params = SensitiveJson(
