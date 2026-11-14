@@ -5,8 +5,9 @@ import { convertFileSrc } from '@tauri-apps/api/core'
 import { commands, unwrap } from '@/api'
 import { errorText, t } from '@/i18n'
 import { useToolPrivacy } from '../shared/useToolPrivacy'
+import CaptureCatalog from './CaptureCatalog.vue'
 import CaptureEditor from './CaptureEditor.vue'
-import type { CaptureAsset, CaptureCrop, CaptureImage } from './captureTypes'
+import type { CaptureCrop, CaptureImage, CaptureOperation } from './captureTypes'
 type Target = { kind: 'monitor'; index: number } | { kind: 'window'; hwnd: number; pid: number }
 interface Sources {
   monitors: { index: number; name: string; width: number; height: number }[]
@@ -21,7 +22,9 @@ const seconds = ref(10)
 const format = ref('mp4')
 const audio = ref(false)
 const cursor = ref(false)
-const assets = ref<CaptureAsset[]>([])
+const catalogReady = ref(false)
+const catalogRefresh = ref(0)
+const catalogBusy = ref(false)
 const current = ref<CaptureImage | null>(null)
 const selection = ref<CaptureCrop | null>(null)
 const frozenTarget = ref('')
@@ -44,10 +47,19 @@ const imageUrl = computed(() => (current.value ? convertFileSrc(current.value.pa
 async function call<T>(method: string, params: object = {}): Promise<T> {
   return JSON.parse(await unwrap(commands.captureRequest(method, JSON.stringify(params)))) as T
 }
-async function list(): Promise<void> {
-  const mine = generation
-  const result = await call<{ assets: CaptureAsset[] }>('list')
-  if (mine === generation && !paused.value && !disposed) assets.value = result.assets
+function refreshCatalog(): void {
+  catalogRefresh.value++
+}
+function clearPreview(): void {
+  current.value = null
+  selection.value = null
+  frozenTarget.value = ''
+  text.value = ''
+  title.value = ''
+}
+function catalogChanged(ids: string[], operation: CaptureOperation | 'rename'): void {
+  if (!current.value || !ids.includes(current.value.asset.id)) return
+  if (operation === 'trash' || operation === 'purge') clearPreview()
 }
 async function refreshSources(): Promise<void> {
   const mine = generation
@@ -58,7 +70,7 @@ async function refreshSources(): Promise<void> {
     selectedTarget.value = `monitor:${result.monitors[0].index}`
 }
 async function action(run: () => Promise<void>): Promise<void> {
-  if (busy.value || paused.value) return
+  if (busy.value || catalogBusy.value || paused.value) return
   const mine = generation
   busy.value = true
   error.value = ''
@@ -76,9 +88,8 @@ async function load(): Promise<void> {
     const mine = generation
     const status = await call<{ supported: boolean; helper: boolean }>('status')
     if (mine !== generation || paused.value || disposed) return
+    catalogReady.value = true
     available.value = status.supported && status.helper
-    await list()
-    if (mine !== generation || paused.value || disposed) return
     if (available.value) await refreshSources()
     else error.value = t('capture.missing_helper')
   })
@@ -96,7 +107,7 @@ async function choose(id: string): Promise<void> {
   })
 }
 async function capture(operation: 'screenshot' | 'record' | 'scroll'): Promise<void> {
-  if (!target.value || busy.value || paused.value || disposed) return
+  if (!target.value || busy.value || catalogBusy.value || paused.value || disposed) return
   const mine = generation
   const source = selectedTarget.value
   const region = operation !== 'screenshot' && frozenTarget.value === source ? selection.value : null
@@ -120,7 +131,7 @@ async function capture(operation: 'screenshot' | 'record' | 'scroll'): Promise<v
     frozenTarget.value = operation === 'screenshot' ? source : ''
     text.value = ''
     title.value = ''
-    await list()
+    refreshCatalog()
   })
   if (mine === generation) capturing.value = false
 }
@@ -147,7 +158,7 @@ async function edited(png: string): Promise<void> {
     current.value = image
     selection.value = null
     frozenTarget.value = ''
-    await list()
+    refreshCatalog()
   })
 }
 async function read(operation: 'ocr' | 'qr'): Promise<void> {
@@ -174,7 +185,7 @@ async function simple(method: string, extra: object = {}): Promise<void> {
 async function exportFile(): Promise<void> {
   const image = current.value
   const mine = generation
-  if (!image || busy.value || paused.value) return
+  if (!image || busy.value || catalogBusy.value || paused.value) return
   const path = await save({ defaultPath: `Moodflow-capture.${image.asset.extension}` })
   if (!path || mine !== generation || paused.value || disposed || current.value?.asset.id !== image.asset.id)
     return
@@ -190,8 +201,9 @@ async function saveLibrary(): Promise<void> {
   await action(async () => {
     await call('save_library', { id: image.asset.id, title: name })
     if (mine !== generation || paused.value || disposed) return
+    if (current.value?.asset.id === image.asset.id) current.value.asset.permanent = true
     notice.value = t('capture.library_saved')
-    await list()
+    refreshCatalog()
   })
 }
 async function stage(): Promise<void> {
@@ -206,33 +218,24 @@ async function stage(): Promise<void> {
 async function remove(): Promise<void> {
   const image = current.value
   const mine = generation
-  if (!image) return
-  if (
-    !(await confirm(t(image.asset.permanent ? 'capture.delete_saved_confirm' : 'capture.delete_confirm'), {
-      title: 'Moodflow',
-      kind: 'warning',
-    }))
-  )
-    return
+  if (!image?.asset.permanent || busy.value || catalogBusy.value) return
+  if (!(await confirm(t('capture.delete_saved_confirm'), { title: 'Moodflow', kind: 'warning' }))) return
   if (mine !== generation || paused.value || disposed || current.value?.asset.id !== image.asset.id) return
   await action(async () => {
-    await call('remove', { id: image.asset.id, confirm_saved: image.asset.permanent })
+    await call('remove', { id: image.asset.id, confirm_saved: true })
     if (mine !== generation || paused.value || disposed) return
-    current.value = null
-    text.value = ''
-    selection.value = null
-    await list()
+    clearPreview()
+    refreshCatalog()
   })
 }
 watch(paused, (value) => {
   generation++
   busy.value = false
   capturing.value = false
-  current.value = null
-  text.value = ''
-  assets.value = []
+  catalogBusy.value = false
+  catalogReady.value = false
+  clearPreview()
   sources.value = { monitors: [], windows: [], ocr_available: false }
-  selection.value = null
   error.value = ''
   notice.value = ''
   if (value) {
@@ -253,8 +256,7 @@ onBeforeUnmount(() => {
   disposed = true
   generation++
   clearInterval(heartbeat)
-  current.value = null
-  text.value = ''
+  clearPreview()
   void call('abort').catch(() => {})
   void call('release').catch(() => {})
 })
@@ -268,7 +270,7 @@ defineExpose({ canLeave })
       <h1>{{ t('capture.title') }}</h1>
       <p>{{ t('capture.description') }}</p>
     </header>
-    <fieldset :disabled="busy || !available">
+    <fieldset :disabled="catalogBusy || busy || !available">
       <label
         >{{ t('capture.source')
         }}<select v-model="selectedTarget">
@@ -324,60 +326,59 @@ defineExpose({ canLeave })
     <p v-if="error" role="alert" class="error">{{ error }}</p>
     <p v-if="notice" role="status">{{ notice }}</p>
     <div class="assets">
-      <aside>
-        <h2>{{ t('capture.history') }}</h2>
-        <p class="hint">{{ t('capture.retention') }}</p>
-        <button
-          v-for="asset in assets"
-          :key="asset.id"
-          :disabled="busy"
-          :aria-pressed="current?.asset.id === asset.id"
-          @click="choose(asset.id)"
-        >
-          {{ new Date(asset.created_at * 1000).toLocaleString()
-          }}<small>{{
-            t('capture.asset_size', {
-              format: asset.extension.toUpperCase(),
-              width: asset.width,
-              height: asset.height,
-            })
-          }}</small>
-        </button>
-        <p v-if="!assets.length">{{ t('capture.no_assets') }}</p>
-      </aside>
+      <CaptureCatalog
+        v-if="catalogReady"
+        :request="call"
+        :busy="busy"
+        :active-id="current?.asset.id"
+        :refresh="catalogRefresh"
+        @working="catalogBusy = $event"
+        @choose="choose"
+        @changed="catalogChanged"
+      />
       <article v-if="current">
         <CaptureEditor
           v-if="current.asset.extension === 'png'"
           :key="current.asset.id"
           :image="current"
-          :busy="busy"
+          :busy="catalogBusy || busy"
           @save="edited"
           @selection="selection = $event"
         />
         <video v-else-if="current.asset.extension === 'mp4'" :src="imageUrl" controls preload="metadata" />
         <img v-else :src="imageUrl" :alt="t('capture.title')" />
         <div class="actions">
-          <button :disabled="busy || current.asset.extension !== 'png'" @click="simple('copy_image')">
+          <button
+            :disabled="catalogBusy || busy || current.asset.extension !== 'png'"
+            @click="simple('copy_image')"
+          >
             {{ t('capture.copy') }}</button
-          ><button :disabled="busy" @click="exportFile">{{ t('capture.export') }}</button
-          ><button :disabled="busy || current.asset.extension === 'mp4'" @click="simple('pin')">
+          ><button :disabled="catalogBusy || busy" @click="exportFile">{{ t('capture.export') }}</button
+          ><button
+            :disabled="catalogBusy || busy || current.asset.extension === 'mp4'"
+            @click="simple('pin')"
+          >
             {{ t('capture.pin') }}</button
-          ><button :disabled="busy" @click="simple('unpin')">{{ t('capture.unpin') }}</button
-          ><button :disabled="busy" @click="simple('pin_passthrough', { enabled: false })">
+          ><button :disabled="catalogBusy || busy" @click="simple('unpin')">{{ t('capture.unpin') }}</button
+          ><button :disabled="catalogBusy || busy" @click="simple('pin_passthrough', { enabled: false })">
             {{ t('capture.unlock_pin') }}</button
-          ><button :disabled="busy" @click="remove">{{ t('capture.delete') }}</button>
+          ><button v-if="current.asset.permanent" :disabled="catalogBusy || busy" @click="remove">
+            {{ t('capture.delete') }}
+          </button>
         </div>
         <div class="actions">
           <label>{{ t('capture.library_title') }}<input v-model="title" maxlength="256" /></label
-          ><button :disabled="busy || !title.trim()" @click="saveLibrary">{{ t('capture.library') }}</button>
+          ><button :disabled="catalogBusy || busy || !title.trim()" @click="saveLibrary">
+            {{ t('capture.library') }}
+          </button>
         </div>
         <div class="actions">
           <button
-            :disabled="busy || current.asset.extension === 'mp4' || !sources.ocr_available"
+            :disabled="catalogBusy || busy || current.asset.extension === 'mp4' || !sources.ocr_available"
             @click="read('ocr')"
           >
             {{ t('capture.ocr') }}</button
-          ><button :disabled="busy || current.asset.extension === 'mp4'" @click="read('qr')">
+          ><button :disabled="catalogBusy || busy || current.asset.extension === 'mp4'" @click="read('qr')">
             {{ t('capture.qr') }}
           </button>
         </div>
@@ -386,9 +387,11 @@ defineExpose({ canLeave })
           >{{ t('capture.text_result') }}<textarea v-model="text" maxlength="65536" spellcheck="false" />
         </label>
         <div class="actions">
-          <button :disabled="busy || !text" @click="simple('copy_text', { text })">
+          <button :disabled="catalogBusy || busy || !text" @click="simple('copy_text', { text })">
             {{ t('capture.copy_text') }}</button
-          ><button :disabled="busy || !text.trim()" @click="stage">{{ t('capture.stage') }}</button>
+          ><button :disabled="catalogBusy || busy || !text.trim()" @click="stage">
+            {{ t('capture.stage') }}
+          </button>
         </div>
       </article>
     </div>
@@ -434,22 +437,8 @@ header p {
 }
 .assets {
   display: grid;
-  grid-template-columns: 180px minmax(0, 1fr);
+  grid-template-columns: minmax(270px, 35%) minmax(0, 1fr);
   gap: var(--mf-sp-4);
-}
-aside {
-  display: flex;
-  flex-direction: column;
-  gap: var(--mf-sp-2);
-  max-height: 75vh;
-  overflow: auto;
-}
-aside button {
-  text-align: left;
-  display: grid;
-}
-small {
-  color: var(--mf-text-2);
 }
 article {
   display: grid;
@@ -470,9 +459,6 @@ textarea {
 @media (max-width: 800px) {
   .assets {
     grid-template-columns: 1fr;
-  }
-  aside {
-    max-height: 200px;
   }
 }
 </style>

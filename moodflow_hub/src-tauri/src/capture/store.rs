@@ -1,6 +1,9 @@
 //! Atomic, bounded local capture index. Unrecognized/corrupt data is never rebuilt or discarded.
 use anyhow::{Result, ensure};
-use moodflow_capsule::capture::{self, Asset, MAX_ASSET_BYTES, MAX_TOTAL_BYTES};
+use moodflow_capsule::capture::{
+    self, Asset, MAX_ASSET_BYTES, MAX_TOTAL_BYTES,
+    catalog::{self, MAX_BATCH, Operation, Outcome, Scope, Selection},
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
@@ -16,6 +19,9 @@ struct Index {
     version: u8,
     assets: Vec<Asset>,
 }
+const DELETE_MARKER: &str = ".capture-delete.json";
+const DELETE_STAGE: &str = ".capture-delete-media";
+
 pub struct Store {
     root: PathBuf,
     _lock: File,
@@ -37,6 +43,14 @@ fn regular(path: &Path) -> Result<fs::Metadata> {
     }
     Ok(metadata)
 }
+fn exists(path: &Path) -> Result<bool> {
+    match fs::symlink_metadata(path) {
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error.into()),
+    }
+}
+
 pub fn digest(path: &Path) -> Result<(u64, String)> {
     ensure!(
         regular(path)?.len() <= MAX_ASSET_BYTES,
@@ -57,6 +71,18 @@ pub fn digest(path: &Path) -> Result<(u64, String)> {
     }
     Ok((bytes, format!("{:x}", sha.finalize())))
 }
+pub fn copy_candidate(path: &Path, bytes: u64, output: &mut impl Write) -> Result<()> {
+    ensure!(
+        regular(path)?.len() == bytes && bytes <= MAX_ASSET_BYTES,
+        "capture.changed"
+    );
+    ensure!(
+        std::io::copy(&mut File::open(path)?.take(bytes + 1), output)? == bytes,
+        "capture.changed"
+    );
+    Ok(())
+}
+
 pub fn read_bounded(path: &Path) -> Result<Vec<u8>> {
     ensure!(
         regular(path)?.len() <= MAX_ASSET_BYTES,
@@ -178,16 +204,18 @@ impl Store {
             "capture.index_limit"
         );
         capture::prune_candidates(&index.assets, &BTreeSet::new(), 0)?;
-        Ok(Self {
+        let store = Self {
             root: root.to_owned(),
             _lock: lock,
             index,
-        })
+        };
+        store
+            .recover_delete()
+            .map_err(|_| anyhow::anyhow!("capture.catalog_delete_pending"))?;
+        Ok(store)
     }
-    pub fn list(&self) -> Vec<Asset> {
-        let mut assets = self.index.assets.clone();
-        assets.sort_by_key(|asset| std::cmp::Reverse(asset.created_at));
-        assets
+    pub fn assets(&self) -> &[Asset] {
+        &self.index.assets
     }
     pub fn get(&self, id: &str) -> Result<&Asset> {
         self.index
@@ -197,8 +225,10 @@ impl Store {
             .ok_or_else(|| anyhow::anyhow!("capture.missing"))
     }
     pub fn path(&self, id: &str) -> Result<PathBuf> {
-        let asset = self.get(id)?;
-        Ok(self.root.join(format!("{}.{}", asset.id, asset.extension)))
+        Ok(self.asset_path(self.get(id)?))
+    }
+    fn asset_path(&self, asset: &Asset) -> PathBuf {
+        self.root.join(format!("{}.{}", asset.id, asset.extension))
     }
     pub fn verified_path(&self, id: &str) -> Result<PathBuf> {
         let asset = self.get(id)?;
@@ -210,9 +240,6 @@ impl Store {
         );
         Ok(path)
     }
-    pub fn prune(&mut self, leased: &BTreeSet<String>, now: u64) -> Result<()> {
-        self.prune_for_space(leased, now, 0)
-    }
     pub fn prune_for_space(
         &mut self,
         leased: &BTreeSet<String>,
@@ -220,17 +247,15 @@ impl Store {
         incoming: u64,
     ) -> Result<()> {
         let ids = capture::prune_for_space(&self.index.assets, leased, now, incoming)?;
-        let mut changed = false;
-        for id in ids {
-            let path = self.path(&id)?;
-            // Busy/unreadable files are deferred, not interpreted as deletions.
-            if self.verified_path(&id).is_ok() && fs::remove_file(path).is_ok() {
-                self.index.assets.retain(|asset| asset.id != id);
-                changed = true;
+        // Bound synchronous hashing and durable commits before publishing a new capture.
+        // Further expired records remain visible in the cleanup preview.
+        for id in ids.into_iter().take(MAX_BATCH) {
+            // Busy/changed files are deferred. Do not start a second journal if cleanup is pending.
+            self.recover_delete()?;
+            if let Ok(path) = self.verified_path(&id) {
+                let asset = self.get(&id)?.clone();
+                let _ = self.delete_verified(&asset, &path, || true);
             }
-        }
-        if changed {
-            self.save()?;
         }
         Ok(())
     }
@@ -267,6 +292,10 @@ impl Store {
             bytes,
             sha256,
             permanent: false,
+            name: String::new(),
+            kept: false,
+            trashed_at: None,
+            temporary_since: None,
         };
         asset.validate()?;
         ensure!(
@@ -305,20 +334,204 @@ impl Store {
         }
         Ok(asset)
     }
-    pub fn set_permanent(&mut self, id: &str) -> Result<()> {
-        self.get(id)?;
-        self.index
+    fn replace(&mut self, id: &str, update: impl FnOnce(&mut Asset)) -> Result<()> {
+        let index = self
+            .index
             .assets
-            .iter_mut()
-            .find(|asset| asset.id == id)
-            .unwrap()
-            .permanent = true;
-        self.save()
+            .iter()
+            .position(|asset| asset.id == id)
+            .ok_or_else(|| anyhow::anyhow!("capture.missing"))?;
+        let old = self.index.assets[index].clone();
+        update(&mut self.index.assets[index]);
+        if let Err(error) = self.index.assets[index]
+            .validate()
+            .and_then(|()| self.save())
+        {
+            self.index.assets[index] = old;
+            return Err(error);
+        }
+        Ok(())
     }
+
+    pub fn set_permanent(&mut self, id: &str) -> Result<()> {
+        self.replace(id, |asset| {
+            asset.permanent = true;
+            asset.kept = false;
+        })
+    }
+
+    pub fn rename(&mut self, item: &Selection, name: &str) -> Result<()> {
+        item.validate()?;
+        let asset = self.active(&item.id)?;
+        ensure!(
+            catalog::revision(asset) == item.revision,
+            "capture.catalog_stale"
+        );
+        let name = catalog::normalize_name(name)?;
+        self.replace(&item.id, |a| a.name = name)
+    }
+
+    pub fn active(&self, id: &str) -> Result<&Asset> {
+        let asset = self.get(id)?;
+        ensure!(Scope::of(asset) != Scope::Trash, "capture.catalog_trashed");
+        Ok(asset)
+    }
+
+    pub fn preview(&self, item: &Selection, op: Operation, blocked: bool) -> Outcome {
+        catalog::review(self.get(&item.id).ok(), item, op, blocked)
+    }
+
+    pub fn apply(
+        &mut self,
+        item: &Selection,
+        op: Operation,
+        blocked: bool,
+        now: u64,
+        allowed: impl Fn() -> bool,
+    ) -> Outcome {
+        let ready = self.preview(item, op, blocked);
+        if ready != Outcome::Ready {
+            return ready;
+        }
+        let id = &item.id;
+        if op == Operation::Purge {
+            return match self.remove_if(id, allowed) {
+                Ok(()) => Outcome::Done,
+                Err(error) if error.to_string() == "capture.privacy" => Outcome::Paused,
+                Err(error) if error.to_string() == "capture.changed" => Outcome::ChangedFile,
+                Err(error)
+                    if error
+                        .downcast_ref::<std::io::Error>()
+                        .is_some_and(|e| e.kind() == std::io::ErrorKind::NotFound) =>
+                {
+                    Outcome::ChangedFile
+                }
+                Err(_) => Outcome::Failed,
+            };
+        }
+        let result = self.replace(id, |a| match op {
+            Operation::Keep => a.kept = true,
+            Operation::Release => {
+                a.kept = false;
+                // Give the user a full temporary retention window after switching protection off.
+                a.temporary_since = Some(now);
+            }
+            Operation::Trash => a.trashed_at = Some(now),
+            Operation::Restore => {
+                a.trashed_at = None;
+                a.temporary_since = Some(now);
+            }
+            Operation::Purge | Operation::Export => unreachable!(),
+        });
+        if result.is_ok() {
+            Outcome::Done
+        } else {
+            Outcome::Failed
+        }
+    }
+
     pub fn remove(&mut self, id: &str) -> Result<()> {
-        fs::remove_file(self.verified_path(id)?)?;
-        self.index.assets.retain(|asset| asset.id != id);
-        self.save()
+        self.remove_if(id, || true)
+    }
+
+    pub fn remove_if(&mut self, id: &str, allowed: impl Fn() -> bool) -> Result<()> {
+        let asset = self.get(id)?.clone();
+        let path = self.verified_path(id)?;
+        ensure!(allowed(), "capture.privacy");
+        self.delete_verified(&asset, &path, allowed)
+    }
+
+    // A single journal under the index lock makes byte removal recoverable across an
+    // interrupted index commit. Before commit, restore the bytes; after commit, finish deleting.
+    fn delete_verified(
+        &mut self,
+        asset: &Asset,
+        original: &Path,
+        allowed: impl FnOnce() -> bool,
+    ) -> Result<()> {
+        self.recover_delete()?;
+        let marker = self.root.join(DELETE_MARKER);
+        let parked = self.root.join(DELETE_STAGE);
+        ensure!(!exists(&parked)?, "capture.catalog_delete_pending");
+        let mut record = tempfile::NamedTempFile::new_in(&self.root)?;
+        record.write_all(&serde_json::to_vec(asset)?)?;
+        record.as_file().sync_all()?;
+        drop(record.persist_noclobber(&marker)?);
+        if let Err(error) = fs::rename(original, &parked) {
+            let _ = fs::remove_file(&marker);
+            return Err(error.into());
+        }
+        // Verify the renamed file as well as the pre-rename path. Never delete an
+        // externally replaced file that was not the asset described in the journal.
+        if digest(&parked).ok().as_ref() != Some(&(asset.bytes, asset.sha256.clone())) {
+            if !exists(original)? {
+                fs::rename(&parked, original)?;
+                fs::remove_file(&marker)?;
+            }
+            anyhow::bail!("capture.changed");
+        }
+        if !allowed() {
+            self.recover_delete()?;
+            anyhow::bail!("capture.privacy");
+        }
+        let position = self
+            .index
+            .assets
+            .iter()
+            .position(|a| a.id == asset.id)
+            .expect("indexed asset");
+        let removed = self.index.assets.remove(position);
+        if let Err(error) = self.save() {
+            self.index.assets.insert(position, removed);
+            self.recover_delete()?;
+            return Err(error);
+        }
+        if fs::remove_file(&parked).is_ok() {
+            let _ = fs::remove_file(&marker);
+        }
+        Ok(())
+    }
+
+    fn recover_delete(&self) -> Result<()> {
+        let marker = self.root.join(DELETE_MARKER);
+        if !exists(&marker)? {
+            return Ok(());
+        }
+        ensure!(
+            regular(&marker)?.len() <= 4096,
+            "capture.catalog_delete_pending"
+        );
+        let mut bytes = Vec::new();
+        File::open(&marker)?.take(4097).read_to_end(&mut bytes)?;
+        ensure!(bytes.len() <= 4096, "capture.catalog_delete_pending");
+        let asset: Asset = serde_json::from_slice(&bytes)?;
+        asset.validate()?;
+        let original = self.asset_path(&asset);
+        let parked = self.root.join(DELETE_STAGE);
+        let indexed = self.get(&asset.id).ok();
+        if let Some(indexed) = indexed {
+            ensure!(
+                catalog::revision(&asset) == catalog::revision(indexed),
+                "capture.catalog_delete_pending"
+            );
+        }
+        match (indexed.is_some(), exists(&original)?, exists(&parked)?) {
+            (true, true, false) | (false, false, false) => {}
+            (still_indexed, false, true) => {
+                ensure!(
+                    digest(&parked)? == (asset.bytes, asset.sha256),
+                    "capture.catalog_delete_pending"
+                );
+                if still_indexed {
+                    fs::rename(parked, original)?;
+                } else {
+                    fs::remove_file(parked)?;
+                }
+            }
+            _ => anyhow::bail!("capture.catalog_delete_pending"),
+        }
+        fs::remove_file(marker)?;
+        Ok(())
     }
 }
 
@@ -353,12 +566,13 @@ mod tests {
             b"synthetic pixels"
         );
         store
-            .prune(
+            .prune_for_space(
                 &BTreeSet::from([asset.id.clone()]),
                 capture::RETENTION_SECONDS + 1,
+                0,
             )
             .unwrap();
-        assert_eq!(store.list().len(), 1);
+        assert_eq!(store.assets().len(), 1);
         fs::write(store.path(&asset.id).unwrap(), b"changed fixture").unwrap();
         assert!(store.verified_path(&asset.id).is_err());
         assert!(read_verified(&store.path(&asset.id).unwrap(), &asset).is_err());
@@ -371,3 +585,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "store_tests.rs"]
+mod feature_tests;

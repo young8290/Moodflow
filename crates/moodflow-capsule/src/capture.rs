@@ -1,4 +1,5 @@
 //! Capture protocol, pixel limits, scroll overlap and temporary-asset retention. No OS APIs.
+pub mod catalog;
 use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -119,7 +120,7 @@ impl Request {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Asset {
     pub id: String,
@@ -132,11 +133,28 @@ pub struct Asset {
     #[serde(default)]
     pub permanent: bool,
     pub sha256: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub name: String,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub kept: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trashed_at: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub temporary_since: Option<u64>,
 }
 impl Asset {
+    pub fn retention_start(&self) -> u64 {
+        self.temporary_since.unwrap_or(self.created_at)
+    }
     pub fn validate(&self) -> Result<()> {
         super::canonical_id(&self.id)?;
         validate_size(self.width, self.height)?;
+        ensure!(
+            catalog::normalize_name(&self.name)? == self.name
+                && !(self.permanent && self.kept)
+                && (self.trashed_at.is_none() || !(self.permanent || self.kept)),
+            "capture.invalid_asset"
+        );
         ensure!(
             ["png", "mp4", "gif"].contains(&self.extension.as_str())
                 && self.bytes > 0
@@ -176,12 +194,12 @@ pub fn prune_for_space(
     }
     let mut eligible = assets
         .iter()
-        .filter(|a| !a.permanent && !leased.contains(&a.id))
+        .filter(|a| catalog::Scope::of(a) == catalog::Scope::Temporary && !leased.contains(&a.id))
         .collect::<Vec<_>>();
     eligible.sort_by_key(|a| (a.created_at, &a.id));
     let mut removed = Vec::new();
     for asset in eligible {
-        if now.saturating_sub(asset.created_at) >= RETENTION_SECONDS
+        if now.saturating_sub(asset.retention_start()) >= RETENTION_SECONDS
             || bytes.saturating_add(incoming) > MAX_TOTAL_BYTES
         {
             bytes -= asset.bytes;
@@ -283,6 +301,10 @@ mod tests {
             duration_ms: 0,
             permanent,
             sha256: "a".repeat(64),
+            name: String::new(),
+            kept: false,
+            trashed_at: None,
+            temporary_since: None,
         };
         let assets = vec![asset(false), asset(false), asset(true)];
         let leased = BTreeSet::from([assets[1].id.clone()]);
@@ -314,3 +336,6 @@ fn sleep_revokes_the_task_permanently_but_active_work_does_not() {
     assert!(!guard.observe(21000, 12000 * 10000));
     assert!(!guard.observe(22000, 22000 * 10000));
 }
+
+#[cfg(test)]
+mod catalog_tests;
