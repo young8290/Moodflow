@@ -130,7 +130,7 @@
   截图用 Windows.Graphics.Capture（Win10 1903+），失败回退 DXGI Desktop Duplication；自身界面用
   `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)` 排除；OCR 用 `Windows.Media.Ocr`（离线，需中文语言包，没装时提示）；
   二维码用 `rqrr` 或 zxing-cpp（Apache-2.0）；录屏用 Media Foundation（H.264 / AAC）+ WASAPI loopback，GIF 用 `gif` crate；
-  滚动截图用 `SendInput` 滚轮并拼接。快捷键标量字段（暂定 `keys.capture = "ctrl+shift+a"`），出厂可清空。
+  滚动截图用 `SendInput` 滚轮并拼接。本机资产的命名、批量整理、导出和回收站行为见 [捕获资产管理](capture-catalog.md)。快捷键标量字段（暂定 `keys.capture = "ctrl+shift+a"`），出厂可清空。
   索引与保留规则放 `moodflow-capsule`。
 - **Android**：第一版只做**对已有图片 OCR / 识码**（照片选择器、分享进来的图片、剪贴板图片）：OCR 用 PaddleOCR / Tesseract
   （Apache-2.0，随包模型）或 ML Kit（需评估 Google 条款与 Play 服务依赖），二维码用 ZXing。截屏需 MediaProjection（每次用户同意、
