@@ -1,4 +1,4 @@
-import { DOMWrapper, flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { t } from '@/i18n'
 import ChordPractice from './ChordPractice.vue'
@@ -27,7 +27,7 @@ const outcome = (keys: string[], output: string | null, idle = false): ChordOutc
   idle,
 })
 
-function press(box: DOMWrapper<Element>, type: 'keydown' | 'keyup', code: string, extras = {}): void {
+function press(box: { element: Element }, type: 'keydown' | 'keyup', code: string, extras = {}): void {
   box.element.dispatchEvent(new KeyboardEvent(type, { bubbles: true, cancelable: true, code, ...extras }))
 }
 
@@ -65,7 +65,7 @@ describe('并击试练台', () => {
     expect(imeTools).toHaveBeenCalledTimes(1)
     await settle()
     expect(imeTools.mock.calls.map(([method]) => method)).toEqual(['chord.rehearse', 'chord.rehearse'])
-    const payload = JSON.parse(imeTools.mock.calls[1][1] as string)
+    const payload = JSON.parse(imeTools.mock.calls.at(1)?.[1] as string)
     expect(JSON.parse(payload.text)).toEqual(profile)
     expect(payload.strokes.map(({ key, down }: ChordStroke) => [key, down])).toEqual([
       ['a', true],
