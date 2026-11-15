@@ -717,7 +717,8 @@ fn coordinator_events_reach_hub() {
     });
     assert_eq!(done(&mut hub), (req, None, RewriteOutcome::Failed));
     assert_eq!(phase(), None);
-    assert!(tips(&ui).iter().any(|(t, _)| t.contains("和晴晴聊聊")));
+    // RewriteDone travels over the socket, and the tip is queued afterwards.
+    wait_until(|| tips(&ui).iter().any(|(t, _)| t.contains("和晴晴聊聊")));
 
     // 其余失败：候选框里提示 1.5 秒后退出
     let (req, ..) = enter_rewrite(&mut hub);

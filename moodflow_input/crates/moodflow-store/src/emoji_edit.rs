@@ -115,7 +115,8 @@ impl Store {
         ensure!(text.len() <= MAX_MAPPING_TEXT, "mapping.limit");
         let mut entries = Vec::new();
         let mut words = BTreeSet::new();
-        for (i, raw) in text.trim_start_matches('\u{feff}').lines().enumerate() {
+        let normalized = moodflow_utils::text::normalize_input(text);
+        for (i, raw) in normalized.lines().enumerate() {
             let line = raw.trim();
             if line.is_empty() {
                 continue;
@@ -239,7 +240,7 @@ mod tests {
     #[test]
     fn stale_second_row_rolls_back_every_change_in_the_import() {
         let store = store("mapping-edit");
-        let text = "{\"word\":\"开心\",\"added\":[\"🙂\"]}\n{\"word\":\"完成\",\"added\":[\"✔️\"]}";
+        let text = "{\"word\":\"开心\",\"added\":[\"🙂\"]}\r{\"word\":\"完成\",\"added\":[\"✔️\"]}";
         let plan = store
             .plan_emoji_import(text, EmojiImportPolicy::Merge)
             .unwrap();
