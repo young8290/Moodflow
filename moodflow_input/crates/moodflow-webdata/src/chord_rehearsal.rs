@@ -1,7 +1,6 @@
 //! The Hub can validate and replay an unsaved chord draft. No host state is read or modified.
 use moodflow_chord::{Keymap, MAX_STROKES, RehearsalError, Stroke, rehearse};
 use moodflow_keys::keymap::{key_name_to_vk_with_letters, symbol_keys};
-use serde::Deserialize;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
@@ -43,10 +42,7 @@ pub(super) fn dispatch(params: &Value) -> anyhow::Result<Value> {
             return Ok(json!({ "error": "duplicate_key", "key": name }));
         }
     }
-    let strokes = strokes
-        .iter()
-        .map(|v| Stroke::deserialize(v))
-        .collect::<Result<Vec<_>, _>>()?;
+    let strokes: Vec<Stroke> = serde_json::from_value(Value::Array(strokes.clone()))?;
     let outcomes = match rehearse(&map, &strokes) {
         Ok(results) => results,
         Err(RehearsalError::TooManyStrokes) => return Ok(json!({ "error": "trace_limit" })),
