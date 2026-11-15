@@ -31,7 +31,7 @@ use jni::JNIEnv;
 use jni::objects::{JClass, JObject, JString};
 use jni::sys::{JNI_FALSE, JNI_TRUE, jboolean, jint, jintArray, jlong, jobjectArray, jstring};
 use moodflow_mobile::buffer::{DEFAULT_CAPACITY_UTF16, MobileBuffer, WriteResult};
-use moodflow_mobile::chord::{ChordOutput, MobileChord};
+use moodflow_mobile::chord::{BUILTIN_JSON, ChordOutput, MobileChord};
 use moodflow_mobile::config_api::ConfigValue;
 use moodflow_mobile::practice::Practice;
 use moodflow_mobile::{MobileCommand, MobileCore};
@@ -1154,6 +1154,29 @@ pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeChordBuilt
     _class: JClass,
 ) -> jlong {
     guard(0, || into_handle(Mutex::new(MobileChord::builtin())))
+}
+
+/// Default editable profile; the packaged JSON is shared with desktop.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeChordBuiltinJson(
+    mut env: JNIEnv,
+    _class: JClass,
+) -> jstring {
+    new_string(&mut env, BUILTIN_JSON)
+}
+
+/// Accept valid version 1 drafts, including an empty mapping list.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeChordValidateDraft(
+    mut env: JNIEnv,
+    _class: JClass,
+    json: JString,
+) -> jstring {
+    let json = get_string(&mut env, &json);
+    let err = guard(Some("内部错误".to_string()), || {
+        MobileChord::validate_draft(&json).err()
+    });
+    opt_string(&mut env, err.as_deref())
 }
 
 /// 应用级校验：`null` = 可以应用，否则为原因（不含方案内容）。

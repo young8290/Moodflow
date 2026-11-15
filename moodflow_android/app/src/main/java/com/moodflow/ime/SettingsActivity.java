@@ -100,7 +100,7 @@ public final class SettingsActivity extends Activity {
         getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         if(Build.VERSION.SDK_INT>=33) getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
                 android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,this::goBack);
-        chordProfile=ChordProfiles.INSTANCE.builtin();
+        chordProfile=ChordProfiles.INSTANCE.preview(this);
         CoreHolder.INSTANCE.acquire(this,c -> {
             if(destroyed) return kotlin.Unit.INSTANCE;
             core=c; coreReady=true;
@@ -112,6 +112,7 @@ public final class SettingsActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         // Returning from the system IME picker must not discard a playground draft.
+        if(resumed) chordProfile=ChordProfiles.INSTANCE.preview(this);
         if(resumed && content!=null && !page.equals("playground") && !page.equals("practice")) render();
         resumed=true;
     }
@@ -199,7 +200,7 @@ public final class SettingsActivity extends Activity {
         switch(destination) {
             case "setup":return "启用 Moodflow 键盘";case "playground":return "输入体验";
             case "schema":return "输入方案";case "chords":return "滑动并击与键位";
-            case "mappings":return "内置并击映射";case "plugins":return "插件";
+            case "mappings":return "当前并击映射";case "plugins":return "插件";
             case "appearance":return "键盘布局与配色";case "practice":return "打字测速";
             case "data":return "数据管理";case "privacy":return "隐私";
             case "licenses":return "第三方许可";case "license":return license==null?"许可":license;
@@ -404,22 +405,24 @@ public final class SettingsActivity extends Activity {
     private void chords() {
         LinearLayout instructions=group("双手滑动并击");
         paragraph(instructions,"每手：起点＋终点。途中经过的键不计入；双手全部松开时提交。划回起点恢复单键。英文态与 Shift 在同一块面板上按单键打字母。");
+        LinearLayout manager=group("自定义方案");
+        row(manager,KeyboardIcon.BOOK,"管理并击方案","导入、编辑、验证、启用或切回内置方案",null,
+                () -> startActivity(new Intent(this,ChordProfilesActivity.class)));
         if(chordProfile==null) { note("并击方案不可用（原生库未加载）。"); return; }
         LinearLayout layouts=group("键位布局");
         segments(layouts,new String[]{KeyboardChoice.ORTHOGONAL,KeyboardChoice.SPLIT_ORTHOGONAL},new String[]{"并击矩阵","分离并击"},settings.getLayout(),id -> { settings.setLayout(id); ensurePinyin(id); render(); }); preview(layouts);
         row(layouts,KeyboardIcon.KEYBOARD,"返回标准键盘",null,null,() -> { settings.setLayout(KeyboardChoice.QWERTY); render(); });
-        LinearLayout profile=group("当前映射"); paragraph(profile,"内置方案 · 全拼输出\n"+chordProfile.entries.size()+" 项映射（XSIME 默认并击方案），由输入法核心结算后送进拼音引擎。");
+        LinearLayout profile=group("当前映射"); paragraph(profile,chordProfile.entries.size()+" 项正在生效的映射，由输入法核心结算后送进拼音引擎。");
         row(profile,KeyboardIcon.BOOK,"查看全部映射",null,null,() -> navigate("mappings"));
         for(String keys:new String[]{"dvi","xck","ef","km"}) {
             ChordProfile.Resolution value=chordProfile.resolve(keys);
             if(value!=null) row(profile,null,keys.toUpperCase(java.util.Locale.ROOT),value.preview,null,null);
         }
-        note("Android 暂不支持导入或编辑并击映射。");
     }
     private void mappings() {
         if(chordProfile==null) { note("并击方案不可用（原生库未加载）。"); return; }
-        note("键组合 → 拼音 / 声韵母片段。内置映射仅供查阅。");
-        LinearLayout group=group(chordProfile.entries.size()+" 项内置映射"); StringBuilder table=new StringBuilder();
+        note("键组合 → 拼音 / 声韵母片段。这里显示正在使用的方案。");
+        LinearLayout group=group(chordProfile.entries.size()+" 项生效映射"); StringBuilder table=new StringBuilder();
         for(ChordProfile.Entry entry:chordProfile.entries) table.append(entry.keys).append("  →  ").append(entry.output).append(entry.fragment?"  ·  片段":"").append('\n');
         TextView view=text(table.toString(),16,ink,false); view.setTypeface(Typeface.MONOSPACE); view.setTextIsSelectable(true); view.setPadding(dp(16),dp(16),dp(16),dp(16)); group.addView(view);
     }

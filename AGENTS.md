@@ -417,7 +417,8 @@ cargo test -p moodflow-rpc --test wind_setting_assets
   `imelogic` 的 `keyboard` 包并配 JVM 单测，`app` 里只放视图。
 - 键盘服务与设置页**共用一个核心**（`core/CoreHolder`）：不要在别处 `MoodflowCore.create`，第二个实例拿不到词库锁。
 - 剪贴板历史走核心（`MobileCore::clipboard_*`，与 Windows 同一份文件）；物理键盘并击 `chord.enabled` 在移动端
-  被门面强制关闭，触屏并击是键盘布局（宿主偏好 `layout`），方案为 `MobileChord::builtin`。
+  被门面强制关闭。Android 键盘在并击布局内通过 `MobileChord` 处理物理键与触屏；方案默认内置，
+  也可通过设置页启用校验后的 [自定义方案](docs/design/android-chord-profiles.md)。
 
 ```bash
 cd moodflow_android/rust
