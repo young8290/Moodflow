@@ -99,6 +99,7 @@ fn dispose_contract_rows(
 }
 use moodflow_coordinator::web_host::WebDataHost;
 
+mod chord_rehearsal;
 mod plugin_market;
 mod plugins;
 mod translate;
@@ -612,6 +613,7 @@ pub trait WebDataRpc: WebDataHost {
             "buffer.read" => {
                 Ok(json!({ "text": self.read_buffer_text().map_err(anyhow::Error::msg)? }))
             }
+            "chord.rehearse" => chord_rehearsal::dispatch(params),
             "chord.get" | "chord.save" | "chord.builtin" | "chord.readFile"
             | "chord.exportFile" | "scheme.rimePreview" | "scheme.rimeImport" => {
                 windows_tools::dispatch(self, method, params)

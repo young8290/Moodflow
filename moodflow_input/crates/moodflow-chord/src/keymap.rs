@@ -178,7 +178,7 @@ fn valid_output(s: &str) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use super::*;
 
     pub(crate) fn sample() -> Keymap {

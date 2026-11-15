@@ -13,6 +13,8 @@ pub enum ChordEvent {
     NoMatch { keys: Vec<String> },
 }
 
+pub(crate) type Settlement = (Combo, ChordEvent);
+
 /// 并击结算器。一个输入会话一个；换焦点或切方案时 [`Settler::reset`]。
 #[derive(Debug, Clone)]
 pub struct Settler {
@@ -73,6 +75,10 @@ impl Settler {
 
     /// 按下。返回因此被结算掉的先前输入（等待另一只手时又按了同一只手）。
     pub fn key_down(&mut self, key: &str, now_ms: u64) -> Option<ChordEvent> {
+        self.down_with_keys(key, now_ms).map(|(_, event)| event)
+    }
+
+    pub(crate) fn down_with_keys(&mut self, key: &str, now_ms: u64) -> Option<Settlement> {
         if !self.is_chord_key(key) {
             return None;
         }
@@ -83,7 +89,7 @@ impl Settler {
         {
             // 等另一只手时又落下同一只手：先把等待中的那半单独结算。
             let p = self.pending.take().expect("checked");
-            flushed = Some(self.lookup(&p.keys));
+            flushed = Some(self.resolve(p.keys));
         }
         self.held.insert(key.to_owned());
         self.batch.insert(key.to_owned());
@@ -92,6 +98,10 @@ impl Settler {
 
     /// 松开。全部松开时结算本批，或进入「等另一只手」。
     pub fn key_up(&mut self, key: &str, now_ms: u64) -> Option<ChordEvent> {
+        self.up_with_keys(key, now_ms).map(|(_, event)| event)
+    }
+
+    pub(crate) fn up_with_keys(&mut self, key: &str, now_ms: u64) -> Option<Settlement> {
         if !self.held.remove(key) || !self.held.is_empty() {
             return None;
         }
@@ -104,7 +114,7 @@ impl Settler {
             // 另一只手到了：两半合成一组。
             let mut keys = p.keys;
             keys.extend(batch);
-            return Some(self.lookup(&keys));
+            return Some(self.resolve(keys));
         }
         if hands.len() == 1 && self.prefix_of_longer(&batch) {
             // 单手，且是某个更长组合的一半：可能是「先左后右」的前半，等另一只手；
@@ -117,27 +127,32 @@ impl Settler {
             });
             return None;
         }
-        Some(self.lookup(&batch))
+        Some(self.resolve(batch))
     }
 
     /// 时间推进（宿主定时调用或在下一次按键前调用）：等另一只手超时则单独结算。
     pub fn tick(&mut self, now_ms: u64) -> Option<ChordEvent> {
-        self.expire(now_ms)
+        self.expire(now_ms).map(|(_, event)| event)
     }
 
-    fn expire(&mut self, now_ms: u64) -> Option<ChordEvent> {
+    pub(crate) fn expire(&mut self, now_ms: u64) -> Option<Settlement> {
         let p = self.pending.as_ref()?;
         if now_ms.saturating_sub(p.released_at) < self.interval_ms {
             return None;
         }
         let p = self.pending.take().expect("checked");
-        Some(self.lookup(&p.keys))
+        Some(self.resolve(p.keys))
     }
 
     fn prefix_of_longer(&self, keys: &Combo) -> bool {
         self.index
             .keys()
             .any(|c| c.len() > keys.len() && keys.is_subset(c))
+    }
+
+    fn resolve(&self, keys: Combo) -> Settlement {
+        let event = self.lookup(&keys);
+        (keys, event)
     }
 
     fn lookup(&self, keys: &Combo) -> ChordEvent {
