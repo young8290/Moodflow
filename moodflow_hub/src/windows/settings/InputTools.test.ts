@@ -38,7 +38,9 @@ beforeEach(() => {
               }
             : method === 'scheme.rimeImport'
               ? { results: [{ id: 'rime-demo', result: { imported: ['demo'], conflicts: [] } }] }
-              : { text: JSON.stringify(profile) },
+              : method === 'chord.rehearse'
+                ? { physical: { a: 'a', j: 'j' }, intervalMs: 300, maxStrokes: 128, outcomes: [] }
+                : { text: JSON.stringify(profile) },
     ),
   )
 })
@@ -63,6 +65,23 @@ describe('Windows 输入工具', () => {
     const payload = JSON.parse(call[1] as string)
     expect(payload).toMatchObject({ revision: 'draft-1', activeRevision: 'active-1', apply: false })
     expect(JSON.parse(payload.text)).toMatchObject({ name: '我的方案', right_keys: ['j', 'a'] })
+    wrapper.unmount()
+  })
+  it('从编辑器打开试练台会读取未保存方案，退出后保留编辑内容', async () => {
+    const wrapper = mount(InputTools, { attachTo: document.body })
+    await flushPromises()
+    const field = wrapper.get('input[maxlength="128"]')
+    await field.setValue('临时修改')
+    await click(wrapper, t('rehearsal.title'))
+    const call = mocks.tools.mock.calls.find(([method]) => method === 'chord.rehearse')!
+    const payload = JSON.parse(call[1] as string)
+    expect(JSON.parse(payload.text).name).toBe('临时修改')
+    expect(payload.strokes).toEqual([])
+    await click(wrapper, t('rehearsal.close'))
+    expect(wrapper.find('.rehearsal').exists()).toBe(false)
+    expect((field.element as HTMLInputElement).value).toBe('临时修改')
+    expect(document.activeElement?.textContent?.trim()).toBe(t('rehearsal.title'))
+    expect(mocks.tools.mock.calls.some(([method]) => method === 'chord.save')).toBe(false)
     wrapper.unmount()
   })
   it('Rime 先预览再确认导入，冻结源包哈希且默认不覆盖冲突', async () => {

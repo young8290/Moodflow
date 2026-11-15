@@ -10,7 +10,10 @@
 //! 时间由调用方给（毫秒，单调），便于测试，也让 Windows 与 Android 共用一份结算逻辑。
 
 mod keymap;
+mod rehearsal;
 mod settle;
 
 pub use keymap::{Hand, Keymap, KeymapError, Mapping, OutputKind};
 pub use settle::{ChordEvent, Settler};
+
+pub use rehearsal::{MAX_STROKES, RehearsalError, RehearsalResult, Stroke, rehearse};

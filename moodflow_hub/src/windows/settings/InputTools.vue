@@ -1,22 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { open, save } from '@tauri-apps/plugin-dialog'
 import { commands, unwrap } from '@/api'
 import { errorText, t } from '@/i18n'
 
-interface Mapping {
-  keys: string[]
-  output: string
-  kind: 'syllable' | 'fragment'
-}
-interface Profile {
-  version: number
-  name: string
-  left_keys: string[]
-  right_keys: string[]
-  interval_ms: number
-  mappings: Mapping[]
-}
+import ChordPractice from './ChordPractice.vue'
+import type { ChordProfile } from './chordPractice'
+
 interface ChordState {
   text: string
   revision: string
@@ -32,7 +22,14 @@ interface ImportResult {
   results: { id: string; error?: string; result?: { imported: string[]; conflicts: string[] } }[]
 }
 
-const profile = ref<Profile | null>(null)
+const profile = ref<ChordProfile | null>(null)
+const practiceOpen = ref(false)
+const practiceButton = ref<HTMLButtonElement | null>(null)
+async function closePractice(): Promise<void> {
+  practiceOpen.value = false
+  await nextTick()
+  practiceButton.value?.focus()
+}
 const revision = ref('missing')
 const activeRevision = ref('missing')
 const unavailableStore = ref(false)
@@ -65,7 +62,7 @@ async function action(run: () => Promise<void>): Promise<void> {
   }
 }
 function loadProfile(text: string): void {
-  const value = JSON.parse(text) as Profile
+  const value = JSON.parse(text) as ChordProfile
   if (
     typeof value.name !== 'string' ||
     !Array.isArray(value.left_keys) ||
@@ -225,7 +222,7 @@ onMounted(() => void reload())
         <label>{{ t('tools.name') }}<input v-model="profile.name" maxlength="128" :disabled="busy" /></label>
         <label
           >{{ t('tools.interval')
-          }}<input v-model.number="profile.interval_ms" type="number" min="0" max="1000" :disabled="busy"
+          }}<input v-model.number="profile.interval_ms" type="number" min="50" max="2000" :disabled="busy"
         /></label>
         <div class="keyboard" :aria-label="t('tools.keyboard_hint')">
           <div v-for="line in keyboard" :key="line">
@@ -298,7 +295,16 @@ onMounted(() => void reload())
         <div class="actions">
           <button :disabled="busy" @click="saveProfile(false)">{{ t('tools.save_draft') }}</button
           ><button class="primary" :disabled="busy" @click="saveProfile(true)">{{ t('tools.apply') }}</button>
+          <button
+            ref="practiceButton"
+            :disabled="busy"
+            :aria-expanded="practiceOpen"
+            @click="practiceOpen ? closePractice() : (practiceOpen = true)"
+          >
+            {{ t('rehearsal.title') }}
+          </button>
         </div>
+        <ChordPractice v-if="practiceOpen" :profile="profile" @close="closePractice" />
       </template>
     </div>
   </div>

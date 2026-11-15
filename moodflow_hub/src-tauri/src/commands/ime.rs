@@ -92,6 +92,7 @@ pub async fn ime_tools(
 ) -> Result<String, UiError> {
     const ALLOWED: &[&str] = &[
         "storage.health",
+        "chord.rehearse",
         "chord.get",
         "chord.save",
         "chord.builtin",

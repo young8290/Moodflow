@@ -494,7 +494,7 @@ JNI 契约测试。AGP 构建与 APK 由 CI 验证；手势、连删、上滑、
 | W5 | Windows TSF 端到端自动测试 | 隔离的 TSF + 服务 + 引擎，覆盖普通桌面、AppContainer、LPAC 令牌 |
 | W6 | 剪贴板历史全局可用 | 现在只在 Moodflow 是当前输入法时可用；全局快捷键需要 TSF 激活配置文件（§8 待定问题 2） |
 | W7 | Rime 导入的界面入口 | 现在只有命令行 `moodflow_input schema import-rime` |
-| W8 | 并击方案编辑界面 | 复制内置方案、新建、导入 / 导出 JSON；现在只能手放 `chord_keymap.json` |
+| W8 | Windows Hub 并击方案编辑界面 | 已支持复制内置方案、新建、导入 / 导出 JSON；[并击试练台](chord-practice-workbench.md) 可试打未保存草稿、按组合练习。真机验收待做 |
 | W9 | 安装器写入前按清单校验 | 安装器源码不在本仓（`INSTALLER_DIR`），清单已能生成 |
 | W10 | 用户词库恢复文档与只读导出 | 参照 XSIME `docs/user-dictionary-recovery.md`；能只读打开时复用 `moodflow-transfer` 导出 |
 
