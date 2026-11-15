@@ -1,8 +1,16 @@
 //! 打字测速（XSIME 吸收计划 §3.3）：练习页把每次输入框内容变化交上来，这里用输入法核心的
 //! `moodflow-typing-practice` 计分，与 Android 端同一套口径。纯计算，不读库、不落盘、不出网，
-//! 范文与练习文本只在这一次调用里。
+//! 范文与练习文本只在这一次调用里。主动保存的成绩由 history 处理。
 
+mod history;
+
+use crate::error::UiError;
+pub use history::*;
 use moodflow_typing_practice::Practice;
+
+const MAX_CHARS: usize = 300;
+const MAX_EVENTS: usize = 600;
+const MAX_MS: u32 = 30 * 60 * 1000;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
@@ -15,7 +23,8 @@ pub struct PracticeEvent {
 }
 
 /// 一次练习的成绩（口径见 `moodflow-typing-practice`）。
-#[derive(Debug, Clone, Serialize, Type)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Type)]
+#[serde(deny_unknown_fields)]
 pub struct PracticeScore {
     #[specta(type = specta_typescript::Number)]
     pub elapsed_ms: f64,
@@ -40,8 +49,29 @@ pub fn practice_score(
     target: String,
     events: Vec<PracticeEvent>,
     finished_ms: u32,
-) -> PracticeScore {
-    score(&target, &events, f64::from(finished_ms))
+) -> Result<PracticeScore, UiError> {
+    let max = f64::from(finished_ms);
+    let invalid = || UiError::new("practice.invalid_input", "dashboard.practice.invalid_input");
+    if target.is_empty()
+        || !bounded(&target)
+        || events.is_empty()
+        || events.len() > MAX_EVENTS
+        || finished_ms > MAX_MS
+    {
+        return Err(invalid());
+    }
+    let mut previous = 0.0;
+    for e in &events {
+        if !e.t_ms.is_finite() || e.t_ms < previous || e.t_ms > max || !bounded(&e.text) {
+            return Err(invalid());
+        }
+        previous = e.t_ms;
+    }
+    Ok(score(&target, &events, max))
+}
+
+fn bounded(text: &str) -> bool {
+    text.len() <= MAX_CHARS * 4 && text.chars().count() <= MAX_CHARS
 }
 
 fn score(target: &str, events: &[PracticeEvent], finished_ms: f64) -> PracticeScore {
@@ -89,6 +119,13 @@ mod tests {
         assert_eq!(s.elapsed_ms, 30000.0);
         assert_eq!(s.final_accuracy, 1.0);
         assert_eq!(s.effective_cpm, 12.0);
+    }
+
+    #[test]
+    fn command_rejects_an_oversized_passage_or_events_after_finish() {
+        assert!(practice_score("字".repeat(MAX_CHARS + 1), vec![ev(0.0, "字")], 10).is_err());
+        assert!(practice_score("字".into(), vec![ev(0.0, "字"), ev(11.0, "")], 10).is_err());
+        assert!(practice_score("字".into(), vec![ev(9.0, "字"), ev(5.0, "")], 10).is_err());
     }
 
     #[test]
