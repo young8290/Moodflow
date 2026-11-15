@@ -8,6 +8,8 @@ export interface CaptureAsset {
   duration_ms: number
   permanent: boolean
   sha256: string
+  name?: string
+  kept?: boolean
 }
 export interface CaptureImage {
   asset: CaptureAsset
@@ -62,4 +64,67 @@ export function captureCrop(
     width: Math.max(0, Math.min(width - x, Math.round(w))),
     height: Math.max(0, Math.min(height - y, Math.round(h))),
   }
+}
+
+export const CAPTURE_BATCH_LIMIT = 40
+
+export type CaptureScope = 'all' | 'temporary' | 'kept' | 'library' | 'trash'
+export type CaptureOperation = 'keep' | 'release' | 'trash' | 'restore' | 'purge' | 'export'
+export type CaptureOutcome =
+  | 'ready'
+  | 'done'
+  | 'missing'
+  | 'stale'
+  | 'in_use'
+  | 'wrong_state'
+  | 'changed_file'
+  | 'failed'
+  | 'destination_exists'
+  | 'export_limit'
+  | 'paused'
+
+export interface CaptureSelection {
+  id: string
+  revision: string
+}
+
+export interface CaptureRow {
+  asset: CaptureAsset
+  revision: string
+  scope: Exclude<CaptureScope, 'all'>
+  in_use: boolean
+}
+
+interface Usage {
+  count: number
+  bytes: number
+}
+
+export interface CaptureCatalogPage {
+  rows: CaptureRow[]
+  storage: Record<
+    'total' | 'temporary' | 'kept' | 'library' | 'trash' | 'expired' | 'png' | 'gif' | 'mp4',
+    Usage
+  > & {
+    quota_bytes: number
+  }
+  matched: Usage
+  offset: number
+  limit: number
+}
+
+export interface CaptureBatchEntry extends CaptureSelection {
+  status: CaptureOutcome
+  bytes: number
+  filename?: string
+  name?: string
+  created_at?: number
+}
+
+export interface CaptureBatchReport {
+  entries: CaptureBatchEntry[]
+  ready: number
+  ready_bytes: number
+  done: number
+  done_bytes: number
 }

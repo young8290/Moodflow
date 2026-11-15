@@ -1,5 +1,6 @@
 //! Local capture assets and explicit actions. Capture/decoding work runs in a separate process.
 mod clipboard;
+mod management;
 mod source;
 mod store;
 mod worker;
@@ -320,12 +321,23 @@ impl Runtime {
             return Ok(json!({"copied":true}));
         }
         let mut store = store::Store::open(&root)?;
-        if method == "list" {
-            store.prune(&self.leased(), now())?;
-            return Ok(json!({"assets":store.list()}));
+        if method.starts_with("catalog_") {
+            ensure!(owner == "dashboard", "capture.invalid_request");
+            let leased = self.leased();
+            let blocked = self
+                .leases
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .keys()
+                .filter(|(_, label)| label != owner)
+                .map(|(id, _)| id.clone())
+                .collect();
+            return management::execute(&mut store, method, p, &leased, &blocked, now(), || {
+                self.epoch() == epoch && worker::reviewed(app)
+            });
         }
         let id = string(p, "id")?;
-        let asset = store.get(id)?.clone();
+        let asset = store.active(id)?.clone();
         if method == "lease" {
             self.lease(id, owner, owner.starts_with("capture-pin-"));
             return Ok(json!({}));
@@ -409,7 +421,7 @@ impl Runtime {
                 }
                 Ok(json!({}))
             }
-            "asset" | "lease" => {
+            "asset" => {
                 self.lease(id, owner, owner.starts_with("capture-pin-"));
                 asset_reply(app, &store, &asset)
             }
@@ -423,10 +435,14 @@ impl Runtime {
                     .any(|((asset, label), _)| asset == id && label != owner);
                 ensure!(!in_use, "capture.in_use");
                 ensure!(
-                    !asset.permanent || p["confirm_saved"].as_bool() == Some(true),
+                    asset.permanent && p["confirm_saved"].as_bool() == Some(true),
                     "capture.saved"
                 );
-                store.remove(id)?;
+                ensure!(
+                    self.epoch() == epoch && worker::reviewed(app),
+                    "capture.privacy"
+                );
+                store.remove_if(id, || self.epoch() == epoch && worker::reviewed(app))?;
                 Ok(json!({"removed":true}))
             }
             "export" => {

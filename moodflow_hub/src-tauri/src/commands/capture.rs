@@ -71,6 +71,14 @@ pub async fn capture_request(
                     "capture.in_use",
                     "capture.saved",
                     "capture.storage_full",
+                    "capture.missing",
+                    "capture.catalog_invalid_query",
+                    "capture.catalog_invalid_name",
+                    "capture.catalog_invalid_selection",
+                    "capture.catalog_invalid_destination",
+                    "capture.catalog_stale",
+                    "capture.catalog_trashed",
+                    "capture.catalog_delete_pending",
                 ]
                 .into_iter()
                 .find(|allowed| *allowed == code)

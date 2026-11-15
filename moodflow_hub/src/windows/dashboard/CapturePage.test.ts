@@ -9,13 +9,14 @@ const mocks = vi.hoisted(() => ({
   listen: vi.fn(),
   confirm: vi.fn(),
   save: vi.fn(),
+  open: vi.fn(),
 }))
 vi.mock('@/api', () => ({
   commands: { captureRequest: mocks.call, imeTools: mocks.tools, getStatus: async () => ({ paused: false }) },
   events: { statusChanged: { listen: mocks.listen } },
   unwrap: async (p: Promise<unknown>) => p,
 }))
-vi.mock('@tauri-apps/plugin-dialog', () => ({ confirm: mocks.confirm, save: mocks.save }))
+vi.mock('@tauri-apps/plugin-dialog', () => ({ confirm: mocks.confirm, save: mocks.save, open: mocks.open }))
 vi.mock('@tauri-apps/api/core', () => ({ convertFileSrc: (path: string) => path }))
 const asset = {
   id: '12345678-1234-4234-8234-123456789abc',
@@ -27,6 +28,15 @@ const asset = {
   duration_ms: 0,
   permanent: false,
   sha256: 'a'.repeat(64),
+}
+const emptyStorage = {
+  ...Object.fromEntries(
+    ['total', 'temporary', 'kept', 'library', 'trash', 'expired', 'png', 'gif', 'mp4'].map((kind) => [
+      kind,
+      { count: 0, bytes: 0 },
+    ]),
+  ),
+  quota_bytes: 1024 ** 3 * 10,
 }
 beforeEach(() => {
   vi.useFakeTimers()
@@ -44,8 +54,8 @@ beforeEach(() => {
               windows: [{ hwnd: 71, pid: 17, title: 'fixture window', width: 800, height: 400 }],
               ocr_available: true,
             }
-          : method === 'list'
-            ? { assets: [] }
+          : method === 'catalog_query'
+            ? { rows: [], storage: emptyStorage, matched: { count: 0, bytes: 0 }, offset: 0, limit: 24 }
             : method === 'start' || method === 'asset'
               ? { asset, path: 'fixture.png' }
               : method === 'ocr'
