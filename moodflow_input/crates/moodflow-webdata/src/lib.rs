@@ -99,6 +99,7 @@ fn dispose_contract_rows(
 }
 use moodflow_coordinator::web_host::WebDataHost;
 
+mod mapping;
 mod plugin_market;
 mod plugins;
 mod translate;
@@ -609,6 +610,12 @@ pub trait WebDataRpc: WebDataHost {
                 anyhow::ensure!(self.tools_allowed(), "privacy_blocked");
                 translate::lookup(str_param(params, "query")?)
             }
+            "mapping.list"
+            | "mapping.get"
+            | "mapping.preview"
+            | "mapping.apply"
+            | "mapping.importPreview"
+            | "mapping.export" => mapping::dispatch(self, method, params),
             "buffer.read" => {
                 Ok(json!({ "text": self.read_buffer_text().map_err(anyhow::Error::msg)? }))
             }

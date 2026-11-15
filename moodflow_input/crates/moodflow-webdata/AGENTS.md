@@ -12,6 +12,8 @@
 - 调用方须 `use moodflow_webdata::WebDataRpc`（service 的 RpcCore、coordinator 的集成测试经 dev-dependencies 环）。
 - ⛔ 不用 blanket impl（`impl<T: WebDataHost> WebDataRpc for T`）：`Arc<Coordinator>` 的方法解析会先命中 T=Arc 的 blanket 候选、bound 不满足即报错而不再 deref——具体 impl 才让 Arc 自动 deref。
 
+`mapping.*` 是 Hub 的本机文本映射工作台入口，读写均经现有工具隐私闸门。批量导入先预览，再按旧记录逐词复验。备份与右键隐藏使用同一张用户表。
+
 ## Testing
 - 本 crate 内嵌契约测试（真实 Coordinator + 临时 redb store）：白盒点走 WebDataHost 窄面与 coordinator 的 `debug_*` 支撑（debug_support.rs）。
 - 零 RPC 的行为测试（词频路由/造词/加词）**不属于这里**，在 coordinator 的 `freq_learn_tests.rs`——分拣判据是「是否调 web_data_rpc」。

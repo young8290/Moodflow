@@ -17,6 +17,7 @@
 | `src/phrases.rs` | 用户短语（**全局，不分方案**）；key=`code\0text`；`set_phrase_enabled` 软删除（记录保留，`enabled=false`） |
 | `src/shadow.rs` | `ShadowRecord`（pinned/deleted）规则；内存 `ShadowStore`（JSON 文件，coordinator 过渡用）+ redb `Store` 扩展方法；`cand_id` 精准去重（动态短语 R2） |
 | `src/freq.rs` | `FreqRecord`（count u32 + last_used i64，12B 定长）；`FreqProfile` 拼音衰减分；legacy `FreqTracker`（过渡期文件式，待移除） |
+| `src/emoji_user.rs` / `src/emoji_edit.rs` | 宿主词的新增与隐藏覆盖；编辑预览只读，单条保存和批量应用在同一 redb 事务中逐词比较旧记录；备份沿用既有 JSONL |
 | `src/migration.rs` | 版本迁移框架；当前 `CURRENT_VERSION=1`，全新库直接打版本号 |
 | `src/stat_collector.rs` / `src/stats.rs` | 每日打字统计，写 `STATS_DAILY` table |
 

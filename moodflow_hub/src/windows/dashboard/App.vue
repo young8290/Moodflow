@@ -21,6 +21,7 @@ import WeeklyPage from './WeeklyPage.vue'
 import { onDashboardNav, takeDashboardNav, type DashboardNav, type DashboardPage } from '../shared/bus'
 import './dashboard.css'
 
+const MappingPage = defineAsyncComponent(() => import('./MappingPage.vue'))
 const WorkspacePage = defineAsyncComponent(() => import('./WorkspacePage.vue'))
 const SyncPage = defineAsyncComponent(() => import('./SyncPage.vue'))
 const AiToolsPage = defineAsyncComponent(() => import('./AiToolsPage.vue'))
@@ -35,6 +36,7 @@ const PAGES: { id: DashboardPage; title: CopyKey; component: Component }[] = [
   { id: 'practice', title: 'dashboard.nav.practice', component: PracticePage },
   { id: 'library', title: 'library.title', component: LibraryPage },
   { id: 'translation', title: 'translate.title', component: TranslationPage },
+  { id: 'mapping', title: 'mapping.title', component: MappingPage },
   { id: 'vault', title: 'vault.title', component: VaultPage },
   { id: 'clipboard', title: 'clipboard.title', component: ClipboardPage },
   { id: 'capture', title: 'capture.title', component: CapturePage },

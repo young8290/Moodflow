@@ -188,7 +188,7 @@ impl Store {
 mod tests {
     use super::*;
 
-    fn store(tag: &str) -> Store {
+    pub(super) fn store(tag: &str) -> Store {
         let path = std::env::temp_dir().join(format!(
             "moodflow_emoji_user_{tag}_{}_{}.redb",
             std::process::id(),
@@ -271,3 +271,7 @@ mod tests {
         assert_eq!(entries[0].added, ["🥰"]);
     }
 }
+
+#[path = "emoji_edit.rs"]
+mod edit;
+pub use edit::*;

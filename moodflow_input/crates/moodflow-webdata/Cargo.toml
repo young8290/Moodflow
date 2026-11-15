@@ -25,6 +25,7 @@ moodflow-market = { path = "../moodflow-market" }
 moodflow-plugin-api = { path = "../moodflow-plugin-api" }
 moodflow-plugin-registry = { path = "../moodflow-plugin-registry" }
 anyhow = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 tempfile = "3"

@@ -1199,11 +1199,18 @@ impl crate::coordinator::Coordinator {
                 return None;
             }
         }
-        // 锁序同 `apply_emoji_suggestions`：先表、后隐藏索引。
+        // 锁序同 `apply_emoji_suggestions`：表 → 用户新增 → 隐藏。
         let guard = self.emoji_dict.read().unwrap_or_else(|e| e.into_inner());
+        let added = self.emoji_added.read().unwrap_or_else(|e| e.into_inner());
         let hidden = self.emoji_hidden.read().unwrap_or_else(|e| e.into_inner());
         let mut seen = std::collections::HashSet::new();
         let mut picked: Vec<String> = Vec::new();
+        if let Some(symbols) = added.get(text) {
+            seen.insert(crate::handle_candidate::emoji_dedup_key(text));
+            picked.extend(crate::handle_candidate::pick_user_symbols(
+                text, symbols, &hidden, &mut seen,
+            ));
+        }
         for table in guard.iter() {
             if text.chars().count() < table.min_chars {
                 continue;
