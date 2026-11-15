@@ -187,7 +187,11 @@ export const commands = {
 	 */
 	weekStats: (weekStart: string) => typedError<WeekReport, UiError>(__TAURI_INVOKE("week_stats", { weekStart })),
 	/**  按事件序列给一次练习计分。`finished_ms` 是点「结束」或打完的时刻（同样从练习开始算起）。 */
-	practiceScore: (target: string, events: PracticeEvent[], finishedMs: number) => __TAURI_INVOKE<PracticeScore>("practice_score", { target, events, finishedMs }),
+	practiceScore: (target: string, events: PracticeEvent[], finishedMs: number) => typedError<PracticeScore, UiError>(__TAURI_INVOKE("practice_score", { target, events, finishedMs })),
+	practiceHistoryList: () => typedError<PracticeRecord[], UiError>(__TAURI_INVOKE("practice_history_list")),
+	practiceHistorySave: (input: PracticeRecordInput) => typedError<PracticeRecord, UiError>(__TAURI_INVOKE("practice_history_save", { input })),
+	/**  No ID means an explicitly confirmed clear-all action. */
+	practiceHistoryDelete: (id: string | null) => typedError<null, UiError>(__TAURI_INVOKE("practice_history_delete", { id })),
 	/**  全部周信，新的在前（保留 1 年）。 */
 	lettersList: () => typedError<LetterItem[], UiError>(__TAURI_INVOKE("letters_list")),
 	/**  标记已读。这封已被删除或清理时什么也不做。 */
@@ -1117,10 +1121,26 @@ export type PluginState =
 /**  Trust policy is unreadable; third-party loading stays disabled. */
 "market_error";
 
+export type PracticeCategory = "chinese" | "english" | "mixed" | "custom";
+
 /**  练习过程中的一次输入框内容变化。`t_ms` 是从练习开始算起的毫秒数。 */
 export type PracticeEvent = {
 	t_ms: number,
 	text: string,
+};
+
+export type PracticeMode = "passage" | "timed30" | "timed60" | "timed120";
+
+export type PracticeRecord = {
+	date: string,
+	data: PracticeRecordInput,
+};
+
+export type PracticeRecordInput = {
+	id: string,
+	category: PracticeCategory,
+	mode: PracticeMode,
+	score: PracticeScore,
 };
 
 /**  一次练习的成绩（口径见 `moodflow-typing-practice`）。 */
