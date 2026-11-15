@@ -25,6 +25,7 @@ export type DashboardPage =
   | 'translation'
   | 'vault'
   | 'clipboard'
+  | 'mapping'
   | 'capture'
   | 'workspace'
   | 'sync'

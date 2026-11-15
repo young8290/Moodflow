@@ -1394,6 +1394,7 @@ pub struct Coordinator {
     pub(crate) emoji_dict: std::sync::RwLock<Vec<EmojiTableReader>>,
     /// 按「宿主词 + NUL + FE0F 归一后的符号」索引的隐藏覆盖，避免在候选热路径扫 redb。
     pub(crate) emoji_hidden: std::sync::RwLock<std::collections::HashSet<String>>,
+    pub(crate) emoji_added: std::sync::RwLock<std::collections::BTreeMap<String, Vec<String>>>,
     /// 上次生效的 emoji 加载配置，`sync_emoji_dict` 的去重依据。
     ///
     /// 只记**影响加载结果**的两项：`show_as` / `max_per_word` 这些是查询期参数，改了不必
@@ -2729,6 +2730,7 @@ impl Coordinator {
             // 「声明式变更」写法，启动与后续 reload 走**同一条**代码路径。
             emoji_dict: std::sync::RwLock::new(Vec::new()),
             emoji_hidden: std::sync::RwLock::new(std::collections::HashSet::new()),
+            emoji_added: std::sync::RwLock::new(std::collections::BTreeMap::new()),
             emoji_spec: Mutex::new(None),
             aux_code_key_warned: std::sync::atomic::AtomicBool::new(false),
             quick_formats,
@@ -4128,25 +4130,93 @@ impl Coordinator {
     }
 
     pub(crate) fn refresh_emoji_hidden(&self) {
-        let mut hidden = std::collections::HashSet::new();
-        if let Some(store) = &self.store {
-            let entries = match store.list_emoji_user_entries() {
+        // Acquire both locks before reading redb so a delayed refresh cannot publish
+        // an older snapshot. Candidate readers take them in this same order.
+        let mut added = self.emoji_added.write().unwrap_or_else(|e| e.into_inner());
+        let mut hidden = self.emoji_hidden.write().unwrap_or_else(|e| e.into_inner());
+        let entries = match &self.store {
+            None => Vec::new(),
+            Some(store) => match store.list_emoji_user_entries() {
                 Ok(entries) => entries,
-                Err(err) => {
-                    warn!("读取 emoji 用户覆盖失败: {err}");
+                Err(_) => {
+                    warn!("读取 emoji 用户覆盖失败");
                     return;
                 }
-            };
-            for entry in entries {
-                for symbol in entry.hidden {
-                    hidden.insert(crate::handle_candidate::emoji_hidden_key(
+            },
+        };
+        added.clear();
+        hidden.clear();
+        for mut entry in entries {
+            for symbol in entry.hidden {
+                hidden.insert(crate::handle_candidate::emoji_hidden_key(
+                    &entry.word,
+                    &symbol,
+                ));
+            }
+            entry
+                .added
+                .retain(|s| moodflow_store::emoji_user::valid_mapping_symbol(s));
+            if !entry.added.is_empty() {
+                added.insert(entry.word, entry.added);
+            }
+        }
+    }
+
+    pub(crate) fn emoji_editor_preview(
+        &self,
+        entry: &moodflow_store::emoji_user::EmojiUserEntry,
+    ) -> serde_json::Value {
+        let rt = self.rt();
+        let e = &rt.config.input.emoji;
+        let tables = self
+            .emoji_dict
+            .read()
+            .unwrap_or_else(|err| err.into_inner());
+        let builtin = tables
+            .iter()
+            .filter_map(|table| table.reader.lookup(&entry.word))
+            .flat_map(str::split_whitespace);
+        let mut seen = std::collections::HashSet::new();
+        let builtin = builtin
+            .filter(|s| seen.insert(crate::handle_candidate::emoji_dedup_key(s)))
+            .take(64)
+            .collect::<Vec<_>>();
+        let hidden = entry
+            .hidden
+            .iter()
+            .map(|item| crate::handle_candidate::emoji_hidden_key(&entry.word, item))
+            .collect();
+        let mut seen = std::collections::HashSet::new();
+        if e.show_as != "comment" || !entry.added.is_empty() {
+            seen.insert(crate::handle_candidate::emoji_dedup_key(&entry.word));
+        }
+        let mut effective = Vec::new();
+        if e.enabled && (e.scope != "off" || e.show_as == "comment") {
+            effective.extend(crate::handle_candidate::pick_user_symbols(
+                &entry.word,
+                &entry.added,
+                &hidden,
+                &mut seen,
+            ));
+            for table in tables.iter() {
+                if (e.show_as == "comment" || table.max_hosts > 0)
+                    && entry.word.chars().count() >= table.min_chars
+                    && let Some(list) = table.reader.lookup(&entry.word)
+                {
+                    effective.extend(crate::handle_candidate::pick_host_symbols(
                         &entry.word,
-                        &symbol,
+                        list,
+                        table.max_per_word,
+                        &hidden,
+                        &mut seen,
                     ));
                 }
             }
         }
-        *self.emoji_hidden.write().unwrap_or_else(|e| e.into_inner()) = hidden;
+        serde_json::json!({
+            "builtin": builtin, "effective": effective,
+            "enabled": e.enabled, "scope": e.scope, "show_as": e.show_as,
+        })
     }
 
     /// 实际加载 emoji 表：解析路径 → 繁简归一 → 建/复用 `.wemj` 缓存 → mmap。

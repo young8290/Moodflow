@@ -338,6 +338,7 @@ fn plan_emoji_insertions_with_hidden(
     candidates: &[Candidate],
     exact_only: bool,
     tables: &[crate::coordinator::EmojiTableReader],
+    added: &std::collections::BTreeMap<String, Vec<String>>,
     hidden: &std::collections::HashSet<String>,
 ) -> Vec<EmojiPick> {
     let mut seen: std::collections::HashSet<String> = candidates
@@ -345,6 +346,26 @@ fn plan_emoji_insertions_with_hidden(
         .map(|c| emoji_dedup_key(&c.text))
         .collect();
     let mut picks: Vec<EmojiPick> = Vec::new();
+    // The sparse user table applies ahead of every built-in table. It examines the
+    // first three hosts, including single-character hosts explicitly added by users.
+    for (i, candidate) in candidates.iter().take(USER_MAPPING_MAX_HOSTS).enumerate() {
+        if candidate.is_emoji_suggestion
+            || (exact_only && (candidate.is_prefix || candidate.is_partial))
+        {
+            continue;
+        }
+        if let Some(values) = added.get(&candidate.text) {
+            let symbols = pick_user_symbols(&candidate.text, values, hidden, &mut seen);
+            if !symbols.is_empty() {
+                picks.push(EmojiPick {
+                    host_index: i,
+                    host: candidate.text.clone(),
+                    symbols,
+                });
+            }
+        }
+    }
+
     for table in tables {
         for (i, c) in candidates.iter().enumerate().take(table.max_hosts) {
             if c.is_emoji_suggestion || c.text.chars().count() < table.min_chars {
@@ -401,8 +422,35 @@ pub(crate) fn pick_host_symbols(
     hidden: &std::collections::HashSet<String>,
     seen: &mut std::collections::HashSet<String>,
 ) -> Vec<String> {
+    pick_symbols(host, list.split_whitespace(), max_per_word, hidden, seen)
+}
+
+const USER_MAPPING_MAX_HOSTS: usize = 3;
+
+pub(crate) fn pick_user_symbols(
+    host: &str,
+    list: &[String],
+    hidden: &std::collections::HashSet<String>,
+    seen: &mut std::collections::HashSet<String>,
+) -> Vec<String> {
+    pick_symbols(
+        host,
+        list.iter().map(String::as_str),
+        moodflow_store::emoji_user::MAX_ADDED,
+        hidden,
+        seen,
+    )
+}
+
+fn pick_symbols<'a>(
+    host: &str,
+    list: impl Iterator<Item = &'a str>,
+    max_per_word: usize,
+    hidden: &std::collections::HashSet<String>,
+    seen: &mut std::collections::HashSet<String>,
+) -> Vec<String> {
     let mut picked = Vec::new();
-    for e in list.split_whitespace() {
+    for e in list {
         if picked.len() >= max_per_word {
             break;
         }
@@ -417,7 +465,7 @@ pub(crate) fn pick_host_symbols(
 }
 
 /// 符号去重键：剥掉**全部** U+FE0F（不只是尾随的那个——ZWJ 序列中间也会带）。
-fn emoji_dedup_key(text: &str) -> String {
+pub(crate) fn emoji_dedup_key(text: &str) -> String {
     text.chars().filter(|&ch| ch != '\u{fe0f}').collect()
 }
 
@@ -715,12 +763,14 @@ impl Coordinator {
             return;
         }
         let guard = self.emoji_dict.read().unwrap_or_else(|e| e.into_inner());
-        if guard.is_empty() {
+        let added = self.emoji_added.read().unwrap_or_else(|e| e.into_inner());
+        if guard.is_empty() && added.is_empty() {
             return;
         }
         // 未知值按最保守的一档处理（值域告警在 `sync_emoji_dict` 里发，热路径不重复告警）。
         let hidden = self.emoji_hidden.read().unwrap_or_else(|e| e.into_inner());
-        let picks = plan_emoji_insertions_with_hidden(candidates, scope != "all", &guard, &hidden);
+        let picks =
+            plan_emoji_insertions_with_hidden(candidates, scope != "all", &guard, &added, &hidden);
         if picks.is_empty() {
             return;
         }
@@ -809,11 +859,7 @@ impl Coordinator {
             warn!("恢复已隐藏的 emoji 建议失败: {err}");
             return;
         }
-        let prefix = emoji_hidden_key(word, "");
-        self.emoji_hidden
-            .write()
-            .unwrap_or_else(|e| e.into_inner())
-            .retain(|k| !k.starts_with(&prefix));
+        self.refresh_emoji_hidden();
         if self.refresh_after_emoji_override(state) {
             self.notify_ui_update(state);
         }
@@ -4633,10 +4679,7 @@ impl Coordinator {
             {
                 match store.hide_emoji_for_word(&cand.emoji_host, &cand.text) {
                     Ok(_) => {
-                        self.emoji_hidden
-                            .write()
-                            .unwrap_or_else(|e| e.into_inner())
-                            .insert(emoji_hidden_key(&cand.emoji_host, &cand.text));
+                        self.refresh_emoji_hidden();
                         if self.refresh_after_emoji_override(&mut state) {
                             self.notify_ui_update(&state);
                         }
@@ -5538,10 +5581,16 @@ mod plan_emoji_tests {
         exact_only: bool,
         tables: &[crate::coordinator::EmojiTableReader],
     ) -> Vec<(usize, Vec<String>)> {
-        plan_emoji_insertions_with_hidden(candidates, exact_only, tables, &Default::default())
-            .into_iter()
-            .map(|p| (p.host_index, p.symbols))
-            .collect()
+        plan_emoji_insertions_with_hidden(
+            candidates,
+            exact_only,
+            tables,
+            &Default::default(),
+            &Default::default(),
+        )
+        .into_iter()
+        .map(|p| (p.host_index, p.symbols))
+        .collect()
     }
 
     fn c(text: &str) -> Candidate {
@@ -5699,8 +5748,13 @@ mod plan_emoji_tests {
     fn hidden_symbol_is_scoped_to_its_host_and_ignores_fe0f() {
         let tables = [table(&[("勾选", "✅️"), ("完成", "✅")], 2, 5, 2)];
         let hidden = std::collections::HashSet::from(["勾选\0✅".to_string()]);
-        let got =
-            plan_emoji_insertions_with_hidden(&[c("勾选"), c("完成")], true, &tables, &hidden);
+        let got = plan_emoji_insertions_with_hidden(
+            &[c("勾选"), c("完成")],
+            true,
+            &tables,
+            &Default::default(),
+            &hidden,
+        );
         assert_eq!(got.len(), 1);
         assert_eq!(got[0].host_index, 1, "同一符号对另一个宿主仍可见");
         assert_eq!(got[0].host, "完成");
@@ -5719,6 +5773,7 @@ mod plan_emoji_tests {
             &[c("猩猩"), c("星星")],
             true,
             &[symbols, word],
+            &Default::default(),
             &Default::default(),
         );
         let flat: Vec<(usize, &str, Vec<&str>)> = got
@@ -5742,7 +5797,13 @@ mod plan_emoji_tests {
     fn hidden_symbols_do_not_consume_quota() {
         let tables = [table(&[("开心", "😄 😊 🙂")], 1, 2, 2)];
         let hidden = std::collections::HashSet::from([super::emoji_hidden_key("开心", "😄")]);
-        let got = plan_emoji_insertions_with_hidden(&[c("开心")], true, &tables, &hidden);
+        let got = plan_emoji_insertions_with_hidden(
+            &[c("开心")],
+            true,
+            &tables,
+            &Default::default(),
+            &hidden,
+        );
         assert_eq!(got[0].symbols, ["😊", "🙂"]);
     }
 }
@@ -5849,6 +5910,64 @@ mod emoji_suggestion_tests {
                 pair("🌙", "丙词"),
                 pair("乙词", ""),
                 pair("丙词", ""),
+            ]
+        );
+    }
+
+    #[test]
+    fn emoji_user_edits_preserve_order_and_override_builtin_variants() {
+        use moodflow_store::emoji_user::{EmojiEdit, EmojiUserEntry};
+        let c = coord(
+            "mapping-user",
+            "after",
+            vec![table(&[("完成", "✔️ ☑ 🎉")], 1, 5, 1)],
+        );
+        let store = c.store.as_ref().unwrap();
+        let after = EmojiUserEntry {
+            word: "完成".into(),
+            added: vec!["🌙".into(), "✔".into()],
+            hidden: vec!["☑️".into()],
+        };
+        store
+            .apply_emoji_edits(&[EmojiEdit {
+                before: EmojiUserEntry::empty("完成"),
+                after: after.clone(),
+            }])
+            .unwrap();
+        c.refresh_emoji_hidden();
+
+        let mut candidates = vec![cand("完成")];
+        c.apply_emoji_suggestions(&mut candidates);
+        assert_eq!(
+            texts_and_hosts(&candidates),
+            [
+                pair("完成", ""),
+                pair("🌙", "完成"),
+                pair("✔", "完成"),
+                pair("🎉", "完成"),
+            ]
+        );
+        assert_eq!(
+            c.emoji_editor_preview(&after)["effective"],
+            serde_json::json!(["🌙", "✔", "🎉"])
+        );
+
+        store
+            .apply_emoji_edits(&[EmojiEdit {
+                before: after,
+                after: EmojiUserEntry::empty("完成"),
+            }])
+            .unwrap();
+        c.refresh_emoji_hidden();
+        let mut candidates = vec![cand("完成")];
+        c.apply_emoji_suggestions(&mut candidates);
+        assert_eq!(
+            texts_and_hosts(&candidates),
+            [
+                pair("完成", ""),
+                pair("✔️", "完成"),
+                pair("☑", "完成"),
+                pair("🎉", "完成"),
             ]
         );
     }

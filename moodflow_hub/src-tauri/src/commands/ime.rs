@@ -86,6 +86,7 @@ pub async fn ime_config_set(items: Vec<ImeItemInput>) -> Result<ImeSetResult, Ui
 #[tauri::command]
 #[specta::specta]
 pub async fn ime_tools(
+    window: tauri::WebviewWindow,
     state: State<'_, AppState>,
     method: String,
     payload: String,
@@ -105,18 +106,29 @@ pub async fn ime_tools(
         "translate.lookup",
         "clipboard.list",
         "clipboard.action",
+        "mapping.list",
+        "mapping.get",
+        "mapping.preview",
+        "mapping.apply",
+        "mapping.importPreview",
+        "mapping.exportFile",
     ];
     if !ALLOWED.contains(&method.as_str()) || payload.len() > 2 * 1024 * 1024 {
         return Err(UiError::new("ime.tools_input", "tools.invalid"));
     }
-    if [
-        "buffer.read",
-        "buffer.stage",
-        "translate.lookup",
-        "clipboard.list",
-        "clipboard.action",
-    ]
-    .contains(&method.as_str())
+    let mapping = method.starts_with("mapping.");
+    if mapping && window.label() != "dashboard" {
+        return Err(UiError::new("ime.tools_input", "tools.invalid"));
+    }
+    if (mapping
+        || [
+            "buffer.read",
+            "buffer.stage",
+            "translate.lookup",
+            "clipboard.list",
+            "clipboard.action",
+        ]
+        .contains(&method.as_str()))
         && state
             .status
             .read()
@@ -128,21 +140,96 @@ pub async fn ime_tools(
     let params: Value = serde_json::from_str(&payload)
         .map_err(|_| UiError::new("ime.tools_input", "tools.invalid"))?;
     // Do not log input or remote text: profile mappings and staged content are private.
-    tauri::async_runtime::spawn_blocking(move || rpc().call(&method, params).map(|v| v.to_string()))
-        .await
-        .map_err(|_| UiError::new("ime.tools_join", "error.generic"))?
-        .map_err(|error| match error {
-            ImeRpcError::Unavailable(_) => UiError::new("ime.unavailable", "error.ime_unavailable"),
-            ImeRpcError::Remote(ref message)
-                if message.contains("dictionary_") || message.contains("invalid_dictionary") =>
-            {
-                UiError::new("translate.dictionary", "translate.unavailable")
-            }
-            ImeRpcError::Remote(ref message) if message.contains("privacy_blocked") => {
-                UiError::new("tools.privacy", "library.privacy")
-            }
-            _ => UiError::new("ime.tools_failed", "tools.failed"),
-        })
+    tauri::async_runtime::spawn_blocking(move || {
+        if method == "mapping.exportFile" {
+            return mapping_export_file(&params);
+        }
+        rpc().call(&method, params).map(|v| v.to_string())
+    })
+    .await
+    .map_err(|_| UiError::new("ime.tools_join", "error.generic"))?
+    .map_err(|error| match error {
+        ImeRpcError::Remote(ref message) if mapping && message.contains("mapping.") => {
+            mapping_error(message)
+        }
+        ImeRpcError::Unavailable(_) => UiError::new("ime.unavailable", "error.ime_unavailable"),
+        ImeRpcError::Remote(ref message)
+            if message.contains("dictionary_") || message.contains("invalid_dictionary") =>
+        {
+            UiError::new("translate.dictionary", "translate.unavailable")
+        }
+        ImeRpcError::Remote(ref message) if message.contains("privacy_blocked") => {
+            UiError::new("tools.privacy", "library.privacy")
+        }
+        _ if mapping => UiError::new("mapping.failed", "mapping.failed"),
+        _ => UiError::new("ime.tools_failed", "tools.failed"),
+    })
+}
+
+fn mapping_error(message: &str) -> UiError {
+    let at = message.find("mapping.").unwrap_or(0);
+    let text = &message[at..];
+    let key = text
+        .split(|c: char| c.is_whitespace() || c == ':')
+        .next()
+        .unwrap_or_default();
+    match key {
+        "mapping.import_line" => {
+            let line = text
+                .strip_prefix("mapping.import_line:")
+                .unwrap_or_default()
+                .chars()
+                .take_while(char::is_ascii_digit)
+                .take(9)
+                .collect::<String>();
+            UiError::new(&format!("{key}:{line}"), key)
+        }
+        "mapping.invalid"
+        | "mapping.duplicate"
+        | "mapping.same_as_host"
+        | "mapping.limit"
+        | "mapping.stale"
+        | "mapping.unavailable"
+        | "mapping.damaged"
+        | "mapping.empty"
+        | "mapping.export_failed"
+        | "mapping.exists" => UiError::new(key, key),
+        _ => UiError::new("mapping.failed", "mapping.failed"),
+    }
+}
+
+fn mapping_export_file(params: &Value) -> Result<String, ImeRpcError> {
+    use std::{io::Write, path::Path};
+    let err = |code: &str| ImeRpcError::Remote(code.into());
+    let destination = params["path"]
+        .as_str()
+        .filter(|p| p.len() <= 32768)
+        .map(Path::new)
+        .filter(|p| p.is_absolute())
+        .ok_or_else(|| err("mapping.invalid"))?;
+    let parent = destination.parent().ok_or_else(|| err("mapping.invalid"))?;
+    let result = rpc().call("mapping.export", serde_json::json!({}))?;
+    let text = result["text"]
+        .as_str()
+        .filter(|s| s.len() <= 768 * 1024)
+        .ok_or_else(|| err("mapping.limit"))?;
+    let mut stage =
+        tempfile::NamedTempFile::new_in(parent).map_err(|_| err("mapping.export_failed"))?;
+    stage
+        .write_all(text.as_bytes())
+        .and_then(|()| stage.as_file().sync_all())
+        .map_err(|_| err("mapping.export_failed"))?;
+    // Recheck the input core's tools gate after I/O and before publishing.
+    if rpc().call("tools.allowed", serde_json::json!({}))?["allowed"] != true {
+        return Err(err("privacy_blocked"));
+    }
+    stage
+        .persist_noclobber(destination)
+        .map_err(|e| match e.error.kind() {
+            std::io::ErrorKind::AlreadyExists => err("mapping.exists"),
+            _ => err("mapping.export_failed"),
+        })?;
+    Ok("{}".into())
 }
 
 // ── 插件管理（07 FR-SET-12，plugin-system.md §11 P5）──────────────────────────
