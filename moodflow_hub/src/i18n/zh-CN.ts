@@ -1659,6 +1659,7 @@ export const zhCN = {
   "rehearsal.solved": "通过题数",
   "rehearsal.first_hits": "首试通过",
   "rehearsal.attempts": "试打次数",
+  "rehearsal.fraction": "{count}/{total}",
   "rehearsal.next_round": "练下一轮",
   "rehearsal.capture": "点击这里开始试打",
   "rehearsal.focused": "试打区已聚焦",

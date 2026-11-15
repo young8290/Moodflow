@@ -274,11 +274,11 @@ onBeforeUnmount(() => {
           <dl>
             <div>
               <dt>{{ t('rehearsal.solved') }}</dt>
-              <dd>{{ drill.solved }}/{{ drill.targets.length }}</dd>
+              <dd>{{ t('rehearsal.fraction', { count: drill.solved, total: drill.targets.length }) }}</dd>
             </div>
             <div>
               <dt>{{ t('rehearsal.first_hits') }}</dt>
-              <dd>{{ drill.firstHits }}/{{ drill.targets.length }}</dd>
+              <dd>{{ t('rehearsal.fraction', { count: drill.firstHits, total: drill.targets.length }) }}</dd>
             </div>
             <div>
               <dt>{{ t('rehearsal.attempts') }}</dt>
