@@ -354,6 +354,9 @@ public final class SettingsActivity extends Activity {
     }
     private void schemas() {
         if(!needCore()) return;
+        LinearLayout imports=group("导入方案");
+        row(imports,KeyboardIcon.BOOK,"从 Rime ZIP 导入","先预览方案和兼容性",null,
+                () -> startActivity(new android.content.Intent(this,RimeImportActivity.class)));
         LinearLayout choices=group("中文输入方案");
         List<SchemaEntry> list=core.schemas();
         for(int i=0;i<list.size();i++) {

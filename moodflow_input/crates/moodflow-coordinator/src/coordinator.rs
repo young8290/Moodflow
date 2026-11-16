@@ -5007,6 +5007,11 @@ impl Coordinator {
             .collect()
     }
 
+    /// 将刚安装的方案追加到宿主的选择列表，已有下标和当前组字保持不变。
+    pub fn register_installed_schema(&self, id: &str) -> bool {
+        self.engine_mgr.register_installed_schema(id)
+    }
+
     /// 当前是否中文标点（测试/诊断用）
     pub fn is_chinese_punct(&self) -> bool {
         self.state

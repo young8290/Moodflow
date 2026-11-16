@@ -67,6 +67,7 @@ pub mod buffer;
 pub mod chord;
 pub mod config_api;
 pub mod practice;
+pub mod rime;
 pub mod t9;
 
 use moodflow_bridge::handler::KeyAction as BridgeKeyAction;
@@ -474,6 +475,11 @@ impl MobileCore {
                 icon_label,
             })
             .collect()
+    }
+
+    /// 只刷新方案列表。导入完成时不改当前方案，也不清空组字。
+    pub fn register_imported_schema(&self, id: &str) -> bool {
+        self.coord.register_installed_schema(id)
     }
 
     /// 拉取候选全量的一个窗口。**纯读**，不改状态，可随时调。

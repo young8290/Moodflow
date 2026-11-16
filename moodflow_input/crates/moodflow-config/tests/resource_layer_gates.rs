@@ -81,6 +81,11 @@ const SCHEMAS_SITES: &[(&str, usize, &str)] = &[
         "scan_installed_schemas 已按层序（在 resource_layers_with 的循环体内拼 schemas）",
     ),
     (
+        "crates/moodflow-mobile/src/rime.rs",
+        1,
+        "Rime 安装只写用户层。预览和安装前的同名检查走 resolve_schema_resource，按层序查找",
+    ),
+    (
         "crates/moodflow-webdata/src/lib.rs",
         4,
         "3 处**用户层**写入侧：user_schemas_dir（导入方案包）与两处备份源；\

@@ -37,6 +37,8 @@ class MoodflowCore private constructor(private var handle: Long) : AutoCloseable
 
     fun schemas(): List<SchemaEntry> = Wire.schemas(N.nativeSchemas(handle))
 
+    fun registerImportedSchema(id: String): Boolean = N.nativeRegisterImportedSchema(handle, id)
+
     fun candidates(offset: Int, limit: Int): CandidateWindow =
         Wire.candidateWindow(N.nativeCandidates(handle, offset, limit))
 
