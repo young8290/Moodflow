@@ -72,7 +72,7 @@ class ChordProfilesActivity : Activity() {
     private val controls = ArrayList<View>()
     private val rowControls = ArrayList<View>()
     private var textColor = 0
-    private var background = 0
+    private var surfaceColor = 0
 
     override fun onCreate(state: Bundle?) {
         val dark = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
@@ -209,14 +209,14 @@ class ChordProfilesActivity : Activity() {
         rowControls.clear()
         val dark = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
         textColor = if (dark) 0xFFF5F5F7.toInt() else 0xFF111113.toInt()
-        background = if (dark) 0xFF161719.toInt() else 0xFFF2F2F7.toInt()
+        surfaceColor = if (dark) 0xFF161719.toInt() else 0xFFF2F2F7.toInt()
         root = column().apply {
             setPadding(dp(16), dp(12), dp(16), dp(28))
             isFocusableInTouchMode = true
         }
         val scroller = ScrollView(this).apply {
             isFillViewport = true
-            setBackgroundColor(background)
+            setBackgroundColor(surfaceColor)
             addView(root)
             setOnApplyWindowInsetsListener { view, insets ->
                 if (Build.VERSION.SDK_INT >= 30) {
