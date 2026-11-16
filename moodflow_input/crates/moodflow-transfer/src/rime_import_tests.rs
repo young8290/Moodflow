@@ -295,7 +295,7 @@ fn mobile_installs_only_chosen_scheme_and_removes_runtime_import_references() {
     assert_eq!(main, "---\nname: rime_ice\n...\n");
     assert!(child.ends_with("你好\tni hao\t20\n"));
     let (entries, _) = moodflow_dict::codetable::parse_rime_entries_parallel(
-        &schemas.join(&parsed.dictionaries[1].path),
+        schemas.join(&parsed.dictionaries[1].path),
         false,
     )
     .unwrap();
