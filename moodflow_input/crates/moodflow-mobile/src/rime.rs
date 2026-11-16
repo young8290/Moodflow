@@ -24,9 +24,7 @@ pub struct Preview {
 fn unavailable(data_dir: &Path, id: &str) -> bool {
     let name = format!("{id}.schema.toml");
     Config::custom_hides_schema(id)
-        || Config::resource_layers_with(Some(data_dir))
-            .iter()
-            .any(|base| base.join("schemas").join(&name).exists())
+        || Config::resolve_schema_resource(Some(data_dir), &name).is_some()
 }
 
 pub fn preview(data_dir: &Path, archive: &Path) -> Result<Preview, String> {
