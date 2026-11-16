@@ -288,6 +288,81 @@ pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeSchemas(
     string_array(&mut env, &items)
 }
 
+/// Rime 预览：ok、SHA、方案数、逐方案记录、逐条提示；失败为 error、原因。
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeRimePreview(
+    mut env: JNIEnv,
+    _class: JClass,
+    data_dir: JString,
+    archive: JString,
+) -> jobjectArray {
+    let items = guard(vec![], || {
+        let data_dir = get_string(&mut env, &data_dir);
+        let archive = get_string(&mut env, &archive);
+        match moodflow_mobile::rime::preview(Path::new(&data_dir), Path::new(&archive)) {
+            Ok(p) => {
+                let mut items = vec!["ok".into(), p.revision, p.schemes.len().to_string()];
+                items.extend(p.schemes.into_iter().map(|s| {
+                    wire::join(&[
+                        &s.id,
+                        s.kind,
+                        &s.dictionaries.to_string(),
+                        wire::flag(s.blocked),
+                        &s.name,
+                    ])
+                }));
+                items.extend(p.warnings);
+                items
+            }
+            Err(error) => vec!["error".into(), error],
+        }
+    });
+    string_array(&mut env, &items)
+}
+
+/// 安装使用 APK 私有缓存的文件。文件内容与预览版本不同时拒绝写入。
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeRimeInstall(
+    mut env: JNIEnv,
+    _class: JClass,
+    data_dir: JString,
+    archive: JString,
+    id: JString,
+    revision: JString,
+) -> jobjectArray {
+    let items = guard(vec![], || {
+        let data_dir = get_string(&mut env, &data_dir);
+        let archive = get_string(&mut env, &archive);
+        let id = get_string(&mut env, &id);
+        let revision = get_string(&mut env, &revision);
+        match moodflow_mobile::rime::install(
+            Path::new(&data_dir),
+            Path::new(&archive),
+            &id,
+            &revision,
+        ) {
+            Ok(()) => vec!["ok".into()],
+            Err(error) => vec!["error".into(), error],
+        }
+    });
+    string_array(&mut env, &items)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeRegisterImportedSchema(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    id: JString,
+) -> jboolean {
+    guard(JNI_FALSE, || {
+        jbool(
+            session(handle)
+                .is_some_and(|core| core.register_imported_schema(&get_string(&mut env, &id))),
+        )
+    })
+}
+
 /// 第 0 项 `offset US total US selected`，其后为候选文本。
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeCandidates(

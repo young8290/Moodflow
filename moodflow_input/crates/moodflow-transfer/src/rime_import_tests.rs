@@ -253,3 +253,84 @@ fn old_mac_line_endings_are_normalized() {
         vec!["extra/words".to_string()]
     );
 }
+
+#[test]
+fn mobile_installs_only_chosen_scheme_and_removes_runtime_import_references() {
+    let root = tempfile::tempdir().unwrap();
+    let source = root.path().join("rime.zip");
+    let schemas = root.path().join("schemas");
+    std::fs::write(
+        &source,
+        zip_of(&[
+            ("wrapper/wubi86.schema.yaml", WUBI_SCHEMA),
+            ("wrapper/wubi86.dict.yaml", WUBI_DICT),
+            ("wrapper/extra/words.dict.yaml", EXTRA_DICT),
+            ("wrapper/ice.schema.yaml", ICE_SCHEMA),
+            ("wrapper/rime_ice.dict.yaml", ICE_DICT),
+            (
+                "wrapper/cn_dicts/8105.dict.yaml",
+                "---\nname: 8105\n...\n你好\tni hao\t20\n",
+            ),
+            ("wrapper/user.yaml", "private"),
+        ]),
+    )
+    .unwrap();
+    let preview = crate::rime_install::read_archive(&source).unwrap();
+    assert_eq!(preview.schemes.len(), 2);
+    assert!(!schemas.exists());
+    assert!(
+        preview
+            .diagnostics
+            .iter()
+            .any(|d| matches!(d, Diagnostic::LuaIgnored { .. }))
+    );
+    crate::rime_install::install(&preview, "rime_ice", &schemas).unwrap();
+
+    let schema_path = schemas.join("rime_ice.schema.toml");
+    let text = std::fs::read_to_string(&schema_path).unwrap();
+    let parsed: moodflow_config::schema::Schema = toml::from_str(&text).unwrap();
+    assert_eq!(parsed.dictionaries.len(), 2);
+    let main = std::fs::read_to_string(schemas.join(&parsed.dictionaries[0].path)).unwrap();
+    let child = std::fs::read_to_string(schemas.join(&parsed.dictionaries[1].path)).unwrap();
+    assert_eq!(main, "---\nname: rime_ice\n...\n");
+    assert!(child.ends_with("你好\tni hao\t20\n"));
+    let (entries, _) = moodflow_dict::codetable::parse_rime_entries_parallel(
+        &schemas.join(&parsed.dictionaries[1].path),
+        false,
+    )
+    .unwrap();
+    assert!(!entries.is_empty());
+    assert!(!schemas.join("rime_wubi86.schema.toml").exists());
+    assert!(crate::rime_install::install(&preview, "rime_ice", &schemas).is_err());
+    assert_eq!(std::fs::read_to_string(&schema_path).unwrap(), text);
+}
+
+#[test]
+fn failed_mobile_install_leaves_no_selectable_scheme() {
+    let converted = convert_zip(&[
+        ("wubi86.schema.yaml", WUBI_SCHEMA),
+        ("wubi86.dict.yaml", "---\nname: wubi86\n...\n"),
+    ])
+    .unwrap();
+    let root = tempfile::tempdir().unwrap();
+    let error = crate::rime_install::install(&converted, "rime_wubi86", root.path()).unwrap_err();
+    assert!(error.to_string().contains("没有可用条目"));
+    assert!(!root.path().join("rime_wubi86.schema.toml").exists());
+}
+
+#[test]
+fn shared_dictionary_counts_against_every_converted_scheme() {
+    let second = WUBI_SCHEMA.replace("schema_id: wubi86", "schema_id: other");
+    let zip = zip_of(&[
+        ("wubi86.schema.yaml", WUBI_SCHEMA),
+        ("other.schema.yaml", &second),
+        ("wubi86.dict.yaml", WUBI_DICT),
+        ("extra/words.dict.yaml", EXTRA_DICT),
+    ]);
+    let (files, sha, diagnostics) = read_zip_bytes(&zip).unwrap();
+    let one_scheme = WUBI_DICT.len() + EXTRA_DICT.len();
+    assert!(matches!(
+        convert_with_budget(&files, sha, diagnostics, one_scheme),
+        Err(RimeImportError::TooLarge)
+    ));
+}

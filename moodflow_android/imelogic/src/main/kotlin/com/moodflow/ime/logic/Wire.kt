@@ -68,6 +68,36 @@ object Wire {
             SchemaEntry(id, name, icon, active == "1")
         }
 
+    data class RimeScheme(
+        val id: String,
+        val kind: String,
+        val dictionaries: Int,
+        val blocked: Boolean,
+        val name: String,
+    )
+
+    data class RimePreview(
+        val revision: String,
+        val schemes: List<RimeScheme>,
+        val warnings: List<String>,
+    )
+
+    /** ok, SHA, 方案数；方案字段为 id US 类型 US 词库数 US 冲突标志 US 名称。 */
+    fun rimePreview(arr: Array<String>?): RimePreview? {
+        if (arr == null || arr.size < 3 || arr[0] != "ok") return null
+        val revision = arr[1]
+        if (revision.length != 64 || !revision.all { it in 'a'..'f' || it in '0'..'9' }) return null
+        val count = arr[2].toIntOrNull() ?: return null
+        if (count !in 1..(arr.size - 3)) return null
+        val schemes = (3 until 3 + count).map { i ->
+            val (id, kind, tables, blocked, name) = fields(arr[i], 5)
+            val dictionaries = tables.toIntOrNull() ?: return null
+            if (id.isEmpty() || name.isEmpty() || dictionaries < 1 || blocked !in listOf("0", "1")) return null
+            RimeScheme(id, kind, dictionaries, blocked == "1", name)
+        }
+        return RimePreview(revision, schemes, arr.drop(3 + count))
+    }
+
     /** 主题与双拼布局同一形状：`id US 名称 US 是否激活`。 */
     fun namedEntries(arr: Array<String>?): List<NamedEntry> =
         arr.orEmpty().map {

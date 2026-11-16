@@ -68,6 +68,16 @@ class WireTest {
     }
 
     @Test
+    fun rimePreviewSeparatesSelectableSchemesAndDiagnostics() {
+        val archiveRevision = "a".repeat(64)
+        val blocked = listOf("rime_demo", "全拼", "2", "1", "带${us}分隔").joinToString(us.toString())
+        val preview = Wire.rimePreview(arrayOf("ok", archiveRevision, "1", blocked, "Lua 未导入"))!!
+        assertEquals(Wire.RimeScheme("rime_demo", "全拼", 2, true, "带${us}分隔"), preview.schemes.single())
+        assertEquals(listOf("Lua 未导入"), preview.warnings)
+        assertNull(Wire.rimePreview(arrayOf("ok", archiveRevision, "2", blocked, "Lua 未导入")))
+    }
+
+    @Test
     fun decodesChord() {
         assertNull(Wire.chord(null))
         assertEquals(ChordResult.NoMatch, Wire.chord("N"))

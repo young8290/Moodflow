@@ -45,6 +45,9 @@ object MoodflowNative {
     @JvmStatic external fun nativeRunCommand(handle: Long, cmd: Int, intArg: Int, strArg: String)
     @JvmStatic external fun nativeUserStoreAvailable(handle: Long): Boolean
     @JvmStatic external fun nativeSchemas(handle: Long): Array<String>?
+    @JvmStatic external fun nativeRimePreview(dataDir: String, archive: String): Array<String>?
+    @JvmStatic external fun nativeRimeInstall(dataDir: String, archive: String, id: String, revision: String): Array<String>?
+    @JvmStatic external fun nativeRegisterImportedSchema(handle: Long, id: String): Boolean
     @JvmStatic external fun nativeCandidates(handle: Long, offset: Int, limit: Int): Array<String>?
     @JvmStatic external fun nativeSelectCandidate(handle: Long, index: Int): Array<String>?
     @JvmStatic external fun nativeThemes(handle: Long): Array<String>?

@@ -6,5 +6,6 @@ pub mod envelope;
 pub mod merge;
 pub mod recovery;
 pub mod rime_import;
+pub mod rime_install;
 pub mod scheme;
 pub mod theme;

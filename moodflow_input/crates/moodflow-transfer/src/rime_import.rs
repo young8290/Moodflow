@@ -119,6 +119,13 @@ pub fn read_zip(
 pub fn read_zip_bytes(
     raw: &[u8],
 ) -> Result<(Vec<SourceFile>, String, Vec<Diagnostic>), RimeImportError> {
+    read_zip_with_budget(raw, MAX_PACKAGE_UNCOMPRESSED_BYTES)
+}
+
+pub(crate) fn read_zip_with_budget(
+    raw: &[u8],
+    mut budget: u64,
+) -> Result<(Vec<SourceFile>, String, Vec<Diagnostic>), RimeImportError> {
     let sha = hex(&Sha256::digest(raw));
     let mut archive = zip::ZipArchive::new(std::io::Cursor::new(raw))
         .map_err(|e| RimeImportError::Zip(e.to_string()))?;
@@ -127,7 +134,7 @@ pub fn read_zip_bytes(
     }
     let mut files = Vec::new();
     let mut diags = Vec::new();
-    let mut budget = MAX_PACKAGE_UNCOMPRESSED_BYTES;
+    let mut seen = BTreeSet::new();
     for i in 0..archive.len() {
         let mut entry = archive
             .by_index(i)
@@ -139,7 +146,11 @@ pub fn read_zip_bytes(
         if entry.unix_mode().is_some_and(|m| m & 0o170000 == 0o120000) {
             return Err(RimeImportError::Symlink(name));
         }
-        if entry.enclosed_name().is_none() || name.starts_with('/') || name.contains(':') {
+        if entry.enclosed_name().is_none()
+            || name.contains(':')
+            || name.split('/').any(|part| matches!(part, "" | "." | ".."))
+            || !seen.insert(name.clone())
+        {
             return Err(RimeImportError::UnsafePath(name));
         }
         if is_ignored(&name) {
@@ -184,6 +195,15 @@ pub fn convert(
     source_sha256: String,
     pre: Vec<Diagnostic>,
 ) -> Result<Conversion, RimeImportError> {
+    convert_with_budget(files, source_sha256, pre, usize::MAX)
+}
+
+pub(crate) fn convert_with_budget(
+    files: &[SourceFile],
+    source_sha256: String,
+    pre: Vec<Diagnostic>,
+    mut budget: usize,
+) -> Result<Conversion, RimeImportError> {
     let mut diags = pre;
     let root = find_root(files)?;
     let by_path: BTreeMap<&str, &SourceFile> = files
@@ -216,7 +236,7 @@ pub fn convert(
         if !rel.ends_with(".schema.yaml") || rel.contains('/') {
             continue;
         }
-        if let Some(s) = convert_schema(rel, f, &by_path, &mut used_ids, &mut diags) {
+        if let Some(s) = convert_schema(rel, f, &by_path, &mut used_ids, &mut diags, &mut budget)? {
             schemes.push(s);
         }
     }
@@ -253,7 +273,8 @@ fn convert_schema(
     files: &BTreeMap<&str, &SourceFile>,
     used_ids: &mut BTreeSet<String>,
     diags: &mut Vec<Diagnostic>,
-) -> Option<ConvertedScheme> {
+    budget: &mut usize,
+) -> Result<Option<ConvertedScheme>, RimeImportError> {
     let fallback_id = rel.trim_end_matches(".schema.yaml").to_owned();
     let yaml: serde_yaml::Value = match serde_yaml::from_slice(&file.bytes) {
         Ok(v) => v,
@@ -262,7 +283,7 @@ fn convert_schema(
                 schema: fallback_id,
                 reason: "schema.yaml 解析失败",
             });
-            return None;
+            return Ok(None);
         }
     };
     let get = |path: &[&str]| -> Option<&serde_yaml::Value> {
@@ -308,7 +329,7 @@ fn convert_schema(
             schema: rime_id,
             reason: "没有 script_translator 或 table_translator",
         });
-        return None;
+        return Ok(None);
     };
     if translators
         .iter()
@@ -335,7 +356,7 @@ fn convert_schema(
             schema: rime_id,
             reason: "没有 translator/dictionary",
         });
-        return None;
+        return Ok(None);
     };
     let dicts = collect_dicts(dict_name, files, &rime_id, diags);
     if dicts.is_empty() {
@@ -343,7 +364,7 @@ fn convert_schema(
             schema: rime_id,
             reason: "主词库缺失",
         });
-        return None;
+        return Ok(None);
     }
 
     let id = moodflow_id(&rime_id, used_ids);
@@ -371,6 +392,12 @@ fn convert_schema(
         EngineKind::Codetable => "rime_codetable",
         EngineKind::Pinyin => "rime_pinyin",
     };
+    // 在复制词表字节之前扣除预算，避免多个方案引用同一大字典导致内存倍增。
+    for rel in &dicts {
+        *budget = budget
+            .checked_sub(files[rel.as_str()].bytes.len())
+            .ok_or(RimeImportError::TooLarge)?;
+    }
     let mut out_files = Vec::new();
     let mut entries = Vec::new();
     for (i, rel) in dicts.iter().enumerate() {
@@ -409,12 +436,12 @@ fn convert_schema(
     };
     let toml_text = toml::to_string_pretty(&schema).expect("SchemaToml 可序列化");
     out_files.insert(0, (format!("{id}.schema.toml"), toml_text.into_bytes()));
-    Some(ConvertedScheme {
+    Ok(Some(ConvertedScheme {
         id,
         name,
         engine,
         files: out_files,
-    })
+    }))
 }
 
 /// 从主词库出发，按 `import_tables` 递归收集词库文件（根相对路径），去重、防环。

@@ -3,6 +3,10 @@ name = "moodflow-transfer"
 version.workspace = true
 edition.workspace = true
 
+[features]
+default = ["full-zip"]
+full-zip = ["zip/default"]
+
 [dependencies]
 moodflow-store = { path = "../moodflow-store" }
 moodflow-dict = { path = "../moodflow-dict" }
@@ -15,11 +19,12 @@ toml = { workspace = true }
 # 主题包要在落盘前校验 theme.toml 本身合法（坏主题别等回滚才发现），并取 meta 作展示名。
 # moodflow-theme 是纯解析 crate，不反向依赖本 crate。
 moodflow-theme = { path = "../moodflow-theme" }
-zip = "2"
 # Rime 方案导入：读 .schema.yaml 与 .dict.yaml 头部。
 serde_yaml = { workspace = true }
 sha2 = { workspace = true }
 tempfile = "3"
+
+zip = { version = "2", default-features = false, features = ["deflate"] }
 
 [lints]
 workspace = true

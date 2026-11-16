@@ -2809,6 +2809,18 @@ impl EngineManager {
             .collect()
     }
 
+    /// 让薄宿主在安装完成后立即列出新方案。保持既有下标，等到用户选中时再加载引擎。
+    pub fn register_installed_schema(&self, id: &str) -> bool {
+        if self.schema_base(id).is_none() {
+            return false;
+        }
+        let mut available = self.available.lock().unwrap_or_else(|e| e.into_inner());
+        if !available.iter().any(|entry| entry == id) {
+            available.push(id.to_owned());
+        }
+        true
+    }
+
     /// 所有已安装且受支持的方案列表（目录扫描），**含隐藏方案**。
     ///
     /// 扫描 `data_dir/schemas/*.schema.toml`，对每个文件取去掉 `.schema.toml` 后缀的 id，
