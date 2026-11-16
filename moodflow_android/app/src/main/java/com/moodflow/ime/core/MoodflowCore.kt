@@ -246,6 +246,11 @@ class NativeChord private constructor(private var h: Long) : AutoCloseable {
             return if (h == 0L) null else NativeChord(h)
         }
 
+        fun builtinJson(): String? = if (N.ensureLoaded()) N.nativeChordBuiltinJson() else null
+
+        fun validateDraft(json: String): String? =
+            if (!N.ensureLoaded()) "原生库未加载" else N.nativeChordValidateDraft(json)
+
         /** @return null = 可以应用，否则为原因 */
         fun validate(json: String): String? =
             if (!N.ensureLoaded()) "原生库未加载" else N.nativeChordValidate(json)

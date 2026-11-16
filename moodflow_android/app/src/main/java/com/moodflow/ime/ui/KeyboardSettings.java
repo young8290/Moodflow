@@ -18,6 +18,7 @@ public final class KeyboardSettings {
     public static final String PREFERENCES_NAME="keyboard";
     public static final String KEY_LAYOUT="layout";
     public static final String KEY_THEME="theme";
+    public static final String KEY_CHORD_PROFILE="chordProfileRevision";
     public static final String DEFAULT_THEME="apple";
     private final SharedPreferences preferences;
 

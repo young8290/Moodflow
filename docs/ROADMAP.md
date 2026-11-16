@@ -104,8 +104,8 @@
 
 | # | 项 | 细节 |
 |---|---|---|
-| 1 | Buffer 按输入框区分目标（TSF 焦点事件带文档身份） | 计划 §10.2 W1、[buffer.md](design/buffer.md) §4 |
-| 2 | 推送上屏回执；英文直输进 Buffer；长按逐块 / 节奏投递 | W2–W4 |
+| 1 | Buffer 按输入框区分目标 | 代码已完成，待真机验收；[Buffer §4](design/buffer.md#4-windows-接入现状2026-11-09) |
+| 2 | 推送上屏回执；英文直输进 Buffer；长按逐块 / 节奏投递 | 代码已完成，待真机验收（W2–W4） |
 | 3 | Windows TSF 端到端自动测试（普通桌面、AppContainer、LPAC） | W5 |
 | 4 | 剪贴板历史跨输入法全局可用（待定） | W6 |
 | 5 | Rime 导入、并击方案编辑的界面入口 | W7、W8 |
@@ -123,7 +123,7 @@
 | 2 | ✅ 练习不计入日常统计（Android 焦点上报包名并加入内置排除） | A2 |
 | 3 | 无痕字段允许中文（协调器「本字段不学习」开关） | A3 |
 | 4 | 插件安装（与 Google Play 政策核查一起做） | A4、[插件 §11](design/plugin-system.md) P8 |
-| 5 | 两段手势并击、并击方案导入与编辑、Rime 导入入口 | A5、A8 |
+| 5 | 两段手势并击、Rime 导入入口 | [Android 并击方案导入与编辑](design/android-chord-profiles.md) 已接入，待真机；两段手势与 Rime 入口待做（A5、A8） |
 | 6 | 旧 `clipboard.json` 迁移；解包按清单校验 | A6、A7 |
 | 7 | 标点数据两端共用；123 页全角标点保留半角小数点 | A9 |
 | 8 | 正式签名、`android-vX.Y.Z` 发布流程 | A10 |

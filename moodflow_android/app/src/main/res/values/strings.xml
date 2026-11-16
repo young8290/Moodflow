@@ -38,4 +38,5 @@
     <string name="engine_loading">中文准备中，按键先直接上屏</string>
     <string name="engine_failed">输入引擎不可用，按键直接上屏</string>
     <string name="store_unavailable">⚠ 用户词库不可写：学到的词不会保存</string>
+    <string name="chord_profiles_title">并击方案管理</string>
 </resources>

@@ -105,6 +105,8 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
     private var bufferMode = false
     private var chord: NativeChord? = null
     private var chordProfile: ChordProfile? = null
+    private var chordIntervalMs = 300L
+    private val pressedChordKeys = HashMap<Int, String>()
     private var lastChordSyllable = false
     private val t9 = T9Input()
 
@@ -116,7 +118,17 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
     private var layoutPref = KeyboardChoice.QWERTY
     private var theme: KeyboardTheme = KeyboardTheme.ALL[0]
     private var clipboardEnabled = false
-    private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> restoreSettings(); render() }
+    private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (!destroyed) {
+            if (key == KeyboardSettings.KEY_CHORD_PROFILE) loadChordProfile()
+            if (key == KeyboardSettings.KEY_LAYOUT && layoutPref != settings.layout) {
+                retireTouches()
+                resetChordInput()
+            }
+            restoreSettings()
+            render()
+        }
+    }
 
     // ── 界面状态 ──
     private var uppercase = false
@@ -177,7 +189,11 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
     private val swallowedKeyUps = HashSet<Int>()
 
     private val clipListener = ClipboardManager.OnPrimaryClipChangedListener { onClipChanged(explicit = false) }
-    private val chordTick = Runnable { chord?.tick(SystemClock.uptimeMillis())?.let { handleChord(it) } }
+    private val chordTick = Runnable {
+        if (tracker.current != null && engine() != null && chordVisible() && chinese) {
+            chord?.tick(SystemClock.uptimeMillis())?.let { handleChord(it) }
+        } else resetChordInput()
+    }
 
     private val bufferSink = object : BufferSink {
         override fun pushPhrase(text: String): Boolean = buffer?.pushPhrase(text) == 0
@@ -191,8 +207,7 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
         settings.preferences().registerOnSharedPreferenceChangeListener(prefListener)
         restoreSettings()
         buffer = NativeBuffer.create()
-        chord = NativeChord.builtin()
-        chordProfile = chord?.let { ChordProfiles.of(it) }
+        loadChordProfile()
         MoodflowNative.loadError?.let { Log.e(TAG, "原生库加载失败，键盘退化为直接上屏", it) }
         CoreHolder.listener = this
         CoreHolder.acquire(this) { onCoreReady(it) }
@@ -243,6 +258,23 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
         theme = KeyboardTheme.named(settings.theme)
     }
 
+    private fun loadChordProfile() {
+        retireTouches()
+        resetChordInput()
+        val next = ChordProfiles.load(this)
+        chord?.close()
+        chord = next?.chord
+        chordProfile = next?.surface
+        chordIntervalMs = next?.intervalMs ?: 300L
+        if (::surfaceContainer.isInitialized) installChordSurface()
+    }
+
+    private fun resetChordInput() {
+        main.removeCallbacks(chordTick)
+        pressedChordKeys.clear()
+        chord?.reset()
+    }
+
     private fun refreshSchemas() {
         schemas = core?.schemas().orEmpty()
     }
@@ -268,8 +300,9 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
         core?.clearComposition()
         resetLocalComposition()
         retireTouches()
-        chord?.reset()
-        swallowedKeyUps.clear()
+        // Retire the old chord, but still consume the matching releases.
+        swallowedKeyUps.retainAll(pressedChordKeys.keys)
+        resetChordInput()
 
         // Buffer：换字段丢弃，同字段重启只暂停（buffer.md §3 Android 一列）；私密字段一律丢弃
         val target = tracker.current
@@ -319,6 +352,7 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
         stopClipListening()
         closePanels()
         retireTouches()
+        resetChordInput()
         buffer?.discard()
         bufferMode = false
         if (composing || !t9.isEmpty) {
@@ -335,7 +369,7 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
         core?.focusLost()
         buffer?.discard()
         bufferMode = false
-        chord?.reset()
+        resetChordInput()
         retireTouches()
         resetLocalComposition()
         closePanels()
@@ -1133,7 +1167,12 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
             mods and (Mods.CTRL or Mods.ALT) == 0 && ch.isChordKey(name)
         ) {
             // 并击：按下只记账，全部松开时结算（moodflow-chord）
-            if (event.repeatCount == 0) handleChord(ch.keyDown(name, event.eventTime))
+            if (event.repeatCount == 0) {
+                main.removeCallbacks(chordTick)
+                pressedChordKeys[keyCode] = name
+                swallowedKeyUps += keyCode
+                handleChord(ch.keyDown(name, event.eventTime))
+            }
             return true
         }
         val vk = PhysicalKeys.toVk(keyCode) ?: return super.onKeyDown(keyCode, event)
@@ -1145,14 +1184,16 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
-        val ch = chord
-        val name = PhysicalKeys.chordKeyName(keyCode)
-        if (engine() != null && chordVisible() && chinese && ch != null && name != null && ch.isChordKey(name)) {
-            handleChord(ch.keyUp(name, event.eventTime))
-            // 先敲一只手时要等另一只手：超时后单独结算
-            main.removeCallbacks(chordTick)
-            main.postDelayed(chordTick, CHORD_TICK_SHORT_MS)
-            main.postDelayed(chordTick, CHORD_TICK_LONG_MS)
+        val name = pressedChordKeys.remove(keyCode)
+        if (name != null) {
+            swallowedKeyUps.remove(keyCode)
+            if (engine() != null && chordVisible() && chinese) {
+                handleChord(chord?.keyUp(name, event.eventTime))
+                if (pressedChordKeys.isEmpty()) {
+                    main.removeCallbacks(chordTick)
+                    main.postAtTime(chordTick, event.eventTime + chordIntervalMs)
+                }
+            } else resetChordInput()
             return true
         }
         if (swallowedKeyUps.remove(keyCode)) return true
@@ -1393,11 +1434,8 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
         surfaceContainer = FrameLayout(this)
         keys = KeyboardSurface(this, keyHandler)
         surfaceContainer.addView(keys, FrameLayout.LayoutParams(-1, -1))
-        chords = chordProfile?.let { profile ->
-            val surface = ChordSurface(this, chordHandler, profile)
-            surfaceContainer.addView(surface, FrameLayout.LayoutParams(-1, -1))
-            surface
-        }
+        chords = null
+        installChordSurface()
         appearancePanel = KeyboardAppearancePanel(this, { chooseLayout(it) }, { settings.setTheme(it) }) { toggleAppearance() }
         appearancePanel.action("全部插入", getString(R.string.insert_all), KeyboardIcon.SEND_ALL) { deliverBuffer(all = true) }
         appearancePanel.action("清空 Buffer", getString(R.string.clear), KeyboardIcon.CLEAR) { clearBuffer() }
@@ -1426,12 +1464,20 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
             if (chordControls.isNotEmpty()) gapLeft(b, 2)
             chordControls += b
         }
-        chords?.let { surface ->
-            val repeat = DeleteRepeatTouch(surface.utilityButton(ChordLayout.Action.DELETE)) { tracker.current != null }
-            surface.setUtilityRetirementListener { repeat.cancel() }
-        }
         render()
         return root
+    }
+
+    private fun installChordSurface() {
+        chords?.let { surfaceContainer.removeView(it) }
+        chords = chordProfile?.let { profile ->
+            val surface = ChordSurface(this, chordHandler, profile)
+            val repeat = DeleteRepeatTouch(surface.utilityButton(ChordLayout.Action.DELETE)) { tracker.current != null }
+            surface.setUtilityRetirementListener { repeat.cancel() }
+            // Insert above standard keys and below the appearance/clipboard panels.
+            surfaceContainer.addView(surface, 1, FrameLayout.LayoutParams(-1, -1))
+            surface
+        }
     }
 
     private fun toggleAppearance() {
@@ -1670,8 +1716,6 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
         const val PAGE = 9
         const val MATRIX_MORE = 27
         const val T9_SEGMENTATIONS = 8
-        const val CHORD_TICK_SHORT_MS = 400L
-        const val CHORD_TICK_LONG_MS = 2100L
 
         /** `ClipDescription.EXTRA_IS_SENSITIVE`（API 33 起的常量，按字面量用以兼容低版本）。 */
         const val EXTRA_IS_SENSITIVE = "android.content.extra.IS_SENSITIVE"

@@ -9,9 +9,8 @@ import java.util.Set;
 /**
  * Two-thumb start/end gesture. A cancelled batch stays quarantined until all fingers lift.
  *
- * <p>Moodflow: unchanged except that slide routes resolve to their pinyin (no Natural Code); the
- * same routes are also explicit mappings in the core's built-in keymap, so the core settles them
- * identically.
+ * <p>Cross-hand shortcuts are available only if the current profile contains the route's
+ * mapping. Preview and commit therefore use the same keys and pinyin after switching profiles.
  */
 public final class ChordGesture {
     public static final class Side {
@@ -23,8 +22,7 @@ public final class ChordGesture {
         public final String combined;
         Preview(Side left,Side right,String combined) { this.left=left; this.right=right; this.combined=combined; }
     }
-    private static final String[][] SLIDES={{"ty","ting"},{"tyu","tu"},{"gh","gang"},{"ghj","gan"},
-            {"bn","bin"},{"bnm","bian"},{"bh","bang"},{"th","tang"},{"gy","guai"}};
+    private static final String[] SLIDES={"ty","tyu","gh","ghj","bn","bnm","bh","th","gy"};
     private static final class Contact {
         final int hand;
         final char start;
@@ -38,7 +36,7 @@ public final class ChordGesture {
     private final Set<Integer> down=new HashSet<>();
     private final ChordProfile profile;
     private Contact[] contactList=new Contact[0];
-    private String[] slide;
+    private String slide;
     private boolean cancelled;
     private long revision,availableRevision=-1,resolutionRevision=-1,previewRevision=-1;
     private int cachedAvailable;
@@ -51,7 +49,7 @@ public final class ChordGesture {
     public long revision() { return revision; }
     public int keys() {
         if(cancelled || contacts.isEmpty()) return 0;
-        if(slide!=null) return ChordProfile.mask(slide[0]);
+        if(slide!=null) return ChordProfile.mask(slide);
         int mask=0;
         for(Contact contact:contactList) mask|=contact.startMask|contact.endMask;
         return mask;
@@ -59,7 +57,7 @@ public final class ChordGesture {
     public ChordProfile.Resolution resolution() {
         if(resolutionRevision!=revision) {
             cachedResolution=slide!=null && !cancelled
-                    ?new ChordProfile.Resolution(slide[0],slide[1]):profile.resolve(keys());
+                    ?new ChordProfile.Resolution(slide,profile.resolve(slide).preview):profile.resolve(keys());
             resolutionRevision=revision;
         }
         return cachedResolution;
@@ -83,7 +81,8 @@ public final class ChordGesture {
         int available=0;
         if(contacts.size()==1) {
             Contact contact=contactList[0];
-            if(!contact.released) for(String[] path:SLIDES) if(path[0].charAt(0)==contact.start) available|=ChordProfile.mask(path[0]);
+            if(!contact.released) for(String path:SLIDES)
+                if(path.charAt(0)==contact.start && profile.resolve(path)!=null) available|=ChordProfile.mask(path);
         }
         for(int keys:profile.combinations) {
             boolean valid=true;
@@ -112,7 +111,8 @@ public final class ChordGesture {
         if(contacts.size()==1 && key!=null) {
             if(key==contact.start) { if(slide!=null) { slide=null; revision++; } }
             else {
-                for(String[] route:SLIDES) if(route[0].charAt(0)==contact.start && route[0].charAt(route[0].length()-1)==key) {
+                for(String route:SLIDES) if(route.charAt(0)==contact.start && route.charAt(route.length()-1)==key
+                        && profile.resolve(route)!=null) {
                     if(slide!=route) { slide=route; revision++; } return;
                 }
                 if(slide!=null) return;

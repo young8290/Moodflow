@@ -92,6 +92,18 @@ public class ChordGestureTest {
             assertNull(gesture.end(1,null));
         }
     }
+    @Test public void customSlidePreviewUsesCustomMappingAndRemovedRoutesDoNotFire() {
+        ChordProfile custom = new ChordProfile("t","yu",List.of(new ChordProfile.Entry("ty","ni",false)));
+        ChordGesture gesture = new ChordGesture(custom);
+        gesture.begin(1,'t');
+        gesture.move(1,'y');
+        assertEquals("ni",gesture.preview().combined);
+        assertEquals("ni",gesture.end(1,null).preview);
+        gesture.begin(1,'t');
+        gesture.move(1,'u');
+        assertEquals("t",gesture.end(1,null).preview);
+    }
+
     @Test public void reachabilityRetainsEveryLegalMappingWhileAHandIsHeld() {
         for(ChordProfile.Entry entry:profile.entries) {
             ChordGesture gesture=new ChordGesture(profile);
