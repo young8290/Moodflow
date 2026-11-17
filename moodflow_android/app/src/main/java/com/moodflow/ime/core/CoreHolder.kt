@@ -96,6 +96,24 @@ object CoreHolder {
         }
     }
 
+    /** 准备期间保留核心使用权，避免输入法服务退出时关闭 JNI 句柄。 */
+    fun preparePrivatePinyin(ctx: Context, ready: (Boolean) -> Unit) {
+        acquire(ctx) { session ->
+            if (session == null) {
+                release()
+                ready(false)
+            } else {
+                Thread({
+                    val available = runCatching { session.preparePrivatePinyin() }.getOrDefault(false)
+                    main.post {
+                        release()
+                        ready(available)
+                    }
+                }, "moodflow-factory-pinyin").start()
+            }
+        }
+    }
+
     private fun start(app: Context) {
         starting = true
         Thread({

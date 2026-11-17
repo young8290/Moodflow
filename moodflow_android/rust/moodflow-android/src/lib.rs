@@ -257,6 +257,33 @@ pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeRunCommand
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativePreparePrivatePinyin(
+    _env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) -> jboolean {
+    guard(JNI_FALSE, || {
+        jbool(session(handle).is_some_and(MobileCore::prepare_private_pinyin))
+    })
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativePrivatePinyinCandidates(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    spelling: JString,
+) -> jobjectArray {
+    let spelling = get_string(&mut env, &spelling);
+    let items = guard(Vec::new(), || {
+        session(handle)
+            .map(|core| core.private_pinyin_candidates(&spelling))
+            .unwrap_or_default()
+    });
+    string_array(&mut env, &items)
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeUserStoreAvailable(
     _env: JNIEnv,
     _class: JClass,

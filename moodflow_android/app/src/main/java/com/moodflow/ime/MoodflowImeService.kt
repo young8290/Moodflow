@@ -53,6 +53,7 @@ import com.moodflow.ime.logic.KeyOutcome
 import com.moodflow.ime.logic.KeyboardChoice
 import com.moodflow.ime.logic.Mods
 import com.moodflow.ime.logic.OpRouter
+import com.moodflow.ime.logic.PrivatePinyin
 import com.moodflow.ime.logic.PhysicalKeys
 import com.moodflow.ime.logic.SchemaEntry
 import com.moodflow.ime.logic.StrokeTable
@@ -85,7 +86,7 @@ import java.util.Locale
  * （[MoodflowCore]），Buffer / 并击 / 九宫格 / 剪贴板历史也都是门面里的共享逻辑。XSIME 那套
  * 「引擎工作线程 + 结果票据」没有搬：核心调用是同步的，全部在主线程。
  *
- * 隐私契约（AGENTS.md「私密字段」）：密码类与 `IME_FLAG_NO_PERSONALIZED_LEARNING` 字段完全绕过引擎、
+ * 隐私契约：密码类字段直接输入；无痕文本字段只使用出厂拼音词库。两者均绕过常规协调器、
  * 不启用 Buffer、不采集剪贴板；旧组字绝不带进新输入框。
  *
  * 日志：只记生命周期事件，**不记任何用户输入、候选或剪贴板内容**。
@@ -110,6 +111,11 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
 
     private val tracker = FieldTracker()
     private var policy = FieldPolicy.NONE
+    private val privatePinyin = PrivatePinyin()
+    private var privateReady: Boolean? = null
+    private var privateLoading = false
+    private var privateChinese = true
+    @Volatile private var inputGeneration = 0L
 
     // ── 宿主偏好 ──
     private lateinit var settings: KeyboardSettings
@@ -211,7 +217,10 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
         refreshSchemas()
         readCoreConfig()
         if (tracker.current != null) c.focusGained(policy.isPrivate, hostPackage(currentInputEditorInfo?.packageName))
-        if (KeyboardChoice.isChord(layoutPref) || layoutPref == KeyboardChoice.NINE_KEY) ensurePinyinSchema()
+        preparePrivatePinyin()
+        if (!policy.isPrivate || tracker.current == null) {
+            if (KeyboardChoice.isChord(layoutPref) || layoutPref == KeyboardChoice.NINE_KEY) ensurePinyinSchema()
+        }
         render()
     }
 
@@ -259,11 +268,17 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
 
     override fun onStartInput(attribute: EditorInfo, restarting: Boolean) {
         super.onStartInput(attribute, restarting)
+        inputGeneration++
+        val wasPrivate = policy.isPrivate
+        val hadPrivateComposition = privatePinyin.spelling.isNotEmpty()
         policy = FieldPolicy.of(attribute.inputType, attribute.imeOptions)
+        privateChinese = true
+        preparePrivatePinyin()
         val change = tracker.onStartInput(
             FieldKey(attribute.packageName.orEmpty(), attribute.fieldId, attribute.inputType),
             restarting,
         )
+        if (hadPrivateComposition && change == FieldChange.SAME_FIELD_RESTART) clearHostComposition()
         // 旧组字绝不带进新上下文（XSIME 吸收计划 §3.7）：核心与本地状态一起清
         core?.clearComposition()
         resetLocalComposition()
@@ -281,10 +296,13 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
             }
         }
         if (!policy.allowBuffer || change == FieldChange.NEW_FIELD) bufferMode = false
-        if (change == FieldChange.NEW_FIELD) closePanels()
+        if (change == FieldChange.NEW_FIELD || wasPrivate || policy.isPrivate) closePanels()
 
         core?.focusGained(policy.isPrivate, hostPackage(attribute.packageName))
         restoreSettings()
+        if (wasPrivate && policy.useEngine && (KeyboardChoice.isChord(layoutPref) || layoutPref == KeyboardChoice.NINE_KEY)) {
+            ensurePinyinSchema()
+        }
         uppercase = false
         numeric = policy.prefersNumberPad
         symbols = false
@@ -316,19 +334,23 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
     /** 隐藏键盘：停止剪贴板采集、收起面板，Buffer 清空（Android 上隐藏即撤销投递授权并丢弃内容）。 */
     private fun keyboardHidden() {
         keyboardVisible = false
+        inputGeneration++
         stopClipListening()
         closePanels()
         retireTouches()
         buffer?.discard()
         bufferMode = false
-        if (composing || !t9.isEmpty) {
+        if (composing || !t9.isEmpty || privatePinyin.spelling.isNotEmpty()) {
             core?.clearComposition()
             clearHostComposition()
             resetLocalComposition()
+            if (policy.usePrivatePinyin) render()
         }
     }
 
     override fun onFinishInput() {
+        val discardPrivateDisplay = policy.usePrivatePinyin
+        inputGeneration++
         // 旧输入框里的组字删掉而不是提交：拼音串不是用户要的内容，也不能留给下一个输入框
         clearHostComposition()
         tracker.onFinishInput()
@@ -340,6 +362,7 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
         resetLocalComposition()
         closePanels()
         policy = FieldPolicy.NONE
+        if (discardPrivateDisplay) render()
         super.onFinishInput()
     }
 
@@ -367,11 +390,17 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
         page: Int,
         totalPages: Int,
     ) {
-        main.post { if (!destroyed) onCandidateFrame(preedit) }
+        val generation = inputGeneration
+        main.post {
+            if (!destroyed && generation == inputGeneration && policy.useEngine) onCandidateFrame(preedit)
+        }
     }
 
     override fun onHideCandidates() {
-        main.post { if (!destroyed) onCandidatesHidden() }
+        val generation = inputGeneration
+        main.post {
+            if (!destroyed && generation == inputGeneration && policy.useEngine) onCandidatesHidden()
+        }
     }
 
     override fun onStatus(
@@ -414,11 +443,115 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
     }
 
     private fun pullPage() {
-        page = core?.candidates(pageStart, PAGE) ?: CandidateWindow.EMPTY
+        page = candidateWindow(pageStart, PAGE)
         if (page.items.isEmpty() && pageStart > 0) {
             pageStart = 0
-            page = core?.candidates(0, PAGE) ?: CandidateWindow.EMPTY
+            page = candidateWindow(0, PAGE)
         }
+    }
+
+    private fun candidateWindow(offset: Int, limit: Int): CandidateWindow = when {
+        policy.usePrivatePinyin -> privatePinyin.window(offset, limit)
+        policy.useEngine -> core?.candidates(offset, limit) ?: CandidateWindow.EMPTY
+        else -> CandidateWindow.EMPTY
+    }
+
+    private fun selectVisibleCandidate(index: Int) {
+        if (policy.usePrivatePinyin) {
+            privatePinyin.choose(index)?.let { showPrivateComposition(it) }
+        } else {
+            engine()?.selectCandidate(index)?.let { applyOutcome(it) }
+        }
+    }
+
+    // ── 无痕全拼 ────────────────────────────────────────────────
+
+    private fun preparePrivatePinyin() {
+        if (!policy.usePrivatePinyin || privateReady != null || privateLoading || core == null) return
+        privateLoading = true
+        CoreHolder.preparePrivatePinyin(this) { available ->
+            if (!destroyed) {
+                privateLoading = false
+                privateReady = available
+                if (policy.usePrivatePinyin) render()
+            }
+        }
+    }
+
+    private fun lookupPrivatePinyin(spelling: String): List<String> =
+        core?.privatePinyinCandidates(spelling).orEmpty()
+
+    private fun showPrivateComposition(commit: String? = null) {
+        val spelling = privatePinyin.spelling
+        if (commit != null) currentInputConnection?.commitText(commit, 1)
+        else if (spelling.isEmpty()) clearHostComposition()
+        else currentInputConnection?.setComposingText(spelling, 1)
+        preedit = spelling
+        composing = spelling.isNotEmpty()
+        pageStart = 0
+        matrixExpanded = false
+        matrixItems = emptyList()
+        matrixTotal = 0
+        pullPage()
+        render()
+    }
+
+    private fun finishPrivateSpelling(raw: Boolean): Boolean {
+        val text = privatePinyin.finish(pageStart, raw) ?: return false
+        showPrivateComposition(text)
+        return true
+    }
+
+    private fun privateHardwareKey(keyCode: Int, event: KeyEvent): Boolean {
+        if (!privateChinese || privateReady != true) return false
+        if (event.isCtrlPressed || event.isAltPressed || event.isMetaPressed) {
+            if (privatePinyin.spelling.isNotEmpty()) {
+                privatePinyin.clear()
+                showPrivateComposition()
+            }
+            return false
+        }
+        when (keyCode) {
+            KeyEvent.KEYCODE_ESCAPE -> {
+                if (privatePinyin.spelling.isEmpty()) return false
+                privatePinyin.clear()
+                showPrivateComposition()
+                return true
+            }
+            KeyEvent.KEYCODE_DEL -> {
+                if (!privatePinyin.backspace(::lookupPrivatePinyin)) return false
+                showPrivateComposition()
+                return true
+            }
+            KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> return finishPrivateSpelling(raw = true)
+            KeyEvent.KEYCODE_SPACE -> return finishPrivateSpelling(raw = false)
+            KeyEvent.KEYCODE_PAGE_UP, KeyEvent.KEYCODE_PAGE_DOWN -> {
+                if (!composing || page.total == 0) return false
+                candidatePage(keyCode == KeyEvent.KEYCODE_PAGE_DOWN)
+                return true
+            }
+        }
+        val code = event.unicodeChar
+        if (code in '1'.code..'9'.code && composing) {
+            val offset = code - '1'.code
+            if (offset in page.items.indices) {
+                selectVisibleCandidate(pageStart + offset)
+                return true
+            }
+        }
+        if (code in 'a'.code..'z'.code || code == '\''.code) {
+            if (privatePinyin.append(code.toChar(), ::lookupPrivatePinyin)) {
+                showPrivateComposition()
+                return true
+            }
+        }
+        // Non-pinyin text and editor navigation must not keep a stale composing region.
+        if (composing && code != 0 && !Character.isISOControl(code)) finishPrivateSpelling(raw = false)
+        else if (composing && keyCode in KeyEvent.KEYCODE_DPAD_UP..KeyEvent.KEYCODE_DPAD_RIGHT) {
+            privatePinyin.clear()
+            showPrivateComposition()
+        }
+        return false
     }
 
     // ── 输入路由 ────────────────────────────────────────────────
@@ -426,11 +559,11 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
     /** 本字段该不该走引擎：私密 / 非文本字段、核心未就绪时为 null，按键直接上屏。 */
     private fun engine(): MoodflowCore? = if (policy.useEngine) core else null
 
-    private val directOnly: Boolean get() = !policy.useEngine
+    private val directOnly: Boolean get() = !policy.useEngine && !policy.usePrivatePinyin
 
     /** 字母区此刻的形态（九宫格 / 并击只配中文拼音，见 [KeyboardChoice.visibleLetters]）。 */
     private fun letters(): String {
-        if (directOnly) return KeyboardChoice.QWERTY
+        if (!policy.useEngine) return KeyboardChoice.QWERTY
         val visible = KeyboardChoice.visibleLetters(layoutPref, activeSchema(), chinese)
         return if (KeyboardChoice.isChord(visible) && (chordProfile == null || chords == null)) KeyboardChoice.QWERTY else visible
     }
@@ -439,7 +572,7 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
     private fun chordVisible() = !numeric && !emoji && KeyboardChoice.isChord(letters())
 
     /** 数字 / 符号页在中文态显示中文标点（XSIME `PunctuationLayout`）。 */
-    private fun chinesePages() = chinese && !directOnly
+    private fun chinesePages() = if (policy.usePrivatePinyin) privateChinese && privateReady == true else chinese && !directOnly
 
     private fun visibleMode(): KeyboardLayout.Mode = when {
         emoji -> KeyboardLayout.Mode.EMOJI
@@ -451,6 +584,14 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
     /** 键面上的一段文字：逐字按核心给的按法送进引擎；按法表里没有的字直接上屏。 */
     private fun type(text: String) {
         if (text.isEmpty()) return
+        if (policy.usePrivatePinyin) {
+            if (privateChinese && privateReady == true && text.length == 1 &&
+                privatePinyin.append(text[0], ::lookupPrivatePinyin)
+            ) {
+                showPrivateComposition()
+            } else literal(text)
+            return
+        }
         val c = engine()
         if (c == null || emoji || text.codePointCount(0, text.length) != 1 || text.length != 1) {
             literal(text)
@@ -477,6 +618,10 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
 
     /** 有组字时选当前页首选上屏（没有候选时按回车交原码）。 */
     private fun settleComposition() {
+        if (policy.usePrivatePinyin) {
+            finishPrivateSpelling(raw = false)
+            return
+        }
         val c = engine() ?: return
         if (!composing) return
         if (page.items.isNotEmpty()) {
@@ -503,6 +648,10 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
             refreshT9()
             return
         }
+        if (policy.usePrivatePinyin && privatePinyin.backspace(::lookupPrivatePinyin)) {
+            showPrivateComposition()
+            return
+        }
         if (c != null && composing) {
             val o = c.keyDown(Vk.BACK, Mods.NONE)
             if (o.consumed) {
@@ -521,6 +670,7 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
     }
 
     private fun enter() {
+        if (policy.usePrivatePinyin && finishPrivateSpelling(raw = true)) return
         val b = buffer
         if (bufferMode && b != null) {
             // 有组字时只确认组字，同一次按键不顺带发送（buffer.md 契约 #7）
@@ -550,6 +700,7 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
     }
 
     private fun space() {
+        if (policy.usePrivatePinyin && finishPrivateSpelling(raw = false)) return
         val c = engine()
         if (c != null && composing && pageStart > 0 && page.items.isNotEmpty()) {
             // 翻到后面的页时，空格上屏当前页首选（XSIME：Space selects the first candidate on the current page）
@@ -567,6 +718,14 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
     }
 
     private fun toggleLanguage() {
+        if (policy.usePrivatePinyin) {
+            if (privateReady != true) return
+            finishPrivateSpelling(raw = false)
+            privateChinese = !privateChinese
+            uppercase = false
+            render()
+            return
+        }
         val c = core ?: return
         if (directOnly) return
         t9.clear()
@@ -635,9 +794,9 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
                 "123"
             }
             KeyboardLayout.Action.SYMBOLS -> if (numeric && symbols) "123" else "#+="
-            KeyboardLayout.Action.LANGUAGE -> if (chinese && !directOnly) "中" else "英"
+            KeyboardLayout.Action.LANGUAGE -> if (chinesePages()) "中" else "英"
             KeyboardLayout.Action.EMOJI -> if (emoji) "ABC" else "☺"
-            KeyboardLayout.Action.SPACE -> if (chinese && !directOnly) "空格" else "space"
+            KeyboardLayout.Action.SPACE -> if (chinesePages()) "空格" else "space"
             KeyboardLayout.Action.SPELLING -> "选拼音"
             KeyboardLayout.Action.SEPARATOR -> "分隔"
             KeyboardLayout.Action.PUNCTUATION -> when {
@@ -665,7 +824,7 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
         }
 
         override fun enabled(key: KeyboardLayout.Key): Boolean = when (key.action) {
-            KeyboardLayout.Action.LANGUAGE -> !directOnly && core != null
+            KeyboardLayout.Action.LANGUAGE -> if (policy.usePrivatePinyin) privateReady == true else !directOnly && core != null
             KeyboardLayout.Action.SPELLING -> spellingChoices.isNotEmpty()
             KeyboardLayout.Action.SEPARATOR -> !t9.isEmpty && !t9.text.endsWith("'")
             else -> true
@@ -825,9 +984,8 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
             render()
             return
         }
-        val c = core ?: return
-        if (!composing || index >= page.items.size) return
-        applyOutcome(c.selectCandidate(pageStart + index))
+        if (!composing || index !in page.items.indices) return
+        selectVisibleCandidate(pageStart + index)
     }
 
     private fun candidatePage(forward: Boolean) {
@@ -859,10 +1017,9 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
 
     /** 矩阵展开后按需续取（XSIME：每次多拉 27 个）。 */
     private fun loadMatrix() {
-        val c = core ?: return
         if (!matrixExpanded) return
         if (matrixItems.isNotEmpty() && matrixItems.size >= matrixTotal) return
-        val w = c.candidates(matrixItems.size, if (matrixItems.isEmpty()) PAGE * 4 else MATRIX_MORE)
+        val w = candidateWindow(matrixItems.size, if (matrixItems.isEmpty()) PAGE * 4 else MATRIX_MORE)
         matrixTotal = w.total
         matrixItems = matrixItems + w.items.mapIndexed { i, text -> CandidateMatrixView.Item(w.offset + i, text, "") }
     }
@@ -941,7 +1098,7 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
     // ── 剪贴板（核心那份历史）───────────────────────────────────
 
     private fun openClipboard() {
-        if (directOnly || core == null) return
+        if (!policy.allowClipboardCapture || directOnly || core == null) return
         retireTouches()
         readCoreConfig()
         appearanceOpen = false
@@ -1124,6 +1281,13 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
     // ── 物理键盘 ────────────────────────────────────────────────
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (policy.usePrivatePinyin && tracker.current != null) {
+            if (privateHardwareKey(keyCode, event)) {
+                swallowedKeyUps += keyCode
+                return true
+            }
+            return super.onKeyDown(keyCode, event)
+        }
         val c = engine()
         if (c == null || tracker.current == null) return super.onKeyDown(keyCode, event)
         val mods = PhysicalKeys.toMods(event.metaState)
@@ -1202,6 +1366,9 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
     }
 
     private fun resetLocalComposition() {
+        privatePinyin.clear()
+        matrixItems = emptyList()
+        matrixTotal = 0
         preedit = ""
         composing = false
         pageStart = 0
@@ -1214,6 +1381,11 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
     }
 
     private fun notice(): String = when {
+        tracker.current != null && policy.usePrivatePinyin -> when {
+            coreFailed || privateReady == false -> getString(R.string.private_pinyin_unavailable)
+            privateReady == null -> getString(R.string.private_pinyin_loading)
+            else -> getString(R.string.private_pinyin)
+        }
         tracker.current != null && policy.isPrivate -> getString(R.string.private_field)
         coreFailed -> getString(R.string.engine_failed)
         core == null -> getString(R.string.engine_loading)
@@ -1338,10 +1510,9 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
             this,
             object : CandidateMatrixView.Listener {
                 override fun select(item: CandidateMatrixView.Item) {
-                    val c = core ?: return
                     if (!matrixExpanded || !composing) return
                     matrixExpanded = false
-                    applyOutcome(c.selectCandidate(item.index))
+                    selectVisibleCandidate(item.index)
                 }
 
                 override fun more() {
@@ -1455,9 +1626,12 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
             !t9.isEmpty && !bufferMode && preedit.isEmpty() -> t9.text
             else -> note
         }
-        if (status.text.toString() != statusText) status.text = statusText
-        status.setTextColor(if (statusText == note) palette.accentText else palette.ink)
-        status.visibility = if (statusText.isEmpty()) View.GONE else View.VISIBLE
+        val displayStatus = if (policy.usePrivatePinyin && composing) {
+            getString(R.string.private_composition, preedit)
+        } else statusText
+        if (status.text.toString() != displayStatus) status.text = displayStatus
+        status.setTextColor(if (displayStatus == note) palette.accentText else palette.ink)
+        status.visibility = if (displayStatus.isEmpty()) View.GONE else View.VISIBLE
 
         // 候选行
         val chordHeld = chordPreviewState != null
@@ -1468,7 +1642,7 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
         bufferButton.isSelected = bufferMode
         bufferButton.isEnabled = policy.allowBuffer && buffer != null && !composing
         bufferButton.visibility = if (policy.allowBuffer) View.VISIBLE else View.GONE
-        idleRow.visibility = if (idle && !directOnly && !matrixExpanded) View.VISIBLE else View.GONE
+        idleRow.visibility = if (idle && policy.useEngine && !matrixExpanded) View.VISIBLE else View.GONE
         candidateScroll.visibility = if (!idle && !matrixExpanded && !chordHeld) View.VISIBLE else View.GONE
         chordReadout.visibility = if (chordHeld) View.VISIBLE else View.GONE
         chordReadout.render(chordPreviewState, theme, landscape())
@@ -1493,6 +1667,9 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
             if (exists) {
                 slot.candidate(items[i], "")
                 slot.contentDescription = if (marks) items[i] else "候选${pageStart + i + 1} ${items[i]}"
+            } else if (slot.contentDescription != null) {
+                slot.candidate("", "")
+                slot.contentDescription = null
             }
             slot.isEnabled = exists
         }
