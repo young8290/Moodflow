@@ -435,8 +435,9 @@ ANDROID_NDK_HOME=<ndk> ./gradlew assembleDebug testDebugUnitTest :imelogic:test
   `external fun` 名字、参数、返回类型必须逐一对应——写错不报编译错，只在设备上调用时抛
   `UnsatisfiedLinkError`。`:app` 的 `MoodflowNativeContractTest` 解析 Rust 源码对账，改任一边都要过它。
   回调方向（`sink.rs` → `NativeEventSink.kt`）的方法签名串同理，靠两边注释互指。
-- **私密字段**（密码类、`IME_FLAG_NO_PERSONALIZED_LEARNING`）**完全绕过引擎**直接上屏，且不启用
-  Buffer、不采集剪贴板：核心没有「本字段不学习但允许中文」的开关，绕过是唯一能保证不学习的做法。
+- **私密字段**绕过常规协调器，禁用 Buffer 和剪贴板采集。密码类与非文本字段直接上屏。
+  带 `IME_FLAG_NO_PERSONALIZED_LEARNING` 的普通文本字段可使用[无痕全拼](docs/design/android-private-pinyin.md)。
+  查词仅使用出厂词库，组字与选词不进入用户词频、用户词库、插件或统计。
 - **版本**：`moodflow_android/VERSION` 的主次版本号与 `docs/VERSION` 一致、补丁号不低于它（CI 校验）；
   标签 `android-vX.Y.Z`，发布时不设为 latest。
 - 本机若到不了 `downloads.gradle.org`（wrapper 下载）与 `dl.google.com`（AGP），只能跑上面两条

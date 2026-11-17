@@ -33,6 +33,11 @@ class MoodflowCore private constructor(private var handle: Long) : AutoCloseable
     fun runCommand(cmd: Command, intArg: Int = 0, strArg: String = "") =
         N.nativeRunCommand(handle, cmd.code, intArg, strArg)
 
+    fun preparePrivatePinyin(): Boolean = N.nativePreparePrivatePinyin(handle)
+
+    fun privatePinyinCandidates(spelling: String): List<String> =
+        N.nativePrivatePinyinCandidates(handle, spelling)?.toList().orEmpty()
+
     fun userStoreAvailable(): Boolean = N.nativeUserStoreAvailable(handle)
 
     fun schemas(): List<SchemaEntry> = Wire.schemas(N.nativeSchemas(handle))

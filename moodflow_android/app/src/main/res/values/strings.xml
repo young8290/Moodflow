@@ -6,7 +6,7 @@
     <string name="subtype_zh">中文（拼音）</string>
 
     <!-- 键盘（文案参照 XSIME Android 的 values-zh/strings.xml） -->
-    <string name="privacy">普通输入留在本机。密码框和私密输入框不经引擎、不学习、不启用 Buffer、不记录剪贴板。关闭键盘或切换输入框时清除 Buffer 草稿。</string>
+    <string name="privacy">普通输入留在本机。密码框直接输入。无痕文本框可以用出厂词库打全拼，两者均不学习、不启用 Buffer、不记录剪贴板。关闭键盘或切换输入框时清除 Buffer 草稿。</string>
     <string name="buffer_on">Buffer 开</string>
     <string name="buffer_off">Buffer 关</string>
     <string name="buffer_empty">先编写，再插入</string>
@@ -34,7 +34,11 @@
     <string name="space">空格</string>
     <string name="enter">回车</string>
     <string name="switch_keyboard">切换键盘</string>
-    <string name="private_field">私密输入框：不经引擎、不学习、不记录剪贴板</string>
+    <string name="private_field">私密输入框：直接输入、不学习、不记录剪贴板</string>
+    <string name="private_pinyin">无痕输入 · 仅使用出厂词库</string>
+    <string name="private_pinyin_loading">无痕输入 · 正在准备出厂拼音词库</string>
+    <string name="private_pinyin_unavailable">无痕输入 · 词库不可用，可直接输入</string>
+    <string name="private_composition">无痕 · %1$s</string>
     <string name="engine_loading">中文准备中，按键先直接上屏</string>
     <string name="engine_failed">输入引擎不可用，按键直接上屏</string>
     <string name="store_unavailable">⚠ 用户词库不可写：学到的词不会保存</string>

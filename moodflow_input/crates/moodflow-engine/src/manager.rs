@@ -6783,6 +6783,23 @@ impl EngineManager {
         Some(d)
     }
 
+    /// A full-pinyin lookup over the shipped dictionary. Never resolves user overlays
+    /// or attaches learned dictionaries, frequency tables, or custom configuration.
+    pub fn load_factory_pinyin(data_dir: &Path) -> Option<PinyinEngine> {
+        let path = data_dir.join("schemas/pinyin/rime_frost.dict.yaml");
+        let dict = Self::load_rime_pinyin_dict(&path)?;
+        if dict.is_empty() {
+            return None;
+        }
+        Some(PinyinEngine::new(
+            crate::pinyin::Config {
+                sentence_uses_user_words: false,
+                ..Default::default()
+            },
+            dict,
+        ))
+    }
+
     fn load_rime_pinyin_dict(dict_path: &Path) -> Option<CachedDict> {
         // wdat-only：拼音是独立于 CachedDict::load_at_with 的第二条链路（要读 yaml 头展开
         // import_tables 再并行解析正文），源缺失时那两步全废，故须在此单独拦截。

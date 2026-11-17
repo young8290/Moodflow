@@ -339,7 +339,7 @@ public final class SettingsActivity extends Activity {
     }
     private void playground() {
         note("试打、切换输入框，或打开 Buffer 体验确认后发送。这里的内容不会保存。");
-        String[] hints={"在此试打","第二个输入框：测试切换目标","密码框：不经引擎、Buffer 关闭","私密输入框：不学习、不记录剪贴板"};
+        String[] hints={"在此试打","第二个输入框：测试切换目标","密码框：不经引擎、Buffer 关闭","无痕文本框：试打全拼，不学习"};
         String[] headings={"试打","第二个输入框","密码输入","私密输入"};
         for(int i=0;i<hints.length;i++) {
             LinearLayout group=group(headings[i]); EditText input=new EditText(this); input.setHint(hints[i]);
@@ -503,7 +503,7 @@ public final class SettingsActivity extends Activity {
         row(clipboard,KeyboardIcon.CLEAR,"清空历史（保留收藏）",null,null,() -> { core.clipboardClearUnpinned(); toast("已清空"); });
         paragraph(clipboard,"只在键盘显示时读取剪贴板（Android 10 起系统也只允许前台输入法读取）。密码框、私密输入框和系统标记为敏感的内容不记录。历史与桌面版同一种格式，保存在应用私有目录，不参与系统备份。");
         LinearLayout learning=group("用户词库");
-        paragraph(learning,core.userStoreAvailable()?"选词会改善本机词库。私密输入框完全不经引擎，不学习。":"⚠ 用户词库不可写：学到的词不会保存。原库不会被删除或重建。");
+        paragraph(learning,core.userStoreAvailable()?"普通输入的选词可以改善本机词库。无痕文本只使用出厂词库。":"⚠ 用户词库不可写：学到的词不会保存。原库不会被删除或重建。");
     }
     private void privacy() {
         LinearLayout input=group("输入与学习"); paragraph(input,getString(R.string.privacy));

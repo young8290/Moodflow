@@ -63,6 +63,8 @@ use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+mod private_pinyin;
+
 pub mod buffer;
 pub mod chord;
 pub mod config_api;
@@ -239,6 +241,7 @@ pub trait MobileEventSink: Send + Sync {
 /// 输入法核心会话：一个实例对应宿主一个输入法服务的生命周期。
 pub struct MobileCore {
     coord: Arc<Coordinator>,
+    factory_pinyin: private_pinyin::FactoryPinyin,
     /// 预热进行中：泵线程据此丢弃预热产生的候选帧，不让它们闪到用户界面上
     warming: Arc<AtomicBool>,
     /// 出厂数据目录。留着是为了配置快照能走**与构造期同一条**四层加载路径
@@ -334,7 +337,18 @@ impl MobileCore {
             warming,
             data_dir: data_dir.to_path_buf(),
             user_root: user_root.to_path_buf(),
+            factory_pinyin: private_pinyin::FactoryPinyin::default(),
         })
+    }
+
+    /// 后台准备无痕输入使用的出厂拼音词库。
+    pub fn prepare_private_pinyin(&self) -> bool {
+        self.factory_pinyin.prepare(&self.data_dir)
+    }
+
+    /// 仅查询出厂词库，不向常规输入协调器提交任何输入事件。
+    pub fn private_pinyin_candidates(&self, spelling: &str) -> Vec<String> {
+        self.factory_pinyin.candidates(spelling)
     }
 
     /// 按下键（`vk` = moodflow-keys VK 码，`modifiers` 见 [`moodflow_host::Modifiers`]）。

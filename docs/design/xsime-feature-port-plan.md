@@ -406,7 +406,7 @@ Buffer 是 AI/翻译二批的地基；并击风险最高（TSF keyup），放最
 | JNI 绑定 | `moodflow_android/rust/moodflow-android`：独立 workspace，cdylib，结构化结果编成 `String[]`，日志接 logcat（8 个单测） |
 | 纯 Kotlin 逻辑 | `imelogic`：字段隐私判据、输入框代际与 Buffer 目标、`Wire` 解码、键码映射、九宫格串、编辑指令派发（29 个 JVM 单测） |
 | 应用 | `InputMethodService`：全键盘 / 九宫格 / 符号 / 数字布局，候选栏，Buffer 栏（绑定、逐块 / 全部投递、两段式授权），剪贴板面板（仅键盘可见时采集），物理键盘按键与并击接入，最小设置页（含并击方案导入） |
-| 隐私 | 密码类与 `IME_FLAG_NO_PERSONALIZED_LEARNING` 字段完全绕过引擎、禁 Buffer、禁剪贴板采集；核心焦点同时按密码框上报 |
+| 隐私 | 私密字段绕过常规协调器、禁 Buffer、禁剪贴板采集。A3 增加了独立的出厂词库全拼查询 |
 | CI | `android.yml`：产品名检查、版本号对齐、绑定层 fmt/clippy/单测、`assembleDebug testDebugUnitTest :imelogic:test`（含 JNI 契约对账）、APK 内 `.so` 与出厂数据核对、上传 debug APK |
 
 **本机验证过的**：`cargo test -p moodflow-mobile`、绑定层 `cargo check/clippy --target aarch64-linux-android`
@@ -416,10 +416,10 @@ Buffer 是 AI/翻译二批的地基；并击风险最高（TSF keyup），放最
 **未验证（需真机，即 §5 P3 的验收项）**：Buffer 换字段 / 隐藏键盘清理、密码框禁用、剪贴板仅前台采集、
 九宫格与全键盘切换、物理键盘并击、旧组字不重放到新输入框、核心在设备上的冷启动与出厂数据解包。
 
+**无痕全拼（A3）**：普通文本字段可通过独立的出厂词库查询输入中文，待真机验收。
+
 **已知缺口**
 
-- 核心没有「本字段不学习但允许中文」的开关，所以无痕字段（`NO_PERSONALIZED_LEARNING`）暂时只能直接上屏英文；
-  要放开需先在协调器加按字段关学习的开关。
 - ~~九宫格只取第一种切分喂引擎（多切分按引擎候选质量排序未做）~~ **已做（§10.3 A1，未真机验证）**；
   部分上屏后剩余数字串与核心组字不同步（A12）。
 - ~~出厂数据只含仓库 `data/`，APK 里没有拼音 / 五笔词库~~ **已补（2026-10-18，`main` 2840af6f）**：CI 先跑
@@ -463,7 +463,6 @@ JNI 契约测试。AGP 构建与 APK 由 CI 验证；手势、连删、上滑、
 - ~~打字测速输入计入日常统计~~ **已补（A2，2026-10-22）**：Android 焦点事件携带应用包名，
   `com.moodflow.ime` 加入 `BUILTIN_EXCLUDED`，日常统计排除此应用（Android 上没有 Hub 与感知，这条名单在 Windows 上同样挡住感知）；应用侧把自身包名统一报成 `com.moodflow.ime`，带 `.debug` 后缀或换渠道也不会漏。测试见 `moodflow-coordinator/tests/practice_stats_exclusion.rs`。
 - 插件安装：Android 没有插件市场入口，只能列出与启停已装插件。
-- 无痕字段（`IME_FLAG_NO_PERSONALIZED_LEARNING`）仍只能直接上屏英文：核心没有「本字段不学习但允许中文」的开关。
 - 触屏并击只支持一次手势结算，XSIME 的「两段手势组合成一个音节」未做；并击方案的导入与编辑界面未移植。
 - Rime 方案 ZIP 导入在 Android 上没有入口（Windows 只有命令行）。
 - APK 只有 CI 产出的 debug 包：没有正式签名、没有 `android-v*` 发布流程。
@@ -504,7 +503,7 @@ JNI 契约测试。AGP 构建与 APK 由 CI 验证；手势、连删、上滑、
 |---|---|---|
 | A1 | ✅ 九宫格按位置钉住音节 | 「选拼音」行指向第一个还没钉住的音节段（含「1」键收尾的段）；最多 32 种切分逐个问拼音引擎首选候选、按其排序键排序后取第一种；钉住的音节整体保留不改切。单测覆盖，**未真机验证**（手感与每键打分耗时） |
 | A2 | ✅ 练习不计入日常统计 | Android 焦点上报包名，`com.moodflow.ime` 在 `BUILTIN_EXCLUDED` 中 |
-| A3 | 无痕字段允许中文 | 协调器加「本字段不学习」开关 |
+| A3 | ✅ 无痕文本字段允许全拼 | [独立的出厂词库查询](android-private-pinyin.md)，待真机验收 |
 | A4 | 插件安装 | 没有市场入口，只能列出与启停已装插件 |
 | A5 | 两段手势并击、并击方案导入与编辑 | XSIME 有，未移植 |
 | A6 | 旧 `clipboard.json` 迁移 | 骨架期存的条目未导入协调器历史 |

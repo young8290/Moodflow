@@ -9,9 +9,8 @@ package com.moodflow.ime.logic
  *
  * 私密字段 = 密码类（文本密码、可见密码、网页密码、数字密码）或宿主声明
  * `IME_FLAG_NO_PERSONALIZED_LEARNING`（无痕标签页等）。私密字段：
- * - **完全绕过引擎**：按键直接上屏，不进组字、不学词、不出候选。核心目前没有「本字段不学习但
- *   允许中文」的开关（路线图 §6.3 第 3 项 / 移植计划 A3），绕过是唯一能保证不学习的做法；
- *   代价是无痕字段里暂时只能打英文。
+ * - 密码和非文本字段直接输入；由宿主声明无痕的普通文本可以使用只查出厂词库的全拼。
+ * - 无痕组字不经过常规协调器。
  * - 不启用 Buffer；
  * - 不采集剪贴板。
  */
@@ -23,8 +22,12 @@ data class FieldPolicy(
 ) {
     val isPrivate: Boolean get() = password || noPersonalizedLearning
 
-    /** 按键是否交给引擎。非文本类别（数字、电话、日期）也直接上屏。 */
-    val useEngine: Boolean get() = !isPrivate && inputClass == TYPE_CLASS_TEXT
+    /** 兼容未声明输入类别的宿主。数字、电话和日期仍直接上屏。 */
+    val useEngine: Boolean
+        get() = !isPrivate && (inputClass == TYPE_CLASS_TEXT || inputClass == TYPE_NULL)
+
+    val usePrivatePinyin: Boolean
+        get() = !password && noPersonalizedLearning && inputClass == TYPE_CLASS_TEXT
 
     val allowBuffer: Boolean get() = !isPrivate
 
@@ -68,8 +71,7 @@ data class FieldPolicy(
             return FieldPolicy(
                 password = password,
                 noPersonalizedLearning = imeOptions and IME_FLAG_NO_PERSONALIZED_LEARNING != 0,
-                // TYPE_NULL（终端类宿主）按文本处理：它们不声明类别，但仍要能输入
-                inputClass = if (cls == TYPE_NULL) TYPE_CLASS_TEXT else cls,
+                inputClass = cls,
             )
         }
     }

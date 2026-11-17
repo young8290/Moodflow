@@ -4,6 +4,7 @@ import com.moodflow.ime.logic.FieldPolicy.Companion.IME_FLAG_NO_PERSONALIZED_LEA
 import com.moodflow.ime.logic.FieldPolicy.Companion.TYPE_CLASS_NUMBER
 import com.moodflow.ime.logic.FieldPolicy.Companion.TYPE_CLASS_PHONE
 import com.moodflow.ime.logic.FieldPolicy.Companion.TYPE_CLASS_TEXT
+import com.moodflow.ime.logic.FieldPolicy.Companion.TYPE_NULL
 import com.moodflow.ime.logic.FieldPolicy.Companion.TYPE_NUMBER_VARIATION_PASSWORD
 import com.moodflow.ime.logic.FieldPolicy.Companion.TYPE_TEXT_VARIATION_PASSWORD
 import com.moodflow.ime.logic.FieldPolicy.Companion.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
@@ -44,13 +45,28 @@ class FieldPolicyTest {
     }
 
     @Test
-    fun noPersonalizedLearningIsPrivate() {
+    fun noPersonalizedLearningUsesOnlyTheEphemeralRoute() {
         val p = FieldPolicy.of(TYPE_CLASS_TEXT, IME_FLAG_NO_PERSONALIZED_LEARNING)
         assertFalse(p.password)
         assertTrue(p.isPrivate)
         assertFalse(p.useEngine)
+        assertTrue(p.usePrivatePinyin)
         assertFalse(p.allowBuffer)
         assertFalse(p.allowClipboardCapture)
+    }
+
+    @Test
+    fun privatePinyinRequiresAnExplicitNonPasswordTextField() {
+        for (inputType in listOf(TYPE_CLASS_TEXT or TYPE_TEXT_VARIATION_PASSWORD,
+            TYPE_CLASS_TEXT or TYPE_TEXT_VARIATION_VISIBLE_PASSWORD,
+            TYPE_CLASS_TEXT or TYPE_TEXT_VARIATION_WEB_PASSWORD,
+            TYPE_CLASS_NUMBER or TYPE_NUMBER_VARIATION_PASSWORD,
+            TYPE_CLASS_NUMBER, TYPE_CLASS_PHONE, TYPE_NULL,
+        )) {
+            val p = FieldPolicy.of(inputType, IME_FLAG_NO_PERSONALIZED_LEARNING)
+            assertFalse(p.usePrivatePinyin)
+            assertFalse(p.useEngine)
+        }
     }
 
     @Test
