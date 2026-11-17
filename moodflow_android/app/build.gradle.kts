@@ -2,6 +2,7 @@ import groovy.json.JsonOutput
 import java.nio.file.Files
 import java.security.MessageDigest
 import java.util.HexFormat
+import java.util.zip.GZIPInputStream
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -144,6 +145,20 @@ val copyMoodflowData = tasks.register<Sync>("copyMoodflowData") {
         }
     }
     doLast {
+        // Android's packager expands .gz assets and removes the suffix. Normalize
+        // those files here so the manifest describes the actual installed bytes.
+        val compressedAssets = packaged.walkTopDown()
+            .filter { it.isFile && it.extension.equals("gz", ignoreCase = true) }.toList()
+        for (compressed in compressedAssets) {
+            val expanded = compressed.resolveSibling(compressed.name.dropLast(3))
+            check(!expanded.exists()) { "Android 出厂数据解压路径冲突：$expanded" }
+            compressed.inputStream().use { raw ->
+                GZIPInputStream(raw).use { input ->
+                    expanded.outputStream().use { output -> input.copyTo(output) }
+                }
+            }
+            check(compressed.delete()) { "无法清理 Android 打包中间产物：$compressed" }
+        }
         val entries = sortedMapOf<String, Map<String, Any>>()
         val buffer = ByteArray(64 * 1024)
         packaged.walkTopDown().filter { it.isFile && it != packaged.resolve("manifest.json") }.forEach { file ->
