@@ -14,6 +14,57 @@ class T9Input {
         private set
 
     val isEmpty: Boolean get() = text.isEmpty()
+    private var submitted: String? = null
+    private val consumed = ArrayDeque<Prefix>()
+    private data class Prefix(val spelling: String, val keys: String)
+
+    val tracksComposition: Boolean get() = submitted != null
+    val hasUnresolvedKeys: Boolean get() = !isEmpty && submitted == ""
+
+    fun submitted(spelling: String) {
+        submitted = spelling
+    }
+
+    /**
+     * 核心选掉前半段后，按原始编码长度消耗按键。数字串中的显式分隔符和已经钉住的
+     * 拼音仍保留。末段可能为引擎自动补全，不从全拼倒推用户没按过的数字。
+     */
+    fun syncAfterEdit(remaining: String?) {
+        val before = submitted ?: return
+        val after = remaining?.trimStart('\'')
+        if (after == before.trimStart('\'')) return
+        if (after.isNullOrEmpty()) {
+            clear()
+            return
+        }
+        val restored = consumed.lastOrNull()
+        if (restored != null && before.isEmpty() &&
+            after.filter { it != '\'' } == restored.spelling.filter { it != '\'' }
+        ) {
+            consumed.removeLast()
+            text = restored.keys
+            submitted = after
+            return
+        }
+        val prefix = before.trimStart('\'').removeSuffix(after)
+        if (prefix == before.trimStart('\'') || prefix.isEmpty()) {
+            clear()
+            return
+        }
+        var letters = prefix.count { it != '\'' }
+        var offset = 0
+        while (offset < text.length && letters > 0) {
+            if (text[offset++] != '\'') letters--
+        }
+        while (offset < text.length && text[offset] == '\'') offset++
+        if (letters != 0 || offset == text.length) {
+            clear()
+            return
+        }
+        consumed.addLast(Prefix(prefix, text.substring(0, offset)))
+        text = text.substring(offset)
+        submitted = after
+    }
 
     /**
      * 「选拼音」行针对的音节段（按 `'` 分段，从 0 起）：第一段还含数字、即还没钉住的段。
@@ -30,7 +81,7 @@ class T9Input {
 
     /** 按数字键。非 `2`–`9` 忽略并返回 `false`。 */
     fun pressDigit(d: Char): Boolean {
-        if (d !in '2'..'9') return false
+        if (d !in '2'..'9' || text.length >= MAX_KEYS) return false
         text += d
         return true
     }
@@ -64,9 +115,12 @@ class T9Input {
 
     fun clear() {
         text = ""
+        submitted = null
+        consumed.clear()
     }
 
     companion object {
+        private const val MAX_KEYS = 128
         /** 键面标注：数字键 → 字母。 */
         val LETTERS: Map<Char, String> = mapOf(
             '2' to "ABC", '3' to "DEF", '4' to "GHI", '5' to "JKL",

@@ -21,7 +21,11 @@ public final class ChordGesture {
     public static final class Preview {
         public final Side left,right;
         public final String combined;
-        Preview(Side left,Side right,String combined) { this.left=left; this.right=right; this.combined=combined; }
+        public final boolean pending;
+        Preview(Side left,Side right,String combined) { this(left,right,combined,false); }
+        Preview(Side left,Side right,String combined,boolean pending) {
+            this.left=left; this.right=right; this.combined=combined; this.pending=pending;
+        }
     }
     private static final String[][] SLIDES={{"ty","ting"},{"tyu","tu"},{"gh","gang"},{"ghj","gan"},
             {"bn","bin"},{"bnm","bian"},{"bh","bang"},{"th","tang"},{"gy","guai"}};
@@ -132,14 +136,25 @@ public final class ChordGesture {
             contact.end=previous; contact.endMask=ChordProfile.mask(previous);
         } else revision++;
     }
+    public static final class Stroke {
+        public final int mask;
+        public final ChordProfile.Resolution resolution;
+        Stroke(int mask, ChordProfile.Resolution resolution) {
+            this.mask=mask; this.resolution=resolution;
+        }
+    }
     public ChordProfile.Resolution end(int id,Character key) {
+        Stroke stroke=endStroke(id,key);
+        return stroke==null?null:stroke.resolution;
+    }
+    public Stroke endStroke(int id,Character key) {
         if(!down.contains(id)) return null;
         move(id,key);
         Contact contact=contacts.get(id); if(contact!=null) contact.released=true;
         down.remove(id);
         revision++;
         if(!down.isEmpty()) return null;
-        ChordProfile.Resolution result=resolution(); reset(); return result;
+        Stroke stroke=new Stroke(keys(),resolution()); reset(); return stroke;
     }
     public void cancel() { if(!cancelled) { cancelled=true; revision++; } }
     public void reset() { contacts.clear(); contactList=new Contact[0]; down.clear(); slide=null; cancelled=false; revision++; }

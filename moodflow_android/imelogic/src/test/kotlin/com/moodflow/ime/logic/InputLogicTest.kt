@@ -113,6 +113,42 @@ class T9InputTest {
     }
 
     @Test
+    fun prefixSelectionKeepsUnconsumedDigitsAndPinnedBoundaries() {
+        val t9 = T9Input()
+        t9.replaceWith("ni'426'9")
+        t9.submitted("ni'hao'zhong")
+        t9.syncAfterEdit("'hao'zhong")
+        assertEquals("426'9", t9.text)
+        t9.syncAfterEdit("'zhong")
+        assertEquals("9", t9.text)
+        t9.pressDigit('4')
+        assertEquals("94", t9.text)
+    }
+
+    @Test
+    fun restoresSelectedPrefixWhenCoreBackspaceReopensIt() {
+        val t9 = T9Input()
+        t9.replaceWith("64'4")
+        t9.submitted("ni'hao")
+        t9.syncAfterEdit("'hao")
+        t9.backspace()
+        t9.submitted("")
+        t9.syncAfterEdit("ni")
+        assertEquals("64'", t9.text)
+        assertTrue(t9.tracksComposition)
+    }
+
+    @Test
+    fun rejectsAReplacementThatIsNotTheSubmittedSuffix() {
+        val t9 = T9Input()
+        t9.replaceWith("64426")
+        t9.submitted("ni'hao")
+        t9.syncAfterEdit("abc")
+        assertEquals("", t9.text)
+        assertFalse(t9.tracksComposition)
+    }
+
+    @Test
     fun keypadLabels() {
         assertEquals("PQRS", T9Input.LETTERS['7'])
         assertEquals(8, T9Input.LETTERS.size)

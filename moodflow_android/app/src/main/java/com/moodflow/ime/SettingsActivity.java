@@ -402,6 +402,9 @@ public final class SettingsActivity extends Activity {
         }
     }
     private void chords() {
+        LinearLayout gestures=group("手势结算");
+        toggle(gestures,"开启两段手势并击",settings.getTwoStageChord(),settings::setTwoStageChord);
+        note("先完成一只手的滑动，再在组键时限内落下另一只手。有对应映射时合并输出。");
         LinearLayout instructions=group("双手滑动并击");
         paragraph(instructions,"每手：起点＋终点。途中经过的键不计入；双手全部松开时提交。划回起点恢复单键。英文态与 Shift 在同一块面板上按单键打字母。");
         if(chordProfile==null) { note("并击方案不可用（原生库未加载）。"); return; }

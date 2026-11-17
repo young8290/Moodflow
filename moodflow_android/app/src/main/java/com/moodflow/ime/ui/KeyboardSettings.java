@@ -19,6 +19,7 @@ public final class KeyboardSettings {
     public static final String KEY_LAYOUT="layout";
     public static final String KEY_THEME="theme";
     public static final String DEFAULT_THEME="apple";
+    public static final String KEY_TWO_STAGE_CHORD="chord_two_stage";
     private final SharedPreferences preferences;
 
     public KeyboardSettings(Context context) {
@@ -28,6 +29,8 @@ public final class KeyboardSettings {
         if(preferences==null) throw new IllegalArgumentException("Keyboard preferences are required");
         this.preferences=preferences;
     }
+    public boolean getTwoStageChord() { return preferences.getBoolean(KEY_TWO_STAGE_CHORD,false); }
+    public void setTwoStageChord(boolean enabled) { preferences.edit().putBoolean(KEY_TWO_STAGE_CHORD,enabled).apply(); }
     public SharedPreferences preferences() { return preferences; }
     public String getLayout() { return KeyboardChoice.INSTANCE.layout(preferences.getString(KEY_LAYOUT,null)); }
     public String getTheme() { return KeyboardTheme.named(preferences.getString(KEY_THEME,DEFAULT_THEME)).id; }

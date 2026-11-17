@@ -55,6 +55,40 @@ pub struct CandidateWindow {
 }
 
 impl Coordinator {
+    /// 九宫格读取尚待转换的原始拼音，不包含界面格式或已经选中的汉字。
+    pub fn t9_tail(&self) -> Option<String> {
+        let state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        (state.chinese_mode && state.active.is_none() && self.engine_mgr.is_pinyin())
+            .then(|| state.input_buffer.clone())
+    }
+
+    /// 按九宫格的切分更新剩余拼音，保留逐段选中的前缀和退回所需的码。
+    pub fn replace_t9_tail(&self, text: &str) -> KeyOutcome {
+        if text.len() > 512 || !text.bytes().all(|b| b.is_ascii_lowercase() || b == b'\'') {
+            return KeyOutcome::passthrough();
+        }
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        if !state.chinese_mode || state.active.is_some() || !self.engine_mgr.is_pinyin() {
+            return KeyOutcome::passthrough();
+        }
+        state.input_buffer.clear();
+        state.input_buffer.push_str(text);
+        state.input_buffer_cased.clear();
+        state.input_cursor_pos = text.len();
+        state.direct_aux_prev = None;
+        self.reset_candidate_view(&mut state);
+        self.update_candidates(&mut state);
+        if state.preedit.is_empty() {
+            self.notify_ui_hide();
+        } else {
+            self.notify_ui_update(&state);
+        }
+        edit_ops::to_outcome(moodflow_bridge::handler::KeyAction::UpdateComposition {
+            text: state.preedit.clone(),
+            caret_pos: self.composition_caret(&state),
+        })
+    }
+
     /// 查询一串编码的首选候选排序键，不改当前组字或候选状态。
     ///
     /// 移动端九宫格用它比较同一数字串的多个拼音切分。

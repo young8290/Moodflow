@@ -480,7 +480,11 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
         val c = engine() ?: return
         if (!composing) return
         if (page.items.isNotEmpty()) {
-            applyOutcome(c.selectCandidate(pageStart))
+            val outcome = c.selectCandidate(pageStart)
+            applyOutcome(outcome)
+            // 点到前缀候选时，已选文字还在组合区。确认剩余内容后再插入字面量。
+            val tail = outcome.ops.lastOrNull() as? EditOp.SetComposition
+            if (tail != null && tail.text.isNotEmpty()) applyOutcome(c.keyDown(Vk.RETURN, Mods.NONE))
         } else {
             applyOutcome(c.keyDown(Vk.RETURN, Mods.NONE))
         }
@@ -497,6 +501,10 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
     }
 
     private fun delete() {
+        if (chords?.hasPendingStroke() == true) {
+            chords?.cancel()
+            return
+        }
         val c = engine()
         if (c != null && nineKeyVisible() && !t9.isEmpty) {
             t9.backspace()
@@ -746,6 +754,7 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
         numberPageFresh = false
         when {
             emoji -> literal(text)
+            numeric -> literal(text) // 123 / 符号页按键面输入，包括半角小数点；数字不会选词。
             chinesePages() && PunctuationLayout.STRIP.contains(text) -> punctuate(text)
             else -> type(text)
         }
@@ -784,27 +793,22 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
 
     // ── 九宫格 ──────────────────────────────────────────────────
 
-    /** 按引擎首选候选质量选切分，并整体替换核心里的组字；部分上屏后的数字串同步另见 A12。 */
+    /** 按引擎首选候选质量选切分，只替换尚未转换的尾部拼音。 */
     private fun refreshT9() {
         val c = engine() ?: return
-        if (t9.isEmpty) {
-            spellingChoices = emptyList()
-            spellingOpen = false
-            applyOutcome(c.clearComposition())
-            render()
-            return
+        updateT9SpellingChoices()
+        val query = if (t9.isEmpty) null else T9Native.segmentations(c, t9.query, T9_SEGMENTATIONS).firstOrNull()
+        val outcome = c.replaceT9Tail(query.orEmpty())
+        if (outcome.consumed) {
+            t9.submitted(query.orEmpty())
+            applyOutcome(outcome, syncT9 = false)
         }
-        spellingChoices = T9Native.leading(t9.text, t9.activeSegmentIndex)
+    }
+
+    private fun updateT9SpellingChoices() {
+        spellingChoices = if (t9.isEmpty) emptyList() else T9Native.leading(t9.text, t9.activeSegmentIndex)
         spellingPage = 0
-        val query = T9Native.segmentations(c, t9.query, T9_SEGMENTATIONS).firstOrNull()
-        if (query == null) {
-            // 没有合法切分：清掉组字，编码栏直接显示数字串
-            applyOutcome(c.clearComposition())
-            preedit = t9.text
-        } else {
-            applyOutcome(c.replaceComposition(query))
-        }
-        render()
+        if (spellingChoices.isEmpty()) spellingOpen = false
     }
 
     private fun chooseSpelling(index: Int) {
@@ -1105,6 +1109,9 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
     }
 
     private fun chordControl(action: KeyboardLayout.Action) {
+        if (action == KeyboardLayout.Action.SPACE || action == KeyboardLayout.Action.RETURN ||
+            action == KeyboardLayout.Action.NUMBERS
+        ) chords?.flushPending()
         retireTouches()
         when (action) {
             KeyboardLayout.Action.NUMBERS -> {
@@ -1126,6 +1133,7 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         val c = engine()
         if (c == null || tracker.current == null) return super.onKeyDown(keyCode, event)
+        chords?.flushPending()
         val mods = PhysicalKeys.toMods(event.metaState)
         val ch = chord
         val name = PhysicalKeys.chordKeyName(keyCode)
@@ -1162,18 +1170,18 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
     // ── 输出 ────────────────────────────────────────────────────
 
     /** 把核心的编辑指令写进宿主或 Buffer。 */
-    private fun applyOutcome(o: KeyOutcome) {
+    private fun applyOutcome(o: KeyOutcome, syncT9: Boolean = true) {
         val ic = currentInputConnection
         val sink: TextSink = if (ic != null) IcSink(ic) else NullSink
         val rejected = OpRouter.apply(o.ops, sink, if (bufferMode) bufferSink else null)
         if (rejected.isNotEmpty()) Toast.makeText(this, R.string.buffer_limit, Toast.LENGTH_SHORT).show()
         if (o.ops.any { it is EditOp.Commit }) {
             lastChordSyllable = false
-            if (!t9.isEmpty) {
-                t9.clear()
-                spellingChoices = emptyList()
-                spellingOpen = false
-            }
+            t9.clear()
+            updateT9SpellingChoices()
+        } else if (syncT9 && t9.tracksComposition && o.ops.any { it is EditOp.SetComposition }) {
+            t9.syncAfterEdit(engine()?.t9Tail())
+            updateT9SpellingChoices()
         }
         if (o.modeChanged) refreshSchemas()
         render()
@@ -1451,6 +1459,7 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
         // 状态行：组字串（Buffer 关时）或提示
         val note = notice()
         val statusText = when {
+            !bufferMode && t9.hasUnresolvedKeys -> if (preedit.isEmpty()) t9.text else "$preedit ${t9.text}"
             composing && !bufferMode && preedit.isNotEmpty() -> preedit
             !t9.isEmpty && !bufferMode && preedit.isEmpty() -> t9.text
             else -> note
@@ -1551,8 +1560,15 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
         keys.render(visibleMode(), chinesePages(), theme)
         keys.visibility = if (panelOpen || chord) View.GONE else View.VISIBLE
         chords?.let {
-            it.render(layoutPref == KeyboardChoice.SPLIT_ORTHOGONAL, chinese && !uppercase && engine() != null, uppercase, theme)
-            it.visibility = if (panelOpen || !chord) View.GONE else View.VISIBLE
+            val visible = !panelOpen && chord
+            val retire = !visible && it.visibility == View.VISIBLE
+            it.visibility = if (visible) View.VISIBLE else View.GONE
+            if (retire) it.cancel()
+            it.render(
+                layoutPref == KeyboardChoice.SPLIT_ORTHOGONAL,
+                chinese && !uppercase && engine() != null,
+                uppercase, theme, settings.twoStageChord, this.chord?.intervalMs() ?: 0L,
+            )
         }
         chordFooter.visibility = if (!panelOpen && chord) View.VISIBLE else View.GONE
         val footerLabels = listOf("123", if (uppercase) "⇪" else "⇧", "空格", if (chinese && !directOnly) "中" else "EN", returnLabel())

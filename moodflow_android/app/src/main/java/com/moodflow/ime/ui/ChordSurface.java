@@ -5,6 +5,7 @@ import com.moodflow.ime.R;
 import com.moodflow.ime.keyboard.KeyboardTheme;
 
 import android.content.Context;
+import android.os.SystemClock;
 import android.util.SparseArray;
 import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
@@ -15,6 +16,7 @@ import java.util.Set;
 import com.moodflow.ime.keyboard.ChordGesture;
 import com.moodflow.ime.keyboard.ChordLayout;
 import com.moodflow.ime.keyboard.ChordProfile;
+import com.moodflow.ime.keyboard.ChordSequence;
 
 /** Multi-touch letter surface. Button accessibility and utility taps remain native Android paths. */
 public final class ChordSurface extends ViewGroup {
@@ -30,6 +32,11 @@ public final class ChordSurface extends ViewGroup {
     private final Handler handler;
     private final ChordProfile profile;
     private final ChordGesture gesture;
+    private final ChordSequence sequence;
+    private long previewSequenceRevision=-1;
+    private boolean twoStage;
+    private long intervalMs;
+    private final Runnable expireSequence=this::expireSequence;
     private final Set<Integer> tracked=new HashSet<>();
     private final SparseArray<String> ordinary=new SparseArray<>();
     private List<ChordLayout.Key> frames;
@@ -45,6 +52,7 @@ public final class ChordSurface extends ViewGroup {
     /** Moodflow: the profile is the core's built-in keymap, loaded by the caller. */
     public ChordSurface(Context context,Handler handler,ChordProfile profile) {
         super(context); this.handler=handler; this.profile=profile; gesture=new ChordGesture(profile); setLayoutDirection(LAYOUT_DIRECTION_LTR);
+        sequence=new ChordSequence(profile,0);
         setMotionEventSplittingEnabled(false);
         frames=ChordLayout.keys(400,false,profile);
         for(ChordLayout.Key key:frames) {
@@ -52,16 +60,23 @@ public final class ChordSurface extends ViewGroup {
             button.fontStyle(true,key.action==ChordLayout.Action.TEXT?21:17,true);
             button.setOnClickListener(view -> {
                 if(gesture.active() || ordinary.size()>0) return;
-                if(key.action==ChordLayout.Action.TEXT) handler.onKey(shifted?key.text.toUpperCase(java.util.Locale.ROOT):key.text);
+                if(key.action==ChordLayout.Action.TEXT) {
+                    flushPending();
+                    handler.onKey(shifted?key.text.toUpperCase(java.util.Locale.ROOT):key.text);
+                }
                 else handler.onControl(key.action);
             });
             addView(button);
         }
         updateButtons();
     }
-    public void render(boolean split,boolean resolves,boolean shifted,KeyboardTheme theme) {
+    public void render(boolean split,boolean resolves,boolean shifted,KeyboardTheme theme,boolean twoStage,long intervalMs) {
         boolean geometryChanged=this.split!=split;
-        boolean retire=geometryChanged || this.resolves!=resolves || this.shifted!=shifted;
+        boolean retire=geometryChanged || this.resolves!=resolves || this.shifted!=shifted
+                || this.twoStage!=twoStage || this.intervalMs!=intervalMs;
+        this.twoStage=twoStage;
+        this.intervalMs=intervalMs;
+        sequence.setIntervalMs(intervalMs);
         this.split=split; this.resolves=resolves; this.shifted=shifted; this.theme=theme;
         if(retire) cancel();
         if(geometryChanged) requestLayout();
@@ -80,9 +95,31 @@ public final class ChordSurface extends ViewGroup {
         if(utilityRetirement!=null) utilityRetirement.run();
         if(activeStream) retiredDownTime=streamDownTime;
         activeStream=false; streamDownTime=-1;
+        removeCallbacks(expireSequence);
+        sequence.reset();
         gesture.reset(); tracked.clear(); ordinary.clear(); ordinaryRevision++;
         for(int i=0;i<getChildCount();i++) { getChildAt(i).setPressed(false); getChildAt(i).cancelPendingInputEvents(); }
         notifyPreview(); updateButtons();
+    }
+    public boolean hasPendingStroke() { return sequence.hasPending(); }
+    public void flushPending() {
+        if (gesture.active()) return;
+        removeCallbacks(expireSequence);
+        emit(sequence.flush());
+        notifyPreview();
+    }
+    private void emit(ChordProfile.Resolution result) {
+        if (result!=null) handler.onChord(result);
+    }
+    private void expireSequence() {
+        emit(sequence.expire(SystemClock.uptimeMillis()));
+        notifyPreview();
+        scheduleSequence();
+    }
+    private void scheduleSequence() {
+        removeCallbacks(expireSequence);
+        long deadline=sequence.deadline();
+        if(deadline>=0) postDelayed(expireSequence,Math.max(1,deadline-SystemClock.uptimeMillis()));
     }
     public boolean isChordActive() { return gesture.active() || ordinary.size()>0; }
     private float density() { return getResources().getDisplayMetrics().density; }
@@ -111,7 +148,15 @@ public final class ChordSurface extends ViewGroup {
             Character key=letterAt(event,index);
             if(key!=null) {
                 performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-                if(resolves) { tracked.add(id); gesture.begin(id,key); }
+                if(resolves) {
+                    if(twoStage && tracked.isEmpty()) {
+                        emit(sequence.begin(key,event.getEventTime()));
+                        scheduleSequence();
+                        if(!activeStream) return true;
+                    }
+                    tracked.add(id);
+                    gesture.begin(id,key);
+                }
                 else { ordinary.put(id,String.valueOf(key)); ordinaryRevision++; }
             } else if(resolves && !tracked.isEmpty()) {
                 // An extra participating pointer on a gap/utility cannot silently join a valid batch.
@@ -129,8 +174,13 @@ public final class ChordSurface extends ViewGroup {
         } else if(action==MotionEvent.ACTION_UP || action==MotionEvent.ACTION_POINTER_UP) {
             Character key=letterAt(event,index);
             if(resolves && tracked.remove(id)) {
-                ChordProfile.Resolution result=gesture.end(id,key);
-                if(!gesture.active() && result!=null) handler.onChord(result);
+                ChordGesture.Stroke stroke=gesture.endStroke(id,key);
+                if(stroke!=null) {
+                    if(twoStage) {
+                        for(ChordProfile.Resolution settled:sequence.finish(stroke,event.getEventTime())) emit(settled);
+                        scheduleSequence();
+                    } else emit(stroke.resolution);
+                }
             } else if(!resolves) {
                 String previous=ordinary.get(id);
                 if(previous!=null) {
@@ -144,12 +194,15 @@ public final class ChordSurface extends ViewGroup {
     }
     private void notifyPreview() {
         long revision=gesture.revision();
-        if(previewRevision==revision && previewOrdinaryRevision==ordinaryRevision && previewResolves==resolves) return;
+        long sequenceRevision=sequence.revision();
+        if(previewRevision==revision && previewOrdinaryRevision==ordinaryRevision && previewResolves==resolves
+                && previewSequenceRevision==sequenceRevision) return;
+        previewSequenceRevision=sequenceRevision;
         previewRevision=revision; previewOrdinaryRevision=ordinaryRevision; previewResolves=resolves;
-        ChordGesture.Preview preview=resolves?gesture.preview():null;
+        ChordGesture.Preview preview=resolves?sequence.preview(gesture.preview()):null;
         String state=(isChordActive()?"1":"0")+"|"+(preview==null?"":
                 (preview.left==null?"":preview.left.keys+":"+preview.left.output)+"|"
-                +(preview.right==null?"":preview.right.keys+":"+preview.right.output)+"|"+preview.combined);
+                +(preview.right==null?"":preview.right.keys+":"+preview.right.output)+"|"+preview.combined+":"+preview.pending);
         // Touch sampling may move within one cap at 120 Hz. Identical readouts need no IME-wide render.
         if(!state.equals(previewState)) { previewState=state; handler.onPreview(preview); }
     }
