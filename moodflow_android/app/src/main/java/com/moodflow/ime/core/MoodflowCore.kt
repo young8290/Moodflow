@@ -60,6 +60,10 @@ class MoodflowCore private constructor(private var handle: Long) : AutoCloseable
 
     fun clearComposition(): KeyOutcome = Wire.outcome(N.nativeClearComposition(handle))
 
+    fun t9Tail(): String? = N.nativeT9Tail(handle)
+
+    fun replaceT9Tail(spelling: String): KeyOutcome = Wire.outcome(N.nativeReplaceT9Tail(handle, spelling))
+
     fun t9Segmentations(input: String, limit: Int): List<String> =
         N.nativeT9Segmentations(handle, input, limit)?.toList().orEmpty()
 
@@ -204,6 +208,8 @@ class NativePractice private constructor(private var h: Long) : AutoCloseable {
 
 /** 并击结算器（`moodflow_mobile::chord::MobileChord`）：物理键盘逐键、触屏整组。 */
 class NativeChord private constructor(private var h: Long) : AutoCloseable {
+    fun intervalMs(): Long = N.nativeChordInterval(h)
+
     fun mappings(): List<ChordMapping> = Wire.chordMappings(N.nativeChordMappings(h))
 
     /** 左右手键名（核心键名，`comma` / `period`）。 */

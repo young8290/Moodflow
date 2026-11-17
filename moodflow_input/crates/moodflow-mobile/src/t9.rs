@@ -2,7 +2,7 @@
 //!
 //! 切分逻辑在 `moodflow_engine::pinyin::t9`；这里只把结果整理成宿主好用的字符串形状：
 //! 一种切分 = 用 `'` 连起来的全拼串（`ni'hao`），可以直接经
-//! [`crate::MobileCore::replace_composition`] 交给拼音引擎出候选。
+//! [`crate::MobileCore::replace_t9_tail`] 交给拼音引擎出候选。
 //!
 //! 输入串的形状：数字 `2`–`9`、用户在「选拼音」行钉住的字母、显式分隔符 `'`，如 `ni'426`。
 

@@ -612,6 +612,30 @@ pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeClearCompo
     string_array(&mut env, &enc.unwrap_or_else(|| vec![String::new()]))
 }
 
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeT9Tail(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) -> jstring {
+    let tail = guard(None, || session(handle).and_then(MobileCore::t9_tail));
+    opt_string(&mut env, tail.as_deref())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeReplaceT9Tail(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+    text: JString,
+) -> jobjectArray {
+    let spelling = get_string(&mut env, &text);
+    let result = guard(None, || {
+        session(handle).map(|core| wire::outcome(&core.replace_t9_tail(&spelling)))
+    });
+    string_array(&mut env, &result.unwrap_or_else(|| vec![String::new()]))
+}
+
 // ── 九宫格：切分排序要核心句柄（问引擎首选），选拼音与钉住是纯函数 ──
 
 #[unsafe(no_mangle)]
@@ -1277,6 +1301,18 @@ pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeChordMappi
         })
     });
     string_array(&mut env, &items)
+}
+
+/// 触屏两段手势与物理键盘共用方案的组键间隔。
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeChordInterval(
+    _env: JNIEnv,
+    _class: JClass,
+    h: jlong,
+) -> jlong {
+    guard(0, || {
+        with_locked::<MobileChord, _>(h, 0, |chord| chord.interval_ms() as jlong)
+    })
 }
 
 /// `[左手键名(空格分隔), 右手键名(空格分隔)]`。

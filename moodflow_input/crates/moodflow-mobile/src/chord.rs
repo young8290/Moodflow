@@ -30,6 +30,7 @@ pub enum ChordOutput {
 pub struct MobileChord {
     settler: Settler,
     name: String,
+    interval_ms: u64,
     left: Vec<String>,
     right: Vec<String>,
     mappings: Vec<ChordMapping>,
@@ -51,6 +52,10 @@ impl MobileChord {
     /// 内置默认方案。出厂数据已在测试里校验过，解析失败只可能是构建产物被改坏，按 panic 处理。
     pub fn builtin() -> Self {
         Self::from_json(BUILTIN_JSON).expect("内置并击方案必须通过应用级校验")
+    }
+
+    pub fn interval_ms(&self) -> u64 {
+        self.interval_ms
     }
 
     /// 左手键区（方案顺序）。
@@ -121,6 +126,7 @@ impl MobileChord {
             .collect();
         Ok(Self {
             settler: Settler::new(&map),
+            interval_ms: map.interval_ms,
             left: map.left_keys.clone(),
             right: map.right_keys.clone(),
             mappings,

@@ -427,6 +427,14 @@ impl MobileCore {
         out
     }
 
+    pub fn t9_tail(&self) -> Option<String> {
+        self.coord.t9_tail()
+    }
+
+    pub fn replace_t9_tail(&self, spelling: &str) -> KeyOutcome {
+        self.coord.replace_t9_tail(spelling)
+    }
+
     /// 按当前拼音引擎的首选候选权重排列九宫格切分。
     pub fn ranked_t9_segmentations(&self, input: &str, limit: usize) -> Vec<String> {
         t9::ranked_segmentations(input, limit, |spelling| {

@@ -39,7 +39,7 @@ public final class ChordPreview extends View {
         side(preview==null?null:preview.left,0,1);
         side(preview==null?null:preview.right,4,3);
         boolean mapped=preview!=null && preview.combined!=null;
-        texts[2]=preview==null?"":mapped?preview.combined:"无映射";
+        texts[2]=preview==null?"":mapped?preview.combined:preview.pending?"等待另一手":"无映射";
         colors[2]=mapped?palette.accentInk:withAlpha(palette.ink,153);
         sizes[0]=sizes[4]=landscape?12:13;
         sizes[1]=sizes[3]=landscape?15:17;
