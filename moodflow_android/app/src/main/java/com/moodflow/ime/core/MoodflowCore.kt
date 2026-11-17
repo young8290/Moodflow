@@ -77,6 +77,9 @@ class MoodflowCore private constructor(private var handle: Long) : AutoCloseable
 
     fun clipboardClearUnpinned() = N.nativeClipboardClearUnpinned(handle)
 
+    fun restoreLegacyClipboard(): String =
+        N.nativeRestoreLegacyClipboard(handle) ?: "无法恢复旧版剪贴板历史。"
+
     // ── 插件 ──
 
     fun plugins(): List<PluginInfo> = Wire.plugins(N.nativePlugins(handle))

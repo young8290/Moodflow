@@ -12,6 +12,17 @@
 //! - 时间是 Unix 秒，由调用方给。
 
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
+
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LegacyMerge {
+    pub added: usize,
+    pub updated: usize,
+}
 
 /// 条目类型。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -81,6 +92,8 @@ pub struct History {
     /// 最新的在前。
     entries: Vec<Entry>,
     next_id: u64,
+    #[serde(default, skip_serializing_if = "is_false")]
+    android_legacy_restored: bool,
 }
 
 impl Default for History {
@@ -113,6 +126,7 @@ impl History {
             limits,
             entries: Vec::new(),
             next_id: 1,
+            android_legacy_restored: false,
         }
     }
 
@@ -220,6 +234,67 @@ impl History {
         self.entries.iter().filter(|e| e.kind == kind).collect()
     }
 
+    pub fn android_legacy_restored(&self) -> bool {
+        self.android_legacy_restored
+    }
+
+    /// 合并旧 Android 快照。重复正文保留当前 id，合并收藏状态和最新复制时间。
+    /// 标记与条目在同一快照中，用户迁移后再删除的条目不会在下次启动时恢复。
+    pub fn merge_android_legacy(&mut self, legacy: History, now: u64) -> Option<LegacyMerge> {
+        if self.android_legacy_restored {
+            return None;
+        }
+        if self.next_id.checked_add(legacy.entries.len() as u64)? == u64::MAX {
+            return None;
+        }
+        let first_id = self.next_id;
+        let mut positions: HashMap<String, usize> = self
+            .entries
+            .iter()
+            .enumerate()
+            .map(|(n, entry)| (entry.text.clone(), n))
+            .collect();
+        let mut updated = HashSet::new();
+        for mut entry in legacy.entries {
+            if entry.text.trim().is_empty() || entry.text.chars().count() > self.limits.max_chars {
+                continue;
+            }
+            entry.copied_at = entry.copied_at.min(now);
+            if let Some(&index) = positions.get(&entry.text) {
+                let current = &mut self.entries[index];
+                if current.id < first_id
+                    && (entry.copied_at > current.copied_at || entry.pinned && !current.pinned)
+                {
+                    updated.insert(current.id);
+                }
+                current.copied_at = current.copied_at.max(entry.copied_at);
+                current.pinned |= entry.pinned;
+            } else {
+                entry.id = self.next_id;
+                self.next_id += 1;
+                entry.kind = classify(&entry.text);
+                positions.insert(entry.text.clone(), self.entries.len());
+                self.entries.push(entry);
+            }
+        }
+        self.entries
+            .sort_by_key(|entry| std::cmp::Reverse(entry.copied_at));
+        self.prune(now);
+        self.android_legacy_restored = true;
+        Some(LegacyMerge {
+            added: self
+                .entries
+                .iter()
+                .filter(|entry| entry.id >= first_id)
+                .count(),
+            updated: self
+                .entries
+                .iter()
+                .filter(|entry| updated.contains(&entry.id))
+                .count(),
+        })
+    }
+
     pub fn to_json(&self) -> String {
         serde_json::to_string(self).expect("History 只含可序列化的字段")
     }
@@ -232,7 +307,10 @@ impl History {
         })?;
         // 防御：快照被手改过时，保证 id 不重复分配。
         let max_id = h.entries.iter().map(|e| e.id).max().unwrap_or(0);
-        h.next_id = h.next_id.max(max_id + 1);
+        h.next_id = h.next_id.max(max_id.saturating_add(1));
+        if h.next_id == u64::MAX {
+            return Err(LoadError { line: 0, column: 0 });
+        }
         Ok(h)
     }
 }
@@ -254,6 +332,53 @@ fn classify(text: &str) -> EntryKind {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn legacy_restore_preserves_current_ids_history_and_pins() {
+        let now = 9_000_000;
+        let mut current = History::default();
+        let Recorded::New(existing) = current.record("同一条", Source::default(), now - 50)
+        else {
+            panic!("new current entry");
+        };
+        let mut old = History::default();
+        let Recorded::New(pinned) = old.record("同一条", Source::default(), now - 30) else {
+            panic!("new legacy entry");
+        };
+        old.set_pinned(pinned, true);
+        old.record("过期内容", Source::default(), 1);
+        let Recorded::New(old_pin) = old.record("旧收藏", Source::default(), 1) else {
+            panic!("new legacy pin");
+        };
+        old.set_pinned(old_pin, true);
+        // Old snapshots did not serialize the migration marker.
+        let snapshot = old.to_json();
+        assert!(!snapshot.contains("android_legacy_restored"));
+        let legacy = History::from_json(&snapshot).unwrap();
+        let report = current.merge_android_legacy(legacy.clone(), now).unwrap();
+        assert_eq!(
+            report,
+            LegacyMerge {
+                added: 1,
+                updated: 1
+            }
+        );
+        let restored = current.get(existing).unwrap();
+        assert!(restored.pinned);
+        assert_eq!(restored.copied_at, now - 30);
+        assert_eq!(
+            current
+                .entries()
+                .iter()
+                .map(|e| e.text.as_str())
+                .collect::<Vec<_>>(),
+            ["同一条", "旧收藏"]
+        );
+        let mut reloaded = History::from_json(&current.to_json()).unwrap();
+        reloaded.remove(existing);
+        assert!(reloaded.merge_android_legacy(legacy, now).is_none());
+        assert_eq!(reloaded.entries().len(), 1);
+    }
 
     const DAY: u64 = 86_400;
 

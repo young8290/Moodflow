@@ -76,6 +76,7 @@ public final class SettingsActivity extends Activity {
     private final java.util.HashMap<String,Integer> scrollPositions=new java.util.HashMap<>();
     private int background,card,ink,secondary,accent,separator;
     private final ExecutorService documents=Executors.newSingleThreadExecutor();
+    private boolean restoringClipboard;
     private long documentGeneration;
     private boolean destroyed,resumed;
     // Typing speed test (in memory only; nothing is saved or logged).
@@ -500,11 +501,37 @@ public final class SettingsActivity extends Activity {
         ConfigSnapshot snap=snapshot();
         LinearLayout clipboard=group("剪贴板历史");
         toggle(clipboard,"记录剪贴板历史",Boolean.TRUE.equals(snap.bool("clipboard.enabled")),value -> { setConfig("clipboard.enabled",MoodflowCore.ConfigType.BOOL,value?"true":"false"); render(); });
+        java.io.File legacy=new java.io.File(getFilesDir(),"rust/clipboard.json");
+        if (legacy.isFile()) {
+            row(clipboard,KeyboardIcon.STACK_LAYERS,"恢复旧版剪贴板历史",null,
+                    restoringClipboard?"恢复中…":null,this::restoreLegacyClipboard);
+        }
         row(clipboard,KeyboardIcon.CLEAR,"清空历史（保留收藏）",null,null,() -> { core.clipboardClearUnpinned(); toast("已清空"); });
         paragraph(clipboard,"只在键盘显示时读取剪贴板（Android 10 起系统也只允许前台输入法读取）。密码框、私密输入框和系统标记为敏感的内容不记录。历史与桌面版同一种格式，保存在应用私有目录，不参与系统备份。");
         LinearLayout learning=group("用户词库");
         paragraph(learning,core.userStoreAvailable()?"选词会改善本机词库。私密输入框完全不经引擎，不学习。":"⚠ 用户词库不可写：学到的词不会保存。原库不会被删除或重建。");
     }
+    private void restoreLegacyClipboard() {
+        if(restoringClipboard) return;
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("恢复旧版剪贴板历史")
+                .setMessage("旧历史与当前历史合并，保留收藏，并按当前保留期限和条数整理。原文件继续保存在本机。")
+                .setNegativeButton("取消",null)
+                .setPositiveButton("恢复",(dialog,which) -> {
+                    restoringClipboard=true;
+                    render();
+                    CoreHolder.INSTANCE.restoreLegacyClipboard(this,message -> {
+                        restoringClipboard=false;
+                        if(!destroyed) {
+                            render();
+                            new android.app.AlertDialog.Builder(this).setMessage(message)
+                                    .setPositiveButton("确定",null).show();
+                        }
+                        return kotlin.Unit.INSTANCE;
+                    });
+                }).show();
+    }
+
     private void privacy() {
         LinearLayout input=group("输入与学习"); paragraph(input,getString(R.string.privacy));
         LinearLayout buffer=group("Buffer"); paragraph(buffer,"Buffer 只保留本次草稿：换输入框、隐藏键盘后清空，关掉 Buffer 不会发送已存的块。投递被拒时保留原文，可再点插入重试。");

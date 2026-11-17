@@ -1006,6 +1006,18 @@ pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeClipboardR
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeRestoreLegacyClipboard(
+    mut env: JNIEnv,
+    _class: JClass,
+    handle: jlong,
+) -> jstring {
+    let message = guard(None, || {
+        session(handle).map(MobileCore::restore_legacy_clipboard)
+    });
+    opt_string(&mut env, message.as_deref())
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_com_moodflow_ime_jni_MoodflowNative_nativeClipboardClearUnpinned(
     _env: JNIEnv,
     _class: JClass,

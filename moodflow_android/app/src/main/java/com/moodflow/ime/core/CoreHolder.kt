@@ -85,6 +85,25 @@ object CoreHolder {
         }
     }
 
+    /** 恢复包含文件 I/O，后台执行，并持有核心直到操作结束。 */
+    fun restoreLegacyClipboard(ctx: Context, done: (String) -> Unit) {
+        acquire(ctx) { core ->
+            if (core == null) {
+                release()
+                done("输入法核心不可用。")
+            } else {
+                Thread({
+                    val result = runCatching { core.restoreLegacyClipboard() }
+                        .getOrDefault("无法恢复旧版剪贴板历史。")
+                    main.post {
+                        release()
+                        done(result)
+                    }
+                }, "moodflow-clipboard-restore").start()
+            }
+        }
+    }
+
     /** 使用者离开。最后一个离开时关闭核心（下次 [acquire] 重新构造）。 */
     fun release() {
         users = (users - 1).coerceAtLeast(0)

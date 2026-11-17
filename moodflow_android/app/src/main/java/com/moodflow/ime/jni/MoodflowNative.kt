@@ -95,6 +95,7 @@ object MoodflowNative {
     @JvmStatic external fun nativeClipboardSetPinned(handle: Long, id: Long, pinned: Boolean): Boolean
     @JvmStatic external fun nativeClipboardRemove(handle: Long, id: Long): Boolean
     @JvmStatic external fun nativeClipboardClearUnpinned(handle: Long)
+    @JvmStatic external fun nativeRestoreLegacyClipboard(handle: Long): String?
 
     // ── 插件 ──
     @JvmStatic external fun nativePlugins(handle: Long): Array<String>?

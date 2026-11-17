@@ -605,6 +605,11 @@ impl MobileCore {
     // ── 剪贴板历史（与 Windows 同一份，见模块文档）──────────────────
 
     /// 宿主读到一次剪贴板变化（键盘可见期间）。`sensitive` = 平台标记敏感或当前字段私密。
+    pub fn restore_legacy_clipboard(&self) -> String {
+        self.coord
+            .restore_android_clipboard(&self.user_root.join("clipboard.json"))
+    }
+
     /// 是否收录由核心决定：`clipboard.enabled`、隐私环境、敏感、空白、过长都会跳过。
     pub fn clipboard_changed(&self, text: &str, sensitive: bool) {
         self.coord.inject_ui_event(UiEvent::ClipboardChanged {
