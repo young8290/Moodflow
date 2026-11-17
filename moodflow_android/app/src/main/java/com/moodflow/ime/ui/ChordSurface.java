@@ -35,6 +35,7 @@ public final class ChordSurface extends ViewGroup {
     private final ChordSequence sequence;
     private long previewSequenceRevision=-1;
     private boolean twoStage;
+    private long intervalMs;
     private final Runnable expireSequence=this::expireSequence;
     private final Set<Integer> tracked=new HashSet<>();
     private final SparseArray<String> ordinary=new SparseArray<>();
@@ -49,9 +50,9 @@ public final class ChordSurface extends ViewGroup {
     private int visualUiMode=-1;
     private KeyboardTheme theme=KeyboardTheme.ALL[0];
     /** Moodflow: the profile is the core's built-in keymap, loaded by the caller. */
-    public ChordSurface(Context context,Handler handler,ChordProfile profile,long intervalMs) {
+    public ChordSurface(Context context,Handler handler,ChordProfile profile) {
         super(context); this.handler=handler; this.profile=profile; gesture=new ChordGesture(profile); setLayoutDirection(LAYOUT_DIRECTION_LTR);
-        sequence=new ChordSequence(profile,intervalMs);
+        sequence=new ChordSequence(profile,0);
         setMotionEventSplittingEnabled(false);
         frames=ChordLayout.keys(400,false,profile);
         for(ChordLayout.Key key:frames) {
@@ -69,10 +70,13 @@ public final class ChordSurface extends ViewGroup {
         }
         updateButtons();
     }
-    public void render(boolean split,boolean resolves,boolean shifted,KeyboardTheme theme,boolean twoStage) {
+    public void render(boolean split,boolean resolves,boolean shifted,KeyboardTheme theme,boolean twoStage,long intervalMs) {
         boolean geometryChanged=this.split!=split;
-        boolean retire=geometryChanged || this.resolves!=resolves || this.shifted!=shifted || this.twoStage!=twoStage;
+        boolean retire=geometryChanged || this.resolves!=resolves || this.shifted!=shifted
+                || this.twoStage!=twoStage || this.intervalMs!=intervalMs;
         this.twoStage=twoStage;
+        this.intervalMs=intervalMs;
+        sequence.setIntervalMs(intervalMs);
         this.split=split; this.resolves=resolves; this.shifted=shifted; this.theme=theme;
         if(retire) cancel();
         if(geometryChanged) requestLayout();

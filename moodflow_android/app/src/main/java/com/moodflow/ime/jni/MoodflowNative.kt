@@ -111,7 +111,6 @@ object MoodflowNative {
     // ── 并击 ──
     @JvmStatic external fun nativeChordNew(json: String): Long
     @JvmStatic external fun nativeChordBuiltin(): Long
-    @JvmStatic external fun nativeChordInterval(h: Long): Long
     @JvmStatic external fun nativeChordMappings(h: Long): Array<String>?
     @JvmStatic external fun nativeChordHands(h: Long): Array<String>?
     @JvmStatic external fun nativeChordSettleBatch(h: Long, keys: String, nowMs: Long): String?
@@ -122,4 +121,5 @@ object MoodflowNative {
     @JvmStatic external fun nativeChordKeyUp(h: Long, key: String, nowMs: Long): String?
     @JvmStatic external fun nativeChordTick(h: Long, nowMs: Long): String?
     @JvmStatic external fun nativeChordReset(h: Long)
+    @JvmStatic external fun nativeChordInterval(h: Long): Long
 }

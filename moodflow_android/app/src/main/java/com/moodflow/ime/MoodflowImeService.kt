@@ -1133,6 +1133,7 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         val c = engine()
         if (c == null || tracker.current == null) return super.onKeyDown(keyCode, event)
+        chords?.flushPending()
         val mods = PhysicalKeys.toMods(event.metaState)
         val ch = chord
         val name = PhysicalKeys.chordKeyName(keyCode)
@@ -1140,14 +1141,10 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
             mods and (Mods.CTRL or Mods.ALT) == 0 && ch.isChordKey(name)
         ) {
             // 并击：按下只记账，全部松开时结算（moodflow-chord）
-            if (event.repeatCount == 0) {
-                chords?.flushPending()
-                handleChord(ch.keyDown(name, event.eventTime))
-            }
+            if (event.repeatCount == 0) handleChord(ch.keyDown(name, event.eventTime))
             return true
         }
         val vk = PhysicalKeys.toVk(keyCode) ?: return super.onKeyDown(keyCode, event)
-        chords?.flushPending()
         val o = c.keyDown(vk, mods)
         if (!o.consumed) return super.onKeyDown(keyCode, event)
         swallowedKeyUps += keyCode
@@ -1405,7 +1402,7 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
         keys = KeyboardSurface(this, keyHandler)
         surfaceContainer.addView(keys, FrameLayout.LayoutParams(-1, -1))
         chords = chordProfile?.let { profile ->
-            val surface = ChordSurface(this, chordHandler, profile, chord?.intervalMs() ?: 0L)
+            val surface = ChordSurface(this, chordHandler, profile)
             surfaceContainer.addView(surface, FrameLayout.LayoutParams(-1, -1))
             surface
         }
@@ -1570,7 +1567,7 @@ class MoodflowImeService : InputMethodService(), NativeEventSink {
             it.render(
                 layoutPref == KeyboardChoice.SPLIT_ORTHOGONAL,
                 chinese && !uppercase && engine() != null,
-                uppercase, theme, settings.twoStageChord,
+                uppercase, theme, settings.twoStageChord, this.chord?.intervalMs() ?: 0L,
             )
         }
         chordFooter.visibility = if (!panelOpen && chord) View.VISIBLE else View.GONE

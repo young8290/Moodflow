@@ -7,7 +7,7 @@ import java.util.List;
 /** Joins two released touch strokes when the active profile has that exact cross-hand mapping. */
 public final class ChordSequence {
     private final ChordProfile profile;
-    private final long intervalMs;
+    private long intervalMs;
     private ChordGesture.Stroke pending;
     private long deadline;
     private boolean following;
@@ -17,6 +17,8 @@ public final class ChordSequence {
         this.profile = profile;
         this.intervalMs = intervalMs;
     }
+
+    public void setIntervalMs(long intervalMs) { this.intervalMs = intervalMs; }
 
     public long revision() { return revision; }
     public boolean hasPending() { return pending != null; }
