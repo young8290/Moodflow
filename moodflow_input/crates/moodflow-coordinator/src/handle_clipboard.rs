@@ -24,6 +24,29 @@ const PANEL_MAX: usize = 30;
 /// 菜单项标签最多多少个字符。
 const LABEL_MAX: usize = 32;
 const FILE_NAME: &str = "clipboard_history.json";
+const MAX_RESTORE_BYTES: u64 = 16 * 1024 * 1024;
+
+fn read_restore_snapshot(path: &std::path::Path) -> std::io::Result<History> {
+    use std::io::Read as _;
+    let mut raw = String::new();
+    std::fs::File::open(path)?
+        .take(MAX_RESTORE_BYTES + 1)
+        .read_to_string(&mut raw)?;
+    if raw.len() as u64 > MAX_RESTORE_BYTES {
+        return Err(std::io::ErrorKind::InvalidData.into());
+    }
+    History::from_json(&raw).map_err(|_| std::io::ErrorKind::InvalidData.into())
+}
+
+fn write_snapshot(path: &std::path::Path, history: &History) -> std::io::Result<()> {
+    use std::io::Write as _;
+    let temp = path.with_extension("json.tmp");
+    let mut file = std::fs::File::create(&temp)?;
+    file.write_all(history.to_json().as_bytes())?;
+    file.sync_all()?;
+    drop(file);
+    std::fs::rename(temp, path)
+}
 
 /// 协调器持有的剪贴板历史。
 pub(crate) struct ClipboardState {
@@ -78,6 +101,40 @@ impl ClipboardState {
         {
             warn!("剪贴板历史写盘失败");
         }
+    }
+
+    fn restore_legacy(
+        &self,
+        old_path: &std::path::Path,
+        now: u64,
+    ) -> Result<Option<moodflow_clipboard::LegacyMerge>, &'static str> {
+        let path = self.path.as_ref().ok_or("当前用户历史无法保存。")?;
+        let mut active = self
+            .history
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        if active.android_legacy_restored() {
+            return Ok(None);
+        }
+        let legacy = read_restore_snapshot(old_path).map_err(|error| {
+            if error.kind() == std::io::ErrorKind::NotFound {
+                "未找到旧版剪贴板历史。"
+            } else {
+                "旧版历史无法读取。原文件已保留。"
+            }
+        })?;
+        match read_restore_snapshot(path) {
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(_) => return Err("当前历史无法确认完好，恢复已停止。原文件已保留。"),
+        }
+        let mut merged = active.clone();
+        let report = merged
+            .merge_android_legacy(legacy, now)
+            .ok_or("当前历史无法分配新条目。")?;
+        write_snapshot(path, &merged).map_err(|_| "恢复结果无法保存，旧版文件已保留。")?;
+        *active = merged;
+        Ok(Some(report))
     }
 
     /// 收录一次复制。返回是否新增或刷新了条目。
@@ -158,6 +215,21 @@ pub(crate) fn panel_label(text: &str) -> String {
 }
 
 impl Coordinator {
+    /// 显式恢复仅导入已经保存在 Android 应用私有目录的旧快照。
+    pub fn restore_android_clipboard(&self, old_path: &std::path::Path) -> String {
+        if !self.rt().config.clipboard.enabled {
+            return "请先开启剪贴板历史，再恢复旧版内容。".into();
+        }
+        match self.clipboard.restore_legacy(old_path, now_secs()) {
+            Ok(Some(report)) => format!(
+                "恢复完成。新增 {} 条，更新 {} 条。",
+                report.added, report.updated
+            ),
+            Ok(None) => "旧版历史已恢复过。".into(),
+            Err(message) => message.into(),
+        }
+    }
+
     /// Explicit Hub actions work with any active IME. They never synthesize a paste.
     pub(crate) fn reviewed_clipboard_action(
         &self,

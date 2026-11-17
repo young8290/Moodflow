@@ -1,3 +1,7 @@
+import groovy.json.JsonOutput
+import java.nio.file.Files
+import java.security.MessageDigest
+import java.util.HexFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -106,8 +110,49 @@ val moodflowDataDir: File = run {
 }
 val copyMoodflowData = tasks.register<Sync>("copyMoodflowData") {
     description = "把出厂数据（含词库）拷进 APK assets"
-    from(moodflowDataDir)
-    into(File(generatedAssetsDir, "data"))
+    from(moodflowDataDir) {
+        exclude("manifest.json")
+    }
+    val packaged = File(generatedAssetsDir, "data")
+    into(packaged)
+    doFirst {
+        // Shared manifest rules: state and links are build errors, not shipped assets.
+        Files.walk(moodflowDataDir.toPath()).use { paths ->
+            paths.forEach { path ->
+                val parts = moodflowDataDir.toPath().relativize(path).map { it.toString().lowercase() }
+                check(!Files.isSymbolicLink(path) && parts.none { it in setOf("build", "sync") || ".userdb" in it }) {
+                    "不允许打包 Android 出厂数据：$path"
+                }
+                check(parts.lastOrNull() !in setOf("installation.yaml", "user.yaml", "userdata.redb",
+                    "clipboard.json", "clipboard_history.json", ".installed")) {
+                    "出厂数据混入用户状态：$path"
+                }
+            }
+        }
+    }
+    doLast {
+        val entries = sortedMapOf<String, Map<String, Any>>()
+        val buffer = ByteArray(64 * 1024)
+        packaged.walkTopDown().filter { it.isFile && it != packaged.resolve("manifest.json") }.forEach { file ->
+            val digest = MessageDigest.getInstance("SHA-256")
+            var size = 0L
+            file.inputStream().use { input ->
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    size += count
+                    digest.update(buffer, 0, count)
+                }
+            }
+            entries[file.relativeTo(packaged).invariantSeparatorsPath] =
+                mapOf("size" to size, "sha256" to HexFormat.of().formatHex(digest.digest()))
+        }
+        check("config.toml" in entries) { "Android 出厂数据缺少 config.toml" }
+        check(entries.size <= 20_000) { "Android 出厂数据条目过多" }
+        val manifest = JsonOutput.toJson(mapOf("version" to 1, "files" to entries)).toByteArray(Charsets.UTF_8)
+        check(manifest.size <= 4 * 1024 * 1024) { "Android 出厂数据清单过大" }
+        packaged.resolve("manifest.json").writeBytes(manifest)
+    }
 }
 
 // 除了挂在 preBuild 上，再显式挂到真正消费这两个目录的合并任务上：Gradle 8 会拒绝

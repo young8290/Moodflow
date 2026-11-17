@@ -190,6 +190,28 @@ jobs:
           # 词库必须在：没有它 APK 装上也打不出中文候选（0.124 的 APK 就是这样）
           unzip -l "$apk" | grep -q "assets/data/schemas/pinyin/rime_frost.dict.yaml"
           unzip -l "$apk" | grep -q "assets/data/schemas/pinyin/cn_dicts/base.dict.yaml"
+          python3 - "$apk" <<'PY'
+          import hashlib
+          import json
+          import sys
+          import zipfile
+
+          prefix = "assets/data/"
+          with zipfile.ZipFile(sys.argv[1]) as apk:
+              manifest = json.loads(apk.read(prefix + "manifest.json"))
+              assert manifest["version"] == 1
+              files = manifest["files"]
+              packaged = {
+                  item.filename.removeprefix(prefix): item for item in apk.infolist()
+                  if item.filename.startswith(prefix) and not item.is_dir()
+                  and item.filename != prefix + "manifest.json"
+              }
+              assert packaged.keys() == files.keys(), "APK 数据文件与清单不同"
+              for path, item in packaged.items():
+                  assert item.file_size == files[path]["size"], path
+                  with apk.open(item) as stream:
+                      assert hashlib.file_digest(stream, "sha256").hexdigest() == files[path]["sha256"], path
+          PY
           ls -lh "$apk"
 
       - uses: actions/upload-artifact@v4
