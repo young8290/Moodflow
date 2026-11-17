@@ -25,6 +25,11 @@ android {
     namespace = "com.moodflow.ime"
     compileSdk = 35
 
+    androidResources {
+        // 默认 <dir>_* 会漏打 data/themes/_base 和 _moodflow。
+        ignoreAssetsPattern = ".*:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~"
+    }
+
     defaultConfig {
         applicationId = "com.moodflow.ime"
         minSdk = 26
@@ -112,6 +117,14 @@ val copyMoodflowData = tasks.register<Sync>("copyMoodflowData") {
     description = "把出厂数据（含词库）拷进 APK assets"
     from(moodflowDataDir) {
         exclude("manifest.json")
+        // 与 androidResources 的过滤规则保持一致，清单只包含可打入 APK 的文件。
+        exclude { element ->
+            element.relativePath.segments.any { segment ->
+                val name = segment.lowercase()
+                name.startsWith(".") || name.endsWith(".scc") || name.endsWith("~") ||
+                    name in setOf("cvs", "thumbs.db", "picasa.ini")
+            }
+        }
     }
     val packaged = File(generatedAssetsDir, "data")
     into(packaged)

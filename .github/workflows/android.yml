@@ -206,7 +206,10 @@ jobs:
                   if item.filename.startswith(prefix) and not item.is_dir()
                   and item.filename != prefix + "manifest.json"
               }
-              assert packaged.keys() == files.keys(), "APK 数据文件与清单不同"
+              missing = sorted(files.keys() - packaged.keys())
+              unexpected = sorted(packaged.keys() - files.keys())
+              assert not missing and not unexpected, (f"缺少文件：{missing}；额外文件：{unexpected}")
+              assert "themes/_base/theme.toml" in packaged, "APK 缺少基础主题"
               for path, item in packaged.items():
                   assert item.file_size == files[path]["size"], path
                   with apk.open(item) as stream:
